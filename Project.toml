@@ -1,0 +1,13 @@
+name = "fermi_cg"
+uuid = "855c3b3a-d9bb-4919-8b00-0b3cfbdffb6f"
+authors = ["Nick Mayhall <nmayhall@vt.edu> and contributors"]
+version = "0.1.0"
+
+[compat]
+julia = "1.1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
