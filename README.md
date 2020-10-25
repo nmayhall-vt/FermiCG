@@ -1,4 +1,5 @@
-# fermi_cg
+# FermiCG
+A Julia package for course-grained electronic structure calculations 
 
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://nmayhall.github.io/fermi_cg.jl/stable)
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://nmayhall.github.io/fermi_cg.jl/dev)
