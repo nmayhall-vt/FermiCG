@@ -15,7 +15,7 @@ import Base: length, print
 	lin_index::Int = 1
 	config::Array{Int,1} = Vector(1:ne)
 	#ca_lookup::Array{Array{Int,1},1}
-	max::Int = get_nchk(no,ne)
+	#max::Int = get_nchk(no,ne)
 end
 
 

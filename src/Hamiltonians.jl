@@ -1,5 +1,5 @@
 
-struct ElecInts_InCore
+struct ElectronicInts
     #=
     Type to hold a second quantized Hamiltonian coefficients in memory
 
@@ -13,7 +13,7 @@ struct ElecInts_InCore
 end
 
 
-@with_kw struct Problem
+@with_kw struct ElectronicProblem
 	#=
 	Structure to hold all problem specific parameters
 	=#

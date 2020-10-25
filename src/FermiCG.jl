@@ -1,7 +1,7 @@
 """
 General electronic course-graining platform
 """
-module fermi_cg
+module FermiCG
 
 
 #####################################
@@ -13,6 +13,7 @@ using KrylovKit
 using LinearAlgebra
 using NDTensors
 using PackageCompiler
+using Parameters 
 using Printf
 using TimerOutputs
 #
@@ -29,4 +30,7 @@ include("ConfigStrings.jl")
 #
 #####################################
 
+export ConfigString
+export ElectronicInts 
+export ElectronicProblem 
 end

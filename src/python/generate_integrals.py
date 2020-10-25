@@ -35,6 +35,17 @@ np.save('data/ints_0b.npy',pmol.ecore)
 np.save('data/ints_1b.npy',pmol.h)
 np.save('data/ints_2b.npy',pmol.g)
 
+
+problem = {}
+problem['charge'] = charge
+problem['spin'] = spin 
+problem['basis_set'] = basis_set
+problem['n_elec'] = 4 
+problem['n_orbs'] = pmol.h.shape[1]
+import json
+with open('data/problem.json', 'w') as fp:
+    json.dump(problem, fp)
+
 test = True
 if test:
     pyscf.lib.num_threads(1)
