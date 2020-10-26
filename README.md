@@ -14,7 +14,7 @@ A Julia package for course-grained electronic structure calculations
 	```julia
 	git clone https://github.com/nmayhall-vt/FermiCG.git
 	cd FermiCG/
-	'''
+	```
 
 
 2. Create python virtual environment which will hold the PYSCF executable
@@ -27,4 +27,4 @@ A Julia package for course-grained electronic structure calculations
 	cd ../
 	julia --project=./
 	julia> using Pkg; Pkg.build("PyCall")
-	'''
+	```
