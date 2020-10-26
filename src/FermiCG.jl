@@ -27,10 +27,13 @@ using TimerOutputs
 include("Tools.jl")
 include("Hamiltonians.jl")
 include("ConfigStrings.jl")
+include("pyscf/PyscfFunctions.jl")
 #
 #####################################
 
 export ConfigString
 export ElectronicInts 
 export ElectronicProblem 
+export Molecule 
+export get_pyscf_integrals 
 end

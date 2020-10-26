@@ -29,3 +29,15 @@ end
 	algorithm::String = "direct"    #  options: direct/davidson
 	n_roots::Int = 1
 end
+
+@with_kw struct Molecule 
+    #=
+    Type defining a molecule 
+	charge: overall charge on molecule
+multiplicity: multiplicity
+geometry: XYZ coordinates
+=#
+charge = 0
+multiplicity=1
+geometry=['H' 0 0 0; 'H' 1 0 0]
+end

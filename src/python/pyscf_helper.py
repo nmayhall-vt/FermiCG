@@ -76,6 +76,11 @@ class PyscfHelper(object):
         self.n_orb = mol.nao_nr()
 
 
+        json_mol = pyscf.gto.mole.dumps(mol)
+        import json
+        with open('data/mol.json', 'w') as fp:
+            json.dump(json_mol, fp)
+        
         if cas == True:
             cas_norb = cas_nstop - cas_nstart
             from pyscf import mcscf
