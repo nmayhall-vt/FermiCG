@@ -32,7 +32,7 @@ ham 	= ElectronicInts(ints_0b, ints_1b, ints_2b)
 using Plots
 N = size(ham.h2)[1]
 println(size(ham.h2))
-heatmap(ham.h1, color = :greys, show=true)
+heatmap(ham.h1, color = :greys)
 gui()
 print("what?")
 
@@ -40,4 +40,5 @@ problem = ElectronicProblem(no=size(ints_1b,1), na=n_elec_a, nb=n_elec_b)
 mol     = Molecule()
 print(mol.geometry)
 
-# get_pyscf_integrals(mol,problem)
+#get_pyscf_integrals(mol,problem)
+pyscf_fci(ham,problem)

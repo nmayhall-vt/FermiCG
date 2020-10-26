@@ -13,7 +13,7 @@ using KrylovKit
 using LinearAlgebra
 using NDTensors
 using PackageCompiler
-using Parameters 
+using Parameters
 using Printf
 using TimerOutputs
 #
@@ -32,8 +32,9 @@ include("pyscf/PyscfFunctions.jl")
 #####################################
 
 export ConfigString
-export ElectronicInts 
-export ElectronicProblem 
-export Molecule 
-export get_pyscf_integrals 
+export ElectronicInts
+export ElectronicProblem
+export Molecule
+#export get_pyscf_integrals
+export pyscf_fci
 end

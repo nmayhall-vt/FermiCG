@@ -30,9 +30,9 @@ end
 	n_roots::Int = 1
 end
 
-@with_kw struct Molecule 
+@with_kw struct Molecule
     #=
-    Type defining a molecule 
+    Type defining a molecule
 	charge: overall charge on molecule
 multiplicity: multiplicity
 geometry: XYZ coordinates
