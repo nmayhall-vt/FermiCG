@@ -92,7 +92,7 @@ uuid = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 [[Unicode]]
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
 
-[[fermi_cg]]
+[[FermiCG]]
 path = ".."
 uuid = "855c3b3a-d9bb-4919-8b00-0b3cfbdffb6f"
 version = "0.1.0"

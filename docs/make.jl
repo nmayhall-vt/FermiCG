@@ -1,14 +1,14 @@
-using fermi_cg
+using FermiCG
 using Documenter
 
 makedocs(;
-    modules=[fermi_cg],
+    modules=[FermiCG],
     authors="Nick Mayhall <nmayhall@vt.edu> and contributors",
-    repo="https://github.com/nmayhall/fermi_cg.jl/blob/{commit}{path}#L{line}",
-    sitename="fermi_cg.jl",
+    repo="https://github.com/nmayhall/FermiCG.jl/blob/{commit}{path}#L{line}",
+    sitename="FermiCG.jl",
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
-        canonical="https://nmayhall.github.io/fermi_cg.jl",
+        canonical="https://nmayhall.github.io/FermiCG.jl",
         assets=String[],
     ),
     pages=[
@@ -17,5 +17,5 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/nmayhall/fermi_cg.jl",
+    repo="github.com/nmayhall/FermiCG.jl",
 )

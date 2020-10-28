@@ -27,6 +27,8 @@ after_success:
   - |
     julia -e '
       using Pkg
+      Pkg.add("Documenter")
+      ENV["DOCUMENTER_DEBUG"] = "true"; cd(Pkg.dir("FermiCG", "docs")); include("make.jl")
       Pkg.add("Coverage")
       using Coverage
       Codecov.submit(process_folder())'
