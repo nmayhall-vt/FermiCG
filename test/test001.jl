@@ -3,7 +3,7 @@ using Printf
 using NPZ
 using JSON
 using Pkg
-
+using LinearAlgebra
 
 
 testdir = joinpath(dirname(pathof(FermiCG)), "..", "test")
@@ -57,3 +57,14 @@ print(typeof(mf))
 FermiCG.pyscf_write_molden(mol,"sto-3g",mf.mo_coeff)
 FermiCG.pyscf_write_molden(mf,filename="2.molden")
 FermiCG.pyscf_fci(ham,2,2)
+
+n_orbs = size(mf.mo_coeff)[2]
+orb_indices = [i for i = 1:n_orbs]
+emb_indices = [i for i = 1:2]
+display(emb_indices)
+emb_orbs = mf.mo_coeff[:,emb_indices];
+emb_density = 2*emb_orbs * emb_orbs';
+display(emb_density)
+PS = emb_density*mf.get_ovlp();
+n = tr(PS)
+FermiCG.pyscf_build_ints(mf.mol,mf.mo_coeff[:,[3,4]], emb_density)

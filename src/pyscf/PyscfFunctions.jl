@@ -5,12 +5,12 @@ pushfirst!(PyVector(pyimport("sys")."path"), pydir)
 ENV["PYTHON"] = Sys.which("python")
 #print(ENV)
 
-function pyscf_do_scf(molecule::Molecule, basis::String)
+function pyscf_do_scf(molecule::Molecule, basis::String; conv_tol=1e-10)
 	pyscf = pyimport("pyscf")
 	pymol = make_pyscf_mole(molecule, basis)
 	#pymol.max_memory = 1000 # MB
 	#pymol.symmetry = true
-	mf = pyscf.scf.RHF(pymol).run()
+	mf = pyscf.scf.RHF(pymol).run(conv_tol=conv_tol)
 	enu = mf.energy_nuc()
 	# print(np.linalg.eig(mf.get_fock())[0])
 
@@ -53,6 +53,25 @@ function pyscf_write_molden(mf; filename="orbitals.molden")
 	molden.from_mo(mf.mol, filename, mf.mo_coeff)
 	return 1
 end
+
+
+function pyscf_build_ints(mol, c_act, d1_embed)
+	"""
+	build 1 and 2 electron integrals using a pyscf SCF object
+	active is list of orbital indices which are active
+	d1_embed is a density matrix for the frozen part (e.g, doccs or frozen clusters)
+
+	returns an ElectronicInts type
+	"""
+	pyscf = pyimport("pyscf")
+
+	nact = size(c_act)[2]
+	#mycas = pyscf.mcscf.CASSCF(mf, length(active), 0)
+	e2 = pyscf.ao2mo.kernel(mol, c_act, aosym="s4",compact=false)
+	print(size(e2))
+	# reshape(e2, [nact, nact, nact, nact])
+end
+
 
 function pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1)
 	println(" Use PYSCF to compute FCI")

@@ -61,8 +61,8 @@ using FermiCG
     FermiCG.pyscf_write_molden(mol,"sto-3g",mf.mo_coeff)
     FermiCG.pyscf_write_molden(mf,filename="2.molden")
 
+
     @test isapprox(mf.e_tot, -2.11378509706788, atol=1e-10)
-    #FermiCG.pyscf_fci(ham,problem)
-
-
+    efci,rdm1,dim = FermiCG.pyscf_fci(ham,2,2)
+    @test isapprox(efci, -2.2251145788392774, atol=1e-10)
 end
