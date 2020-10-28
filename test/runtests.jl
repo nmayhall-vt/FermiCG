@@ -1,6 +1,9 @@
-using fermi_cg
+using FermiCG
 using Test
+using Random
 
-@testset "fermi_cg.jl" begin
-    # Write your tests here.
+Random.seed!(1234567)
+
+@testset "FermiCG.jl" begin
+    include("test_hamiltonians.jl")
 end

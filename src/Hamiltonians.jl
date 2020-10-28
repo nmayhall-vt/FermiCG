@@ -1,15 +1,16 @@
+using TensorOperations
 
 struct ElectronicInts
-    #=
-    Type to hold a second quantized Hamiltonian coefficients in memory
+	#=
+	Type to hold a second quantized Hamiltonian coefficients in memory
 
-        h0  is constant energy shift
-        h1  is one body operator
-        h2  is two body operator
-    =#
+	h0  is constant energy shift
+	h1  is one body operator
+	h2  is two body operator
+	=#
 	h0::Real
-    h1::Array{Float64,2}
-    h2::Array{Float64,4}
+	h1::Array{Float64,2}
+	h2::Array{Float64,4}
 end
 
 
@@ -31,13 +32,40 @@ end
 end
 
 @with_kw struct Molecule
-    #=
-    Type defining a molecule
+	#=
+	Type defining a molecule
 	charge: overall charge on molecule
-multiplicity: multiplicity
-geometry: XYZ coordinates
-=#
-charge = 0
-multiplicity=1
-geometry=['H' 0 0 0; 'H' 1 0 0]
+	multiplicity: multiplicity
+	geometry: XYZ coordinates
+	=#
+	charge = 0
+	multiplicity=1
+	geometry=['H' 0 0 0; 'H' 1 0 0]
+end
+
+
+
+
+
+#Functions
+function orbital_rotation!(ints::ElectronicInts, U)
+	#=
+	Transform electronic integrals, by U
+	i.e., h(pq) = U(rp)h(rs)U(sq)
+	=#
+	@tensor begin
+		ints.h1[p,q] = U[r,p]*U[s,q]*ints.h1[r,s]
+		ints.h2[p,q,r,s] = U[t,p]*U[u,q]*U[v,r]*U[w,s]*ints.h2[t,u,v,w]
+	end
+end
+function orbital_rotation(ints::ElectronicInts, U)
+	#=
+	Transform electronic integrals, by U
+	i.e., h(pq) = U(rp)h(rs)U(sq)
+	=#
+	@tensor begin
+    	h1[p,q] := U[r,p]*U[s,q]*ints.h1[r,s]
+		h2[p,q,r,s] := U[t,p]*U[u,q]*U[v,r]*U[w,s]*ints.h2[t,u,v,w]
+	end
+	return ElectronicInts(ints.h0,h1,h2)
 end
