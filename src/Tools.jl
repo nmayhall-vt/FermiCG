@@ -1,8 +1,11 @@
 function calc_nchk(n::Int,k::Int)
-    #= 
+    #=
     Calculate n choose k
     =#
-    
+    if n == 0 || k == 0
+		return 1
+	end
+
     #@myassert(n>=k)
     accum::BigInt = 1
     for i in 1:k

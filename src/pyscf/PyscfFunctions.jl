@@ -5,42 +5,63 @@ pushfirst!(PyVector(pyimport("sys")."path"), pydir)
 ENV["PYTHON"] = Sys.which("python")
 #print(ENV)
 
-function get_pyscf_integrals(molecule::Molecule, problem)
-	print("NYI")
-	exit()
-	math = pyimport("math")
-	math.sin(math.pi / 4)
-
+function pyscf_do_scf(molecule::Molecule, basis::String)
 	pyscf = pyimport("pyscf")
-	print(" Here I am","\n")
+	pymol = make_pyscf_mole(molecule, basis)
+	#pymol.max_memory = 1000 # MB
+	#pymol.symmetry = true
+	mf = pyscf.scf.RHF(pymol).run()
+	enu = mf.energy_nuc()
+	# print(np.linalg.eig(mf.get_fock())[0])
 
-	mol = pyscf.gto.Mole()
-	geomstr = ""
-	for i in molecule.geometry
-		println(i)
-		geomstr = geomstr * string(i)
-	end
-	print(geomstr)
+	# if pymol.symmetry == True:
+	# 	from pyscf import symm
+	# 	mo = symm.symmetrize_orb(mol, mf.mo_coeff)
+	# 	osym = symm.label_orb_symm(mol, mol.irrep_name, mol.symm_orb, mo)
+	# 	#symm.addons.symmetrize_space(mol, mo, s=None, check=True, tol=1e-07)
+	# 	for i in range(len(osym)):
+	# 		print("%4d %8s %16.8f"%(i+1,osym[i],mf.mo_energy[i]))
 
-	print("Geometry done.")
-	mol.atom = geomstr
-
-	mol.max_memory = 1000 # MB
-	mol.symmetry = true
-	mol.charge = charge
-	mol.spin = spin
-	mol.basis = basis_set
-	mol.build()
+	return mf
 end
 
-function pyscf_fci(ham, problem; max_cycle=20, conv_tol=1e-8, nroots=1)
+function make_pyscf_mole(molecule::Molecule, basis)
+	pyscf = pyimport("pyscf")
+	pymol = pyscf.gto.Mole()
+	geomstr = ""
+	for i in molecule.atoms
+		geomstr = geomstr * string(i.symbol,", ", join(map(string, i.xyz), ", "),"\n")
+	end
+	pymol.atom = geomstr
+	pymol.charge = molecule.charge
+	pymol.spin = molecule.multiplicity-1
+	pymol.build()
+	return pymol
+end
+
+function pyscf_write_molden(molecule, basis, C; filename="orbitals.molden")
+	pyscf = pyimport("pyscf")
+	molden = pyimport("pyscf.molden")
+	pymol = make_pyscf_mole(molecule, basis)
+	molden.from_mo(pymol, filename, C)
+	return 1
+end
+
+function pyscf_write_molden(mf; filename="orbitals.molden")
+	pyscf = pyimport("pyscf")
+	molden = pyimport("pyscf.molden")
+	molden.from_mo(mf.mol, filename, mf.mo_coeff)
+	return 1
+end
+
+function pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1)
 	println(" Use PYSCF to compute FCI")
 	pyscf = pyimport("pyscf")
 	fci = pyimport("pyscf.fci")
 	cisolver = pyscf.fci.direct_spin1.FCI()
 	cisolver.max_cycle = max_cycle
 	cisolver.conv_tol = conv_tol
-	nelec = problem.na + problem.nb
+	nelec = na + nb
 	norb = size(ham.h1)[1]
 	efci, ci = cisolver.kernel(ham.h1, ham.h2, norb , nelec, ecore=ham.h0, nroots =nroots, verbose=100)
 	fci_dim = size(ci)[1]*size(ci)[2]

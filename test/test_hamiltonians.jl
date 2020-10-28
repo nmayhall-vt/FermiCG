@@ -48,4 +48,21 @@ using FermiCG
     @test all(isapprox(ham.h1,new_ham.h1, atol=1e-12))
     @test all(isapprox(ham.h2,new_ham.h2, atol=1e-12))
 
+    atoms = []
+    push!(atoms,Atom(1,"H",[0,0,0]))
+    push!(atoms,Atom(2,"H",[1,0,0]))
+    push!(atoms,Atom(3,"H",[0,0,2]))
+    push!(atoms,Atom(4,"H",[1,0,2]))
+
+    mol     = Molecule(0,1,atoms)
+
+    mf = FermiCG.pyscf_do_scf(mol,"sto-3g")
+    print(typeof(mf))
+    FermiCG.pyscf_write_molden(mol,"sto-3g",mf.mo_coeff)
+    FermiCG.pyscf_write_molden(mf,filename="2.molden")
+
+    @test isapprox(mf.e_tot, -2.11378509706788, atol=1e-10)
+    #FermiCG.pyscf_fci(ham,problem)
+
+
 end

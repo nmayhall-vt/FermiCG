@@ -14,33 +14,43 @@ struct ElectronicInts
 end
 
 
-@with_kw struct ElectronicProblem
+# @with_kw struct ElectronicProblem
+# 	#=
+# 	Structure to hold all problem specific parameters
+# 	=#
+# 	no::Int = 0
+# 	na::Int = 0  # number of alpha
+# 	nb::Int = 0  # number of beta
+# 	basis::String = "sto-3g"
+# 	dima::Int = calc_nchk(no,na)
+# 	dimb::Int = calc_nchk(no,nb)
+# 	#dim::Int = dima*dimb
+# 	#converged::Bool = false
+# 	#restarted::Bool = false
+# 	#iteration::Int = 0
+# 	#algorithm::String = "direct"    #  options: direct/davidson
+# 	#n_roots::Int = 1
+# end
+
+struct Atom
 	#=
-	Structure to hold all problem specific parameters
+	Type defining an atom
 	=#
-	no::Int = 0
-	na::Int = 0  # number of alpha
-	nb::Int = 0  # number of beta
-	dima::Int = calc_nchk(no,na)
-	dimb::Int = calc_nchk(no,nb)
-	dim::Int = dima*dimb
-	converged::Bool = false
-	restarted::Bool = false
-	iteration::Int = 0
-	algorithm::String = "direct"    #  options: direct/davidson
-	n_roots::Int = 1
+	id::Integer
+	symbol::String
+	xyz::Array{Float64,1}
 end
 
-@with_kw struct Molecule
+struct Molecule
 	#=
 	Type defining a molecule
 	charge: overall charge on molecule
 	multiplicity: multiplicity
 	geometry: XYZ coordinates
 	=#
-	charge = 0
-	multiplicity=1
-	geometry=['H' 0 0 0; 'H' 1 0 0]
+	charge::Integer
+	multiplicity::Integer
+	atoms::Array{Atom,1}
 end
 
 

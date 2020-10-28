@@ -33,8 +33,9 @@ include("pyscf/PyscfFunctions.jl")
 
 export ConfigString
 export ElectronicInts
-export ElectronicProblem
+#export ElectronicProblem
 export Molecule
+export Atom
 #export get_pyscf_integrals
-export pyscf_fci
+#export pyscf_fci
 end
