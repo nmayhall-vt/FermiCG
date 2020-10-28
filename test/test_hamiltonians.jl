@@ -41,4 +41,11 @@ using FermiCG
     @test all(isapprox(ham.h2,new_ham.h2, atol=1e-12))
     display(ham.h1)
     display(new_ham.h1)
+
+    FermiCG.orbital_rotation!(ham,U)
+    new_ham = FermiCG.orbital_rotation(ham,U)
+    @test all(isapprox(ham.h0,new_ham.h0, atol=1e-12))
+    @test all(isapprox(ham.h1,new_ham.h1, atol=1e-12))
+    @test all(isapprox(ham.h2,new_ham.h2, atol=1e-12))
+
 end
