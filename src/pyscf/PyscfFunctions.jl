@@ -1,5 +1,6 @@
 using PyCall
 using PrettyTables
+
 pydir = joinpath(dirname(pathof(FermiCG)), "python")
 pushfirst!(PyVector(pyimport("sys")."path"), pydir)
 ENV["PYTHON"] = Sys.which("python")
@@ -150,4 +151,17 @@ function pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1)
 	#fci_dim =1
 
 	return efci, d1, fci_dim
+end
+
+
+function localize(C::Array{Float64,2},method::String,mol)
+	pyscf = pyimport("pyscf")
+	pyscflo = pyimport("pyscf.lo")
+	if lowercase(method) == "lowdin"
+		Cl = mol.intor("int1e_ovlp_sph")
+		return Cl^(-.5)
+	elseif lowercase(method) == "boys"
+		Cl = pyscflo.Boys(mol, C).kernel(verbose=4)
+		return Cl
+	end
 end
