@@ -8,10 +8,14 @@ ENV["PYTHON"] = Sys.which("python")
 function pyscf_do_scf(molecule::Molecule, basis::String; conv_tol=1e-10)
 	pyscf = pyimport("pyscf")
 	pymol = make_pyscf_mole(molecule, basis)
+
+	println(pymol.basis)
 	#pymol.max_memory = 1000 # MB
 	#pymol.symmetry = true
 	mf = pyscf.scf.RHF(pymol).run(conv_tol=conv_tol)
 	enu = mf.energy_nuc()
+	println("MO Energies")
+	display(mf.mo_energy)
 	# print(np.linalg.eig(mf.get_fock())[0])
 
 	# if pymol.symmetry == True:
@@ -25,9 +29,10 @@ function pyscf_do_scf(molecule::Molecule, basis::String; conv_tol=1e-10)
 	return mf
 end
 
-function make_pyscf_mole(molecule::Molecule, basis)
+function make_pyscf_mole(molecule::Molecule, basis::String)
 	pyscf = pyimport("pyscf")
 	pymol = pyscf.gto.Mole()
+	pymol.basis = basis
 	geomstr = ""
 	for i in molecule.atoms
 		geomstr = geomstr * string(i.symbol,", ", join(map(string, i.xyz), ", "),"\n")
@@ -67,9 +72,54 @@ function pyscf_build_ints(mol, c_act, d1_embed)
 
 	nact = size(c_act)[2]
 	#mycas = pyscf.mcscf.CASSCF(mf, length(active), 0)
-	e2 = pyscf.ao2mo.kernel(mol, c_act, aosym="s4",compact=false)
-	print(size(e2))
-	# reshape(e2, [nact, nact, nact, nact])
+
+	h0 = pyscf.gto.mole.energy_nuc(mol)
+	h = c_act' * pyscf.scf.hf.get_hcore(mol) * c_act
+	j, k = pyscf.scf.hf.get_jk(mol, d1_embed, hermi=1)
+	j = c_act' * j * c_act;
+	k = c_act' * k * c_act;
+	h2 = pyscf.ao2mo.kernel(mol, c_act, aosym="s4",compact=false)
+	h2 = reshape(h2, (nact, nact, nact, nact))
+
+	# The use of d1_embed only really makes sense if it has zero electrons in the
+	# active space. Let's warn the user if that's not true
+	n_act = tr(c_act' * d1_embed * c_act)
+	if isapprox(abs(n_act),0,atol=1e-8) == false
+		println(n_act)
+		error(" I found embedded electrons in the active space?!")
+	end
+
+	#println(size(e2))
+	#println(h0)
+
+	h1 = h + j - .5*k;
+	#display(h + j - .5*k)
+
+	h = ElectronicInts(h0, h1, h2);
+	return h
+end
+
+
+function pyscf_build_ints(mol, c_act)
+	"""
+	build 1 and 2 electron integrals using a pyscf SCF object
+	active is list of orbital indices which are active
+
+	returns an ElectronicInts type
+	"""
+	pyscf = pyimport("pyscf")
+
+	nact = size(c_act)[2]
+	#mycas = pyscf.mcscf.CASSCF(mf, length(active), 0)
+
+	h0 = pyscf.gto.mole.energy_nuc(mol)
+	h1 = c_act' * pyscf.scf.hf.get_hcore(mol) * c_act
+	h2 = pyscf.ao2mo.kernel(mol, c_act, aosym="s4",compact=false)
+	h2 = reshape(h2, (nact, nact, nact, nact))
+
+	println(size(c_act))
+	h = ElectronicInts(h0, h1, h2);
+	return h
 end
 
 

@@ -45,15 +45,15 @@ ham 	= ElectronicInts(ints_0b, ints_1b, ints_2b)
 
 atoms = []
 push!(atoms,Atom(1,"H",[0,0,0]))
-push!(atoms,Atom(2,"H",[1,0,0]))
+push!(atoms,Atom(2,"H",[0,0,1]))
 push!(atoms,Atom(3,"H",[0,0,2]))
-push!(atoms,Atom(4,"H",[1,0,2]))
+push!(atoms,Atom(4,"H",[0,0,3]))
 
 mol     = Molecule(0,1,atoms)
 display(mol)
 
-mf = FermiCG.pyscf_do_scf(mol,"sto-3g")
-print(typeof(mf))
+mf = FermiCG.pyscf_do_scf(mol,"6-31g")
+
 FermiCG.pyscf_write_molden(mol,"sto-3g",mf.mo_coeff)
 FermiCG.pyscf_write_molden(mf,filename="2.molden")
 FermiCG.pyscf_fci(ham,2,2)
@@ -67,4 +67,9 @@ emb_density = 2*emb_orbs * emb_orbs';
 display(emb_density)
 PS = emb_density*mf.get_ovlp();
 n = tr(PS)
-FermiCG.pyscf_build_ints(mf.mol,mf.mo_coeff[:,[3,4]], emb_density)
+
+#ints = FermiCG.pyscf_build_ints(mf.mol,mf.mo_coeff[:,[3,4]], emb_density);
+#FermiCG.pyscf_fci(ints,0,0)
+
+ints = FermiCG.pyscf_build_ints(mf.mol,mf.mo_coeff);
+FermiCG.pyscf_fci(ints,2,2)

@@ -24,10 +24,10 @@ using TimerOutputs
 #####################################
 # Local Imports
 #
-include("Tools.jl")
-include("Hamiltonians.jl")
-include("ConfigStrings.jl")
-include("pyscf/PyscfFunctions.jl")
+include("Tools.jl");
+include("Hamiltonians.jl");
+include("ConfigStrings.jl");
+include("pyscf/PyscfFunctions.jl");
 #
 #####################################
 
