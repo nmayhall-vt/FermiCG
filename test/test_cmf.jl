@@ -8,10 +8,10 @@ using FermiCG
 atoms = []
 push!(atoms,Atom(1,"H",[0,0,0]))
 push!(atoms,Atom(2,"H",[0,0,1]))
-push!(atoms,Atom(3,"H",[0,0,10]))
-push!(atoms,Atom(4,"H",[0,0,11]))
-push!(atoms,Atom(5,"H",[0,0,20]))
-push!(atoms,Atom(6,"H",[0,0,21]))
+push!(atoms,Atom(3,"H",[0,0,5]))
+push!(atoms,Atom(4,"H",[0,0,6]))
+push!(atoms,Atom(5,"H",[0,0,10]))
+push!(atoms,Atom(6,"H",[0,0,11]))
 
 mol     = Molecule(0,1,atoms)
 mf = FermiCG.pyscf_do_scf(mol,"6-31g")

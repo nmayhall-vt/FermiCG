@@ -165,7 +165,7 @@ function localize(C::Array{Float64,2},method::String, mf)
 		F = svd(Cl)
 		# display(Cl - F.U * Diagonal(F.S) * F.Vt)
 		# display(Cl - F.vectors * Diagonal(F.values) * F.vectors')
-		return F.U * Diagonal(F.S.^(-.5)) * F.Vt'
+		return F.U * Diagonal(F.S.^(-.5)) * F.Vt
 	elseif lowercase(method) == "boys"
 		Cl = pyscflo.Boys(mf.mol, C).kernel(verbose=4)
 		return Cl
