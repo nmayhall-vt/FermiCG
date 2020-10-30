@@ -74,8 +74,14 @@ function orbital_rotation(ints::ElectronicInts, U)
 	i.e., h(pq) = U(rp)h(rs)U(sq)
 	=#
 	@tensor begin
-    	h1[p,q] := U[r,p]*U[s,q]*ints.h1[r,s]
+		h1[p,q] := U[r,p]*U[s,q]*ints.h1[r,s]
 		h2[p,q,r,s] := U[t,p]*U[u,q]*U[v,r]*U[w,s]*ints.h2[t,u,v,w]
 	end
 	return ElectronicInts(ints.h0,h1,h2)
+end
+
+function subset(ints::ElectronicInts, list)
+	h0 = ints.h0
+	h1 = ints.h1[:,list][list,:]
+	display(h1)
 end

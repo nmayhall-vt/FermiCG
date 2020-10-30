@@ -28,6 +28,7 @@ using TimerOutputs
 include("Tools.jl");
 include("Hamiltonians.jl");
 include("ConfigStrings.jl");
+include("Clusters.jl")
 include("pyscf/PyscfFunctions.jl");
 #
 #####################################
@@ -37,6 +38,8 @@ export ElectronicInts
 #export ElectronicProblem
 export Molecule
 export Atom
+export Cluster
+export ClusterBasis
 #export get_pyscf_integrals
 #export pyscf_fci
 end

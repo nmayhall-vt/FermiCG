@@ -154,14 +154,24 @@ function pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1)
 end
 
 
-function localize(C::Array{Float64,2},method::String,mol)
+function localize(C::Array{Float64,2},method::String, mf)
+	"""
+	mf is a pyscf scf object
+	"""
 	pyscf = pyimport("pyscf")
 	pyscflo = pyimport("pyscf.lo")
 	if lowercase(method) == "lowdin"
-		Cl = mol.intor("int1e_ovlp_sph")
-		return Cl^(-.5)
+		Cl = mf.mol.intor("int1e_ovlp_sph")
+		F = svd(Cl)
+		# display(Cl - F.U * Diagonal(F.S) * F.Vt)
+		# display(Cl - F.vectors * Diagonal(F.values) * F.vectors')
+		return F.U * Diagonal(F.S.^(-.5)) * F.Vt'
 	elseif lowercase(method) == "boys"
-		Cl = pyscflo.Boys(mol, C).kernel(verbose=4)
+		Cl = pyscflo.Boys(mf.mol, C).kernel(verbose=4)
 		return Cl
 	end
+end
+
+function get_ovlp(mf)
+		return mf.mol.intor("int1e_ovlp_sph")
 end
