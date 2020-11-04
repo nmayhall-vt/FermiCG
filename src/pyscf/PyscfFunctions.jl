@@ -64,8 +64,9 @@ end
 function pyscf_build_ints(mol, c_act, d1_embed)
 	"""
 	build 1 and 2 electron integrals using a pyscf SCF object
-	active is list of orbital indices which are active
-	d1_embed is a density matrix for the frozen part (e.g, doccs or frozen clusters)
+	c_act are the active space orbitals
+	d1_embed is a density matrix for the frozen part in the AO basis
+		(e.g, doccs or frozen clusters)
 
 	returns an ElectronicInts type
 	"""
@@ -84,9 +85,11 @@ function pyscf_build_ints(mol, c_act, d1_embed)
 
 	# The use of d1_embed only really makes sense if it has zero electrons in the
 	# active space. Let's warn the user if that's not true
-	n_act = tr(c_act' * d1_embed * c_act)
+	S = mol.intor("int1e_ovlp_sph")
+	n_act = tr(S * d1_embed * S * c_act * c_act')
 	if isapprox(abs(n_act),0,atol=1e-8) == false
 		println(n_act)
+		display(d1_embed)
 		error(" I found embedded electrons in the active space?!")
 	end
 
@@ -124,8 +127,8 @@ function pyscf_build_ints(mol, c_act)
 end
 
 
-function pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1)
-	println(" Use PYSCF to compute FCI")
+function pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1, verbose=1)
+	# println(" Use PYSCF to compute FCI")
 	pyscf = pyimport("pyscf")
 	fci = pyimport("pyscf.fci")
 	cisolver = pyscf.fci.direct_spin1.FCI()
@@ -133,24 +136,31 @@ function pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1)
 	cisolver.conv_tol = conv_tol
 	nelec = na + nb
 	norb = size(ham.h1)[1]
-	efci, ci = cisolver.kernel(ham.h1, ham.h2, norb , nelec, ecore=ham.h0, nroots =nroots, verbose=100)
+	efci, ci = cisolver.kernel(ham.h1, ham.h2, norb , nelec, ecore=0, nroots =nroots, verbose=100)
 	fci_dim = size(ci)[1]*size(ci)[2]
-	d1 = cisolver.make_rdm1(ci, norb, nelec)
-	print(" PYSCF 1RDM: ")
+	# d1 = cisolver.make_rdm1(ci, norb, nelec)
+	d1,d2 = cisolver.make_rdm12(ci, norb, nelec)
+	# @printf(" Energy2: %12.8f\n", FermiCG.compute_energy(ham.h0, ham.h1, ham.h2, d1, d2))
+	# print(" PYSCF 1RDM: ")
 	F = eigen(d1)
 	occs = F.values
 	sum_n = sum(occs)
-	@printf(" Sum of diagonals = %12.8f\n", sum_n)
+	# @printf(" Sum of diagonals = %12.8f\n", sum_n)
+	@printf("Natural Orbital Occupations:\n")
 	[@printf("%4i %12.8f\n",i,occs[i]) for i in 1:size(occs)[1] ]
+	@printf("-----------------\n")
+	@printf("%4s %12.8f\n\n","sum",sum_n)
 
-	pretty_table(d1; formatters = ft_printf("%5.3f"), noheader=true)
-	@printf(" FCI:        %12.8f Dim:%6d\n", efci,fci_dim)
+	if verbose>1
+		pretty_table(d1; formatters = ft_printf("%5.3f"), noheader=true)
+	end
+	@printf(" FCI:        %12.8f %12.8f \n", efci+ham.h0, efci)
 	#for i in range(0,nroots):
 	#    print("FCI %10.8f"%(efci[i]))
 	#exit()
 	#fci_dim =1
 
-	return efci, d1, fci_dim
+	return efci, d1, d2
 end
 
 
