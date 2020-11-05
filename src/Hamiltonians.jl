@@ -85,9 +85,10 @@ function orbital_rotation(ints::ElectronicInts, U)
 end
 
 function subset(ints::ElectronicInts, list)
-	h0 = ints.h0
-	h1 = view(ints.h1,list,list)
-	h2 = view(ints.h1,list,list)
+	# h0 = ints.h0
+	# h1 = view(ints.h1,list,list)
+	# h2 = view(ints.h1,list,list)
+	# ints2 = ElectronicInts(ints.h0, ints.h1[list,list], ints.h2[list,list,list,list])
 	ints2 = ElectronicInts(ints.h0, view(ints.h1,list,list), view(ints.h2,list,list,list,list))
 	#h1 = ints.h1[:,list][list,:]
 	#h2 = ints.h2

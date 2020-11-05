@@ -29,6 +29,7 @@ include("Tools.jl");
 include("Hamiltonians.jl");
 include("ConfigStrings.jl");
 include("Clusters.jl")
+include("CMFs.jl")
 include("pyscf/PyscfFunctions.jl");
 #
 #####################################
