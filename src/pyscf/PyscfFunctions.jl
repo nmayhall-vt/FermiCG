@@ -121,7 +121,7 @@ function pyscf_build_ints(mol, c_act)
 	h2 = pyscf.ao2mo.kernel(mol, c_act, aosym="s4",compact=false)
 	h2 = reshape(h2, (nact, nact, nact, nact))
 
-	println(size(c_act))
+	# println(size(c_act))
 	h = ElectronicInts(h0, h1, h2);
 	return h
 end
