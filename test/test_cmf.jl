@@ -9,10 +9,10 @@ using Printf
 atoms = []
 push!(atoms,Atom(1,"H",[0,0,0]))
 push!(atoms,Atom(2,"H",[0,0,1]))
-push!(atoms,Atom(3,"H",[0,0,3]))
-push!(atoms,Atom(4,"H",[0,0,4]))
-push!(atoms,Atom(5,"H",[0,0,6]))
-push!(atoms,Atom(6,"H",[0,0,7]))
+push!(atoms,Atom(3,"H",[0,0,2]))
+push!(atoms,Atom(4,"H",[0,0,3]))
+push!(atoms,Atom(5,"H",[0,0,4]))
+push!(atoms,Atom(6,"H",[0,0,5]))
 basis = "sto-3g"
 
 mol     = Molecule(0,1,atoms)

@@ -103,7 +103,7 @@ function cmf_ci_iteration(ints, clusters, rdm1a, rdm1b, fspace)
 	# println(rdm1_dict[clusters[1].idx])
 	# return
 	e_curr = compute_cmf_energy(ints, rdm1_dict, rdm2_dict, clusters)
-	@printf(" CMF Curr: Electronic %12.8f Total %12.8f\n", e_curr-ints.h0, e_curr)
+	@printf(" CMF-CI Curr: Elec %12.8f Total %12.8f\n", e_curr-ints.h0, e_curr)
 
 	rdm1a_out = zeros(size(rdm1a))
 	rdm1b_out = zeros(size(rdm1b))
@@ -120,17 +120,29 @@ function cmf_ci_iteration(ints, clusters, rdm1a, rdm1b, fspace)
 	return e_curr,rdm1a_out, rdm1b_out
 end
 
-function cmf_ci(ints, clusters, fspace, dguess, max_iter=10)
+function cmf_ci(ints, clusters, fspace, dguess, max_iter=10, dconv=1e-6, econv=1e-10)
 	rdm1a = deepcopy(dguess)
 	rdm1b = deepcopy(dguess)
 	energies = []
+	e_prev = 0
 	for iter = 1:max_iter
 		println()
 	    println(" ------------------------------------------ ")
 	    println(" CMF CI Iter: ", iter)
 		println(" ------------------------------------------ ")
-	    e_curr, rdm1a, rdm1b = cmf_ci_iteration(ints, clusters, rdm1a, rdm1b, fspace)
+	    e_curr, rdm1a_curr, rdm1b_curr = cmf_ci_iteration(ints, clusters, rdm1a, rdm1b, fspace)
 		append!(energies,e_curr)
+		error = (rdm1a_curr+rdm1b_curr) - (rdm1a+rdm1b)
+		d_err = norm(error)
+		e_err = e_curr-e_prev
+		@printf(" CMF CI Change RDM: %6.1e Energy %6.1e\n\n", d_err, e_err)
+		e_prev = e_curr*1
+		rdm1a = rdm1a_curr
+		rdm1b = rdm1b_curr
+		if (abs(d_err) < dconv) && (abs(e_err) < econv)
+			@printf("*CMF-CI: Elec %12.8f Total %12.8f\n", e_curr-ints.h0, e_curr)
+			break
+		end
 	end
 	println(" Energy per Iteration:")
 	for i in energies
