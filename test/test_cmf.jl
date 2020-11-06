@@ -70,6 +70,7 @@ rdm1b = rdm_mf*.5
 # end
 # display(rdm1)
 FermiCG.cmf_ci(ints, clusters, init_fspace, rdm1)
+FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1)
 
 #
 # cmf_maxiter = 1
