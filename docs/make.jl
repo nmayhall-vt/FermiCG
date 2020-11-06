@@ -9,12 +9,12 @@ pages = [
     # "Problem" => "problem.md",
     # "GPU" => "gpu.md",
     "Examples" => ["cmf.md","cmf.md"],
-    # "Library" => [
-    #     "Contents" => "library/outline.md",
-    #     "Public" => "library/public.md",
-    #     "Private" => "library/internals.md",
-    #     "Function index" => "library/function_index.md",
-    #     ],
+    "Library" => [
+        "Contents" => "library/outline.md",
+        "Public" => "library/public.md",
+        "Private" => "library/internals.md",
+        "Function index" => "library/function_index.md",
+        ],
 ]
 
 #####

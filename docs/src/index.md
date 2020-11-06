@@ -1,12 +1,5 @@
 ```@meta
-CurrentModule = FermiCG 
+CurrentModule = FermiCG
 ```
 
 # FermiCG
-
-```@index
-```
-
-```@autodocs
-Modules = [FermiCG]
-```

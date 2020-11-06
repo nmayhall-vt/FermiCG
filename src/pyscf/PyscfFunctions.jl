@@ -6,6 +6,12 @@ pushfirst!(PyVector(pyimport("sys")."path"), pydir)
 ENV["PYTHON"] = Sys.which("python")
 #print(ENV)
 
+"""
+	pyscf_do_scf(molecule::Molecule, basis::String; conv_tol=1e-10)
+
+Use PySCF to compute Hartree-Fock for a given molecule and basis set
+and return a PYSCF mean field object
+"""
 function pyscf_do_scf(molecule::Molecule, basis::String; conv_tol=1e-10)
 	pyscf = pyimport("pyscf")
 	pymol = make_pyscf_mole(molecule, basis)
@@ -30,6 +36,11 @@ function pyscf_do_scf(molecule::Molecule, basis::String; conv_tol=1e-10)
 	return mf
 end
 
+"""
+	make_pyscf_mole(molecule::Molecule, basis::String)
+
+Create a `pyscf.gto.Mole()` object
+"""
 function make_pyscf_mole(molecule::Molecule, basis::String)
 	pyscf = pyimport("pyscf")
 	pymol = pyscf.gto.Mole()
@@ -45,7 +56,12 @@ function make_pyscf_mole(molecule::Molecule, basis::String)
 	return pymol
 end
 
-function pyscf_write_molden(molecule, basis, C; filename="orbitals.molden")
+"""
+	pyscf_write_molden(molecule::Molecule, basis, C; filename="orbitals.molden")
+
+Write MO coeffs `C` to a molden file for visualizing
+"""
+function pyscf_write_molden(molecule::Molecule, basis, C; filename="orbitals.molden")
 	pyscf = pyimport("pyscf")
 	molden = pyimport("pyscf.molden")
 	pymol = make_pyscf_mole(molecule, basis)
@@ -53,6 +69,12 @@ function pyscf_write_molden(molecule, basis, C; filename="orbitals.molden")
 	return 1
 end
 
+
+"""
+	pyscf_write_molden(mf; filename="orbitals.molden")
+
+Write MO coeffs `C` to a molden file for visualizing
+"""
 function pyscf_write_molden(mf; filename="orbitals.molden")
 	pyscf = pyimport("pyscf")
 	molden = pyimport("pyscf.molden")
@@ -61,15 +83,18 @@ function pyscf_write_molden(mf; filename="orbitals.molden")
 end
 
 
-function pyscf_build_ints(mol, c_act, d1_embed)
-	"""
-	build 1 and 2 electron integrals using a pyscf SCF object
-	c_act are the active space orbitals
-	d1_embed is a density matrix for the frozen part in the AO basis
-		(e.g, doccs or frozen clusters)
+"""
+	pyscf_build_ints(mol, c_act, d1_embed)
 
-	returns an ElectronicInts type
-	"""
+build 1 and 2 electron integrals using a pyscf SCF object
+c_act are the active space orbitals
+d1_embed is a density matrix for the frozen part in the AO basis
+	(e.g, doccs or frozen clusters)
+
+returns an `ElectronicInts` type
+"""
+function pyscf_build_ints(mol, c_act, d1_embed)
+
 	pyscf = pyimport("pyscf")
 
 	nact = size(c_act)[2]
@@ -103,14 +128,16 @@ function pyscf_build_ints(mol, c_act, d1_embed)
 	return h
 end
 
+"""
+	pyscf_build_ints(mol, c_act)
 
+build 1 and 2 electron integrals using a pyscf SCF object
+active is list of orbital indices which are active
+
+returns an `ElectronicInts` type
+"""
 function pyscf_build_ints(mol, c_act)
-	"""
-	build 1 and 2 electron integrals using a pyscf SCF object
-	active is list of orbital indices which are active
 
-	returns an ElectronicInts type
-	"""
 	pyscf = pyimport("pyscf")
 
 	nact = size(c_act)[2]
@@ -126,7 +153,11 @@ function pyscf_build_ints(mol, c_act)
 	return h
 end
 
+"""
+	pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1, verbose=1)
 
+Use PySCF to compute Full CI
+"""
 function pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1, verbose=1)
 	# println(" Use PYSCF to compute FCI")
 	pyscf = pyimport("pyscf")
@@ -164,6 +195,11 @@ function pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1, verbose=1
 end
 
 
+"""
+	localize(C::Array{Float64,2},method::String, mf)
+
+Localize the orbitals using method = `method`
+"""
 function localize(C::Array{Float64,2},method::String, mf)
 	"""
 	mf is a pyscf scf object
@@ -182,6 +218,11 @@ function localize(C::Array{Float64,2},method::String, mf)
 	end
 end
 
+"""
+	get_ovlp(mf)
+
+Get overlap matrix from pyscf using mean-field object
+"""
 function get_ovlp(mf)
 		return mf.mol.intor("int1e_ovlp_sph")
 end

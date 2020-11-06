@@ -32,6 +32,11 @@ end
 # 	#n_roots::Int = 1
 # end
 
+"""
+id::Integer - index of atom in the molecule
+symbol::String - Atomic ID (E.g. H, He, ...)
+xyz::Array{Float64,1} - list of XYZ coordinates
+"""
 struct Atom
 	#=
 	Type defining an atom
@@ -42,7 +47,7 @@ struct Atom
 end
 
 """
-#*charge: overall charge on molecule
+*charge: overall charge on molecule
 *multiplicity: multiplicity
 *geometry: XYZ coordinates
 """
