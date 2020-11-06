@@ -146,10 +146,10 @@ function pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1, verbose=1
 	occs = F.values
 	sum_n = sum(occs)
 	# @printf(" Sum of diagonals = %12.8f\n", sum_n)
-	@printf("Natural Orbital Occupations:\n")
-	[@printf("%4i %12.8f\n",i,occs[i]) for i in 1:size(occs)[1] ]
-	@printf("-----------------\n")
-	@printf("%4s %12.8f\n\n","sum",sum_n)
+	@printf(" Natural Orbital Occupations:\n")
+	[@printf(" %4i %12.8f\n",i,occs[i]) for i in 1:size(occs)[1] ]
+	@printf(" -----------------\n")
+	@printf(" %4s %12.8f\n\n","sum",sum_n)
 
 	if verbose>1
 		pretty_table(d1; formatters = ft_printf("%5.3f"), noheader=true)
