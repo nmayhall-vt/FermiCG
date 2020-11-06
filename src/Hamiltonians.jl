@@ -1,13 +1,13 @@
 using TensorOperations
 
-struct ElectronicInts
-	#=
-	Type to hold a second quantized Hamiltonian coefficients in memory
+"""
+	h0::Real                # constant energy shift
+	h1::Array{Float64,2}    # one electron integrals
+	h2::Array{Float64,4}    # two electron integrals (chemist's notation)
 
-	h0  is constant energy shift
-	h1  is one body operator
-	h2  is two body operator
-	=#
+Type to hold a second quantized Hamiltonian coefficients in memory
+"""
+struct ElectronicInts
 	h0::Real
 	h1::Array{Float64,2}
 	h2::Array{Float64,4}
@@ -33,9 +33,9 @@ end
 # end
 
 """
-id::Integer - index of atom in the molecule
-symbol::String - Atomic ID (E.g. H, He, ...)
-xyz::Array{Float64,1} - list of XYZ coordinates
+	id::Integer             # index of atom in the molecule
+	symbol::String          # Atomic ID (E.g. H, He, ...)
+	xyz::Array{Float64,1}   # list of XYZ coordinates
 """
 struct Atom
 	#=
@@ -47,14 +47,11 @@ struct Atom
 end
 
 """
-*charge: overall charge on molecule
-*multiplicity: multiplicity
-*geometry: XYZ coordinates
+	charge::Integer          # overall charge on molecule
+	multiplicity::Integer    # 2S+1
+	atoms::Array{Atom,1}     # Vector of `Atoms`
 """
 struct Molecule
-	#=
-
-	=#
 	charge::Integer
 	multiplicity::Integer
 	atoms::Array{Atom,1}
@@ -126,7 +123,7 @@ end
 """
 	compute_energy(h0, h1, h2, rdm1, rdm2)
 
-Given an energy shift (h0), 1e integrals (h1), and 2e ints (h2)
+Given an energy shift `h0`, 1e integrals `h1`, and 2e ints `h2`
 along with a 1rdm and 2rdm on the same space, return the energy
 """
 function compute_energy(h0, h1, h2, rdm1, rdm2)

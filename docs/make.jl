@@ -41,18 +41,18 @@ examples = [
 makedocs(
     modules=[FermiCG],
     authors="Nick Mayhall <nmayhall@vt.edu> and contributors",
-    repo="https://github.com/nmayhall/FermiCG.jl/blob/{commit}{path}#L{line}",
+    repo="https://github.com/nmayhall-vt/FermiCG/blob/{commit}{path}#L{line}",
     sitename="FermiCG.jl",
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
-        canonical="https://nmayhall.github.io/FermiCG.jl",
+        canonical="https://nmayhall-vt.github.io/FermiCG",
         assets=String[],
     ),
     pages=pages,
 )
 
 deploydocs(
-    repo="github.com/nmayhall/FermiCG.jl",
+    repo="github.com/nmayhall-vt/FermiCG",
     push_preview = true,
     deps = Deps.pip("pygments", "mkdocs", "python-markdown-math")
 )
