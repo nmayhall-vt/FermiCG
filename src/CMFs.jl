@@ -1,4 +1,11 @@
+"""
+    form_casci_ints(ints::ElectronicInts, ci::Cluster, rdm1a, rdm1b)
 
+Obtain a subset of integrals which act on the orbitals in Cluster,
+embedding the 1rdm from the rest of the system
+
+Returns an ElectronicInts type
+"""
 function form_casci_ints(ints::ElectronicInts, ci::Cluster, rdm1a, rdm1b)
 	da = deepcopy(rdm1a)
 	db = deepcopy(rdm1b)
@@ -26,15 +33,17 @@ function form_casci_ints(ints::ElectronicInts, ci::Cluster, rdm1a, rdm1b)
 	return ints_i
 end
 
-function compute_cmf_energy(ints, rdm1s, rdm2s, clusters)
-	"""
-	Compute the energy of a cluster-wise product state (CMF),
-	specified by a list of 1 and 2 particle rdms local to each cluster
+"""
+    compute_cmf_energy(ints, rdm1s, rdm2s, clusters)
 
-	ints: ElectronicInts object for full system
-	rdm1s: dictionary of 1rdms from each cluster (spin summed)
-	rdm2s: dictionary of 2rdms from each cluster (spin summed)
-	"""
+Compute the energy of a cluster-wise product state (CMF),
+specified by a list of 1 and 2 particle rdms local to each cluster
+
+ints: ElectronicInts object for full system
+rdm1s: dictionary (ci.idx => Array) of 1rdms from each cluster (spin summed)
+rdm2s: dictionary (ci.idx => Array) of 2rdms from each cluster (spin summed)
+"""
+function compute_cmf_energy(ints, rdm1s, rdm2s, clusters)
 	e1 = zeros((length(clusters),1))
 	e2 = zeros((length(clusters),length(clusters)))
 	for ci in clusters
@@ -79,6 +88,11 @@ function compute_cmf_energy(ints, rdm1s, rdm2s, clusters)
 
 end
 
+"""
+    cmf_ci_iteration(ints, clusters, rdm1a, rdm1b, fspace)
+
+Perform single CMF-CI iteration, returning new energy, and density
+"""
 function cmf_ci_iteration(ints, clusters, rdm1a, rdm1b, fspace)
 	# rdm1s = fill(Array{Real,2}, length(clusters), 1)
 	# rdm2s = fill(Array{Real,4}, length(clusters), 1)
@@ -120,6 +134,11 @@ function cmf_ci_iteration(ints, clusters, rdm1a, rdm1b, fspace)
 	return e_curr,rdm1a_out, rdm1b_out
 end
 
+"""
+    cmf_ci(ints, clusters, fspace, dguess, max_iter=10, dconv=1e-6, econv=1e-10)
+	
+Optimize the 1RDM for CMF-CI
+"""
 function cmf_ci(ints, clusters, fspace, dguess, max_iter=10, dconv=1e-6, econv=1e-10)
 	rdm1a = deepcopy(dguess)
 	rdm1b = deepcopy(dguess)

@@ -41,12 +41,14 @@ struct Atom
 	xyz::Array{Float64,1}
 end
 
+"""
+#*charge: overall charge on molecule
+*multiplicity: multiplicity
+*geometry: XYZ coordinates
+"""
 struct Molecule
 	#=
-	Type defining a molecule
-	charge: overall charge on molecule
-	multiplicity: multiplicity
-	geometry: XYZ coordinates
+
 	=#
 	charge::Integer
 	multiplicity::Integer
@@ -56,23 +58,38 @@ end
 
 
 
+"""
+	orbital_rotation!(ints::ElectronicInts, U)
 
-#Functions
+Transform electronic integrals, by U
+i.e.,
+```math
+h_{pq} = U_{rp}h_{rs}U_{sq}
+```
+```math
+(pq|rs) = (tu|vw)U_{tp}U_{uq}U_{vr}U_{ws}
+```
+"""
 function orbital_rotation!(ints::ElectronicInts, U)
-	#=
-	Transform electronic integrals, by U
-	i.e., h(pq) = U(rp)h(rs)U(sq)
-	=#
 	@tensor begin
 		ints.h1[p,q] = U[r,p]*U[s,q]*ints.h1[r,s]
 		ints.h2[p,q,r,s] = U[t,p]*U[u,q]*U[v,r]*U[w,s]*ints.h2[t,u,v,w]
 	end
 end
+
+@doc raw"""
+	orbital_rotation(ints::ElectronicInts, U)
+
+Transform electronic integrals, by U
+i.e.,
+```math
+h_{pq} = U_{rp}h_{rs}U_{sq}
+```
+```math
+(pq|rs) = (tu|vw)U_{tp}U_{uq}U_{vr}U_{ws}
+```
+"""
 function orbital_rotation(ints::ElectronicInts, U)
-	#=
-	Transform electronic integrals, by U
-	i.e., h(pq) = U(rp)h(rs)U(sq)
-	=#
 	@tensor begin
 		h1[p,q] := U[r,p]*U[s,q]*ints.h1[r,s]
 		# h2[p,q,r,s] := U[t,p]*U[u,q]*U[v,r]*U[w,s]*ints.h2[t,u,v,w]
@@ -84,6 +101,12 @@ function orbital_rotation(ints::ElectronicInts, U)
 	return ElectronicInts(ints.h0,h1,h2)
 end
 
+
+"""
+	subset(ints::ElectronicInts, list)
+
+Extract a subset of integrals acting on orbitals in list, returned as ElectronicInts type
+"""
 function subset(ints::ElectronicInts, list)
 	# h0 = ints.h0
 	# h1 = view(ints.h1,list,list)
@@ -95,6 +118,12 @@ function subset(ints::ElectronicInts, list)
 	return ints2
 end
 
+"""
+	compute_energy(h0, h1, h2, rdm1, rdm2)
+
+Given an energy shift (h0), 1e integrals (h1), and 2e ints (h2)
+along with a 1rdm and 2rdm on the same space, return the energy
+"""
 function compute_energy(h0, h1, h2, rdm1, rdm2)
 	e = h0
 	e += sum(h1 .* rdm1)
