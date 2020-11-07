@@ -3,7 +3,7 @@ using Random
 using Optim
 
 """
-form_casci_ints(ints::ElectronicInts, ci::Cluster, rdm1a, rdm1b)
+	form_casci_ints(ints::ElectronicInts, ci::Cluster, rdm1a, rdm1b)
 
 Obtain a subset of integrals which act on the orbitals in Cluster,
 embedding the 1rdm from the rest of the system
@@ -38,7 +38,7 @@ function form_casci_ints(ints::ElectronicInts, ci::Cluster, rdm1a, rdm1b)
 end
 
 """
-compute_cmf_energy(ints, rdm1s, rdm2s, clusters)
+	compute_cmf_energy(ints, rdm1s, rdm2s, clusters)
 
 Compute the energy of a cluster-wise product state (CMF),
 specified by a list of 1 and 2 particle rdms local to each cluster
@@ -93,7 +93,7 @@ function compute_cmf_energy(ints, rdm1s, rdm2s, clusters)
 end
 
 """
-cmf_ci_iteration(ints, clusters, rdm1a, rdm1b, fspace)
+	cmf_ci_iteration(ints, clusters, rdm1a, rdm1b, fspace)
 
 Perform single CMF-CI iteration, returning new energy, and density
 """
@@ -139,7 +139,7 @@ function cmf_ci_iteration(ints, clusters, rdm1a, rdm1b, fspace)
 end
 
 """
-cmf_ci(ints, clusters, fspace, dguess, max_iter=10, dconv=1e-6, econv=1e-10)
+	cmf_ci(ints, clusters, fspace, dguess, max_iter=10, dconv=1e-6, econv=1e-10)
 
 Optimize the 1RDM for CMF-CI
 """
@@ -148,12 +148,18 @@ function cmf_ci(ints, clusters, fspace, dguess, max_iter=10, dconv=1e-6, econv=1
 	rdm1b = deepcopy(dguess)
 	energies = []
 	e_prev = 0
+
+	rdm1_dict = 0
+	rdm2_dict = 0
+	rdm1_dict = Dict{Integer,Array}()
+	rdm2_dict = Dict{Integer,Array}()
+	# rdm2_dict = Dict{Integer, Array}()
 	for iter = 1:max_iter
 		println()
 		println(" ------------------------------------------ ")
 		println(" CMF CI Iter: ", iter)
 		println(" ------------------------------------------ ")
-		e_curr, rdm1a_curr, rdm1b_curr = cmf_ci_iteration(ints, clusters, rdm1a, rdm1b, fspace)
+		e_curr, rdm1a_curr, rdm1b_curr, rdm1_dict, rdm2_dict = cmf_ci_iteration(ints, clusters, rdm1a, rdm1b, fspace)
 		append!(energies,e_curr)
 		error = (rdm1a_curr+rdm1b_curr) - (rdm1a+rdm1b)
 		d_err = norm(error)
@@ -171,7 +177,7 @@ function cmf_ci(ints, clusters, fspace, dguess, max_iter=10, dconv=1e-6, econv=1
 	for i in energies
 		@printf(" Elec: %12.8f Total: %12.8f\n", i-ints.h0, i)
 	end
-	return e_prev, rdm1a, rdm1b
+	return e_prev, rdm1a, rdm1b, rdm1_dict, rdm2_dict
 end
 
 
@@ -192,7 +198,14 @@ function cmf_oo_iteration(ints, clusters, fspace, max_iter, dguess, kappa)
 	return cmf_ci(ints2, clusters, fspace, dguess)
 end
 
-function cmf_oo(ints, clusters, fspace, dguess, max_iter_oo=30, max_iter_ci=30, gconv=1e-6)
+
+
+"""
+	cmf_oo(ints::ElectronicInts, clusters::Vector{Cluster}, fspace, dguess, max_iter_oo=30, max_iter_ci=30, gconv=1e-6)
+
+Do CMF with orbital optimization
+"""
+function cmf_oo(ints::ElectronicInts, clusters::Vector{Cluster}, fspace, dguess, max_iter_oo=30, max_iter_ci=30, gconv=1e-6)
 	norb = size(ints.h1)[1]
 	kappa = zeros(norb*(norb-1))
 	# e, da, db = cmf_oo_iteration(ints, clusters, fspace, max_iter_ci, dguess, kappa)
@@ -223,7 +236,7 @@ function cmf_oo(ints, clusters, fspace, dguess, max_iter_oo=30, max_iter_ci=30, 
 		U = exp(K)
 		ints2 = orbital_rotation(ints,U)
 
-		e, gd1a, gd1b, rdm1_dict, rdm2_dict = cmf_ci_iteration(ints2, clusters, da, db, fspace)
+		e, gd1a, gd1b, rdm1_dict, rdm2_dict = cmf_ci(ints2, clusters, fspace, da)
 		grad = zeros(size(ints2.h1))
 		# etmp = compute_cmf_energy(ints, rdm1_dict, rdm2_dict, clusters)
 		# println(" etmp: ", etmp)
@@ -233,10 +246,13 @@ function cmf_oo(ints, clusters, fspace, dguess, max_iter_oo=30, max_iter_ci=30, 
 			v_111  = ints2.h2[:, ci.orb_list, ci.orb_list, ci.orb_list]
 			@tensor begin
 				grad_1[p,q] += v_111[p,v,u,w] * rdm2_dict[ci.idx][q,u,w,v]
+				# grad_1[p,q] -= v_111[p,w,u,v] * rdm2_dict[ci.idx][q,u,w,v]
 				grad_1[p,q] += h_1[p,r] * rdm1_dict[ci.idx][r,q]
 			end
 			for cj in clusters
-
+				if ci.idx == cj.idx
+					continue
+				end
 				v_212 = ints2.h2[:,cj.orb_list, ci.orb_list, cj.orb_list]
 				v_122 = ints2.h2[:,ci.orb_list, cj.orb_list, cj.orb_list]
 				d1 = rdm1_dict[ci.idx]
@@ -244,8 +260,8 @@ function cmf_oo(ints, clusters, fspace, dguess, max_iter_oo=30, max_iter_ci=30, 
 
 				# println(size(grad_1),size(v_212), size(d1), size(d2))
 				@tensor begin
-					grad_1[p,q] -= v_212[p,v,u,w] * d1[q,u] * d2[w,v]
 					grad_1[p,q] += v_122[p,v,u,w] * d1[q,v] * d2[w,u]
+					grad_1[p,q] -= .5*v_212[p,v,u,w] * d1[q,u] * d2[w,v]
 				end
 			end
 			grad[:,ci.orb_list] .= 2*grad_1
@@ -266,8 +282,12 @@ function cmf_oo(ints, clusters, fspace, dguess, max_iter_oo=30, max_iter_ci=30, 
 		return gout
 	end
 
-	# grad = g(kappa)
-	# display(round.(grad,digits=6))
+	grad1 = g(kappa)
+	grad2 = g_analytic(kappa)
+	display(round.(grad1,digits=6))
+	display(round.(grad2,digits=6))
+	# display(round.(unpack_gradient(grad1,norb),digits=6))
+	# display(round.(unpack_gradient(grad2,norb),digits=6))
 	e1, da, db = cmf_oo_iteration(ints, clusters, fspace, max_iter_ci, dguess, kappa)
 	grad = g_analytic(kappa)
 	display(round.(grad,digits=6))
@@ -280,14 +300,14 @@ function cmf_oo(ints, clusters, fspace, dguess, max_iter_oo=30, max_iter_ci=30, 
 
 	es = []
 	gs = []
-	for i=1:10
+	for i=1:100
 		ei, da, db = cmf_oo_iteration(ints, clusters, fspace, max_iter_ci, da, kappa)
 		grad = g_analytic(kappa)
 		# grad = g(kappa)
-		kappa += grad*1e-1
+		kappa += grad*2e-1
 		print(" Norm of orbital gradient: ")
 		display(round.(norm(grad),digits=6))
-		append!(es,ei)
+		append!(es,ei-ints.h0)
 		append!(gs,norm(grad))
 	end
 	display(round.(gs,digits=6))
