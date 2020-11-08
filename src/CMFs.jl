@@ -92,7 +92,7 @@ function compute_cmf_energy(ints, rdm1s, rdm2s, clusters; verbose=1)
 end
 
 """
-	cmf_ci_iteration(ints, clusters, rdm1a, rdm1b, fspace)
+    cmf_ci_iteration(ints, clusters, rdm1a, rdm1b, fspace; verbose=1)
 
 Perform single CMF-CI iteration, returning new energy, and density
 """
@@ -141,11 +141,11 @@ end
 
 
 """
-	cmf_ci(ints, clusters, fspace, dguess, max_iter=10, dconv=1e-6, econv=1e-10)
+    cmf_ci(ints, clusters, fspace, dguess; max_iter=10, dconv=1e-6, econv=1e-10, verbose=1)
 
 Optimize the 1RDM for CMF-CI
 """
-function cmf_ci(ints, clusters, fspace, dguess, max_iter=10, dconv=1e-6, econv=1e-10; verbose=1)
+function cmf_ci(ints, clusters, fspace, dguess; max_iter=10, dconv=1e-6, econv=1e-10, verbose=1)
 	rdm1a = deepcopy(dguess)
 	rdm1b = deepcopy(dguess)
 	energies = []
@@ -191,31 +191,16 @@ function cmf_ci(ints, clusters, fspace, dguess, max_iter=10, dconv=1e-6, econv=1
 end
 
 
-function cmf_oo_iteration(ints, clusters, fspace, max_iter, dguess, kappa; verbose=1)
-	norb = size(ints.h1)[1]
-	K = zeros(norb,norb)
-	# ind = 1
-	# for i in 1:norb
-	# 	for j in i+1:norb
-	# 		K[i,j] = kappa[ind]
-	# 		K[j,i] = -kappa[ind]
-	# 		ind += 1
-	# 	end
-	# end
-	K = unpack_gradient(kappa, norb)
-	U = exp(K)
-	ints2 = orbital_rotation(ints,U)
-	return cmf_ci(ints2, clusters, fspace, dguess, verbose=0)
-end
-
 
 
 """
-	cmf_oo(ints::ElectronicInts, clusters::Vector{Cluster}, fspace, dguess, max_iter_oo=30, max_iter_ci=30, gconv=1e-6)
+    cmf_oo(ints::ElectronicInts, clusters::Vector{Cluster}, fspace, dguess; 
+            max_iter_oo=100, max_iter_ci=100, gconv=1e-6, verbose=0, method="bfgs")
 
 Do CMF with orbital optimization
 """
-function cmf_oo(ints::ElectronicInts, clusters::Vector{Cluster}, fspace, dguess; max_iter_oo=30, max_iter_ci=30, gconv=1e-6, verbose=0)
+function cmf_oo(ints::ElectronicInts, clusters::Vector{Cluster}, fspace, dguess; 
+            max_iter_oo=100, max_iter_ci=100, gconv=1e-6, verbose=0, method="bfgs")
     norb = size(ints.h1)[1]
     #kappa = zeros(norb*(norb-1))
     # e, da, db = cmf_oo_iteration(ints, clusters, fspace, max_iter_ci, dguess, kappa)
@@ -235,26 +220,47 @@ function cmf_oo(ints::ElectronicInts, clusters::Vector{Cluster}, fspace, dguess;
         return grad
     end
 
+    #   
+    #   Initialize optimization data
+    #
     e_curr = 0
     g_curr = 0
-
+    e_err = 0
     da = zeros(size(ints.h1))
     db = zeros(size(ints.h1))
+    iter = 0
+    kappa = zeros(norb*(norb-1))
 
-	function f(k)
-		e, da, db, rdm1_dict, rdm2_dict = cmf_oo_iteration(ints, clusters, fspace, max_iter_ci, da+db, k, verbose=verbose)
+    #
+    #   Define Objective function (energy)
+    #
+    function f(k)
+        K = unpack_gradient(k, norb)
+        U = exp(K)
+        ints2 = orbital_rotation(ints,U)
+        e, da1, db1, rdm1_dict, rdm2_dict = cmf_ci(ints2, clusters, fspace, da+db, dconv=gconv/10.0, verbose=0)
+        e_err = e-e_curr
         e_curr = e
         return e
-	end
-
-    function callback(k)
-        @printf(" ooCMF Iter: E= %12.8f G= %12.8f\n", e_curr, g_curr)
-        return true 
     end
 
-#	e, da, db = cmf_oo_iteration(ints, clusters, fspace, max_iter_ci, dguess, kappa)
-#	e, gd1a, gd1b, rdm1_dict, rdm2_dict = cmf_ci_iteration(ints, clusters, da, db, fspace)
+    #   
+    #   Define Callback for logging and checking for convergence
+    #
+    function callback(k)
+        iter += 1
+        if (g_curr < gconv) 
+            @printf("*ooCMF Iter: %4i Elec= %16.12f Total= %16.12f G= %12.2e\n", iter, e_curr, e_curr-ints.h0, g_curr)
+            return true 
+        else
+            @printf(" ooCMF Iter: %4i Elec= %16.12f Total= %16.12f G= %12.2e\n", iter, e_curr, e_curr-ints.h0, g_curr)
+            return false 
+        end
+    end
 
+    #
+    #   Define Gradient function
+    #
 	function g_analytic(kappa)
 		norb = size(ints.h1)[1]
 		# println(" In g_analytic")
@@ -262,17 +268,14 @@ function cmf_oo(ints::ElectronicInts, clusters::Vector{Cluster}, fspace, dguess;
 		U = exp(K)
 		ints2 = orbital_rotation(ints,U)
 
-		e, gd1a, gd1b, rdm1_dict, rdm2_dict = cmf_ci(ints2, clusters, fspace, da+db, verbose=verbose)
+		e, gd1a, gd1b, rdm1_dict, rdm2_dict = cmf_ci(ints2, clusters, fspace, da+db, dconv=gconv/10.0, verbose=verbose)
 		grad = zeros(size(ints2.h1))
-		# etmp = compute_cmf_energy(ints, rdm1_dict, rdm2_dict, clusters)
-		# println(" etmp: ", etmp)
 		for ci in clusters
 			grad_1 = grad[:,ci.orb_list]
 			h_1	   = ints2.h1[:,ci.orb_list]
 			v_111  = ints2.h2[:, ci.orb_list, ci.orb_list, ci.orb_list]
 			@tensor begin
 				grad_1[p,q] += v_111[p,v,u,w] * rdm2_dict[ci.idx][q,u,w,v]
-				# grad_1[p,q] -= v_111[p,w,u,v] * rdm2_dict[ci.idx][q,u,w,v]
 				grad_1[p,q] += h_1[p,r] * rdm1_dict[ci.idx][r,q]
 			end
 			for cj in clusters
@@ -284,7 +287,6 @@ function cmf_oo(ints::ElectronicInts, clusters::Vector{Cluster}, fspace, dguess;
 				d1 = rdm1_dict[ci.idx]
 				d2 = rdm1_dict[cj.idx]
 
-				# println(size(grad_1),size(v_212), size(d1), size(d2))
 				@tensor begin
 					grad_1[p,q] += v_122[p,v,u,w] * d1[q,v] * d2[w,u]
 					grad_1[p,q] -= .5*v_212[p,v,u,w] * d1[q,u] * d2[w,v]
@@ -293,17 +295,6 @@ function cmf_oo(ints::ElectronicInts, clusters::Vector{Cluster}, fspace, dguess;
 			grad[:,ci.orb_list] .= -2*grad_1
 		end
 		grad = grad'-grad
-		# unpack_gradient(grad)
-		# gout = zeros(size(k))
-		# ind = 1
-		# for i in 1:norb
-		# 	for j in i+1:norb
-		# 		# gout[i,j] = kappa[ind]
-		# 		# gout[j,i] = -kappa[ind]
-		# 		gout[ind] = -grad[i,j]
-		# 		ind += 1
-		# 	end
-		# end
 		gout = pack_gradient(grad, norb)
         g_curr = norm(gout)
 		return gout
@@ -313,56 +304,35 @@ function cmf_oo(ints::ElectronicInts, clusters::Vector{Cluster}, fspace, dguess;
 #	grad2 = g_analytic(kappa)
 #	display(round.(grad1,digits=6))
 #	display(round.(grad2,digits=6))
-#    return
-#	# display(round.(unpack_gradient(grad1,norb),digits=6))
-#	# display(round.(unpack_gradient(grad2,norb),digits=6))
-#	e1, da, db = cmf_oo_iteration(ints, clusters, fspace, max_iter_ci, dguess, kappa)
-#	grad = g_analytic(kappa)
-#	display(round.(grad,digits=6))
-#	kappa2 = kappa + grad*1e-5
-#
-#	e2, da, db = cmf_oo_iteration(ints, clusters, fspace, max_iter_ci, dguess, kappa2)
-#	grad = g_analytic(kappa2)
-#	display(round.(grad,digits=6))
-#	display([e1,e2])
-#
-#
+#   return
 
-
-    kappa = zeros(norb*(norb-1))
-    if 1==1
-        es = []
-        gs = []
-        kappa = zeros(norb*(norb-1))
-        for i=1:10
-            ei, da, db = cmf_oo_iteration(ints, clusters, fspace, max_iter_ci, da, kappa)
-            grad = g_analytic(kappa)
-            # grad = g(kappa)
-            kappa -= grad*2e-1
-            print(" Norm of orbital gradient: ")
-            display(round.(norm(grad),digits=6))
-            append!(es,ei-ints.h0)
-            append!(gs,norm(grad))
-        end
-        display(round.(gs,digits=6))
-        print()
-        display(round.(es,digits=6))
+   
+    optmethod = BFGS()
+    if method=="bfgs"
+        optmethod = BFGS()
+    elseif method=="cg"
+        optmethod = ConjugateGradient()
     end
+   
+    options = Optim.Options(
+        callback = callback, 
+        g_tol=gconv,
+    )
+    
+    res = optimize(f, g_analytic, kappa, optmethod, options; inplace = false )
+    summary(res)
+    e = Optim.minimum(res)
+    display(res)
+    @printf(" ooCMF %12.8f ", e - ints.h0)
+		
+    K = unpack_gradient(kappa, norb)
+	U = exp(K)
 
-#	display(grad)
-#	optimize(f,kappa)
-	#res = optimize(f, g_analytic, kappa, LBFGS(); inplace = false, Optim.Options(callback = callback))
-    if 1==1
-        res = optimize(f, g_analytic, kappa, BFGS(), Optim.Options(callback = callback); inplace = false )
-        #kappa = zeros(norb*(norb-1))
-        #res = optimize(f1, g1, kappa, BFGS(), Optim.Options(callback = callback, show_trace=true, f_tol=1e-12, g_tol=1e-12, allow_f_increases=true); inplace = false )
-        #res = optimize(f, g_analytic, kappa, BFGS(), Optim.Options(callback = callback, show_trace=true, f_tol=1e-12, g_tol=1e-12, allow_f_increases=true); inplace = false )
-        summary(res)
-        e = Optim.minimum(res)
-        display(res)
-        @printf(" ooCMF %12.8f ", e - ints.h0)
-    end
+    return U
 end
+
+
+
 
 function unpack_gradient(kappa,norb)
 	# n = round(.5+sqrt(1+4k)/2)
