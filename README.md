@@ -29,4 +29,4 @@ A Julia package for course-grained electronic structure calculations
 	julia> using Pkg; Pkg.build("PyCall")
 	```
 ### Notes
-- Uses ITensor for dense algorithms
+- Use ITensor for dense algorithm

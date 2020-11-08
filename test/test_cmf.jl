@@ -13,7 +13,8 @@ push!(atoms,Atom(3,"H",[0,0,2]))
 push!(atoms,Atom(4,"H",[0,0,3]))
 push!(atoms,Atom(5,"H",[0,0,4]))
 push!(atoms,Atom(6,"H",[0,0,5]))
-basis = "sto-3g"
+basis = "6-31g"
+#basis = "sto-3g"
 
 mol     = Molecule(0,1,atoms)
 mf = FermiCG.pyscf_do_scf(mol,basis)
@@ -51,8 +52,8 @@ flush(stdout)
 # ints = FermiCG.pyscf_build_ints(mf.mol,Cl);
 # println(" done.")
 # flush(stdout)
-clusters    = [(1:4),(5:8),(9:12)]
 clusters    = [(1:2),(3:4),(5:6)]
+clusters    = [(1:4),(5:8),(9:12)]
 init_fspace = [(1,1),(1,1),(1,1)]
 
 clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
