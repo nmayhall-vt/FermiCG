@@ -16,5 +16,5 @@ using FermiCG
     @test isapprox(mf.e_tot, -2.16024391299511, atol=1e-10)
     ints = FermiCG.pyscf_build_ints(mf.mol,mf.mo_coeff);
     e,d,dim = FermiCG.pyscf_fci(ints,2,2)
-    @test isapprox(e, -2.2251145788392828, atol=1e-10)
+    @test isapprox(e+ints.h0, -2.2251145788392828, atol=1e-10)
 end
