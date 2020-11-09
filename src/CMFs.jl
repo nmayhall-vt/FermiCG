@@ -328,7 +328,7 @@ function cmf_oo(ints::ElectronicInts, clusters::Vector{Cluster}, fspace, dguess;
     K = unpack_gradient(kappa, norb)
 	U = exp(K)
 
-    return U
+    return e, U
 end
 
 
