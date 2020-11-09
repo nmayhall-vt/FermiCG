@@ -324,7 +324,8 @@ function cmf_oo(ints::ElectronicInts, clusters::Vector{Cluster}, fspace, dguess;
     e = Optim.minimum(res)
     display(res)
     @printf(" ooCMF %12.8f ", e - ints.h0)
-		
+    
+    kappa = Optim.minimizer(res)
     K = unpack_gradient(kappa, norb)
 	U = exp(K)
 
