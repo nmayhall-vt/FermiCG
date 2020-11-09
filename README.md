@@ -1,11 +1,11 @@
 # FermiCG
 A Julia package for course-grained electronic structure calculations
 
-[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://nmayhall-vt.github.io/FermiCG.jl/stable)
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://nmayhall-vt.github.io/FermiCG.jl/dev)
-[![Build Status](https://github.com/nmayhall-vt/FermiCG.jl/workflows/CI/badge.svg)](https://github.com/nmayhall-vt/FermiCG.jl/actions)
-[![Build Status](https://travis-ci.com/nmayhall-vt/FermiCG.jl.svg?branch=master)](https://travis-ci.com/nmayhall-vt/FermiCG.jl)
-[![Coverage](https://codecov.io/gh/nmayhall-vt/FermiCG.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/nmayhall-vt/FermiCG.jl)
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://nmayhall-vt.github.io/FermiCG/stable)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://nmayhall-vt.github.io/FermiCG/dev)
+[![Build Status](https://github.com/nmayhall-vt/FermiCG/workflows/CI/badge.svg)](https://github.com/nmayhall-vt/FermiCG/actions)
+[![Build Status](https://travis-ci.com/nmayhall-vt/FermiCG.svg?branch=master)](https://travis-ci.com/nmayhall-vt/FermiCG)
+[![Coverage](https://codecov.io/gh/nmayhall-vt/FermiCG/branch/master/graph/badge.svg)](https://codecov.io/gh/nmayhall-vt/FermiCG)
 
 
 ### Installation
