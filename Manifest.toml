@@ -64,9 +64,9 @@ version = "1.3.3"
 
 [[CodeTracking]]
 deps = ["InteractiveUtils", "UUIDs"]
-git-tree-sha1 = "ce725fcc331618c422e5561a5183baab6a00482c"
+git-tree-sha1 = "8ad457cfeb0bca98732c97958ef81000a543e73e"
 uuid = "da1fd8a2-8d9e-5ec2-8556-3022fb5608a2"
-version = "1.0.4"
+version = "1.0.5"
 
 [[ColorSchemes]]
 deps = ["ColorTypes", "Colors", "FixedPointNumbers", "Random", "StaticArrays"]
@@ -333,9 +333,9 @@ version = "0.21.1"
 
 [[JuliaInterpreter]]
 deps = ["CodeTracking", "InteractiveUtils", "Random", "UUIDs"]
-git-tree-sha1 = "8f1c59bbca30b0d293f4b2436af49ef4c9c4d601"
+git-tree-sha1 = "899ae4c83ad6f4fa36f31d735c758bb756c03254"
 uuid = "aa1ae85d-cabe-5617-a682-6adf51b2e16a"
-version = "0.8.2"
+version = "0.8.3"
 
 [[KrylovKit]]
 deps = ["LinearAlgebra", "Printf"]
@@ -367,9 +367,9 @@ version = "1.2.0"
 
 [[Latexify]]
 deps = ["Formatting", "InteractiveUtils", "LaTeXStrings", "MacroTools", "Markdown", "Printf", "Requires"]
-git-tree-sha1 = "73292a3259e0141521753065c1df0f91c7e4d5e6"
+git-tree-sha1 = "a8bea922a4678d5d2314b2fc97df0170a2271126"
 uuid = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
-version = "0.14.2"
+version = "0.14.3"
 
 [[LibGit2]]
 deps = ["Printf"]
@@ -405,9 +405,9 @@ uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 
 [[LoweredCodeUtils]]
 deps = ["JuliaInterpreter"]
-git-tree-sha1 = "92b9819125eac5013c99070f696ec0ec5fc66436"
+git-tree-sha1 = "6f681c69f95cf2b9b04328bea3f03122b750d34e"
 uuid = "6f1432cf-f94c-5a45-995e-cdbf5db27b0b"
-version = "1.2.4"
+version = "1.2.5"
 
 [[Lz4_jll]]
 deps = ["Libdl", "Pkg"]
@@ -562,10 +562,10 @@ uuid = "85a6dd25-e78a-55b7-8502-1745935b8125"
 version = "0.2.3"
 
 [[PrettyTables]]
-deps = ["Crayons", "Formatting", "Parameters", "Reexport", "Tables"]
-git-tree-sha1 = "8458dc04a493ae5c2fed3796c1d3117972c69694"
+deps = ["Crayons", "Formatting", "Markdown", "Reexport", "Tables"]
+git-tree-sha1 = "59046964d94dd12ae1e5c15ce460e21ba4f7ec7f"
 uuid = "08abe8d2-0d0c-5749-adfa-8a2ac140af0d"
-version = "0.9.1"
+version = "0.10.0"
 
 [[Printf]]
 deps = ["Unicode"]
@@ -610,9 +610,9 @@ version = "1.0.3"
 
 [[Revise]]
 deps = ["CodeTracking", "Distributed", "FileWatching", "JuliaInterpreter", "LibGit2", "LoweredCodeUtils", "OrderedCollections", "Pkg", "REPL", "Requires", "UUIDs", "Unicode"]
-git-tree-sha1 = "bfe3d98de018f96d472029b00f6a14478a042171"
+git-tree-sha1 = "3afd4b8001d03475369e6eb55c00bf15609b9289"
 uuid = "295af30f-e4ad-537b-8983-00126c2a3abe"
-version = "3.1.6"
+version = "3.1.7"
 
 [[SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
