@@ -25,18 +25,21 @@ using TimerOutputs
 #####################################
 # Local Imports
 #
-include("Tools.jl");
+include("Helpers.jl");
+#include("Tools.jl");
 include("Hamiltonians.jl");
-include("ConfigStrings.jl");
+include("DeterminantStrings.jl");
+include("FCI.jl");
 include("Clusters.jl")
 include("CMFs.jl")
 include("pyscf/PyscfFunctions.jl");
 #
 #####################################
 
-export ConfigString
+export Helpers
+export DeterminantString
 export ElectronicInts
-#export ElectronicProblem
+export FCIProblem
 export Molecule
 export Atom
 export Cluster
