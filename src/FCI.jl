@@ -27,6 +27,9 @@ function FCIProblem(no, na, nb)
     return FCIProblem(no, na, nb, dima, dimb, dima*dimb, false, false, 1, "direct", 1)
 end
 
+function display(p::FCIProblem)
+    @printf(" FCIProblem::  NOrbs: %2i NAlpha: %2i NBeta: %2i Dimension: %-9i\n",p.no,p.na,p.nb,p.dim)
+end
 
 function compute_spin_diag_terms_full!(H::ElectronicInts, P::FCIProblem, Hmat)
     #={{{=#
@@ -41,6 +44,39 @@ function compute_spin_diag_terms_full!(H::ElectronicInts, P::FCIProblem, Hmat)
 
 end
 #=}}}=#
+
+
+"""
+    build_H_matrix(ints::ElectronicInts, P::FCIProblem)
+
+Build the Hamiltonian defined by `ints` in the Slater Determinant Basis 
+in the sector of Fock space specified by `P`
+"""
+function build_H_matrix(ints::ElectronicInts, P::FCIProblem)
+
+    Hmat = zeros(P.dim, P.dim)
+
+    Hdiag_a = precompute_spin_diag_terms(ints,P,P.na)
+    Hdiag_b = precompute_spin_diag_terms(ints,P,P.nb)
+    # 
+    #   Create ci_strings
+    ket_a = DeterminantString(P.no, P.na)
+    ket_b = DeterminantString(P.no, P.nb)
+    bra_a = DeterminantString(P.no, P.na)
+    bra_b = DeterminantString(P.no, P.nb)
+    #   
+    #   Add spin diagonal components
+    Hmat += kron(Matrix(1.0I, P.dimb, P.dimb), Hdiag_a)
+    Hmat += kron(Hdiag_b, Matrix(1.0I, P.dima, P.dima))
+    #
+    #   Add opposite spin term (todo: make this reasonably efficient)
+    Hmat += compute_ab_terms_full(ints, P)
+    
+    Hmat = .5*(Hmat+Hmat')
+
+    return Hmat
+end
+
 
 
 function compute_ab_terms_full!(H::ElectronicInts, P::FCIProblem, Hmat)
@@ -179,7 +215,8 @@ function compute_ab_terms(v, H::ElectronicInts, P::FCIProblem)
 
     #v = transpose(vin)
 
-    sig = 0*v
+    sig = deepcopy(v)
+    sig .= 0
 
 
     #   Create local references to ci_strings
@@ -386,27 +423,6 @@ function precompute_spin_diag_terms(H::ElectronicInts, P::FCIProblem, e)
         incr!(ket)
     end
     return Hout
-end
-#=}}}=#
-
-
-function get_matvec_fn(ham::ElectronicInts, prb::FCIProblem, HdiagA, HdiagB)
-    #=
-    Get function with takes a vector and returns action of H on that vector
-    =#
-    #={{{=#
-    ket_a = DeterminantString(prb.no, prb.na)
-    ket_b = DeterminantString(prb.no, prb.nb)
-
-    lookup_a = fill_ca_lookup(ket_a)
-    lookup_b = fill_ca_lookup(ket_b)
-
-    function (v)
-        @time sig = compute_ab_terms(v, ham, prb, lookup_a, lookup_b)
-        sig += HdiagA * v
-        sig += HdiagB * v
-        return sig 
-    end
 end
 #=}}}=#
 
