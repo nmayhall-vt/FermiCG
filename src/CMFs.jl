@@ -106,19 +106,10 @@ function cmf_ci_iteration(ints, clusters, rdm1a, rdm1b, fspace; verbose=1)
 	for ci in clusters
 		flush(stdout)
 		ints_i = form_casci_ints(ints, ci, rdm1a, rdm1b)
-		# ints_i = FermiCG.pyscf_build_ints(mf.mol,Cl[:,ci.orb_list], rdm_embed);
-		# ints_i = FermiCG.subset(ints,ci.orb_list)
-		#display(ints_i)
 		e, d1, d2 = FermiCG.pyscf_fci(ints_i,fspace[ci.idx][1],fspace[ci.idx][2], verbose=verbose)
-		# e1 = FermiCG.compute_energy(ints_i.h0, ints_i.h1, ints_i.h2, d1, d2)
-		# println(e1)
-		# println(d1)
 		rdm1_dict[ci.idx] = d1
 		rdm2_dict[ci.idx] = d2
-		# display(ints.h1)
 	end
-	# println(rdm1_dict[clusters[1].idx])
-	# return
 	e_curr = compute_cmf_energy(ints, rdm1_dict, rdm2_dict, clusters, verbose=verbose)
     if verbose > 1
         @printf(" CMF-CI Curr: Elec %12.8f Total %12.8f\n", e_curr-ints.h0, e_curr)

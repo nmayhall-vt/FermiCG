@@ -1,10 +1,7 @@
-using NPZ
-using JSON
-using Random
 using LinearAlgebra
 using FermiCG
 using Printf
-
+using Test
 
 @testset "cmf" begin
     atoms = []
