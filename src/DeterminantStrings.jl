@@ -10,17 +10,18 @@ Type to organize all the configuration DeterminantString
 """
 #struct DeterminantString
 mutable struct DeterminantString
-	no::Integer
-	ne::Integer
-	sign::Integer
-	lin_index::Integer
-	config::Array{Integer,1}
-    ca_lookup::Array{Integer, 3}
-	max::Integer
+    no::Integer
+    ne::Integer
+    sign::Integer
+    lin_index::Integer
+    config::Array{Integer,1}
+    #ca_lookup::Array{Integer, 3}
+    max::Integer
 end
 
 function DeterminantString(no::Integer, ne::Integer)
-    return DeterminantString(no, ne, 1, 1, Vector(1:ne), zeros(get_nchk(no,ne),no,no), get_nchk(no,ne))
+    return DeterminantString(no, ne, 1, 1, Vector(1:ne), get_nchk(no,ne))
+    #return DeterminantString(no, ne, 1, 1, Vector(1:ne), zeros(get_nchk(no,ne),no,no), get_nchk(no,ne))
 end
 
 function display(d::DeterminantString)
@@ -43,22 +44,22 @@ end
 
 
 function print(c::DeterminantString)
-	#=
-	Pretty print of an determinant DeterminantString
-	=#
+    #=
+    Pretty print of an determinant DeterminantString
+    =#
     @printf("Index: %-10i (%3i,%-3i) Dim: %-10i Sign: %2i ",c.lin_index, c.no, c.ne, c.max, c.sign)
     print(" Config:")
     [@printf("%3i",i) for i in c.config]
-	print('\n')
+    print('\n')
 end
 
 
 
 function incr!(c::DeterminantString)
-	#=
-	Increment determinant DeterminantString
-	=#
-#={{{=#
+    #=
+    Increment determinant DeterminantString
+    =#
+    #={{{=#
     if c.max == nothing
         calc_max!(c)
     end
@@ -75,7 +76,7 @@ function calc_max(c::DeterminantString)
     #=
     Calculate dimension of space accessible to a DeterminantString
     =#
-#={{{=#
+    #={{{=#
     return Helpers.get_nchk(c.no,c.ne)
 end
 #=}}}=#
@@ -95,7 +96,7 @@ function incr_comb!(comb::Array{Integer,1}, Mend::Integer)
     #=
     For a given combination, form the next combination
     =#
-#={{{=#
+    #={{{=#
     N = length(comb)
     for i in N:-1:1
         if comb[i] < Mend - N + i
@@ -115,7 +116,7 @@ function calc_linear_index!(c::DeterminantString)
     #=
     Return linear index for lexically ordered __config DeterminantString
     =#
-#={{{=#
+    #={{{=#
     c.lin_index = 1
     v_prev::Int = 0
 
@@ -138,7 +139,7 @@ function calc_linear_index(c::DeterminantString)
     #=
     Return linear index for lexically ordered __config DeterminantString
     =#
-#={{{=#
+    #={{{=#
     v_prev::Int = 0
     lin_index = 1
     for i in 1:c.ne
@@ -156,12 +157,14 @@ end
 #=}}}=#
 
 
+"""
+    fill_ca_lookup(c::DeterminantString)
+
+Create an index table relating each DeterminantString with all ia substitutions
+i.e., ca_lookup[Ka][c(p) + a(p)*n_p] = La
+"""
 function fill_ca_lookup(c::DeterminantString)
-    #=
-    Create an index table relating each DeterminantString with all ia substitutions
-        i.e., ca_lookup[Ka][c(p) + a(p)*n_p] = La
-    =#
-#={{{=#
+    #={{{=#
 
     ket = DeterminantString(c.no, c.ne)
     bra = DeterminantString(c.no, c.ne)
@@ -201,6 +204,43 @@ end
 #=}}}=#
 
 
+
+"""
+    fill_ca_lookup(c::DeterminantString)
+
+Create an index table relating each DeterminantString with all ia substitutions
+i.e., ca_lookup[Ka,p,q] = sign*La
+"""
+function fill_ca_lookup2(c::DeterminantString)
+    #={{{=#
+
+    ket = DeterminantString(c.no, c.ne)
+    bra = DeterminantString(c.no, c.ne)
+
+    max = calc_max(ket)
+
+    tbl = zeros(Int,max, ket.no, ket.no)
+    for K in 1:max
+        for p in 1:ket.no
+            for q in 1:ket.no
+                bra = deepcopy(ket)
+                apply_annihilation!(bra,p)
+                apply_creation!(bra,q)
+                @assert(issorted(bra.config))
+                if bra.sign == 0
+                    continue
+                else
+                    calc_linear_index!(bra)
+                    tbl[K, q, p] = bra.sign*bra.lin_index
+                end
+            end
+        end
+        incr!(ket)
+    end
+    return tbl
+end
+#=}}}=#
+
 function reset!(c::DeterminantString)
     #={{{=#
     c.config = Vector(1:c.ne)
@@ -211,7 +251,7 @@ end
 
 
 function destroy_config!(c::DeterminantString)
-#={{{=#
+    #={{{=#
     c.config = []
     c.sign = 0
     c.lin_index = 0
@@ -300,38 +340,38 @@ end
 
 
 function slater_det_energy(h0, h1, h2, deta::DeterminantString, detb::DeterminantString)
-	#Compute the energy of a Slater Det specified by
-	#   deta is alpha determinant
-	#   detb is beta  determinant
-        #={{{=#
-	E0 = h0
-	E1 = 0
-	E2 = 0
+    #Compute the energy of a Slater Det specified by
+    #   deta is alpha determinant
+    #   detb is beta  determinant
+    #={{{=#
+    E0 = h0
+    E1 = 0
+    E2 = 0
 
-        na = deta.config
-        nb = detb.config
-	for ii=1:deta.ne
-		i = na[ii]
-		E1 += h1[i,i]
-		for jj=ii:deta.ne
-			j = na[jj]
-			E2 += h2[i,i,j,j]
-			E2 -= h2[i,j,j,i]
-		end
-		for jj=1:detb.ne
-			j = nb[jj]
-			E2 += h2[i,i,j,j]
-		end
-	end
-	for ii=1:detb.ne
-		i = nb[ii]
-		E1 += h1[i,i]
-		for jj=i:detb.ne
-			j = nb[jj]
-			E2 += h2[i,i,j,j]
-			E2 -= h2[i,j,j,i]
-		end
-	end
-	return E0+E1+E2
+    na = deta.config
+    nb = detb.config
+    for ii=1:deta.ne
+        i = na[ii]
+        E1 += h1[i,i]
+        for jj=ii:deta.ne
+            j = na[jj]
+            E2 += h2[i,i,j,j]
+            E2 -= h2[i,j,j,i]
+        end
+        for jj=1:detb.ne
+            j = nb[jj]
+            E2 += h2[i,i,j,j]
+        end
+    end
+    for ii=1:detb.ne
+        i = nb[ii]
+        E1 += h1[i,i]
+        for jj=i:detb.ne
+            j = nb[jj]
+            E2 += h2[i,i,j,j]
+            E2 -= h2[i,j,j,i]
+        end
+    end
+    return E0+E1+E2
 end
 #=}}}=#

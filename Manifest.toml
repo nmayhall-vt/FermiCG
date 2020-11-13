@@ -837,6 +837,12 @@ git-tree-sha1 = "d8d8b8a9f4119829410ecd706da4cc8594a1e020"
 uuid = "276daf66-3868-5448-9aa4-cd146d93841b"
 version = "0.10.3"
 
+[[StatProfilerHTML]]
+deps = ["Profile", "Test"]
+git-tree-sha1 = "1b039dcd0209c9541056af2c03850cff695913a5"
+uuid = "a8a75453-ed82-57c9-9e16-4cd1196ecbf5"
+version = "1.0.0"
+
 [[StaticArrays]]
 deps = ["LinearAlgebra", "Random", "Statistics"]
 git-tree-sha1 = "da4cf579416c81994afd6322365d00916c79b8ae"

@@ -159,6 +159,8 @@ function compute_ab_terms_full(H::ElectronicInts, P::FCIProblem)
 
     ket_a_lookup = fill_ca_lookup(ket_a)
     ket_b_lookup = fill_ca_lookup(ket_b)
+    ket_a_lookup2 = fill_ca_lookup2(ket_a)
+    ket_b_lookup2 = fill_ca_lookup2(ket_b)
 
     a_max = bra_a.max
     reset!(ket_b)
@@ -172,17 +174,26 @@ function compute_ab_terms_full(H::ElectronicInts, P::FCIProblem)
             #  <pq|rs> p'q'sr  --> (pr|qs) (a,b)
             for r in 1:ket_a.no
                 for p in 1:ket_a.no
-                    sign_a, La = ket_a_lookup[Ka][p+(r-1)*ket_a.no]
+                    #sign_a, La = ket_a_lookup[Ka][p+(r-1)*ket_a.no]
+                    La = ket_a_lookup2[Ka,p,r]
                     if La == 0
                         continue
                     end
+                    sign_a = sign(La)
+                    La = abs(La)
 
                     Lb = 1
                     sign_b = 1
                     L = 1 
                     for s in 1:ket_b.no
                         for q in 1:ket_b.no
-                            sign_b, Lb = ket_b_lookup[Kb][q+(s-1)*ket_b.no]
+                            Lb = ket_b_lookup2[Kb,q,s]
+                            if Lb == 0
+                                continue
+                            end
+                            sign_b = sign(Lb)
+                            Lb = abs(Lb)
+                            #sign_b, Lb = ket_b_lookup[Kb][q+(s-1)*ket_b.no]
 
                             if Lb == 0
                                 continue
@@ -415,7 +426,14 @@ function precompute_spin_diag_terms(H::ElectronicInts, P::FCIProblem, e)
                         end
                         L = calc_linear_index(bra)
                         Ipqrs = H.h2[p,r,q,s]-H.h2[p,s,q,r]
-                        Hout[K,L] += Ipqrs*bra.sign
+                        Hout[K,L] += bra.sign*Ipqrs
+#                        if bra.sign == -1
+#                            Hout[K,L] -= Ipqrs
+#                        elseif bra.sign == +1
+#                            Hout[K,L] += Ipqrs
+#                        else
+#                            throw(Exception())
+#                        end
                     end
                 end
             end
