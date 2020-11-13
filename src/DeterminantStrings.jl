@@ -210,6 +210,8 @@ end
 
 Create an index table relating each DeterminantString with all ia substitutions
 i.e., ca_lookup[Ka,p,q] = sign*La
+
+<L|p'q|K> = sign
 """
 function fill_ca_lookup2(c::DeterminantString)
     #={{{=#
@@ -219,7 +221,7 @@ function fill_ca_lookup2(c::DeterminantString)
 
     max = calc_max(ket)
 
-    tbl = zeros(Int,max, ket.no, ket.no)
+    tbl = zeros(Integer,max, ket.no, ket.no)
     for K in 1:max
         for p in 1:ket.no
             for q in 1:ket.no
