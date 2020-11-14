@@ -32,6 +32,13 @@ Modules = [FermiCG]
 Pages   = ["Hamiltonians.jl"]
 ```
 
+## StringCI 
+
+```@autodocs
+Modules = [StringCI]
+Pages   = ["StringCI/StringCI.jl", "StringCI/DeterminantStrings.jl", "StringCI/FCI.jl", "StringCI/Helpers.jl"]
+```
+
 ## PySCF Helpers
 
 ```@autodocs
