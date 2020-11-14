@@ -4,7 +4,6 @@ using Parameters
 using Profile
 using LinearMaps
 
-using .Helpers
 
 
 struct FCIProblem
@@ -22,8 +21,8 @@ struct FCIProblem
 end
 
 function FCIProblem(no, na, nb)
-    dima = Helpers.calc_nchk(no,na)
-    dimb = Helpers.calc_nchk(no,nb)
+    dima = calc_nchk(no,na)
+    dimb = calc_nchk(no,nb)
     return FCIProblem(no, na, nb, dima, dimb, dima*dimb, false, false, 1, "direct", 1)
 end
 
@@ -31,7 +30,7 @@ function display(p::FCIProblem)
     @printf(" FCIProblem::  NOrbs: %2i NAlpha: %2i NBeta: %2i Dimension: %-9i\n",p.no,p.na,p.nb,p.dim)
 end
 
-function compute_spin_diag_terms_full!(H::ElectronicInts, P::FCIProblem, Hmat)
+function compute_spin_diag_terms_full!(H, P::FCIProblem, Hmat)
     #={{{=#
 
     print(" Compute same spin terms.\n")
@@ -47,12 +46,12 @@ end
 
 
 """
-    build_H_matrix(ints::ElectronicInts, P::FCIProblem)
+    build_H_matrix(ints, P::FCIProblem)
 
 Build the Hamiltonian defined by `ints` in the Slater Determinant Basis 
 in the sector of Fock space specified by `P`
 """
-function build_H_matrix(ints::ElectronicInts, P::FCIProblem)
+function build_H_matrix(ints, P::FCIProblem)
 
     Hmat = zeros(P.dim, P.dim)
 
@@ -79,7 +78,10 @@ end
 
 
 
-function compute_ab_terms_full!(H::ElectronicInts, P::FCIProblem, Hmat)
+"""
+    compute_ab_terms_full!(H, P::FCIProblem, Hmat)
+"""
+function compute_ab_terms_full!(H, P::FCIProblem, Hmat)
     #={{{=#
 
     print(" Compute opposite spin terms.\n")
@@ -142,7 +144,10 @@ end
 #=}}}=#
 
 
-function compute_ab_terms_full(H::ElectronicInts, P::FCIProblem)
+"""
+    compute_ab_terms_full(H, P::FCIProblem)
+"""
+function compute_ab_terms_full(H, P::FCIProblem)
     #={{{=#
 
     #print(" Compute opposite spin terms. Shape of v: ", size(v), "\n")
@@ -217,8 +222,11 @@ function compute_ab_terms_full(H::ElectronicInts, P::FCIProblem)
 end
 #=}}}=#
 
-
-function compute_ab_terms2(v, H::ElectronicInts, P::FCIProblem, 
+"""
+    compute_ab_terms2(v, H, P::FCIProblem, 
+                          ket_a_lookup, ket_b_lookup)
+"""
+function compute_ab_terms2(v, H, P::FCIProblem, 
                           ket_a_lookup, ket_b_lookup)
     #={{{=#
 
@@ -302,8 +310,10 @@ function compute_ab_terms2(v, H::ElectronicInts, P::FCIProblem,
 end
 #=}}}=#
 
-
-function compute_ab_terms(v, H::ElectronicInts, P::FCIProblem)
+"""
+    compute_ab_terms(v, H, P::FCIProblem)
+"""
+function compute_ab_terms(v, H, P::FCIProblem)
     #={{{=#
 
     #print(" Compute opposite spin terms. Shape of v: ", size(v), "\n")
@@ -382,8 +392,10 @@ function compute_ab_terms(v, H::ElectronicInts, P::FCIProblem)
 end
 #=}}}=#
 
-
-function compute_ab_terms(v, H::ElectronicInts, P::FCIProblem, ket_a_lookup, ket_b_lookup)
+"""
+    compute_ab_terms(v, H, P::FCIProblem, ket_a_lookup, ket_b_lookup)
+"""
+function compute_ab_terms(v, H, P::FCIProblem, ket_a_lookup, ket_b_lookup)
     #={{{=#
 
     #print(" Compute opposite spin terms. Shape of v: ", size(v), "\n")
@@ -453,8 +465,10 @@ function compute_ab_terms(v, H::ElectronicInts, P::FCIProblem, ket_a_lookup, ket
 end
 #=}}}=#
 
-
-function precompute_spin_diag_terms(H::ElectronicInts, P::FCIProblem, e)
+"""
+    precompute_spin_diag_terms(H, P::FCIProblem, e)
+"""
+function precompute_spin_diag_terms(H, P::FCIProblem, e)
     #={{{=#
 
     #   Create local references to ci_strings
@@ -534,8 +548,10 @@ function precompute_spin_diag_terms(H::ElectronicInts, P::FCIProblem, e)
 end
 #=}}}=#
 
-
-function get_map(ham::ElectronicInts, prb::FCIProblem, HdiagA, HdiagB)
+"""
+    get_map(ham, prb::FCIProblem, HdiagA, HdiagB)
+"""
+function get_map(ham, prb::FCIProblem, HdiagA, HdiagB)
     #=
     Get LinearMap with takes a vector and returns action of H on that vector
     =#

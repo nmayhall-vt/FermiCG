@@ -1,9 +1,6 @@
 using Printf
 using Parameters
-
-
 import Base: length, print, display
-using .Helpers
 
 """
 Type to organize all the configuration DeterminantString
@@ -77,7 +74,7 @@ function calc_max(c::DeterminantString)
     Calculate dimension of space accessible to a DeterminantString
     =#
     #={{{=#
-    return Helpers.get_nchk(c.no,c.ne)
+    return get_nchk(c.no,c.ne)
 end
 #=}}}=#
 
@@ -87,7 +84,7 @@ function calc_max!(c::DeterminantString)
     Calculate dimension of space accessible to a DeterminantString
     =#
     #={{{=#
-    c.max = Helpers.get_nchk(c.no,c.ne)
+    c.max = get_nchk(c.no,c.ne)
 end
 #=}}}=#
 
@@ -126,7 +123,7 @@ function calc_linear_index!(c::DeterminantString)
         for j in v_prev+1:v-1
             #print(c)
             #print(c.no-j, " ", c.ne-i,'\n')
-            c.lin_index += Helpers.get_nchk(c.no-j,c.ne-i)
+            c.lin_index += get_nchk(c.no-j,c.ne-i)
         end
         v_prev = v
     end
@@ -148,7 +145,7 @@ function calc_linear_index(c::DeterminantString)
         for j in v_prev+1:v-1
             #print(c)
             #print(c.no-j, " ", c.ne-i,'\n')
-            lin_index += Helpers.get_nchk(c.no-j,c.ne-i)
+            lin_index += get_nchk(c.no-j,c.ne-i)
         end
         v_prev = v
     end

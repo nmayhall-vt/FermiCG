@@ -26,13 +26,13 @@ basis = "sto-3g"
 mol     = Molecule(0,1,atoms)
 mf = FermiCG.pyscf_do_scf(mol,basis)
 ints = FermiCG.pyscf_build_ints(mf.mol,mf.mo_coeff);
-e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,4,4)
+@time e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,4,4)
 # @printf(" FCI Energy: %12.8f\n", e_fci)
 
 
 norbs = size(ints.h1)[1]
 
-problem = FCIProblem(norbs, 4, 4)
+problem = StringCI.FCIProblem(norbs, 4, 4)
 
 display(problem)
 
@@ -45,11 +45,11 @@ display(problem)
 
 
 print(" Compute spin_diagonal terms\n")
-@time Hdiag_a = FermiCG.precompute_spin_diag_terms(ints,problem,problem.na)
-@time Hdiag_b = FermiCG.precompute_spin_diag_terms(ints,problem,problem.nb)
+@time Hdiag_a = StringCI.precompute_spin_diag_terms(ints,problem,problem.na)
+@time Hdiag_b = StringCI.precompute_spin_diag_terms(ints,problem,problem.nb)
 print(" done\n")
 
-Hmap = FermiCG.get_map(ints, problem, Hdiag_a, Hdiag_b)
+Hmap = StringCI.get_map(ints, problem, Hdiag_a, Hdiag_b)
 
 v = zeros(problem.dim,1)
 v[1] = 1
