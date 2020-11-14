@@ -16,6 +16,10 @@ push!(atoms,Atom(5,"H",[0,0,4]))
 push!(atoms,Atom(6,"H",[0,0,5]))
 push!(atoms,Atom(7,"H",[0,0,6]))
 push!(atoms,Atom(8,"H",[0,0,7]))
+#push!(atoms,Atom(9,"H",[0,0,8]))
+#push!(atoms,Atom(10,"H",[0,0,9]))
+#push!(atoms,Atom(11,"H",[0,0,10]))
+#push!(atoms,Atom(12,"H",[0,0,11]))
 #basis = "6-31g"
 basis = "sto-3g"
 
@@ -51,7 +55,7 @@ v = zeros(problem.dim,1)
 v[1] = 1
 
 #Hmat = .5*(Hmat + transpose(Hmat))
-@time e,v = eigs(Hmap, v0=v[:,1], nev = 1, which=:SR)
+@time e,v = eigs(Hmap, v0=v[:,1], nev = 1, which=:SR, tol=1e-6, maxiter=12)
 e = real(e)
 for ei in e
     @printf(" Energy: %12.8f\n",ei+ints.h0)

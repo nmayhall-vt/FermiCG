@@ -8,7 +8,7 @@ using TensorOperations
 Type to hold a second quantized Hamiltonian coefficients in memory
 """
 struct ElectronicInts
-	h0::Real
+	h0::Float64
 	h1::Array{Float64,2}
 	h2::Array{Float64,4}
 end

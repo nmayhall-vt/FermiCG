@@ -218,7 +218,8 @@ end
 #=}}}=#
 
 
-function compute_ab_terms2(v, H::ElectronicInts, P::FCIProblem)
+function compute_ab_terms2(v, H::ElectronicInts, P::FCIProblem, 
+                          ket_a_lookup, ket_b_lookup)
     #={{{=#
 
     #print(" Compute opposite spin terms. Shape of v: ", size(v), "\n")
@@ -226,70 +227,69 @@ function compute_ab_terms2(v, H::ElectronicInts, P::FCIProblem)
 
     #v = transpose(vin)
 
-
-
     #   Create local references to ci_strings
     ket_a = DeterminantString(P.no, P.na)
     ket_b = DeterminantString(P.no, P.nb)
     bra_a = DeterminantString(P.no, P.na)
     bra_b = DeterminantString(P.no, P.nb)
 
-    ket_a_lookup = fill_ca_lookup2(ket_a)
-    ket_b_lookup = fill_ca_lookup2(ket_b)
+    no = ket_a.no
 
-    a_max = bra_a.max
+    #ket_a_lookup = fill_ca_lookup2(ket_a)
+    #ket_b_lookup = fill_ca_lookup2(ket_b)
+
+    a_max::Int = bra_a.max
     reset!(ket_b)
 
     #
     #   sig3(Ia,Ib,s) = <Ia|k'l|Ja> <Ib|i'j|Jb> V(ij,kl) C(Ja,Jb,s)
-    n_roots = size(v,3)
+    n_roots::Int = size(v,3)
     #v = reshape(v,ket_a.max, ket_b.max, n_roots) 
-    sig = zeros(ket_a.max, ket_b.max, n_roots) 
-    FJb = zeros(ket_b.max) 
-    L = []
-    R = []
-    for k in 1:ket_a.no
-        for l in 1:ket_a.no
-            #@printf(" %4i, %4i\n",k,l)
-            L = []
-            R = []
-            for (Iidx,I) in enumerate(ket_a_lookup[:,k,l])
-                if I != 0
-                    push!(L,I)
-                    push!(R,Iidx)
+    sig = zeros(Float64, ket_a.max, ket_b.max, n_roots) 
+    FJb = zeros(Float64, ket_b.max) 
+    for k in 1:ket_a.no,  l in 1:ket_a.no
+        #@printf(" %4i, %4i\n",k,l)
+        L = Vector{Int}()
+        R = Vector{Int}()
+        for (Iidx,I) in enumerate(ket_a_lookup[:,k,l])
+            if I != 0
+                push!(L,I)
+                push!(R,Iidx)
+            end
+        end
+        VI = zeros(Float64, length(L),n_roots)
+        #println(L)
+        #println(R)
+        Ckl = zeros(Float64, size(v)[2], length(L), size(v)[3])
+        for Li in 1:length(L)
+            @views Ckl[:,Li,:] = v[abs(L[Li]), :, :] * sign(L[Li])
+        end
+        #Vkl_ij = H.h2[:,:,k,l]
+        for Ib in 1:ket_b.max
+            FJb .= 0 
+            Jb = 1
+            sgn::Int = 0
+            for i=1:no, j=1:no
+                Jb = ket_b_lookup[Ib,i,j]
+                if Jb != 0
+                    sgn = sign(Jb)
+                    Jb = abs(Jb)
+                    @inbounds FJb[Jb] += H.h2[j,i,l,k]*sgn
                 end
             end
-            VI = zeros(length(L),n_roots)
-            #println(L)
-            #println(R)
-            Ckl = zeros(length(L), size(v)[2], size(v)[3])
-            for Li in 1:length(L)
-                Ckl[Li,:,:] = v[abs(L[Li]), :, :] * sign(L[Li])
+            @tensor begin
+                VI[I,s] = FJb[J] * Ckl[J,I,s]
             end
-            #Vkl_ij = H.h2[:,:,k,l]
-            for Ib in 1:ket_b.max
-                FJb .= 0 
-                Jb = 1
-                for i in 1:ket_b.no
-                    for j in 1:ket_b.no
-                        Jb = ket_b_lookup[Ib,i,j]
-                        if Jb != 0
-                            #FJb[abs(Jb)] += Vkl_ij[i,j]*sign(Jb)
-                            FJb[abs(Jb)] += H.h2[i,j,k,l]*sign(Jb)
-                        end
-                    end
+            #for I = 1:length(L), s = 1:n_roots
+            #    @views VI[I,s] = FJb[:]' * Ckl[:,I,s]
+            #end
+            #println(size(sig), size(VI))
+            for si in 1:n_roots
+                for Li in 1:length(L)
+                    @inbounds sig[R[Li],Ib,si] += VI[Li,si] 
                 end
-                @tensor begin
-                    VI[I,s] = FJb[J] * Ckl[I,J,s]
-                end
-                #println(size(sig), size(VI))
-#                for si in 1:n_roots
-#                    for Li in 1:length(L)
-#                        sig[R[Li],Ib,si] += VI[Li,si] 
-#                    end
-#                end
-                @views sig[R,Ib,:] .+= VI[:,:]
             end
+            #                @views sig[R,Ib,:] .+= VI[:,:]
         end
     end
 
@@ -543,10 +543,12 @@ function get_map(ham::ElectronicInts, prb::FCIProblem, HdiagA, HdiagB)
     ket_a = DeterminantString(prb.no, prb.na)
     ket_b = DeterminantString(prb.no, prb.nb)
 
-    lookup_a = fill_ca_lookup(ket_a)
-    lookup_b = fill_ca_lookup(ket_b)
-
+    lookup_a = fill_ca_lookup2(ket_a)
+    lookup_b = fill_ca_lookup2(ket_b)
+    iters = 0
     function mymatvec(v)
+        iters += 1
+        @printf(" Iter: %4i\n", iters)
         nr = 0
         if length(size(v)) == 1
             nr = 1
@@ -555,7 +557,7 @@ function get_map(ham::ElectronicInts, prb::FCIProblem, HdiagA, HdiagB)
             nr = size(v)[2]
         end
         v = reshape(v, ket_a.max, ket_b.max, nr)
-        sig = compute_ab_terms2(v, ham, prb)
+        sig = compute_ab_terms2(v, ham, prb, lookup_a, lookup_b)
         #sig = compute_ab_terms(v, ham, prb, lookup_a, lookup_b)
         #sig = reshape(sig, ket_a.max,ket_b.max, nr)
         #v = reshape(v, ket_a.max, ket_b.max, nr)
