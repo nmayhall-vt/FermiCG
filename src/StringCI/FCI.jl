@@ -590,3 +590,39 @@ function get_map(ham, prb::FCIProblem, HdiagA, HdiagB)
 end
 #=}}}=#
 
+
+"""
+    run_fci(ints, prb::FCIProblem)
+
+input: ints is a struct containing 0, 2, and 4 dimensional tensors
+        - h0: energy shift
+        - h1: 1 electron integrals
+        - h2: 2 electron integrals (chemists notation)
+"""
+function run_fci(ints, problem::FCIProblem; v0=nothing, nroots=1, tol=1e-6)
+    print(" Compute spin_diagonal terms\n")
+    @time Hdiag_a = StringCI.precompute_spin_diag_terms(ints,problem,problem.na)
+    @time Hdiag_b = StringCI.precompute_spin_diag_terms(ints,problem,problem.nb)
+    print(" done\n")
+
+    Hmap = StringCI.get_map(ints, problem, Hdiag_a, Hdiag_b)
+
+    #Hmat = .5*(Hmat + transpose(Hmat))
+    e = 0
+    v = Array{Float64,2}
+    if v0 == nothing
+        @time e,v = eigs(Hmap, nev = nroots, which=:SR, tol=tol)
+        e = real(e)
+        for ei in e
+            @printf(" Energy: %12.8f\n",ei+ints.h0)
+        end
+    else
+        @time e,v = eigs(Hmap, v0=v0[:,1], nev = nroots, which=:SR, tol=tol)
+        e = real(e)
+        for ei in e
+            @printf(" Energy: %12.8f\n",ei+ints.h0)
+        end
+    end
+    return e,v 
+end
+

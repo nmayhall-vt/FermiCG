@@ -8,7 +8,7 @@ pages = [
     # "Grids" => "grids.md",
     # "Problem" => "problem.md",
     # "GPU" => "gpu.md",
-    "Examples" => ["cmf.md"],
+    "Examples" => ["cmf.md","fci.md"],
     "Library" => [
         "Contents" => "library/outline.md",
         "Public" => "library/public.md",
@@ -26,6 +26,7 @@ const OUTPUT_DIR   = joinpath(@__DIR__, "src/generated")
 
 examples = [
     "test_cmf.jl",
+    "test_fci.jl",
 ]
 
 # for example in examples

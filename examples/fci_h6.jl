@@ -36,28 +36,20 @@ problem = StringCI.FCIProblem(norbs, 4, 4)
 
 display(problem)
 
-#@time Hmat = FermiCG.build_H_matrix(ints, problem)
-#@time e,v = eigs(Hmat, nev = 10, which=:SR)
-#e = real(e)
-#for ei in e
-#    @printf(" Energy: %12.8f\n",ei+ints.h0)
-#end
+v0 = zeros(problem.dim,1)
+v0[1] = 1
 
+e, v = StringCI.run_fci(ints, problem, v0=v0)
+e, v = StringCI.run_fci(ints, problem, v0=v)
+    
+ket_a = StringCI.DeterminantString(problem.no, problem.na)
+ket_b = StringCI.DeterminantString(problem.no, problem.nb)
 
-print(" Compute spin_diagonal terms\n")
-@time Hdiag_a = StringCI.precompute_spin_diag_terms(ints,problem,problem.na)
-@time Hdiag_b = StringCI.precompute_spin_diag_terms(ints,problem,problem.nb)
-print(" done\n")
-
-Hmap = StringCI.get_map(ints, problem, Hdiag_a, Hdiag_b)
-
-v = zeros(problem.dim,1)
-v[1] = 1
-
-#Hmat = .5*(Hmat + transpose(Hmat))
-@time e,v = eigs(Hmap, v0=v[:,1], nev = 1, which=:SR, tol=1e-6, maxiter=12)
-e = real(e)
-for ei in e
-    @printf(" Energy: %12.8f\n",ei+ints.h0)
-end
- 
+v = reshape(v,ket_a.max,ket_b.max)
+F = svd(v)
+N = 50
+v0 = F.U[:,1:N] * Diagonal(F.S[1:N]) * F.Vt[1:N,:]
+v0 = reshape(v0,ket_a.max*ket_b.max)
+println(v0'*v0)
+v0 = v0/norm(v0)
+e, v = StringCI.run_fci(ints, problem, v0=v0)
