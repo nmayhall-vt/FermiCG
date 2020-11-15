@@ -26,6 +26,7 @@ using TimerOutputs
 # Local Imports
 #
 include("StringCI/StringCI.jl");
+include("Solvers.jl");
 include("Hamiltonians.jl");
 include("Clusters.jl")
 include("CMFs.jl")

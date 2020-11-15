@@ -311,6 +311,153 @@ end
 #=}}}=#
 
 """
+    compute_aa_terms2(v, H, P::FCIProblem, 
+                          ket_a_lookup)
+"""
+function compute_ss_terms2(v, H, P::FCIProblem, 
+                          ket_a_lookup, ket_b_lookup)
+    #={{{=#
+
+    #print(" Compute opposite spin terms. Shape of v: ", size(v), "\n")
+    @assert(size(v,1)*size(v,2) == P.dim)
+
+    #v = transpose(vin)
+
+    #   Create local references to ci_strings
+    ket_a = DeterminantString(P.no, P.na)
+    ket_b = DeterminantString(P.no, P.nb)
+    bra_a = DeterminantString(P.no, P.na)
+    bra_b = DeterminantString(P.no, P.nb)
+
+    no = ket_a.no
+
+    a_max::Int = bra_a.max
+    reset!(ket_a)
+
+    #
+    #   sig1(Ia,Ib,s) = <Ib|i'j|Jb> V(ij,kl) C(Ja,Jb,s)
+    n_roots::Int = size(v,3)
+    #v = reshape(v,ket_a.max, ket_b.max, n_roots) 
+    sig = zeros(Float64, ket_a.max, ket_b.max, n_roots) 
+    size(sig) == size(v) || throw(DimensionError())
+#    for K in 1:ket_a.max
+#        #  hpq p'q 
+#        for p in 1:ket_a.no, q in 1:ket_a.no
+#            L = ket_a_lookup[K,p,q]
+#            if L==0
+#                continue
+#            end
+#            sgn = sign(L)
+#            L = abs(L)
+#
+#            @views sig[K,:,:] += H.h1[q,p] * sgn * v[L,:,:]
+#        end
+#    end
+
+    h1eff = deepcopy(H.h1)
+    @tensor begin
+        h1eff[p,q] -= .5 * H.h2[p,j,j,q]  
+    end
+
+    #aa
+    ket = ket_a
+    reset!(ket) 
+    F = zeros(ket_a.max)
+    for I in 1:ket.max
+        F .= 0
+        for k in 1:ket.no, l in 1:ket.no
+            K = ket_a_lookup[I,k,l]
+            if K == 0
+                continue
+            end
+            sign_kl = sign(K)
+            K = abs(K)
+
+            bra = deepcopy(ket)
+            apply_annihilation!(bra,l) 
+            if bra.sign == 0
+                continue
+            end
+            apply_creation!(bra,k) 
+            if bra.sign == 0
+                continue
+            end
+            @inbounds F[K] += sign_kl * h1eff[k,l]
+            #@views sig[:,I,:] += H.h1[k,l] * sign_kl * v[:,K,:]
+            for i in 1:ket.no, j in 1:ket.no
+                J = ket_a_lookup[K,i,j]
+                if J == 0
+                    continue
+                end
+                sign_ij = sign(J)
+                J = abs(J)
+                if sign_kl == sign_ij
+                    @inbounds F[J] += .5 * H.h2[i,j,k,l]
+                else
+                    @inbounds F[J] -= .5 * H.h2[i,j,k,l]
+                end
+            end
+        end
+        @views tmp = sig[I,:,:]
+        @tensor begin
+            tmp[K,s] += F[J] * v[J,K,s]
+        end
+        incr!(ket)
+    end
+
+    #bb
+    ket = ket_b
+    reset!(ket) 
+    F = zeros(ket_b.max)
+    for I in 1:ket.max
+        F .= 0
+        for k in 1:ket.no, l in 1:ket.no
+            K = ket_b_lookup[I,k,l]
+            if K == 0
+                continue
+            end
+            sign_kl = sign(K)
+            K = abs(K)
+
+            bra = deepcopy(ket)
+            apply_annihilation!(bra,l) 
+            if bra.sign == 0
+                continue
+            end
+            apply_creation!(bra,k) 
+            if bra.sign == 0
+                continue
+            end
+            @inbounds F[K] += sign_kl * h1eff[k,l]
+            #@views sig[:,I,:] += H.h1[k,l] * sign_kl * v[:,K,:]
+            for i in 1:ket.no, j in 1:ket.no
+                J = ket_b_lookup[K,i,j]
+                if J == 0
+                    continue
+                end
+                sign_ij = sign(J)
+                J = abs(J)
+                #@inbounds F[J] += .5 *sign_kl * sign_ij * H.h2[i,j,k,l]
+                if sign_kl == sign_ij
+                    @inbounds F[J] += .5 * H.h2[i,j,k,l]
+                else
+                    @inbounds F[J] -= .5 * H.h2[i,j,k,l]
+                end
+            end
+        end
+        @views tmp = sig[:,I,:]
+        @tensor begin
+            tmp[K,s] += F[J] * v[K,J,s]
+        end
+        incr!(ket)
+    end
+
+    return sig
+
+end
+#=}}}=#
+
+"""
     compute_ab_terms(v, H, P::FCIProblem)
 """
 function compute_ab_terms(v, H, P::FCIProblem)
@@ -548,8 +695,11 @@ function precompute_spin_diag_terms(H, P::FCIProblem, e)
 end
 #=}}}=#
 
+
 """
     get_map(ham, prb::FCIProblem, HdiagA, HdiagB)
+
+Assumes you've already computed the spin diagonal components
 """
 function get_map(ham, prb::FCIProblem, HdiagA, HdiagB)
     #=
@@ -564,7 +714,7 @@ function get_map(ham, prb::FCIProblem, HdiagA, HdiagB)
     iters = 0
     function mymatvec(v)
         iters += 1
-        @printf(" Iter: %4i\n", iters)
+        #@printf(" Iter: %4i\n", iters)
         nr = 0
         if length(size(v)) == 1
             nr = 1
@@ -574,13 +724,46 @@ function get_map(ham, prb::FCIProblem, HdiagA, HdiagB)
         end
         v = reshape(v, ket_a.max, ket_b.max, nr)
         sig = compute_ab_terms2(v, ham, prb, lookup_a, lookup_b)
-        #sig = compute_ab_terms(v, ham, prb, lookup_a, lookup_b)
-        #sig = reshape(sig, ket_a.max,ket_b.max, nr)
-        #v = reshape(v, ket_a.max, ket_b.max, nr)
         @tensor begin
             sig[I,J,s] += HdiagA[I,K] * v[K,J,s]
             sig[I,J,s] += HdiagB[J,K] * v[I,K,s]
         end
+
+        v = reshape(v, ket_a.max*ket_b.max, nr)
+        sig = reshape(sig, ket_a.max*ket_b.max, nr)
+        return sig 
+    end
+    return LinearMap(mymatvec, prb.dim, prb.dim; issymmetric=true, ismutating=false, ishermitian=true)
+end
+#=}}}=#
+
+
+"""
+    get_map(ham, prb::FCIProblem)
+
+Get LinearMap with takes a vector and returns action of H on that vector
+"""
+function get_map(ham, prb::FCIProblem)
+    #={{{=#
+    ket_a = DeterminantString(prb.no, prb.na)
+    ket_b = DeterminantString(prb.no, prb.nb)
+
+    lookup_a = fill_ca_lookup2(ket_a)
+    lookup_b = fill_ca_lookup2(ket_b)
+    iters = 0
+    function mymatvec(v)
+        iters += 1
+        #@printf(" Iter: %4i\n", iters)
+        nr = 0
+        if length(size(v)) == 1
+            nr = 1
+            v = reshape(v,ket_a.max*ket_b.max, nr)
+        else 
+            nr = size(v)[2]
+        end
+        v = reshape(v, ket_a.max, ket_b.max, nr)
+        sig = compute_ab_terms2(v, ham, prb, lookup_a, lookup_b)
+        sig += compute_ss_terms2(v, ham, prb, lookup_a, lookup_b)
 
         v = reshape(v, ket_a.max*ket_b.max, nr)
         sig = reshape(sig, ket_a.max*ket_b.max, nr)
@@ -599,15 +782,20 @@ input: ints is a struct containing 0, 2, and 4 dimensional tensors
         - h1: 1 electron integrals
         - h2: 2 electron integrals (chemists notation)
 """
-function run_fci(ints, problem::FCIProblem; v0=nothing, nroots=1, tol=1e-6)
-    print(" Compute spin_diagonal terms\n")
-    @time Hdiag_a = StringCI.precompute_spin_diag_terms(ints,problem,problem.na)
-    @time Hdiag_b = StringCI.precompute_spin_diag_terms(ints,problem,problem.nb)
-    print(" done\n")
+function run_fci(ints, problem::FCIProblem; v0=nothing, nroots=1, tol=1e-6,
+                precompute_ss = false)
 
-    Hmap = StringCI.get_map(ints, problem, Hdiag_a, Hdiag_b)
+    if precompute_ss
+        print(" Compute spin_diagonal terms\n")
+        @time Hdiag_a = StringCI.precompute_spin_diag_terms(ints,problem,problem.na)
+        @time Hdiag_b = StringCI.precompute_spin_diag_terms(ints,problem,problem.nb)
+        print(" done\n")
 
-    #Hmat = .5*(Hmat + transpose(Hmat))
+        Hmap = StringCI.get_map(ints, problem, Hdiag_a, Hdiag_b)
+    else
+        Hmap = StringCI.get_map(ints, problem)
+    end
+    
     e = 0
     v = Array{Float64,2}
     if v0 == nothing

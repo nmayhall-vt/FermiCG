@@ -4,7 +4,7 @@ using Printf
 using Test
 using LinearMaps
 using Arpack
-
+using Random
 using Profile 
 
 atoms = []
@@ -36,20 +36,16 @@ problem = StringCI.FCIProblem(norbs, 4, 4)
 
 display(problem)
 
-v0 = zeros(problem.dim,1)
-v0[1] = 1
+nr = 1
+v0 = rand(problem.dim,nr)
+v0[:,1] .= 0
+v0[1,1] = 1
+v0 = v0 * inv(sqrt(v0'*v0))
 
-e, v = StringCI.run_fci(ints, problem, v0=v0, precompute_ss=true)
-#e, v = StringCI.run_fci(ints, problem, v0=v)
-#    
-#ket_a = StringCI.DeterminantString(problem.no, problem.na)
-#ket_b = StringCI.DeterminantString(problem.no, problem.nb)
-#
-#v = reshape(v,ket_a.max,ket_b.max)
-#F = svd(v)
-#N = 50
-#v0 = F.U[:,1:N] * Diagonal(F.S[1:N]) * F.Vt[1:N,:]
-#v0 = reshape(v0,ket_a.max*ket_b.max)
-#println(v0'*v0)
-#v0 = v0/norm(v0)
-#e, v = StringCI.run_fci(ints, problem, v0=v0)
+Hmap = StringCI.get_map(ints, problem)
+Random.seed!(3);
+A = rand(20,20)
+A = A'+A
+
+davidson = FermiCG.Davidson(Hmap,v0=v0,max_iter=100, nroots=nr)
+FermiCG.solve(davidson)
