@@ -79,6 +79,35 @@ end
 
 
 """
+    compute_fock_diagonal!(H, P::FCIProblem, e_mf::Float64)
+"""
+function compute_fock_diagonal(P::FCIProblem, orb_energies::Vector{Float64}, e_mf::Float64)
+    ket_a = DeterminantString(P.no, P.na)
+    ket_b = DeterminantString(P.no, P.nb)
+    
+    meanfield_e = e_mf 
+    meanfield_e -=sum(orb_energies[ket_a.config])
+    meanfield_e -=sum(orb_energies[ket_b.config])
+
+    fdiag = zeros(ket_a.max, ket_b.max)
+    
+    reset!(ket_a) 
+    reset!(ket_b) 
+    for Ib in 1:ket_b.max
+        eb = sum(orb_energies[ket_b.config]) + meanfield_e
+        for Ia in 1:ket_a.max
+            fdiag[Ia,Ib] = eb + sum(orb_energies[ket_a.config]) 
+            incr!(ket_a)
+        end
+        incr!(ket_b)
+    end
+    fdiag = reshape(fdiag,ket_a.max*ket_b.max)
+    #display(fdiag)
+    return fdiag
+end
+
+
+"""
     compute_ab_terms_full!(H, P::FCIProblem, Hmat)
 """
 function compute_ab_terms_full!(H, P::FCIProblem, Hmat)
