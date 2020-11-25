@@ -2,6 +2,21 @@ using Printf
 using Parameters
 import Base: length, print, display
 
+
+
+### 
+function string_to_index(str::String)
+    return parse(Int, reverse(str); base=2)
+end
+
+function index_to_string(index::Int)
+    return [parse(Int, ss) for ss in reverse(bitstring(index))]
+end
+
+
+
+
+
 """
 Type to organize all the configuration DeterminantString
 """
