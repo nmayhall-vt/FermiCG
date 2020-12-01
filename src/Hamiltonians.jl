@@ -33,9 +33,10 @@ end
 # end
 
 """
-	id::Integer             # index of atom in the molecule
-	symbol::String          # Atomic ID (E.g. H, He, ...)
-	xyz::Array{Float64,1}   # list of XYZ coordinates
+# Data
+- `id::Integer`: index of atom in the molecule
+- `symbol::String`: Atomic ID (E.g. H, He, ...)
+- `xyz::Array{Float64,1}`: list of XYZ coordinates
 """
 struct Atom
 	#=
@@ -46,15 +47,20 @@ struct Atom
 	xyz::Array{Float64,1}
 end
 
+
+
 """
-	charge::Integer          # overall charge on molecule
-	multiplicity::Integer    # 2S+1
-	atoms::Array{Atom,1}     # Vector of `Atoms`
+# Data
+- `charge::Integer`: overall charge on molecule
+- `multiplicity::Integer`: 2S+1
+- `atoms::Array{Atom,1}`:Vector of `Atoms`
+- `basis::String`: Basis set
 """
 struct Molecule
 	charge::Integer
 	multiplicity::Integer
 	atoms::Array{Atom,1}
+    basis::String
 end
 
 

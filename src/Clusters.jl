@@ -1,3 +1,4 @@
+
 """
 	idx::Integer
 	orb_list::Array{Integer,1}
@@ -24,7 +25,7 @@ end
 
 Return number of orbitals in `Cluster`
 """
-function length(c::Cluster)
+function Base.length(c::Cluster)
     return length(c.orb_list)
 end
 

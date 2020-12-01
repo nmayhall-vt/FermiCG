@@ -7,14 +7,14 @@ ENV["PYTHON"] = Sys.which("python")
 #print(ENV)
 
 """
-	pyscf_do_scf(molecule::Molecule, basis::String; conv_tol=1e-10)
+	pyscf_do_scf(molecule::Molecule, conv_tol=1e-10)
 
 Use PySCF to compute Hartree-Fock for a given molecule and basis set
 and return a PYSCF mean field object
 """
-function pyscf_do_scf(molecule::Molecule, basis::String; conv_tol=1e-10)
+function pyscf_do_scf(molecule::Molecule, conv_tol=1e-10)
 	pyscf = pyimport("pyscf")
-	pymol = make_pyscf_mole(molecule, basis)
+	pymol = make_pyscf_mole(molecule)
 
 	println(pymol.basis)
 	#pymol.max_memory = 1000 # MB
@@ -36,15 +36,16 @@ function pyscf_do_scf(molecule::Molecule, basis::String; conv_tol=1e-10)
 	return mf
 end
 
+
 """
-	make_pyscf_mole(molecule::Molecule, basis::String)
+	make_pyscf_mole(molecule::Molecule)
 
 Create a `pyscf.gto.Mole()` object
 """
-function make_pyscf_mole(molecule::Molecule, basis::String)
+function make_pyscf_mole(molecule::Molecule)
 	pyscf = pyimport("pyscf")
 	pymol = pyscf.gto.Mole()
-	pymol.basis = basis
+	pymol.basis = molecule.basis
 	geomstr = ""
 	for i in molecule.atoms
 		geomstr = geomstr * string(i.symbol,", ", join(map(string, i.xyz), ", "),"\n")
@@ -57,14 +58,19 @@ function make_pyscf_mole(molecule::Molecule, basis::String)
 end
 
 """
-	pyscf_write_molden(molecule::Molecule, basis, C; filename="orbitals.molden")
+	pyscf_write_molden(molecule::Molecule, C; filename="orbitals.molden")
+
+# Arguments
+- `molecule::Molecule`: Molecule object
+- `C`: MO Coefficients
+- `filename`: Filename to write to
 
 Write MO coeffs `C` to a molden file for visualizing
 """
-function pyscf_write_molden(molecule::Molecule, basis, C; filename="orbitals.molden")
+function pyscf_write_molden(molecule::Molecule, C; filename="orbitals.molden")
 	pyscf = pyimport("pyscf")
 	molden = pyimport("pyscf.molden")
-	pymol = make_pyscf_mole(molecule, basis)
+	pymol = make_pyscf_mole(molecule)
 	molden.from_mo(pymol, filename, C)
 	return 1
 end
@@ -72,6 +78,10 @@ end
 
 """
 	pyscf_write_molden(mf; filename="orbitals.molden")
+
+# Arguments
+- `mf`: PySCF mean field object
+- `filename`: Filename to write to
 
 Write MO coeffs `C` to a molden file for visualizing
 """
@@ -87,9 +97,10 @@ end
 	pyscf_build_ints(mol, c_act, d1_embed)
 
 build 1 and 2 electron integrals using a pyscf SCF object
-c_act are the active space orbitals
-d1_embed is a density matrix for the frozen part in the AO basis
-	(e.g, doccs or frozen clusters)
+# Arguments
+- `mol`: PySCF Molecule object
+- `c_act`: active space orbital MO coeffs
+- `d1_embed`: 1rdm density matrix for the frozen part in the AO basis (e.g, doccs or frozen clusters)
 
 returns an `ElectronicInts` type
 """
@@ -128,30 +139,31 @@ function pyscf_build_ints(mol, c_act, d1_embed)
 	return h
 end
 
-"""
-	pyscf_build_ints(mol, c_act)
+#"""
+#	pyscf_build_ints(mol, c_act)
+#
+#build 1 and 2 electron integrals using a pyscf SCF object
+#active is list of orbital indices which are active
+#
+#returns an `ElectronicInts` type
+#"""
+#function pyscf_build_ints(mol, c_act)
+#
+#	pyscf = pyimport("pyscf")
+#
+#	nact = size(c_act)[2]
+#	#mycas = pyscf.mcscf.CASSCF(mf, length(active), 0)
+#
+#	h0 = pyscf.gto.mole.energy_nuc(mol)
+#	h1 = c_act' * pyscf.scf.hf.get_hcore(mol) * c_act
+#	h2 = pyscf.ao2mo.kernel(mol, c_act, aosym="s4",compact=false)
+#	h2 = reshape(h2, (nact, nact, nact, nact))
+#
+#	# println(size(c_act))
+#	h = ElectronicInts(h0, h1, h2);
+#	return h
+#end
 
-build 1 and 2 electron integrals using a pyscf SCF object
-active is list of orbital indices which are active
-
-returns an `ElectronicInts` type
-"""
-function pyscf_build_ints(mol, c_act)
-
-	pyscf = pyimport("pyscf")
-
-	nact = size(c_act)[2]
-	#mycas = pyscf.mcscf.CASSCF(mf, length(active), 0)
-
-	h0 = pyscf.gto.mole.energy_nuc(mol)
-	h1 = c_act' * pyscf.scf.hf.get_hcore(mol) * c_act
-	h2 = pyscf.ao2mo.kernel(mol, c_act, aosym="s4",compact=false)
-	h2 = reshape(h2, (nact, nact, nact, nact))
-
-	# println(size(c_act))
-	h = ElectronicInts(h0, h1, h2);
-	return h
-end
 
 """
 	pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1, verbose=1)

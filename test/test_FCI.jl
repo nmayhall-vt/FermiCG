@@ -16,7 +16,7 @@ using Arpack
     #basis = "6-31g"
     basis = "sto-3g"
 
-    mol     = Molecule(0,1,atoms)
+    mol     = Molecule(0,1,atoms,basis)
     mf = FermiCG.pyscf_do_scf(mol,basis)
     ints = FermiCG.pyscf_build_ints(mf.mol,mf.mo_coeff);
     e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,3,3)

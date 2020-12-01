@@ -2,6 +2,7 @@ using LinearAlgebra
 using Random
 using Optim
 
+
 """
 	form_casci_ints(ints::ElectronicInts, ci::Cluster, rdm1a, rdm1b)
 
@@ -90,6 +91,68 @@ function compute_cmf_energy(ints, rdm1s, rdm2s, clusters; verbose=1)
 	# pretty_table(e1; formatters = ft_printf("%5.3f"))
 
 end
+
+
+"""
+    cmf_ci_iteration(mol::Molecule, C, rdm1a, rdm1b, clusters, fspace; 
+                     verbose=1)
+
+Perform single CMF-CI iteration, returning new energy, and density.
+This method forms the eri's on the fly to avoid global N^4 storage
+
+# Arguments
+- `mol::Molecule`: a FermiCG.Molecule type
+- `C`: MO coefficients for full system (spin restricted)
+- `rdm1a`: 1particle density matrix (alpha) 
+- `rdm1b`: 1particle density matrix (beta) 
+- `clusters::Vector{Cluster}`: vector of Cluster objects
+- `fspace::Vector{Vector{Int}}`: vector of particle number occupations for each cluster specifying the sectors of fock space 
+- `verbose`: how much to print
+
+See also: [`cmf_ci_iteration`](@ref)
+"""
+function cmf_ci_iteration(mol::Molecule, C, rdm1a, rdm1b, clusters, fspace; verbose=1)
+	rdm1_dict = Dict{Integer,Array}()
+	rdm2_dict = Dict{Integer,Array}()
+	for ci in clusters
+		flush(stdout)
+        # converge the MO density matrix into AOs for PYSCF
+        Dembed = rdm1a + rdm1b
+        Dembed[:,ci.orb_list] .= 0
+        Dembed[ci.orb_list,:] .= 0
+        Dembed = C * Dembed * C'
+        # 
+        # get pyscf molecule type
+        pymol = FermiCG.make_pyscf_mole(mol, basis)
+        #
+        # use pyscf molecule to form integrals in subspace
+        ints_i = FermiCG.pyscf_build_ints(pymol, C[:,ci.orb_list], Dembed);
+	    #
+        # use pyscf to compute FCI energy
+        e, d1, d2 = FermiCG.pyscf_fci(ints_i,fspace[ci.idx][1],fspace[ci.idx][2], verbose=verbose)
+		rdm1_dict[ci.idx] = d1
+		rdm2_dict[ci.idx] = d2
+	end
+	e_curr = compute_cmf_energy(ints, rdm1_dict, rdm2_dict, clusters, verbose=verbose)
+    if verbose > 1
+        @printf(" CMF-CI Curr: Elec %12.8f Total %12.8f\n", e_curr-ints.h0, e_curr)
+    end
+
+	rdm1a_out = zeros(size(rdm1a))
+	rdm1b_out = zeros(size(rdm1b))
+	for ci in clusters
+		# for (iidx,i) in enumerate(ci.orb_list)
+		# 	for (jidx,j) in enumerate(ci.orb_list)
+		# 		rdm1a_out[i,j] = rdm1_dict[ci.idx][iidx,jidx]
+		# 		rdm1b_out[i,j] = rdm1_dict[ci.idx][iidx,jidx]
+		# 	end
+		# end
+		rdm1a_out[ci.orb_list, ci.orb_list] .= rdm1_dict[ci.idx]
+		rdm1b_out[ci.orb_list, ci.orb_list] .= rdm1_dict[ci.idx]
+	end
+	return e_curr,rdm1a_out, rdm1b_out, rdm1_dict, rdm2_dict
+end
+
 
 """
     cmf_ci_iteration(ints, clusters, rdm1a, rdm1b, fspace; verbose=1)

@@ -14,9 +14,10 @@ using Test
     #basis = "6-31g"
     basis = "sto-3g"
 
-    mol     = Molecule(0,1,atoms)
-    mf = FermiCG.pyscf_do_scf(mol,basis)
-    ints = FermiCG.pyscf_build_ints(mf.mol,mf.mo_coeff);
+    mol     = Molecule(0,1,atoms,basis)
+    mf = FermiCG.pyscf_do_scf(mol)
+    nbas = size(mf.mo_coeff)[1]
+    ints = FermiCG.pyscf_build_ints(mf.mol,mf.mo_coeff, zeros(nbas,nbas));
     e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,3,3)
     # @printf(" FCI Energy: %12.8f\n", e_fci)
 
@@ -32,14 +33,14 @@ using Test
 
     compute_npairs(d2_fci)
 
-    FermiCG.pyscf_write_molden(mol,basis,mf.mo_coeff,filename="scf.molden")
+    FermiCG.pyscf_write_molden(mol,mf.mo_coeff,filename="scf.molden")
 
     # Cl = FermiCG.localize(mf.mo_coeff,"boys", mf)
-    # FermiCG.pyscf_write_molden(mol,"6-31g",Cl,filename="boys.molden")
+    # FermiCG.pyscf_write_molden(mol,Cl,filename="boys.molden")
     C = mf.mo_coeff
     rdm_mf = C[:,1:2] * C[:,1:2]'
     Cl = FermiCG.localize(mf.mo_coeff,"lowdin",mf)
-    FermiCG.pyscf_write_molden(mol,basis,Cl,filename="lowdin.molden")
+    FermiCG.pyscf_write_molden(mol,Cl,filename="lowdin.molden")
     S = FermiCG.get_ovlp(mf)
     U =  C' * S * Cl
     println(" Build Integrals")
@@ -68,5 +69,5 @@ using Test
     @test isapprox(e_cmf, -3.205983033016, atol=1e-10)
     C_cmf = Cl*U
 
-    FermiCG.pyscf_write_molden(mol,basis,C_cmf,filename="cmf.molden")
+    FermiCG.pyscf_write_molden(mol,C_cmf,filename="cmf.molden")
 end
