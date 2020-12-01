@@ -9,11 +9,19 @@ pages = [
     # "Problem" => "problem.md",
     # "GPU" => "gpu.md",
     "Examples" => ["cmf.md","fci.md"],
-    "Library" => [
-        "Contents" => "library/outline.md",
-        "Public" => "library/public.md",
-        "Private" => "library/internals.md",
-        "Function index" => "library/function_index.md",
+#    "Library" => [
+#        "Contents" => "library/outline.md",
+#        "Public" => "library/public.md",
+#        "Private" => "library/internals.md",
+#        "Function index" => "library/function_index.md",
+#        ],
+     "Functions" => Any[
+            "FermiCG" => "library/FermiCG.md",
+            "CMF" => "library/CMFs.md",
+            "Hamiltonians" => "library/Hamiltonians.md",
+            "Clusters" => "library/Clusters.md",
+            "PyscfFunctions" => "library/PyscfFunctions.md",
+            "StringCI" => "library/StringCI.md",
         ],
 ]
 
