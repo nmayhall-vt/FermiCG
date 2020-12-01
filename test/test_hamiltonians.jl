@@ -16,7 +16,7 @@ using FermiCG
     mf = FermiCG.pyscf_do_scf(mol)
     nbas = size(mf.mo_coeff)[1]
     @test isapprox(mf.e_tot, -2.16024391299511, atol=1e-10)
-    ints = FermiCG.pyscf_build_ints(mf.mol,mf.mo_coeff,zeros(nbas,nbas));
+    ints = FermiCG.pyscf_build_ints(mol,mf.mo_coeff,zeros(nbas,nbas));
     e,d,dim = FermiCG.pyscf_fci(ints,2,2)
     @test isapprox(e+ints.h0, -2.2251145788392828, atol=1e-10)
 end

@@ -121,12 +121,9 @@ function cmf_ci_iteration(mol::Molecule, C, rdm1a, rdm1b, clusters, fspace; verb
         Dembed[:,ci.orb_list] .= 0
         Dembed[ci.orb_list,:] .= 0
         Dembed = C * Dembed * C'
-        # 
-        # get pyscf molecule type
-        pymol = FermiCG.make_pyscf_mole(mol, basis)
         #
-        # use pyscf molecule to form integrals in subspace
-        ints_i = FermiCG.pyscf_build_ints(pymol, C[:,ci.orb_list], Dembed);
+        # form integrals in subspace
+        ints_i = FermiCG.pyscf_build_ints(mol, C[:,ci.orb_list], Dembed);
 	    #
         # use pyscf to compute FCI energy
         e, d1, d2 = FermiCG.pyscf_fci(ints_i,fspace[ci.idx][1],fspace[ci.idx][2], verbose=verbose)

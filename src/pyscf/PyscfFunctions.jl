@@ -104,24 +104,27 @@ build 1 and 2 electron integrals using a pyscf SCF object
 
 returns an `ElectronicInts` type
 """
-function pyscf_build_ints(mol, c_act, d1_embed)
+function pyscf_build_ints(mol::Molecule, c_act, d1_embed)
 
 	pyscf = pyimport("pyscf")
 
 	nact = size(c_act)[2]
 	#mycas = pyscf.mcscf.CASSCF(mf, length(active), 0)
+    # 
+    # get pyscf molecule type
+    pymol = FermiCG.make_pyscf_mole(mol)
 
-	h0 = pyscf.gto.mole.energy_nuc(mol)
-	h = c_act' * pyscf.scf.hf.get_hcore(mol) * c_act
-	j, k = pyscf.scf.hf.get_jk(mol, d1_embed, hermi=1)
+	h0 = pyscf.gto.mole.energy_nuc(pymol)
+	h = c_act' * pyscf.scf.hf.get_hcore(pymol) * c_act
+	j, k = pyscf.scf.hf.get_jk(pymol, d1_embed, hermi=1)
 	j = c_act' * j * c_act;
 	k = c_act' * k * c_act;
-	h2 = pyscf.ao2mo.kernel(mol, c_act, aosym="s4",compact=false)
+	h2 = pyscf.ao2mo.kernel(pymol, c_act, aosym="s4",compact=false)
 	h2 = reshape(h2, (nact, nact, nact, nact))
 
 	# The use of d1_embed only really makes sense if it has zero electrons in the
 	# active space. Let's warn the user if that's not true
-	S = mol.intor("int1e_ovlp_sph")
+	S = pymol.intor("int1e_ovlp_sph")
 	n_act = tr(S * d1_embed * S * c_act * c_act')
 	if isapprox(abs(n_act),0,atol=1e-8) == false
 		println(n_act)

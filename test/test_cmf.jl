@@ -17,7 +17,7 @@ using Test
     mol     = Molecule(0,1,atoms,basis)
     mf = FermiCG.pyscf_do_scf(mol)
     nbas = size(mf.mo_coeff)[1]
-    ints = FermiCG.pyscf_build_ints(mf.mol,mf.mo_coeff, zeros(nbas,nbas));
+    ints = FermiCG.pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
     e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,3,3)
     # @printf(" FCI Energy: %12.8f\n", e_fci)
 
