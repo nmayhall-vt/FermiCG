@@ -61,7 +61,7 @@ makedocs(
 )
 
 deploydocs(
-    repo="github.com/nmayhall-vt/FermiCG",
+    repo="github.com/nmayhall-vt/FermiCG.git",
     push_preview = true,
     deps = Deps.pip("pygments", "mkdocs", "python-markdown-math")
 )
