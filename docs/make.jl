@@ -54,7 +54,7 @@ makedocs(
     sitename="FermiCG.jl",
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
-        canonical="https://nmayhall-vt.github.io/FermiCG",
+        canonical="https://nmayhall-vt.github.io/FermiCG/stable",
         assets=String[],
     ),
     pages=pages,
