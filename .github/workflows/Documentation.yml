@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-10.15 
+    runs-on: ubuntu-latest 
     steps:
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@latest
@@ -22,5 +22,3 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # For authentication with GitHub Actions token
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }} # For authentication with SSH deploy key
         run: julia --project=./ docs/make.jl
-name: Documentation
-
