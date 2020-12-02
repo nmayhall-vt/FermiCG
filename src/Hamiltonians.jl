@@ -8,9 +8,9 @@ using TensorOperations
 Type to hold a second quantized Hamiltonian coefficients in memory
 """
 struct ElectronicInts
-	h0::Float64
-	h1::Array{Float64,2}
-	h2::Array{Float64,4}
+    h0::Float64
+    h1::Array{Float64,2}
+    h2::Array{Float64,4}
 end
 
 
@@ -98,15 +98,15 @@ h_{pq} = U_{rp}h_{rs}U_{sq}
 ```
 """
 function orbital_rotation(ints::ElectronicInts, U)
-	@tensor begin
-		h1[p,q] := U[r,p]*U[s,q]*ints.h1[r,s]
-		# h2[p,q,r,s] := U[t,p]*U[u,q]*U[v,r]*U[w,s]*ints.h2[t,u,v,w]
-		h2[p,q,r,s] := U[t,p]*ints.h2[t,q,r,s]
-		h2[p,q,r,s] := U[t,q]*h2[p,t,r,s]
-		h2[p,q,r,s] := U[t,r]*h2[p,q,t,s]
-		h2[p,q,r,s] := U[t,s]*h2[p,q,r,t]
-	end
-	return ElectronicInts(ints.h0,h1,h2)
+    @tensor begin
+        h1[p,q] := U[r,p]*U[s,q]*ints.h1[r,s]
+        # h2[p,q,r,s] := U[t,p]*U[u,q]*U[v,r]*U[w,s]*ints.h2[t,u,v,w]
+        h2[p,q,r,s] := U[t,p]*ints.h2[t,q,r,s]
+        h2[p,q,r,s] := U[t,q]*h2[p,t,r,s]
+        h2[p,q,r,s] := U[t,r]*h2[p,q,t,s]
+        h2[p,q,r,s] := U[t,s]*h2[p,q,r,t]
+    end
+    return ElectronicInts(ints.h0,h1,h2)
 end
 
 
@@ -116,14 +116,14 @@ end
 Extract a subset of integrals acting on orbitals in list, returned as ElectronicInts type
 """
 function subset(ints::ElectronicInts, list)
-	# h0 = ints.h0
-	# h1 = view(ints.h1,list,list)
-	# h2 = view(ints.h1,list,list)
-	# ints2 = ElectronicInts(ints.h0, ints.h1[list,list], ints.h2[list,list,list,list])
-	ints2 = ElectronicInts(ints.h0, view(ints.h1,list,list), view(ints.h2,list,list,list,list))
-	#h1 = ints.h1[:,list][list,:]
-	#h2 = ints.h2
-	return ints2
+    # h0 = ints.h0
+    # h1 = view(ints.h1,list,list)
+    # h2 = view(ints.h1,list,list)
+    # ints2 = ElectronicInts(ints.h0, ints.h1[list,list], ints.h2[list,list,list,list])
+    ints2 = ElectronicInts(ints.h0, view(ints.h1,list,list), view(ints.h2,list,list,list,list))
+    #h1 = ints.h1[:,list][list,:]
+    #h2 = ints.h2
+    return ints2
 end
 
 """
@@ -133,11 +133,11 @@ Given an energy shift `h0`, 1e integrals `h1`, and 2e ints `h2`
 along with a 1rdm and 2rdm on the same space, return the energy
 """
 function compute_energy(h0, h1, h2, rdm1, rdm2)
-	e = h0
-	e += sum(h1 .* rdm1)
-	e += .5*sum(h2 .* rdm2)
-	# @tensor begin
-	# 	e  += .5 * (ints.h2[p,q,r,s] * rdm2[p,q,r,s])
-	# end
-	return e
+    e = h0
+    e += sum(h1 .* rdm1)
+    e += .5*sum(h2 .* rdm2)
+    # @tensor begin
+    # 	e  += .5 * (ints.h2[p,q,r,s] * rdm2[p,q,r,s])
+    # end
+    return e
 end

@@ -13,27 +13,27 @@ Use PySCF to compute Hartree-Fock for a given molecule and basis set
 and return a PYSCF mean field object
 """
 function pyscf_do_scf(molecule::Molecule, conv_tol=1e-10)
-	pyscf = pyimport("pyscf")
-	pymol = make_pyscf_mole(molecule)
+    pyscf = pyimport("pyscf")
+    pymol = make_pyscf_mole(molecule)
 
-	println(pymol.basis)
-	#pymol.max_memory = 1000 # MB
-	#pymol.symmetry = true
-	mf = pyscf.scf.RHF(pymol).run(conv_tol=conv_tol)
-	enu = mf.energy_nuc()
-	println("MO Energies")
-	display(mf.mo_energy)
-	# print(np.linalg.eig(mf.get_fock())[0])
+    println(pymol.basis)
+    #pymol.max_memory = 1000 # MB
+    #pymol.symmetry = true
+    mf = pyscf.scf.RHF(pymol).run(conv_tol=conv_tol)
+    enu = mf.energy_nuc()
+    println("MO Energies")
+    display(mf.mo_energy)
+    # print(np.linalg.eig(mf.get_fock())[0])
 
-	# if pymol.symmetry == True:
-	# 	from pyscf import symm
-	# 	mo = symm.symmetrize_orb(mol, mf.mo_coeff)
-	# 	osym = symm.label_orb_symm(mol, mol.irrep_name, mol.symm_orb, mo)
-	# 	#symm.addons.symmetrize_space(mol, mo, s=None, check=True, tol=1e-07)
-	# 	for i in range(len(osym)):
-	# 		print("%4d %8s %16.8f"%(i+1,osym[i],mf.mo_energy[i]))
+    # if pymol.symmetry == True:
+    # 	from pyscf import symm
+    # 	mo = symm.symmetrize_orb(mol, mf.mo_coeff)
+    # 	osym = symm.label_orb_symm(mol, mol.irrep_name, mol.symm_orb, mo)
+    # 	#symm.addons.symmetrize_space(mol, mo, s=None, check=True, tol=1e-07)
+    # 	for i in range(len(osym)):
+    # 		print("%4d %8s %16.8f"%(i+1,osym[i],mf.mo_energy[i]))
 
-	return mf
+    return mf
 end
 
 
@@ -43,18 +43,18 @@ end
 Create a `pyscf.gto.Mole()` object
 """
 function make_pyscf_mole(molecule::Molecule)
-	pyscf = pyimport("pyscf")
-	pymol = pyscf.gto.Mole()
-	pymol.basis = molecule.basis
-	geomstr = ""
-	for i in molecule.atoms
-		geomstr = geomstr * string(i.symbol,", ", join(map(string, i.xyz), ", "),"\n")
-	end
-	pymol.atom = geomstr
-	pymol.charge = molecule.charge
-	pymol.spin = molecule.multiplicity-1
-	pymol.build()
-	return pymol
+    pyscf = pyimport("pyscf")
+    pymol = pyscf.gto.Mole()
+    pymol.basis = molecule.basis
+    geomstr = ""
+    for i in molecule.atoms
+        geomstr = geomstr * string(i.symbol,", ", join(map(string, i.xyz), ", "),"\n")
+    end
+    pymol.atom = geomstr
+    pymol.charge = molecule.charge
+    pymol.spin = molecule.multiplicity-1
+    pymol.build()
+    return pymol
 end
 
 """
@@ -68,11 +68,11 @@ end
 Write MO coeffs `C` to a molden file for visualizing
 """
 function pyscf_write_molden(molecule::Molecule, C; filename="orbitals.molden")
-	pyscf = pyimport("pyscf")
-	molden = pyimport("pyscf.molden")
-	pymol = make_pyscf_mole(molecule)
-	molden.from_mo(pymol, filename, C)
-	return 1
+    pyscf = pyimport("pyscf")
+    molden = pyimport("pyscf.molden")
+    pymol = make_pyscf_mole(molecule)
+    molden.from_mo(pymol, filename, C)
+    return 1
 end
 
 
@@ -86,11 +86,44 @@ end
 Write MO coeffs `C` to a molden file for visualizing
 """
 function pyscf_write_molden(mf; filename="orbitals.molden")
-	pyscf = pyimport("pyscf")
-	molden = pyimport("pyscf.molden")
-	molden.from_mo(mf.mol, filename, mf.mo_coeff)
-	return 1
+    pyscf = pyimport("pyscf")
+    molden = pyimport("pyscf.molden")
+    molden.from_mo(mf.mol, filename, mf.mo_coeff)
+    return 1
 end
+
+
+"""
+	pyscf_build_eri(mol::Molecule, c1::Matrix, c2::Matrix, c3::Matrix, c4::Matrix)
+
+build 2 electron integrals between different orbital spaces, (c1c2|c3c4) 
+# Arguments
+- `mol::Molecule` 
+- `c1`: active space orbital MO coeffs for index 1
+- `c2`: active space orbital MO coeffs for index 2
+- `c3`: active space orbital MO coeffs for index 3
+- `c4`: active space orbital MO coeffs for index 4
+
+returns a 4D tensor 
+"""
+function pyscf_build_eri(mol::Molecule, c1::Matrix, c2::Matrix, c3::Matrix, c4::Matrix)
+
+    pyscf = pyimport("pyscf")
+    # 
+    # get pyscf molecule type
+    pymol = FermiCG.make_pyscf_mole(mol)
+    eri = pymol.intor("int2e")
+    h2 = pyscf.ao2mo.incore.general(eri, (c1,c2,c3,c4))
+
+    nm1 = size(c1)[2]
+    nm2 = size(c2)[2]
+    nm3 = size(c3)[2]
+    nm4 = size(c4)[2]
+    h2 = reshape(h2, (nm1, nm2, nm3, nm4))
+
+    return h2
+end
+
 
 
 """
@@ -204,14 +237,17 @@ function pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1, verbose=1
     if verbose>0
         @printf(" FCI:        %12.8f %12.8f \n", efci+ham.h0, efci)
     end
-    #for i in range(0,nroots):
-    #    print("FCI %10.8f"%(efci[i]))
-    #exit()
-    #fci_dim =1
 
-	return efci, d1, d2
+    return efci, d1, d2
 end
 
+
+
+function get_nuclear_rep(mol::Molecule)
+    pyscf = pyimport("pyscf")
+    pymol = FermiCG.make_pyscf_mole(mol)
+    return pyscf.gto.mole.energy_nuc(pymol)
+end
 
 """
 	localize(C::Array{Float64,2},method::String, mf)
@@ -219,21 +255,21 @@ end
 Localize the orbitals using method = `method`
 """
 function localize(C::Array{Float64,2},method::String, mf)
-	"""
-	mf is a pyscf scf object
-	"""
-	pyscf = pyimport("pyscf")
-	pyscflo = pyimport("pyscf.lo")
-	if lowercase(method) == "lowdin"
-		Cl = mf.mol.intor("int1e_ovlp_sph")
-		F = svd(Cl)
-		# display(Cl - F.U * Diagonal(F.S) * F.Vt)
-		# display(Cl - F.vectors * Diagonal(F.values) * F.vectors')
-		return F.U * Diagonal(F.S.^(-.5)) * F.Vt
-	elseif lowercase(method) == "boys"
-		Cl = pyscflo.Boys(mf.mol, C).kernel(verbose=4)
-		return Cl
-	end
+    """
+    mf is a pyscf scf object
+    """
+    pyscf = pyimport("pyscf")
+    pyscflo = pyimport("pyscf.lo")
+    if lowercase(method) == "lowdin"
+        Cl = mf.mol.intor("int1e_ovlp_sph")
+        F = svd(Cl)
+        # display(Cl - F.U * Diagonal(F.S) * F.Vt)
+        # display(Cl - F.vectors * Diagonal(F.values) * F.vectors')
+        return F.U * Diagonal(F.S.^(-.5)) * F.Vt
+    elseif lowercase(method) == "boys"
+        Cl = pyscflo.Boys(mf.mol, C).kernel(verbose=4)
+        return Cl
+    end
 end
 
 """

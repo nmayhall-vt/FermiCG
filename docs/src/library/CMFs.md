@@ -6,6 +6,6 @@ Pages = ["CMFs.md"]
 ```@autodocs
 Modules = [FermiCG]
 Pages   = ["CMFs.jl"]
-Order   = [:function, :type]
+Order   = [:type, :function]
 Depth	= 2
 ```

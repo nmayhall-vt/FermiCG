@@ -6,7 +6,7 @@ Pages = ["PyscfFunctions.md"]
 ```@autodocs
 Modules = [FermiCG]
 Pages   = ["PyscfFunctions.jl"]
-Order   = [:function, :type]
+Order   = [:type, :function]
 Depth	= 2
 ```
 

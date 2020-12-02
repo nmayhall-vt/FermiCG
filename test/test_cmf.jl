@@ -48,10 +48,7 @@ using Test
     ints = FermiCG.orbital_rotation(ints,U)
     println(" done.")
     flush(stdout)
-    # ints = FermiCG.pyscf_build_ints(mf.mol,Cl);
-    # println(" done.")
-    # flush(stdout)
-    
+
     clusters    = [(1:2),(3:4),(5:6)]
     #clusters    = [(1:4),(5:8),(9:12)]
     init_fspace = [(1,1),(1,1),(1,1)]
@@ -62,12 +59,17 @@ using Test
     rdm1 = zeros(size(ints.h1))
     rdm1a = rdm_mf*.5
     rdm1b = rdm_mf*.5
+    
+    # test in core method
+    f1 = FermiCG.cmf_ci_iteration(ints, clusters, rdm1a, rdm1b, init_fspace, verbose=1)
+    @test isapprox(f1[1], -2.876651063218, atol=1e-10)
+    
+    # test on the fly integral method
+    f2 = FermiCG.cmf_ci_iteration(mol, Cl, rdm1a, rdm1b, clusters, init_fspace, verbose=1)
+    @test isapprox(f2[1], -2.876651063218, atol=1e-10)
 
-    #FermiCG.cmf_ci(ints, clusters, init_fspace, rdm1)
     e_cmf, U = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, verbose=0, gconv=1e-6)
 
     @test isapprox(e_cmf, -3.205983033016, atol=1e-10)
-    C_cmf = Cl*U
-
-    FermiCG.pyscf_write_molden(mol,C_cmf,filename="cmf.molden")
+    #FermiCG.pyscf_write_molden(mol,C_cmf,filename="cmf.molden")
 end

@@ -6,7 +6,7 @@ Pages = ["Hamiltonians.md"]
 ```@autodocs
 Modules = [FermiCG]
 Pages   = ["Hamiltonians.jl"]
-Order   = [:function, :type]
+Order   = [:type, :function]
 Depth	= 2
 ```
 

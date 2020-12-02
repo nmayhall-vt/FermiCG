@@ -6,7 +6,7 @@ Pages = ["Clusters.md"]
 ```@autodocs
 Modules = [FermiCG]
 Pages   = ["Clusters.jl"]
-Order   = [:function, :type]
+Order   = [:type, :function]
 Depth	= 2
 ```
 

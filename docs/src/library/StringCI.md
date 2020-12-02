@@ -6,7 +6,7 @@ Pages = ["StringCI.md"]
 ```@autodocs
 Modules = [StringCI]
 Pages   = ["StringCI/StringCI.jl", "StringCI/DeterminantStrings.jl", "StringCI/FCI.jl", "StringCI/Helpers.jl"]
-Order   = [:module, :function, :type]
+Order   = [:module, :type, :function]
 ```
 
 
