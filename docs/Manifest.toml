@@ -44,9 +44,9 @@ version = "3.5.0+3"
 
 [[ArrayInterface]]
 deps = ["LinearAlgebra", "Requires", "SparseArrays"]
-git-tree-sha1 = "c121e78a689da38e4199cf964962385a4810d827"
+git-tree-sha1 = "8dda4b50619df45559e6e49d8b72b706ee213923"
 uuid = "4fba245c-0d91-5ea0-9b3e-6abc04ee57a9"
-version = "2.14.2"
+version = "2.14.3"
 
 [[Artifacts]]
 deps = ["Pkg"]
@@ -62,6 +62,12 @@ version = "0.1.0"
 
 [[Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
+
+[[BinaryProvider]]
+deps = ["Libdl", "Logging", "SHA"]
+git-tree-sha1 = "ecdec412a9abc8db54c0efc5548c64dfce072058"
+uuid = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
+version = "0.5.10"
 
 [[Blosc]]
 deps = ["Blosc_jll"]
@@ -210,10 +216,16 @@ uuid = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
 version = "0.8.3"
 
 [[Documenter]]
-deps = ["Base64", "Dates", "DocStringExtensions", "InteractiveUtils", "JSON", "LibGit2", "Logging", "Markdown", "REPL", "Test", "Unicode"]
-git-tree-sha1 = "fb1ff838470573adc15c71ba79f8d31328f035da"
+deps = ["Base64", "Dates", "DocStringExtensions", "IOCapture", "InteractiveUtils", "JSON", "LibGit2", "Logging", "Markdown", "REPL", "Test", "Unicode"]
+git-tree-sha1 = "a4875e0763112d6d017126f3944f4133abb342ae"
 uuid = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
-version = "0.25.2"
+version = "0.25.5"
+
+[[DocumenterTools]]
+deps = ["Base64", "DocStringExtensions", "Documenter", "FileWatching", "LibGit2", "Sass"]
+git-tree-sha1 = "58952158c0fda2241761abd96a039ca13aa83c82"
+uuid = "35a29f4d-8980-5a13-9543-d66fff28ecb8"
+version = "0.1.8"
 
 [[EarCut_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -251,16 +263,16 @@ uuid = "b22a6f82-2f65-5046-a5b2-351ab43fb4e5"
 version = "4.3.1+4"
 
 [[FermiCG]]
-deps = ["Arpack", "Compat", "Conda", "Documenter", "HDF5", "JSON", "KrylovKit", "LinearAlgebra", "LinearMaps", "NDTensors", "NPZ", "Optim", "OrderedCollections", "PProf", "PackageCompiler", "Parameters", "Pkg", "Plots", "Preconditioners", "PrettyTables", "Printf", "Profile", "PyCall", "Random", "Revise", "StatProfilerHTML", "TensorOperations", "Test", "TimerOutputs"]
+deps = ["Arpack", "Compat", "Conda", "Documenter", "DocumenterTools", "HDF5", "JSON", "KrylovKit", "LinearAlgebra", "LinearMaps", "NDTensors", "NPZ", "Optim", "OrderedCollections", "PProf", "PackageCompiler", "Parameters", "Pkg", "Plots", "Preconditioners", "PrettyTables", "Printf", "Profile", "PyCall", "Random", "Revise", "StatProfilerHTML", "TensorOperations", "Test", "TimerOutputs"]
 path = ".."
 uuid = "855c3b3a-d9bb-4919-8b00-0b3cfbdffb6f"
 version = "0.1.0"
 
 [[FileIO]]
 deps = ["Pkg"]
-git-tree-sha1 = "cad2e71389ecb2f4480e0de74faab04af13d7929"
+git-tree-sha1 = "fee8955b9dfa7bec67117ef48085fb2b559b9c22"
 uuid = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
-version = "1.4.4"
+version = "1.4.5"
 
 [[FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
@@ -402,6 +414,12 @@ git-tree-sha1 = "c7ec02c4c6a039a98a15f955462cd7aea5df4508"
 uuid = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 version = "0.8.19"
 
+[[IOCapture]]
+deps = ["Logging"]
+git-tree-sha1 = "377252859f740c217b936cebcd918a44f9b53b59"
+uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
+version = "0.1.1"
+
 [[IndirectArrays]]
 git-tree-sha1 = "c2a145a145dc03a7620af1444e0264ef907bd44f"
 uuid = "9b13fd28-a010-5f03-acff-a1bbcff69959"
@@ -452,9 +470,9 @@ version = "2.0.1+3"
 
 [[JuliaInterpreter]]
 deps = ["CodeTracking", "InteractiveUtils", "Random", "UUIDs"]
-git-tree-sha1 = "2648231e247561848b4de1fbce6e9eb4f97a3a45"
+git-tree-sha1 = "ea112fc026812bfb7e362e8732ca207dcf8d4281"
 uuid = "aa1ae85d-cabe-5617-a682-6adf51b2e16a"
-version = "0.8.4"
+version = "0.8.5"
 
 [[KrylovKit]]
 deps = ["LinearAlgebra", "Printf"]
@@ -655,10 +673,10 @@ uuid = "78c3b35d-d492-501b-9361-3d52fe80e533"
 version = "0.7.1"
 
 [[NDTensors]]
-deps = ["Compat", "HDF5", "LinearAlgebra", "Random", "StaticArrays", "Strided"]
-git-tree-sha1 = "4321ed4d91f61475720165c3e71e205b166e51cf"
+deps = ["Compat", "HDF5", "LinearAlgebra", "Random", "Requires", "StaticArrays", "Strided"]
+git-tree-sha1 = "ca34e2189b1834fe7efe0c2fed95f2e057551599"
 uuid = "23ae76d9-e61a-49c4-8f12-3f1a16adf9cf"
-version = "0.1.16"
+version = "0.1.17"
 
 [[NLSolversBase]]
 deps = ["DiffResults", "Distributed", "FiniteDiff", "ForwardDiff"]
@@ -750,9 +768,9 @@ version = "0.12.1"
 
 [[Parsers]]
 deps = ["Dates"]
-git-tree-sha1 = "6fa4202675c05ba0f8268a6ddf07606350eda3ce"
+git-tree-sha1 = "b417be52e8be24e916e34b3d70ec2da7bdf56a68"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-version = "1.0.11"
+version = "1.0.12"
 
 [[Pixman_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -871,6 +889,12 @@ version = "3.1.9"
 [[SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 
+[[Sass]]
+deps = ["BinaryProvider", "Libdl", "Test"]
+git-tree-sha1 = "de11179555c6363c5a61c4c94376db3498983734"
+uuid = "322a6be2-4ae8-5d68-aaf1-3e960788d1d9"
+version = "0.1.0"
+
 [[Scratch]]
 deps = ["Dates"]
 git-tree-sha1 = "ad4b278adb62d185bbcb6864dc24959ab0627bf6"
@@ -905,9 +929,9 @@ uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [[SpecialFunctions]]
 deps = ["OpenSpecFun_jll"]
-git-tree-sha1 = "bf68b90f72f81dd1519b289b7403c591cfdd6a88"
+git-tree-sha1 = "7286f31f27e3335cba31c618ac344a35eceac060"
 uuid = "276daf66-3868-5448-9aa4-cd146d93841b"
-version = "1.0.0"
+version = "1.1.0"
 
 [[StatProfilerHTML]]
 deps = ["Base64", "DataStructures", "Dates", "FlameGraphs", "HAML", "Profile", "Test"]
