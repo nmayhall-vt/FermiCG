@@ -237,19 +237,27 @@ end
 """
     cmf_ci(mol::Molecule, C::Matrix, clusters, fspace, dguess; max_iter=10, dconv=1e-6, econv=1e-10, verbose=1)
 
-Optimize the 1RDM for CMF-CI
+Optimize the 1RDM for CMF-CI, without storing all integrals
+
+# Arguments
+- `mol::Molecule`: a FermiCG.Molecule type
+- `C`: MO coefficients for full system (spin restricted)
+- `clusters::Vector{Cluster}`: vector of Cluster objects
+- `fspace::Vector{Vector{Int}}`: vector of particle number occupations for each cluster specifying the sectors of fock space 
+- `dguess`: initial guess for 1particle density matrix (spin summed) 
+- `dconv`: Convergence threshold for change in density 
+- `econv`: Convergence threshold for change in energy 
+- `verbose`: how much to print
 """
 function cmf_ci(mol::Molecule, C::Matrix, clusters, fspace, dguess; max_iter=10, dconv=1e-6, econv=1e-10, verbose=1)
-	rdm1a = deepcopy(dguess)
-	rdm1b = deepcopy(dguess)
-	energies = []
-	e_prev = 0
+    rdm1a = deepcopy(dguess)
+    rdm1b = deepcopy(dguess)
+    energies = []
+    e_prev = 0
+    e0 = FermiCG.get_nuclear_rep(mol)
 
-	rdm1_dict = 0
-	rdm2_dict = 0
-	rdm1_dict = Dict{Integer,Array}()
-	rdm2_dict = Dict{Integer,Array}()
-	# rdm2_dict = Dict{Integer, Array}()
+    rdm1_dict = Dict{Integer,Array}()
+    rdm2_dict = Dict{Integer,Array}()
     for iter = 1:max_iter
         if verbose > 0
             println()
@@ -257,7 +265,7 @@ function cmf_ci(mol::Molecule, C::Matrix, clusters, fspace, dguess; max_iter=10,
             println(" CMF CI Iter: ", iter)
             println(" ------------------------------------------ ")
         end
-        e_curr, rdm1a_curr, rdm1b_curr, rdm1_dict, rdm2_dict = cmf_ci_iteration(ints, clusters, rdm1a, rdm1b, fspace, verbose=verbose)
+        e_curr, rdm1a_curr, rdm1b_curr, rdm1_dict, rdm2_dict = cmf_ci_iteration(mol, C, rdm1a, rdm1b, clusters, fspace, verbose=verbose)
         append!(energies,e_curr)
         error = (rdm1a_curr+rdm1b_curr) - (rdm1a+rdm1b)
         d_err = norm(error)
@@ -265,23 +273,23 @@ function cmf_ci(mol::Molecule, C::Matrix, clusters, fspace, dguess; max_iter=10,
         if verbose>0
             @printf(" CMF-CI Energy: %12.8f | Change: RDM: %6.1e Energy %6.1e\n\n", e_curr, d_err, e_err)
         end
-		e_prev = e_curr*1
-		rdm1a = rdm1a_curr
-		rdm1b = rdm1b_curr
-		if (abs(d_err) < dconv) && (abs(e_err) < econv)
-			if verbose>0
-                @printf("*CMF-CI: Elec %12.8f Total %12.8f\n", e_curr-ints.h0, e_curr)
+        e_prev = e_curr*1
+        rdm1a = rdm1a_curr
+        rdm1b = rdm1b_curr
+        if (abs(d_err) < dconv) && (abs(e_err) < econv)
+            if verbose>0
+                @printf("*CMF-CI: Elec %12.8f Total %12.8f\n", e_curr-e0, e_curr)
             end
-			break
-		end
-	end
+            break
+        end
+    end
     if verbose>0
         println(" Energy per Iteration:")
         for i in energies
-            @printf(" Elec: %12.8f Total: %12.8f\n", i-ints.h0, i)
+            @printf(" Elec: %12.8f Total: %12.8f\n", i-e0, i)
         end
     end
-	return e_prev, rdm1a, rdm1b, rdm1_dict, rdm2_dict
+    return e_prev, rdm1a, rdm1b, rdm1_dict, rdm2_dict
 end
 
 
@@ -346,12 +354,11 @@ end
 Do CMF with orbital optimization with on the fly integrals
 """
 function cmf_oo(mol::Molecule, Cguess::Matrix, clusters::Vector{Cluster}, fspace, dguess; 
-            max_iter_oo=100, max_iter_ci=100, gconv=1e-6, verbose=0, method="bfgs")
-    norb = 0
-    for ci in clusters
-        norb += length(clusters)
-    end
+                max_iter_oo=100, max_iter_ci=100, gconv=1e-6, verbose=0, method="bfgs")
+    norb = size(Cguess)[2]
     
+    e0 = FermiCG.get_nuclear_rep(mol)
+
     #   
     #   Initialize optimization data
     #
@@ -382,10 +389,10 @@ function cmf_oo(mol::Molecule, Cguess::Matrix, clusters::Vector{Cluster}, fspace
     function callback(k)
         iter += 1
         if (g_curr < gconv) 
-            @printf("*ooCMF Iter: %4i Elec= %16.12f Total= %16.12f G= %12.2e\n", iter, e_curr, e_curr-ints.h0, g_curr)
+            @printf("*ooCMF Iter: %4i Elec= %16.12f Total= %16.12f G= %12.2e\n", iter, e_curr, e_curr-e0, g_curr)
             return true 
         else
-            @printf(" ooCMF Iter: %4i Elec= %16.12f Total= %16.12f G= %12.2e\n", iter, e_curr, e_curr-ints.h0, g_curr)
+            @printf(" ooCMF Iter: %4i Elec= %16.12f Total= %16.12f G= %12.2e\n", iter, e_curr, e_curr-e0, g_curr)
             return false 
         end
     end
@@ -393,73 +400,75 @@ function cmf_oo(mol::Molecule, Cguess::Matrix, clusters::Vector{Cluster}, fspace
     #
     #   Define Gradient function
     #
-	function g_analytic(kappa)
-		norb = size(ints.h1)[1]
-		# println(" In g_analytic")
-		K = unpack_gradient(kappa, norb)
-		U = exp(K)
-		ints2 = orbital_rotation(ints,U)
+    function g_analytic(kappa)
+        # println(" In g_analytic")
+        K = unpack_gradient(kappa, norb)
+        U = exp(K)
+        C = Cguess * U
 
-		e, gd1a, gd1b, rdm1_dict, rdm2_dict = cmf_ci(ints2, clusters, fspace, da+db, dconv=gconv/10.0, verbose=verbose)
-		grad = zeros(size(ints2.h1))
-		for ci in clusters
-			grad_1 = grad[:,ci.orb_list]
-			h_1	   = ints2.h1[:,ci.orb_list]
-			v_111  = ints2.h2[:, ci.orb_list, ci.orb_list, ci.orb_list]
-			@tensor begin
-				grad_1[p,q] += v_111[p,v,u,w] * rdm2_dict[ci.idx][q,u,w,v]
-				grad_1[p,q] += h_1[p,r] * rdm1_dict[ci.idx][r,q]
-			end
-			for cj in clusters
-				if ci.idx == cj.idx
-					continue
-				end
-				v_212 = ints2.h2[:,cj.orb_list, ci.orb_list, cj.orb_list]
-				v_122 = ints2.h2[:,ci.orb_list, cj.orb_list, cj.orb_list]
-				d1 = rdm1_dict[ci.idx]
-				d2 = rdm1_dict[cj.idx]
+        e, gd1a, gd1b, rdm1_dict, rdm2_dict = cmf_ci(mol, C, clusters, fspace, da+db, dconv=gconv/10.0, verbose=verbose)
+        grad = zeros(norb,norb)
+        h1 = C' * FermiCG.pyscf_build_1e(mol) 
+        for ci in clusters
+            grad_1 = grad[:,ci.orb_list]
+            moi = C[:,ci.orb_list]
+            h_1   = h1 * moi
+            v_111 = FermiCG.pyscf_build_eri(mol,C,moi,moi,moi) 
+            @tensor begin
+                grad_1[p,q] += v_111[p,v,u,w] * rdm2_dict[ci.idx][q,u,w,v]
+                grad_1[p,q] += h_1[p,r] * rdm1_dict[ci.idx][r,q]
+            end
+            for cj in clusters
+                if ci.idx == cj.idx
+                    continue
+                end
+                moj = C[:,cj.orb_list]
+                v_212 = FermiCG.pyscf_build_eri(mol,C,moj,moi,moj) 
+                v_122 = FermiCG.pyscf_build_eri(mol,C,moi,moj,moj) 
+                d1 = rdm1_dict[ci.idx]
+                d2 = rdm1_dict[cj.idx]
 
-				@tensor begin
-					grad_1[p,q] += v_122[p,v,u,w] * d1[q,v] * d2[w,u]
-					grad_1[p,q] -= .5*v_212[p,v,u,w] * d1[q,u] * d2[w,v]
-				end
-			end
-			grad[:,ci.orb_list] .= -2*grad_1
-		end
-		grad = grad'-grad
-		gout = pack_gradient(grad, norb)
+                @tensor begin
+                    grad_1[p,q] += v_122[p,v,u,w] * d1[q,v] * d2[w,u]
+                    grad_1[p,q] -= .5*v_212[p,v,u,w] * d1[q,u] * d2[w,v]
+                end
+            end
+            grad[:,ci.orb_list] .= -2*grad_1
+        end
+        grad = grad'-grad
+        gout = pack_gradient(grad, norb)
         g_curr = norm(gout)
-		return gout
-	end
+        return gout
+    end
 
-#	grad1 = g(kappa)
-#	grad2 = g_analytic(kappa)
-#	display(round.(grad1,digits=6))
-#	display(round.(grad2,digits=6))
-#   return
+    #	grad1 = g(kappa)
+    #	grad2 = g_analytic(kappa)
+    #	display(round.(grad1,digits=6))
+    #	display(round.(grad2,digits=6))
+    #   return
 
-   
+
     optmethod = BFGS()
     if method=="bfgs"
         optmethod = BFGS()
     elseif method=="cg"
         optmethod = ConjugateGradient()
     end
-   
+
     options = Optim.Options(
-        callback = callback, 
-        g_tol=gconv,
-    )
-    
+                            callback = callback, 
+                            g_tol=gconv,
+                           )
+
     res = optimize(f, g_analytic, kappa, optmethod, options; inplace = false )
     summary(res)
     e = Optim.minimum(res)
     display(res)
-    @printf(" ooCMF %12.8f ", e - ints.h0)
-    
+    @printf(" ooCMF %12.8f ", e - e0)
+
     kappa = Optim.minimizer(res)
     K = unpack_gradient(kappa, norb)
-	U = exp(K)
+    U = exp(K)
 
     return e, U
 end
@@ -478,7 +487,7 @@ end
 Do CMF with orbital optimization
 """
 function cmf_oo(ints::ElectronicInts, clusters::Vector{Cluster}, fspace, dguess; 
-            max_iter_oo=100, max_iter_ci=100, gconv=1e-6, verbose=0, method="bfgs")
+                max_iter_oo=100, max_iter_ci=100, gconv=1e-6, verbose=0, method="bfgs")
     norb = size(ints.h1)[1]
     #kappa = zeros(norb*(norb-1))
     # e, da, db = cmf_oo_iteration(ints, clusters, fspace, max_iter_ci, dguess, kappa)
@@ -539,73 +548,74 @@ function cmf_oo(ints::ElectronicInts, clusters::Vector{Cluster}, fspace, dguess;
     #
     #   Define Gradient function
     #
-	function g_analytic(kappa)
-		norb = size(ints.h1)[1]
-		# println(" In g_analytic")
-		K = unpack_gradient(kappa, norb)
-		U = exp(K)
-		ints2 = orbital_rotation(ints,U)
+    function g_analytic(kappa)
+        norb = size(ints.h1)[1]
+        # println(" In g_analytic")
+        K = unpack_gradient(kappa, norb)
+        U = exp(K)
+        #println(size(U), size(kappa))
+        ints2 = orbital_rotation(ints,U)
 
-		e, gd1a, gd1b, rdm1_dict, rdm2_dict = cmf_ci(ints2, clusters, fspace, da+db, dconv=gconv/10.0, verbose=verbose)
-		grad = zeros(size(ints2.h1))
-		for ci in clusters
-			grad_1 = grad[:,ci.orb_list]
-			h_1	   = ints2.h1[:,ci.orb_list]
-			v_111  = ints2.h2[:, ci.orb_list, ci.orb_list, ci.orb_list]
-			@tensor begin
-				grad_1[p,q] += v_111[p,v,u,w] * rdm2_dict[ci.idx][q,u,w,v]
-				grad_1[p,q] += h_1[p,r] * rdm1_dict[ci.idx][r,q]
-			end
-			for cj in clusters
-				if ci.idx == cj.idx
-					continue
-				end
-				v_212 = ints2.h2[:,cj.orb_list, ci.orb_list, cj.orb_list]
-				v_122 = ints2.h2[:,ci.orb_list, cj.orb_list, cj.orb_list]
-				d1 = rdm1_dict[ci.idx]
-				d2 = rdm1_dict[cj.idx]
+        e, gd1a, gd1b, rdm1_dict, rdm2_dict = cmf_ci(ints2, clusters, fspace, da+db, dconv=gconv/10.0, verbose=verbose)
+        grad = zeros(size(ints2.h1))
+        for ci in clusters
+            grad_1 = grad[:,ci.orb_list]
+            h_1	   = ints2.h1[:,ci.orb_list]
+            v_111  = ints2.h2[:, ci.orb_list, ci.orb_list, ci.orb_list]
+            @tensor begin
+                grad_1[p,q] += v_111[p,v,u,w] * rdm2_dict[ci.idx][q,u,w,v]
+                grad_1[p,q] += h_1[p,r] * rdm1_dict[ci.idx][r,q]
+            end
+            for cj in clusters
+                if ci.idx == cj.idx
+                    continue
+                end
+                v_212 = ints2.h2[:,cj.orb_list, ci.orb_list, cj.orb_list]
+                v_122 = ints2.h2[:,ci.orb_list, cj.orb_list, cj.orb_list]
+                d1 = rdm1_dict[ci.idx]
+                d2 = rdm1_dict[cj.idx]
 
-				@tensor begin
-					grad_1[p,q] += v_122[p,v,u,w] * d1[q,v] * d2[w,u]
-					grad_1[p,q] -= .5*v_212[p,v,u,w] * d1[q,u] * d2[w,v]
-				end
-			end
-			grad[:,ci.orb_list] .= -2*grad_1
-		end
-		grad = grad'-grad
-		gout = pack_gradient(grad, norb)
+                @tensor begin
+                    grad_1[p,q] += v_122[p,v,u,w] * d1[q,v] * d2[w,u]
+                    grad_1[p,q] -= .5*v_212[p,v,u,w] * d1[q,u] * d2[w,v]
+                end
+            end
+            grad[:,ci.orb_list] .= -2*grad_1
+        end
+        grad = grad'-grad
+        gout = pack_gradient(grad, norb)
         g_curr = norm(gout)
-		return gout
-	end
+        return gout
+    end
 
-#	grad1 = g(kappa)
-#	grad2 = g_analytic(kappa)
-#	display(round.(grad1,digits=6))
-#	display(round.(grad2,digits=6))
-#   return
+    #	grad1 = g(kappa)
+    #	grad2 = g_analytic(kappa)
+    #	display(round.(grad1,digits=6))
+    #	display(round.(grad2,digits=6))
+    #   return
 
-   
+
     optmethod = BFGS()
     if method=="bfgs"
         optmethod = BFGS()
     elseif method=="cg"
         optmethod = ConjugateGradient()
     end
-   
+
     options = Optim.Options(
-        callback = callback, 
-        g_tol=gconv,
-    )
-    
+                            callback = callback, 
+                            g_tol=gconv,
+                           )
+
     res = optimize(f, g_analytic, kappa, optmethod, options; inplace = false )
     summary(res)
     e = Optim.minimum(res)
     display(res)
     @printf(" ooCMF %12.8f ", e - ints.h0)
-    
+
     kappa = Optim.minimizer(res)
     K = unpack_gradient(kappa, norb)
-	U = exp(K)
+    U = exp(K)
 
     return e, U
 end
@@ -614,27 +624,27 @@ end
 
 
 function unpack_gradient(kappa,norb)
-	# n = round(.5+sqrt(1+4k)/2)
-	# println(n)
-	K = zeros(norb,norb)
-	ind = 1
-	for i in 1:norb
-		for j in i+1:norb
-			K[i,j] = kappa[ind]
-			K[j,i] = -kappa[ind]
-			ind += 1
-		end
-	end
-	return K
+    # n = round(.5+sqrt(1+4k)/2)
+    # println(n)
+    K = zeros(norb,norb)
+    ind = 1
+    for i in 1:norb
+        for j in i+1:norb
+            K[i,j] = kappa[ind]
+            K[j,i] = -kappa[ind]
+            ind += 1
+        end
+    end
+    return K
 end
 function pack_gradient(K,norb)
-	kout = zeros(norb*(norb-1))
-	ind = 1
-	for i in 1:norb
-		for j in i+1:norb
-			kout[ind] = K[i,j]
-			ind += 1
-		end
-	end
-	return kout
+    kout = zeros(norb*(norb-1))
+    ind = 1
+    for i in 1:norb
+        for j in i+1:norb
+            kout[ind] = K[i,j]
+            ind += 1
+        end
+    end
+    return kout
 end

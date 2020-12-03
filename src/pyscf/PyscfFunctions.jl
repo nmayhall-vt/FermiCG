@@ -94,6 +94,25 @@ end
 
 
 """
+	pyscf_build_1e(mol::Molecule)
+
+build 1 electron integrals in AO basis 
+# Arguments
+- `mol::Molecule` 
+
+returns a 2D matrix 
+"""
+function pyscf_build_1e(mol::Molecule)
+
+    pyscf = pyimport("pyscf")
+    # 
+    # get pyscf molecule type
+    pymol = FermiCG.make_pyscf_mole(mol)
+    return pyscf.scf.hf.get_hcore(pymol)
+end
+
+
+"""
 	pyscf_build_eri(mol::Molecule, c1::Matrix, c2::Matrix, c3::Matrix, c4::Matrix)
 
 build 2 electron integrals between different orbital spaces, (c1c2|c3c4) 
