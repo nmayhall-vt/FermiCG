@@ -458,6 +458,7 @@ function cmf_oo(mol::Molecule, Cguess::Matrix, clusters::Vector{Cluster}, fspace
     options = Optim.Options(
                             callback = callback, 
                             g_tol=gconv,
+                            iterations=max_iter_oo,
                            )
 
     res = optimize(f, g_analytic, kappa, optmethod, options; inplace = false )
@@ -492,7 +493,7 @@ function cmf_oo(ints::ElectronicInts, clusters::Vector{Cluster}, fspace, dguess;
     #kappa = zeros(norb*(norb-1))
     # e, da, db = cmf_oo_iteration(ints, clusters, fspace, max_iter_ci, dguess, kappa)
 
-    function g(k)
+    function g_numerical(k)
         stepsize = 1e-5
         grad = zeros(size(k))
         for (ii,i) in enumerate(k)
@@ -548,7 +549,7 @@ function cmf_oo(ints::ElectronicInts, clusters::Vector{Cluster}, fspace, dguess;
     #
     #   Define Gradient function
     #
-    function g_analytic(kappa)
+    function g(kappa)
         norb = size(ints.h1)[1]
         # println(" In g_analytic")
         K = unpack_gradient(kappa, norb)
@@ -594,33 +595,40 @@ function cmf_oo(ints::ElectronicInts, clusters::Vector{Cluster}, fspace, dguess;
     #	display(round.(grad2,digits=6))
     #   return
 
-
-    optmethod = BFGS()
-    if method=="bfgs"
+    
+    if (method=="bfgs") || (method=="cg")
         optmethod = BFGS()
-    elseif method=="cg"
-        optmethod = ConjugateGradient()
+        if method=="cg"
+            optmethod = ConjugateGradient()
+        end
+
+        options = Optim.Options(
+                                callback = callback, 
+                                g_tol=gconv,
+                                iterations=max_iter_oo,
+                               )
+
+        res = optimize(f, g, kappa, optmethod, options; inplace = false )
+        summary(res)
+        e = Optim.minimum(res)
+        display(res)
+        @printf("*ooCMF %12.8f \n", e)
+
+        kappa = Optim.minimizer(res)
+        K = unpack_gradient(kappa, norb)
+        U = exp(K)
+        return e, U
+    elseif method=="diis"
+        res = do_diis(f, g, callback, kappa, gconv, max_iter_oo, method)
     end
 
-    options = Optim.Options(
-                            callback = callback, 
-                            g_tol=gconv,
-                           )
-
-    res = optimize(f, g_analytic, kappa, optmethod, options; inplace = false )
-    summary(res)
-    e = Optim.minimum(res)
-    display(res)
-    @printf(" ooCMF %12.8f ", e - ints.h0)
-
-    kappa = Optim.minimizer(res)
-    K = unpack_gradient(kappa, norb)
-    U = exp(K)
-
-    return e, U
 end
 
 
+
+function do_diis(f,g,callback,kappa, gconv,max_iter, method)
+    throw("Not yet implemented")
+end
 
 
 function unpack_gradient(kappa,norb)

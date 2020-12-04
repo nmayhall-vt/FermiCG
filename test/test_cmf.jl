@@ -74,9 +74,13 @@ using Test
     @test isapprox(f1[1], f2[1], atol=1e-10)
     @test isapprox(f1[1], -2.97293813654926351, atol=1e-10)
     
-    #e_cmf, U = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, verbose=0, gconv=1e-6)
-    #@test isapprox(e_cmf, -3.205983033016, atol=1e-10)
-   
-    e_cmf, U = FermiCG.cmf_oo(mol, Cl, clusters, init_fspace, rdm1, verbose=0, gconv=1e-6)
+    e_cmf, U = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, verbose=0, gconv=1e-6, method="cg")
+    #e_cmf, U = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, verbose=0, gconv=1e-6, max_iter_oo=4)
     @test isapprox(e_cmf, -3.205983033016, atol=1e-10)
+  
+    # This is so slow, so only test a couple iterations
+    #e_cmf, U = FermiCG.cmf_oo(mol, Cl, clusters, init_fspace, rdm1, verbose=0, gconv=1e-6)
+    #@test isapprox(e_cmf, -3.205983033016, atol=1e-10)
+    e_cmf, U = FermiCG.cmf_oo(mol, Cl, clusters, init_fspace, rdm1, verbose=0, gconv=1e-6, max_iter_oo=3)
+    @test isapprox(e_cmf, -3.2036779028934497, atol=1e-10)
 end
