@@ -251,6 +251,7 @@ function compute_ab_terms_full(H, P::FCIProblem)
 end
 #=}}}=#
 
+
 """
     compute_ab_terms2(v, H, P::FCIProblem, 
                           ket_a_lookup, ket_b_lookup)
@@ -301,25 +302,35 @@ function compute_ab_terms2(v, H, P::FCIProblem,
         for Li in 1:length(L)
             @views Ckl[:,Li,:] = v[abs(L[Li]), :, :] * sign(L[Li])
         end
-        #Vkl_ij = H.h2[:,:,k,l]
         for Ib in 1:ket_b.max
-            FJb .= 0 
+            FJb .= 0.0 
             Jb = 1
-            sgn::Int = 0
+            sgn = 1
             for i=1:no, j=1:no
                 Jb = ket_b_lookup[Ib,i,j]
-                if Jb != 0
-                    sgn = sign(Jb)
+                #if Jb != 0
+                #    sgn = sign(Jb)    
+                #    Jb = abs(Jb)
+                #@time @inbounds FJb[Jb] += H.h2[j,i,l,k]*sgn 
+                ##@time @views @inbounds FJb[Jb] += H.h2[j,i,l,k]*sgn 
+                #end
+                if sign(Jb) > 0
                     Jb = abs(Jb)
-                    @inbounds FJb[Jb] += H.h2[j,i,l,k]*sgn
+                    @inbounds FJb[Jb] += H.h2[j,i,l,k]
+                elseif sign(Jb) < 0
+                    Jb = abs(Jb)
+                    @inbounds FJb[Jb] -= H.h2[j,i,l,k] 
                 end
             end
+            
             @tensor begin
                 VI[I,s] = FJb[J] * Ckl[J,I,s]
             end
             #for I = 1:length(L), s = 1:n_roots
-            #    @views VI[I,s] = FJb[:]' * Ckl[:,I,s]
+            #    VI[I,s] = FJb[:]' * Ckl[:,I,s]
             #end
+            #@views VI = FJb .* Ckl
+            
             #println(size(sig), size(VI))
             for si in 1:n_roots
                 for Li in 1:length(L)
@@ -338,6 +349,7 @@ function compute_ab_terms2(v, H, P::FCIProblem,
 
 end
 #=}}}=#
+
 
 """
     compute_aa_terms2(v, H, P::FCIProblem, 
@@ -485,6 +497,7 @@ function compute_ss_terms2(v, H, P::FCIProblem,
 
 end
 #=}}}=#
+
 
 """
     compute_ab_terms(v, H, P::FCIProblem)

@@ -120,7 +120,8 @@ function solve(solver::Davidson; print=0, Adiag=nothing)
                     res[i,s] = res[i,s] / (ritz_e[s] - Adiag[i] + level_shift)
                 end
             end
-            res[:,s] = res[:,s] - ss * ss' * res[:,s]
+            scr = ss' * res[:,s]
+            res[:,s] = res[:,s] - ss * scr 
             nres = norm(res[:,s])
             if nres>1e-12
                 ss = hcat(ss,res[:,s]/nres)

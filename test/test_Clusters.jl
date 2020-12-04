@@ -1,11 +1,7 @@
-using LinearAlgebra
 using FermiCG
 using Printf
-using Test
-using Arpack
 
-
-@testset "fci" begin
+#@testset "Clusters" begin
     atoms = []
     push!(atoms,Atom(1,"H",[0,0,0]))
     push!(atoms,Atom(2,"H",[0,0,1]))
@@ -24,21 +20,16 @@ using Arpack
     e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,3,3)
     @printf(" FCI Energy: %12.8f\n", e_fci)
 
-    n_elec_a = 3
-    n_elec_b = 3
 
-    norb = size(ints.h1)[1]
-    problem = FermiCG.StringCI.FCIProblem(norb, n_elec_a, n_elec_b)
+    clusters    = [(1:2),(3:4),(5:6)]
+    #clusters    = [(1:4),(5:8),(9:12)]
+    init_fspace = [(1,1),(1,1),(1,1)]
 
-
-    display(problem)
-
-    @time Hmat = FermiCG.StringCI.build_H_matrix(ints, problem)
-    @time e,v = eigs(Hmat, nev = 10, which=:SR)
-    e = real(e)
-    for ei in e
-        @printf(" Energy: %12.8f\n",ei+ints.h0)
+    clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
+    display(clusters)
+    cluster_bases = Vector{Dict{String,Array}}
+    for ci in clusters
+        push!(cluster_bases, FermiCG.build_ClusterBasis(ints,ci,3,3))
     end
-    @test isapprox(e[1], e_fci , atol=1e-10)
-end
+#end
 

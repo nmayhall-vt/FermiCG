@@ -8,17 +8,17 @@ struct Cluster
     orb_list::Array{Integer,1}
 end
 
+
 """
 	cluster::Cluster                  # Cluster to which basis belongs
 	basis::Dict{Tuple,Vector{Array}}  # Basis vectors (na,nb,ss1,ss2)=>[I,J,pqr]
                                       # Here, ss1, and ss2 denote subspaces in the I and J indices
-	ops::Dict{String,Array}           # Operators defined in this basis
 """
 struct ClusterBasis
     cluster::Cluster
 	basis::Dict{Tuple,Array}
-	ops::Dict{String,Array}
 end
+
 
 """
 	length(c::Cluster)
@@ -28,6 +28,7 @@ Return number of orbitals in `Cluster`
 function Base.length(c::Cluster)
     return length(c.orb_list)
 end
+
 
 """
 	dim_tot(c::Cluster)
@@ -93,4 +94,17 @@ struct ClusterTerm4B
 end
 
 struct ClusterOperator
+end
+
+
+
+function build_ClusterBasis(ints::ElectronicInts, ci::Cluster, na, nb)
+    problem = FermiCG.StringCI.FCIProblem(length(ci), na, nb)
+    display(problem)
+    @time Hmat = FermiCG.StringCI.build_H_matrix(ints, problem)
+    @time e,v = eigs(Hmat, nev = 10, which=:SR)
+    e = real(e)
+    for ei in e
+        @printf(" Energy: %12.8f\n",ei+ints.h0)
+    end
 end
