@@ -8,17 +8,17 @@ using BenchmarkTools
 
 
 struct FCIProblem
-    no::Integer  # number of orbitals
-    na::Integer  # number of alpha
-    nb::Integer  # number of beta
-    dima::Integer 
-    dimb::Integer 
-    dim::Integer
+    no::Int  # number of orbitals
+    na::Int  # number of alpha
+    nb::Int  # number of beta
+    dima::Int 
+    dimb::Int 
+    dim::Int
     converged::Bool
     restarted::Bool
-    iteration::Integer
+    iteration::Int
     algorithm::String   #  options: direct/davidson
-    n_roots::Integer
+    n_roots::Int
 end
 
 function FCIProblem(no, na, nb)
@@ -274,6 +274,41 @@ function compute_ab_terms2(v, H, P::FCIProblem,
 
     no = ket_a.no
 
+    function _scatter!(sig::Array{Float64,3}, VI::Array{Float64,2}, L::Vector{Int}, R::Vector{Int}, Ib::Int)
+        n_roots = size(sig)[3]
+        @simd for si in 1:n_roots
+            for Li in 1:length(L)
+                @inbounds sig[R[Li],Ib,si] += VI[Li,si] 
+            end
+        end
+    end
+
+
+    function _gather!(FJb::Vector{Float64}, occ::Vector{Int}, vir::Vector{Int}, vkl::Array{Float64,2}, Ib::Int,
+            ket_b_lookup)
+        for j in occ 
+            for i in virt
+                Jb = ket_b_lookup[i,j,Ib]
+                sgn = sign(Jb)
+                Jb = abs(Jb)
+                @inbounds FJb[Jb] += vkl[j,i]*sgn
+            end
+        end
+    end
+
+
+    function _mult!(Ckl::Array{Float64,3}, FJb::Array{Float64,1}, VI::Array{Float64,2})
+        Ckl_dim1 = size(Ckl)[1]
+        Ckl_dim2 = size(Ckl)[2]
+        Ckl_dim3 = size(Ckl)[3]
+        Ckl = reshape(Ckl,Ckl_dim1, Ckl_dim2*Ckl_dim3) 
+        VI  = reshape(VI,Ckl_dim2*Ckl_dim3) 
+        FJb  = reshape(FJb,Ckl_dim1) 
+        VI = FJb' * Ckl
+        VI = copy(reshape(VI, Ckl_dim2, Ckl_dim3))
+        Ckl = reshape(Ckl,Ckl_dim1, Ckl_dim2,Ckl_dim3) 
+    end
+
 
     a_max::Int = bra_a.max
     reset!(ket_b)
@@ -291,8 +326,8 @@ function compute_ab_terms2(v, H, P::FCIProblem,
     diff_ref = Set(collect(1:ket_b.no))
     for k in 1:ket_a.no,  l in 1:ket_a.no
         #@printf(" %4i, %4i\n",k,l)
-        L = Vector{Integer}()
-        R = Vector{Integer}()
+        L = Vector{Int}()
+        R = Vector{Int}()
         for (Iidx,I) in enumerate(ket_a_lookup[k,l,:])
             if I != 0
                 push!(L,I)
@@ -309,7 +344,8 @@ function compute_ab_terms2(v, H, P::FCIProblem,
         for Li in 1:length(L)
             @views Ckl[:,Li,:] = v[abs(L[Li]), :, :] * sign(L[Li])
         end
-
+        
+        vkl = H.h2[:,:,l,k]
         reset!(ket_b)
         for Ib in 1:ket_b.max
             #fill!(FJb, zero(FJb[1]));
@@ -322,33 +358,46 @@ function compute_ab_terms2(v, H, P::FCIProblem,
             ne = ket_b.ne
             nv = no-ne
             scr1 = 0.0
-            #get_unoccupied!(virt, ket_b)
-            virt = setdiff(diff_ref, ket_b.config)
+            get_unoccupied!(virt, ket_b)
+            #virt = setdiff(diff_ref, ket_b.config)
+            _gather!(FJb, ket_b.config, virt, vkl, Ib, ket_b_lookup)
+            #
+            # diagonal part
             for j in ket_b.config
                 FJb[Ib] += H.h2[j,j,l,k]
-                for i in virt
-                    Jb = ket_b_lookup[i,j,Ib]
-                    sgn = sign(Jb)
-                    Jb = abs(Jb)
-                    FJb[Jb] += H.h2[j,i,l,k]*sgn
-                end
             end
-            
-            @tensor begin
-                VI[I,s] = FJb[J] * Ckl[J,I,s]
+            #for j in ket_b.config
+            #    FJb[Ib] += H.h2[j,j,l,k]
+            #    for i in virt
+            #        Jb = ket_b_lookup[i,j,Ib]
+            #        sgn = sign(Jb)
+            #        Jb = abs(Jb)
+            #        FJb[Jb] += H.h2[j,i,l,k]*sgn
+            #    end
+            #end
+          
+            if 1==1
+                _mult!(Ckl, FJb, VI)
+            end
+            if 1==0
+                @tensor begin
+                    #VI[I] = FJb[J] * Ckl[J,I]
+                    VI[I,s] = FJb[J] * Ckl[J,I,s]
+                end
             end
             #for I = 1:length(L), s = 1:n_roots
             #    VI[I,s] = FJb[:]' * Ckl[:,I,s]
             #end
-            #@views VI = FJb .* Ckl
-            
+           
+            _scatter!(sig,VI,L,R,Ib)
+
             #println(size(sig), size(VI))
-            for si in 1:n_roots
-                for Li in 1:length(L)
-                    @inbounds sig[R[Li],Ib,si] += VI[Li,si] 
-                end
-            end
-            #                @views sig[R,Ib,:] .+= VI[:,:]
+            #for si in 1:n_roots
+            #    for Li in 1:length(L)
+            #        @inbounds sig[R[Li],Ib,si] += VI[Li,si] 
+            #    end
+            #end
+            #@views sig[R,Ib,:] .+= VI
             incr!(ket_b)
         end
     end

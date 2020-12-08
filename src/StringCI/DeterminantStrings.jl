@@ -22,16 +22,16 @@ Type to organize all the configuration DeterminantString
 """
 #struct DeterminantString
 mutable struct DeterminantString
-    no::Integer
-    ne::Integer
-    sign::Integer
-    lin_index::Integer
-    config::Array{Integer,1}
-    #ca_lookup::Array{Integer, 3}
-    max::Integer
+    no::Int
+    ne::Int
+    sign::Int
+    lin_index::Int
+    config::Array{Int,1}
+    #ca_lookup::Array{Int, 3}
+    max::Int
 end
 
-function DeterminantString(no::Integer, ne::Integer)
+function DeterminantString(no::Int, ne::Int)
     return DeterminantString(no, ne, 1, 1, Vector(1:ne), get_nchk(no,ne))
     #return DeterminantString(no, ne, 1, 1, Vector(1:ne), zeros(get_nchk(no,ne),no,no), get_nchk(no,ne))
 end
@@ -133,7 +133,7 @@ end
 #=}}}=#
 
 
-function incr_comb!(comb::Array{Integer,1}, Mend::Integer)
+function incr_comb!(comb::Array{Int,1}, Mend::Int)
     #=
     For a given combination, form the next combination
     =#
@@ -262,7 +262,7 @@ function fill_ca_lookup2(c::DeterminantString)
 
     max = calc_max(ket)
 
-    tbl = zeros(Integer,ket.no, ket.no, max)
+    tbl = zeros(Int,ket.no, ket.no, max)
     for K in 1:max
         for p in 1:ket.no
             for q in 1:ket.no
@@ -306,7 +306,7 @@ end
 #    ne = ket.ne
 #    nv = no-ne
 #
-#    tbl = zeros(Integer,nv, ne, max)
+#    tbl = zeros(Int,nv, ne, max)
 #    #tbl = Array{Tuple,3}(undef,nv,ne,max)
 #    #tbl = Array{SVector{4,Int},nv, ne, max}
 #    #println("max:",max)
@@ -370,11 +370,11 @@ end
 
 
 """
-    apply_annihilation!(c::DeterminantString, orb_index::Integer)
+    apply_annihilation!(c::DeterminantString, orb_index::Int)
 
 Apply an annihilation operator to `c` corresponding to orbital `orb_index` 
 """
-function apply_annihilation!(c::DeterminantString, orb_index::Integer)
+function apply_annihilation!(c::DeterminantString, orb_index::Int)
     #=
     apply annihilation operator a_i to current DeterminantString
     where orb_index is i
@@ -416,11 +416,11 @@ end
 
 
 """
-    apply_creation!(c::DeterminantString, orb_index::Integer)
+    apply_creation!(c::DeterminantString, orb_index::Int)
 
 Apply a creation operator to `c` corresponding to orbital `orb_index` 
 """
-function apply_creation!(c::DeterminantString, orb_index::Integer)
+function apply_creation!(c::DeterminantString, orb_index::Int)
     #=
     apply creation operator a_i to current DeterminantString
     where orb_index is i

@@ -15,27 +15,27 @@ using Profile
     push!(atoms,Atom(4,"H",[1,0,3]))
     push!(atoms,Atom(5,"H",[2,0,4]))
     push!(atoms,Atom(6,"H",[2,0,5]))
-    #push!(atoms,Atom(7,"H",[3,0,6]))
-    #push!(atoms,Atom(8,"H",[3,0,7]))
-    #push!(atoms,Atom(9,"H",[0,0,8]))
-    #push!(atoms,Atom(10,"H",[0,0,9]))
+    push!(atoms,Atom(7,"H",[3,0,6]))
+    push!(atoms,Atom(8,"H",[3,0,7]))
+    push!(atoms,Atom(9,"H",[0,0,8]))
+    push!(atoms,Atom(10,"H",[0,0,9]))
     #push!(atoms,Atom(11,"H",[0,0,10]))
     #push!(atoms,Atom(12,"H",[0,0,11]))
-    basis = "sto-3g"
     basis = "6-31g"
+    basis = "sto-3g"
 
     mol     = Molecule(0,1,atoms,basis)
     mf = FermiCG.pyscf_do_scf(mol)
     nbas = size(mf.mo_coeff)[1]
     ints = FermiCG.pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
 
-    na = 3
-    nb = 3
+    na = 5
+    nb = 5
 
     e_mf = mf.e_tot - mf.energy_nuc()
     if 1==1
         @printf(" Mean-field energy %12.8f", e_mf)
-        @time e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,na,na)
+        @time e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,na,nb)
         # @printf(" FCI Energy: %12.8f\n", e_fci)
     end
 
@@ -61,6 +61,6 @@ using Profile
     #FermiCG.solve(davidson)
     @printf(" Now iterate: \n")
     flush(stdout)
-    FermiCG.solve(davidson, Adiag=Adiag)
+    @time FermiCG.solve(davidson, Adiag=Adiag)
     #FermiCG.solve(davidson, Adiag=Diagonal(A))
 #end
