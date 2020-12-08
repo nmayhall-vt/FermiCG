@@ -98,7 +98,7 @@ end
 
 
 
-function build_ClusterBasis(ints::ElectronicInts, ci::Cluster, na, nb)
+function build_ClusterBasis(ints::ElectronicInts, ci::Cluster, na, nb, verbose=0)
     problem = FermiCG.StringCI.FCIProblem(length(ci), na, nb)
     display(problem)
     @time Hmat = FermiCG.StringCI.build_H_matrix(ints, problem)

@@ -3,6 +3,7 @@ using Printf
 using Parameters
 using Profile
 using LinearMaps
+using BenchmarkTools
 
 
 
@@ -209,7 +210,7 @@ function compute_ab_terms_full(H, P::FCIProblem)
             for r in 1:ket_a.no
                 for p in 1:ket_a.no
                     #sign_a, La = ket_a_lookup[Ka][p+(r-1)*ket_a.no]
-                    La = ket_a_lookup2[Ka,p,r]
+                    La = ket_a_lookup2[p,r,Ka]
                     if La == 0
                         continue
                     end
@@ -221,7 +222,7 @@ function compute_ab_terms_full(H, P::FCIProblem)
                     L = 1 
                     for s in 1:ket_b.no
                         for q in 1:ket_b.no
-                            Lb = ket_b_lookup2[Kb,q,s]
+                            Lb = ket_b_lookup2[q,s,Kb]
                             if Lb == 0
                                 continue
                             end
@@ -273,53 +274,63 @@ function compute_ab_terms2(v, H, P::FCIProblem,
 
     no = ket_a.no
 
-    #ket_a_lookup = fill_ca_lookup2(ket_a)
-    #ket_b_lookup = fill_ca_lookup2(ket_b)
 
     a_max::Int = bra_a.max
     reset!(ket_b)
-
+    
     #
     #   sig3(Ia,Ib,s) = <Ia|k'l|Ja> <Ib|i'j|Jb> V(ij,kl) C(Ja,Jb,s)
     n_roots::Int = size(v,3)
     #v = reshape(v,ket_a.max, ket_b.max, n_roots) 
     sig = zeros(Float64, ket_a.max, ket_b.max, n_roots) 
-    FJb = zeros(Float64, ket_b.max) 
+    FJb_scr1 = zeros(Float64, ket_b.max) 
+    Ckl_scr1 = zeros(Float64, size(v)[2], get_nchk(ket_a.no-1,ket_a.ne-1), size(v)[3])
+    Ckl_scr2 = zeros(Float64, size(v)[2], get_nchk(ket_a.no-2,ket_a.ne-1), size(v)[3])
+    Ckl = Array{Float64,3}
+    virt = zeros(Int,ket_b.no-ket_b.ne)
+    diff_ref = Set(collect(1:ket_b.no))
     for k in 1:ket_a.no,  l in 1:ket_a.no
         #@printf(" %4i, %4i\n",k,l)
-        L = Vector{Int}()
-        R = Vector{Int}()
-        for (Iidx,I) in enumerate(ket_a_lookup[:,k,l])
+        L = Vector{Integer}()
+        R = Vector{Integer}()
+        for (Iidx,I) in enumerate(ket_a_lookup[k,l,:])
             if I != 0
                 push!(L,I)
                 push!(R,Iidx)
             end
         end
         VI = zeros(Float64, length(L),n_roots)
-        #println(L)
-        #println(R)
-        Ckl = zeros(Float64, size(v)[2], length(L), size(v)[3])
+        #Ckl = zeros(Float64, size(v)[2], length(L), size(v)[3])
+        if k==l
+            Ckl = deepcopy(Ckl_scr1)
+        else
+            Ckl = deepcopy(Ckl_scr2)
+        end
         for Li in 1:length(L)
             @views Ckl[:,Li,:] = v[abs(L[Li]), :, :] * sign(L[Li])
         end
+
+        reset!(ket_b)
         for Ib in 1:ket_b.max
-            FJb .= 0.0 
+            #fill!(FJb, zero(FJb[1]));
+            FJb = copy(FJb_scr1)
             Jb = 1
             sgn = 1
-            for i=1:no, j=1:no
-                Jb = ket_b_lookup[Ib,i,j]
-                #if Jb != 0
-                #    sgn = sign(Jb)    
-                #    Jb = abs(Jb)
-                #@time @inbounds FJb[Jb] += H.h2[j,i,l,k]*sgn 
-                ##@time @views @inbounds FJb[Jb] += H.h2[j,i,l,k]*sgn 
-                #end
-                if sign(Jb) > 0
+            zero_num = 0
+        
+            no = ket_b.no
+            ne = ket_b.ne
+            nv = no-ne
+            scr1 = 0.0
+            #get_unoccupied!(virt, ket_b)
+            virt = setdiff(diff_ref, ket_b.config)
+            for j in ket_b.config
+                FJb[Ib] += H.h2[j,j,l,k]
+                for i in virt
+                    Jb = ket_b_lookup[i,j,Ib]
+                    sgn = sign(Jb)
                     Jb = abs(Jb)
-                    @inbounds FJb[Jb] += H.h2[j,i,l,k]
-                elseif sign(Jb) < 0
-                    Jb = abs(Jb)
-                    @inbounds FJb[Jb] -= H.h2[j,i,l,k] 
+                    FJb[Jb] += H.h2[j,i,l,k]*sgn
                 end
             end
             
@@ -338,6 +349,7 @@ function compute_ab_terms2(v, H, P::FCIProblem,
                 end
             end
             #                @views sig[R,Ib,:] .+= VI[:,:]
+            incr!(ket_b)
         end
     end
 
@@ -407,7 +419,7 @@ function compute_ss_terms2(v, H, P::FCIProblem,
     for I in 1:ket.max
         F .= 0
         for k in 1:ket.no, l in 1:ket.no
-            K = ket_a_lookup[I,k,l]
+            K = ket_a_lookup[k,l,I]
             if K == 0
                 continue
             end
@@ -426,7 +438,7 @@ function compute_ss_terms2(v, H, P::FCIProblem,
             @inbounds F[K] += sign_kl * h1eff[k,l]
             #@views sig[:,I,:] += H.h1[k,l] * sign_kl * v[:,K,:]
             for i in 1:ket.no, j in 1:ket.no
-                J = ket_a_lookup[K,i,j]
+                J = ket_a_lookup[i,j,K]
                 if J == 0
                     continue
                 end
@@ -453,7 +465,7 @@ function compute_ss_terms2(v, H, P::FCIProblem,
     for I in 1:ket.max
         F .= 0
         for k in 1:ket.no, l in 1:ket.no
-            K = ket_b_lookup[I,k,l]
+            K = ket_b_lookup[k,l,I]
             if K == 0
                 continue
             end
@@ -472,7 +484,7 @@ function compute_ss_terms2(v, H, P::FCIProblem,
             @inbounds F[K] += sign_kl * h1eff[k,l]
             #@views sig[:,I,:] += H.h1[k,l] * sign_kl * v[:,K,:]
             for i in 1:ket.no, j in 1:ket.no
-                J = ket_b_lookup[K,i,j]
+                J = ket_b_lookup[i,j,K]
                 if J == 0
                     continue
                 end
@@ -538,7 +550,7 @@ function compute_ab_terms(v, H, P::FCIProblem)
             for r in 1:ket_a.no
                 for p in 1:ket_a.no
                     #sign_a, La = ket_a_lookup[Ka][p+(r-1)*ket_a.no]
-                    La = ket_a_lookup[Ka,p,r]
+                    La = ket_a_lookup[p,r,Ka]
                     sign_a = sign(La)
                     La = abs(La)
                     if La == 0
@@ -550,7 +562,7 @@ function compute_ab_terms(v, H, P::FCIProblem)
                     L = 1 
                     for s in 1:ket_b.no
                         for q in 1:ket_b.no
-                            Lb = ket_b_lookup[Kb,q,s]
+                            Lb = ket_b_lookup[q,s,Kb]
                             sign_b = sign(Lb)
                             Lb = abs(Lb)
 

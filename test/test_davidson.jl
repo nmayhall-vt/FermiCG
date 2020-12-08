@@ -42,9 +42,7 @@ using Profile
     norbs = size(ints.h1)[1]
 
     problem = StringCI.FCIProblem(norbs, na, nb)
-
     display(problem)
-
     nr = 1
     v0 = rand(problem.dim,nr)
     v0[:,1] .= 0
@@ -55,6 +53,7 @@ using Profile
     Random.seed!(3);
     A = Diagonal(rand(20)) + .0001*rand(20,20)
     A = A'+A
+
 
     #davidson = FermiCG.Davidson(A,max_iter=400, nroots=nr, tol=1e-5)
     davidson = FermiCG.Davidson(Hmap,v0=v0,max_iter=40, nroots=nr, tol=1e-5)
