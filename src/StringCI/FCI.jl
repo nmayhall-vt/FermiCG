@@ -286,14 +286,14 @@ function compute_ab_terms2(v, H, P::FCIProblem,
     end
 
 
-    function _gather!(FJb::Vector{Float64}, occ::Vector{Int}, vir::Vector{Int}, vkl::Array{Float64,2}, Ib::Int,
+    @inline function _gather!(FJb::Vector{Float64}, occ::Vector{Int}, vir::Vector{Int}, vkl::Array{Float64,2}, Ib::Int,
                       ket_b_lookup)
 
         i::Int = 1
         j::Int = 1
         Jb::Int = 1
         sgn::Float64 = 1.0
-        for j in occ 
+        @simd for j in occ 
             for i in virt
                 #@inbounds sgn,Jb = ket_b_lookup[i,j,Ib]
                 @inbounds Jb = ket_b_lookup[i,j,Ib]
@@ -398,10 +398,13 @@ function compute_ab_terms2(v, H, P::FCIProblem,
         else
             Ckl = deepcopy(Ckl_scr2)
         end
-        for Li in 1:length(L)
-            #@views Ckl[:,Li,:] = v[abs(L[Li]), :, :] * sign(L[Li])
-            @views Ckl[Li,:,:] = v[abs(L[Li]), :, :] * sign(L[Li])
-            #@views Ckl[Li,:,:] = v[abs(L[Li]), :, :] * sgn[Li]
+        nI = length(L)
+        for si in 1:n_roots
+            @simd for Jb in 1:ket_b.max
+                for Li in 1:nI
+                    @inbounds Ckl[Li,Jb,si] = v[abs(L[Li]), Jb, si] * sign(L[Li])
+                end
+            end
         end
         
         vkl = H.h2[:,:,l,k]
@@ -546,12 +549,12 @@ function compute_ss_terms2(v, H, P::FCIProblem,
     for I in 1:ket.max
         F .= 0
         for k in 1:ket.no, l in 1:ket.no
-            sign_kl, K = ket_a_lookup[k,l,I]
+            K = ket_a_lookup[k,l,I]
             if K == 0
                 continue
             end
-            #sign_kl = sign(K)
-            #K = abs(K)
+            sign_kl = sign(K)
+            K = abs(K)
 
             bra = deepcopy(ket)
             apply_annihilation!(bra,l) 
@@ -565,12 +568,12 @@ function compute_ss_terms2(v, H, P::FCIProblem,
             @inbounds F[K] += sign_kl * h1eff[k,l]
             #@views sig[:,I,:] += H.h1[k,l] * sign_kl * v[:,K,:]
             for i in 1:ket.no, j in 1:ket.no
-                sign_ij, J = ket_a_lookup[i,j,K]
+                J = ket_a_lookup[i,j,K]
                 if J == 0
                     continue
                 end
-                #sign_ij = sign(J)
-                #J = abs(J)
+                sign_ij = sign(J)
+                J = abs(J)
                 if sign_kl == sign_ij
                     @inbounds F[J] += .5 * H.h2[i,j,k,l]
                 else
@@ -592,12 +595,12 @@ function compute_ss_terms2(v, H, P::FCIProblem,
     for I in 1:ket.max
         F .= 0
         for k in 1:ket.no, l in 1:ket.no
-            sign_kl,K = ket_b_lookup[k,l,I]
+            K = ket_b_lookup[k,l,I]
             if K == 0
                 continue
             end
-            #sign_kl = sign(K)
-            #K = abs(K)
+            sign_kl = sign(K)
+            K = abs(K)
 
             bra = deepcopy(ket)
             apply_annihilation!(bra,l) 
@@ -611,12 +614,12 @@ function compute_ss_terms2(v, H, P::FCIProblem,
             @inbounds F[K] += sign_kl * h1eff[k,l]
             #@views sig[:,I,:] += H.h1[k,l] * sign_kl * v[:,K,:]
             for i in 1:ket.no, j in 1:ket.no
-                sign_ij, J = ket_b_lookup[i,j,K]
+                J = ket_b_lookup[i,j,K]
                 if J == 0
                     continue
                 end
-                #sign_ij = sign(J)
-                #J = abs(J)
+                sign_ij = sign(J)
+                J = abs(J)
                 #@inbounds F[J] += .5 *sign_kl * sign_ij * H.h2[i,j,k,l]
                 if sign_kl == sign_ij
                     @inbounds F[J] += .5 * H.h2[i,j,k,l]
@@ -929,8 +932,8 @@ function get_map(ham, prb::FCIProblem)
     ket_a = DeterminantString(prb.no, prb.na)
     ket_b = DeterminantString(prb.no, prb.nb)
 
-    lookup_a = fill_ca_lookup3(ket_a)
-    lookup_b = fill_ca_lookup3(ket_b)
+    lookup_a = fill_ca_lookup2(ket_a)
+    lookup_b = fill_ca_lookup2(ket_b)
     iters = 0
     function mymatvec(v)
         iters += 1
