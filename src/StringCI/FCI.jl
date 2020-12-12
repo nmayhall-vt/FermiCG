@@ -285,19 +285,37 @@ function compute_ab_terms2(v, H, P::FCIProblem,
 
 
     function _gather!(FJb::Vector{Float64}, occ::Vector{Int}, vir::Vector{Int}, vkl::Array{Float64,2}, Ib::Int,
-            ket_b_lookup)
+                      ket_b_lookup)
+
+        i::Int = 1
+        j::Int = 1
+        sgn = 1
         for j in occ 
             for i in virt
-                Jb = ket_b_lookup[i,j,Ib]
+                @inbounds Jb = ket_b_lookup[i,j,Ib]
                 sgn = sign(Jb)
                 Jb = abs(Jb)
-                @inbounds FJb[Jb] += vkl[j,i]*sgn
+                @inbounds FJb[Jb] += vkl[j,i]
+                #@inbounds FJb[Jb] += vkl[j,i]*sgn
             end
+            #            @btime for $i in $virt
+            #                @inbounds Jb = $ket_b_lookup[$i,$j,$Ib]
+            #                sgn = sign(Jb)
+            #                Jb = abs(Jb)
+            #                @inbounds $FJb[Jb] += $vkl[$j,$i]*sgn
+            #            end
         end
+        #@btime for $j in $occ 
+        #    for $i in $virt
+        #        @inbounds Jb = $ket_b_lookup[$i,$j,$Ib]
+        #        sgn = sign(Jb)
+        #        Jb = abs(Jb)
+        #        @inbounds $FJb[Jb] += $vkl[$j,$i]*sgn
+        #    end
+        #end
     end
 
-
-    function _mult!(Ckl::Array{Float64,3}, FJb::Array{Float64,1}, VI::Array{Float64,2})
+    function _mult_old!(Ckl::Array{Float64,3}, FJb::Array{Float64,1}, VI::Array{Float64,2})
         Ckl_dim1 = size(Ckl)[1]
         Ckl_dim2 = size(Ckl)[2]
         Ckl_dim3 = size(Ckl)[3]
@@ -310,6 +328,32 @@ function compute_ab_terms2(v, H, P::FCIProblem,
     end
 
 
+    function _mult!(Ckl::Array{Float64,3}, FJb::Array{Float64,1}, VI::Array{Float64,2})
+        VI .= 0
+        nI = size(Ckl)[1]
+        tmp = 0.0
+        for si in 1:n_roots
+            for Jb in 1:ket_b.max
+                tmp = FJb[Jb]
+                if abs(FJb[Jb]) > 1e-14
+                    @simd for I in 1:nI
+                        @inbounds VI[I,si] += tmp*Ckl[I,Jb,si]
+                    end
+                    #@inbounds VI[:,si] .+= tmp .* Ckl[:,Jb,si]
+                end
+            end
+        end
+    end
+
+
+    function _mult!(VI::Array{Float64,1},Ckl::Array{Float64,1},FJb::Float64)
+        nI = length(VI)
+        @simd for I in 1:nI
+            @inbounds VI[I] += FJb*Ckl[I]
+        end
+    end
+
+
     a_max::Int = bra_a.max
     reset!(ket_b)
     
@@ -319,8 +363,10 @@ function compute_ab_terms2(v, H, P::FCIProblem,
     #v = reshape(v,ket_a.max, ket_b.max, n_roots) 
     sig = zeros(Float64, ket_a.max, ket_b.max, n_roots) 
     FJb_scr1 = zeros(Float64, ket_b.max) 
-    Ckl_scr1 = zeros(Float64, size(v)[2], get_nchk(ket_a.no-1,ket_a.ne-1), size(v)[3])
-    Ckl_scr2 = zeros(Float64, size(v)[2], get_nchk(ket_a.no-2,ket_a.ne-1), size(v)[3])
+    Ckl_scr1 = zeros(Float64, get_nchk(ket_a.no-1,ket_a.ne-1), size(v)[2], size(v)[3])
+    Ckl_scr2 = zeros(Float64, get_nchk(ket_a.no-2,ket_a.ne-1), size(v)[2], size(v)[3])
+    #Ckl_scr1 = zeros(Float64, size(v)[2], get_nchk(ket_a.no-1,ket_a.ne-1), size(v)[3])
+    #Ckl_scr2 = zeros(Float64, size(v)[2], get_nchk(ket_a.no-2,ket_a.ne-1), size(v)[3])
     Ckl = Array{Float64,3}
     virt = zeros(Int,ket_b.no-ket_b.ne)
     diff_ref = Set(collect(1:ket_b.no))
@@ -342,7 +388,8 @@ function compute_ab_terms2(v, H, P::FCIProblem,
             Ckl = deepcopy(Ckl_scr2)
         end
         for Li in 1:length(L)
-            @views Ckl[:,Li,:] = v[abs(L[Li]), :, :] * sign(L[Li])
+            #@views Ckl[:,Li,:] = v[abs(L[Li]), :, :] * sign(L[Li])
+            @views Ckl[Li,:,:] = v[abs(L[Li]), :, :] * sign(L[Li])
         end
         
         vkl = H.h2[:,:,l,k]
@@ -360,6 +407,7 @@ function compute_ab_terms2(v, H, P::FCIProblem,
             scr1 = 0.0
             get_unoccupied!(virt, ket_b)
             #virt = setdiff(diff_ref, ket_b.config)
+            @btime $_gather!($FJb, $ket_b.config, $virt, $vkl, $Ib, $ket_b_lookup)
             _gather!(FJb, ket_b.config, virt, vkl, Ib, ket_b_lookup)
             #
             # diagonal part
@@ -376,14 +424,32 @@ function compute_ab_terms2(v, H, P::FCIProblem,
             #    end
             #end
           
-            if 1==1
-                _mult!(Ckl, FJb, VI)
+            if 1==0
+                _mult_old!(Ckl, FJb, VI)
             end
             if 1==0
                 @tensor begin
                     #VI[I] = FJb[J] * Ckl[J,I]
                     VI[I,s] = FJb[J] * Ckl[J,I,s]
                 end
+            end
+            if 1==1
+                _mult!(Ckl, FJb, VI)
+#                VI .= 0
+#                nI = length(L)
+#                tmp = 0.0
+#                for si in 1:n_roots
+#                    for Jb in 1:ket_b.max
+#                        #tmp = FJb[Jb]
+#                        #if abs(FJb[Jb]) > 1e-14
+#                        #    #@simd for I in 1:nI
+#                        #    #    VI[I,si] += tmp*Ckl[I,Jb,si]
+#                        #    #end
+#                        #    @views VI[:,si] .+= tmp*Ckl[:,Jb,si]
+#                        #end
+#                        _mult!(VI[:,si],Ckl[:,Jb,si],FJb[Jb])
+#                    end
+#                end
             end
             #for I = 1:length(L), s = 1:n_roots
             #    VI[I,s] = FJb[:]' * Ckl[:,I,s]
