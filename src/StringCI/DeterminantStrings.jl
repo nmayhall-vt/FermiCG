@@ -284,6 +284,45 @@ function fill_ca_lookup2(c::DeterminantString)
 end
 #=}}}=#
 
+"""
+    fill_ca_lookup3(c::DeterminantString)
+
+Create an index table relating each DeterminantString with all ia substitutions
+i.e., ca_lookup[Ka,p,q] = (sign,La)
+
+<L|p'q|K> = sign
+"""
+function fill_ca_lookup3(c::DeterminantString)
+    #={{{=#
+
+    ket = DeterminantString(c.no, c.ne)
+    bra = DeterminantString(c.no, c.ne)
+
+    max = calc_max(ket)
+
+    tbl = Array{Tuple,3}(undef,ket.no,ket.no,max)
+    #tbl = zeros(Int,ket.no, ket.no, max)
+    for K in 1:max
+        for p in 1:ket.no
+            for q in 1:ket.no
+                bra = deepcopy(ket)
+                apply_annihilation!(bra,p)
+                apply_creation!(bra,q)
+                #@assert(issorted(bra.config))
+                if bra.sign == 0
+                    tbl[q, p, K] = (0.0,0)
+                else
+                    calc_linear_index!(bra)
+                    tbl[q, p, K] = (1.0*bra.sign,bra.lin_index)
+                end
+            end
+        end
+        incr!(ket)
+    end
+    return tbl
+end
+#=}}}=#
+
 
 #"""
 #    fill_vo_lookup(c::DeterminantString)
