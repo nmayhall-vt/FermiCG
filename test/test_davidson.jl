@@ -19,8 +19,10 @@ using Profile
     push!(atoms,Atom(8,"H",[3,0,7]))
     push!(atoms,Atom(9,"H",[0,0,8]))
     push!(atoms,Atom(10,"H",[0,0,9]))
-    #push!(atoms,Atom(11,"H",[0,0,10]))
-    #push!(atoms,Atom(12,"H",[0,0,11]))
+    push!(atoms,Atom(11,"H",[0,0,10]))
+    push!(atoms,Atom(12,"H",[0,0,11]))
+    #push!(atoms,Atom(11,"H",[0,0,12]))
+    #push!(atoms,Atom(12,"H",[0,0,13]))
     basis = "6-31g"
     basis = "sto-3g"
 
@@ -29,11 +31,11 @@ using Profile
     nbas = size(mf.mo_coeff)[1]
     ints = FermiCG.pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
 
-    na = 5
-    nb = 5
+    na = 6
+    nb = 6
 
     e_mf = mf.e_tot - mf.energy_nuc()
-    if 1==1
+    if 1==0
         @printf(" Mean-field energy %12.8f", e_mf)
         @time e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,na,nb)
         # @printf(" FCI Energy: %12.8f\n", e_fci)
@@ -56,7 +58,7 @@ using Profile
 
 
     #davidson = FermiCG.Davidson(A,max_iter=400, nroots=nr, tol=1e-5)
-    davidson = FermiCG.Davidson(Hmap,v0=v0,max_iter=40, nroots=nr, tol=1e-5)
+    davidson = FermiCG.Davidson(Hmap,v0=v0,max_iter=40, nroots=nr, tol=1e-2)
     Adiag = StringCI.compute_fock_diagonal(problem,mf.mo_energy, e_mf)
     #FermiCG.solve(davidson)
     @printf(" Now iterate: \n")

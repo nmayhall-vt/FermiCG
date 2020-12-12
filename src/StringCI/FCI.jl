@@ -278,44 +278,30 @@ function compute_ab_terms2(v, H, P::FCIProblem,
 
     function _scatter!(sig::Array{Float64,3}, VI::Array{Float64,2}, L::Vector{Int}, R::Vector{Int}, Ib::Int)
         n_roots = size(sig)[3]
-        @simd for si in 1:n_roots
+        @inbounds @simd for si in 1:n_roots
             for Li in 1:length(L)
-                @inbounds sig[R[Li],Ib,si] += VI[Li,si] 
+                sig[R[Li],Ib,si] += VI[Li,si] 
+                #@inbounds sig[R[Li],Ib,si] += VI[Li,si] 
             end
         end
     end
 
 
-    @inline function _gather!(FJb::Vector{Float64}, occ::Vector{Int}, vir::Vector{Int}, vkl::Array{Float64,2}, Ib::Int,
+    function _gather!(FJb::Vector{Float64}, occ::Vector{Int}, vir::Vector{Int}, vkl::Array{Float64,2}, Ib::Int,
                       ket_b_lookup)
 
         i::Int = 1
         j::Int = 1
         Jb::Int = 1
         sgn::Float64 = 1.0
-        @simd for j in occ 
-            for i in virt
-                #@inbounds sgn,Jb = ket_b_lookup[i,j,Ib]
-                @inbounds Jb = ket_b_lookup[i,j,Ib]
+        @inbounds @simd for j in occ 
+            for i in vir
+                Jb = ket_b_lookup[i,j,Ib]
                 sgn = sign(Jb)
                 Jb = abs(Jb)
-                @inbounds FJb[Jb] = FJb[Jb] + vkl[j,i]*sgn
+                FJb[Jb] = FJb[Jb] + vkl[j,i]*sgn
             end
-            #            @btime for $i in $virt
-            #                @inbounds Jb = $ket_b_lookup[$i,$j,$Ib]
-            #                sgn = sign(Jb)
-            #                Jb = abs(Jb)
-            #                @inbounds $FJb[Jb] += $vkl[$j,$i]*sgn
-            #            end
         end
-        #@btime for $j in $occ 
-        #    for $i in $virt
-        #        @inbounds Jb = $ket_b_lookup[$i,$j,$Ib]
-        #        sgn = sign(Jb)
-        #        Jb = abs(Jb)
-        #        @inbounds $FJb[Jb] += $vkl[$j,$i]*sgn
-        #    end
-        #end
     end
 
     function _mult_old!(Ckl::Array{Float64,3}, FJb::Array{Float64,1}, VI::Array{Float64,2})
@@ -335,12 +321,12 @@ function compute_ab_terms2(v, H, P::FCIProblem,
         VI .= 0
         nI = size(Ckl)[1]
         tmp = 0.0
-        for si in 1:n_roots
+        @inbounds @simd for si in 1:n_roots
             for Jb in 1:ket_b.max
                 tmp = FJb[Jb]
                 if abs(FJb[Jb]) > 1e-14
-                    @simd for I in 1:nI
-                        @inbounds VI[I,si] += tmp*Ckl[I,Jb,si]
+                    for I in 1:nI
+                        VI[I,si] += tmp*Ckl[I,Jb,si]
                     end
                     #@inbounds VI[:,si] .+= tmp .* Ckl[:,Jb,si]
                 end
@@ -348,13 +334,6 @@ function compute_ab_terms2(v, H, P::FCIProblem,
         end
     end
 
-
-    function _mult!(VI::Array{Float64,1},Ckl::Array{Float64,1},FJb::Float64)
-        nI = length(VI)
-        @simd for I in 1:nI
-            @inbounds VI[I] += FJb*Ckl[I]
-        end
-    end
 
 
     a_max::Int = bra_a.max
@@ -471,6 +450,7 @@ function compute_ab_terms2(v, H, P::FCIProblem,
             #end
            
             _scatter!(sig,VI,L,R,Ib)
+            #@btime $_scatter!($sig,$VI,$L,$R,$Ib)
 
             #println(size(sig), size(VI))
             #for si in 1:n_roots

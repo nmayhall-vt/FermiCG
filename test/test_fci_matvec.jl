@@ -88,7 +88,7 @@ using Profile
     Random.seed!(3);
     A = Diagonal(rand(20)) + .0001*rand(20,20)
     A = A'+A
-    test_matvec(Hmap,v0,problem,3)
+    @time test_matvec(Hmap,v0,problem,1)
 
 #end
 
