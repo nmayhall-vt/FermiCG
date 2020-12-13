@@ -21,8 +21,8 @@ using Profile
     push!(atoms,Atom(10,"H",[0,0,9]))
     push!(atoms,Atom(11,"H",[0,0,10]))
     push!(atoms,Atom(12,"H",[0,0,11]))
-    #push!(atoms,Atom(13,"H",[0,0,12]))
-    #push!(atoms,Atom(14,"H",[0,0,13]))
+    push!(atoms,Atom(13,"H",[0,0,12]))
+    push!(atoms,Atom(14,"H",[0,0,13]))
     basis = "6-31g"
     basis = "sto-3g"
 
@@ -31,8 +31,8 @@ using Profile
     nbas = size(mf.mo_coeff)[1]
     ints = FermiCG.pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
 
-    na = 6
-    nb = 6
+    na = 7
+    nb = r
 
     e_mf = mf.e_tot - mf.energy_nuc()
     if 1==0
@@ -68,8 +68,9 @@ using Profile
             println(i)
             flush(stdout)
             v = reshape(v,ket_a.max,ket_b.max, 1)
-            @time s = FermiCG.StringCI.compute_ab_terms2(v,ints,prb,lookup_a, lookup_b)
+            #@time s = FermiCG.StringCI.compute_ab_terms2(v,ints,prb,lookup_a, lookup_b)
             #@profilehtml s = FermiCG.StringCI.compute_ab_terms2(v,ints,prb,lookup_a, lookup_b)
+            @profilehtml s = FermiCG.StringCI.compute_ss_terms2(v,ints,prb,lookup_a, lookup_b)
             #s = Matrix(H*v)
         end
     end

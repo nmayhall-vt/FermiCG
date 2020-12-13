@@ -253,6 +253,60 @@ end
 #=}}}=#
 
 
+
+
+# Helper functions for Olsen's agorithm
+function _gather!(FJb::Vector{Float64}, occ::Vector{Int}, vir::Vector{Int}, vkl::Array{Float64,2}, Ib::Int,ket_b_lookup)
+#={{{=#
+    i::Int = 1
+    j::Int = 1
+    Jb::Int = 1
+    sgn::Float64 = 1.0
+    @inbounds @simd for j in occ 
+        for i in vir
+            Jb = ket_b_lookup[i,j,Ib]
+            sgn = sign(Jb)
+            Jb = abs(Jb)
+            FJb[Jb] = FJb[Jb] + vkl[j,i]*sgn
+        end
+    end
+end
+#=}}}=#
+
+function _mult!(Ckl::Array{Float64,3}, FJb::Array{Float64,1}, VI::Array{Float64,2})
+    #={{{=#
+    VI .= 0
+    nI = size(Ckl)[1]
+    n_roots::Int = size(Ckl)[3]
+    ket_max = size(FJb)[1]
+    tmp = 0.0
+    @inbounds @simd for si in 1:n_roots
+        for Jb in 1:ket_max
+            tmp = FJb[Jb]
+            if abs(FJb[Jb]) > 1e-14
+                for I in 1:nI
+                    VI[I,si] += tmp*Ckl[I,Jb,si]
+                end
+                #@inbounds VI[:,si] .+= tmp .* Ckl[:,Jb,si]
+            end
+        end
+    end
+end
+#=}}}=#
+
+function _scatter!(sig::Array{Float64,3}, VI::Array{Float64,2}, L::Vector{Int}, R::Vector{Int}, Ib::Int)
+    #={{{=#
+    n_roots = size(sig)[3]
+    @inbounds @simd for si in 1:n_roots
+        for Li in 1:length(L)
+            sig[R[Li],Ib,si] += VI[Li,si] 
+            #@inbounds sig[R[Li],Ib,si] += VI[Li,si] 
+        end
+    end
+end
+#=}}}=#
+
+
 """
     compute_ab_terms2(v, H, P::FCIProblem, 
                           ket_a_lookup, ket_b_lookup)
@@ -264,77 +318,15 @@ function compute_ab_terms2(v, H, P::FCIProblem,
     #print(" Compute opposite spin terms. Shape of v: ", size(v), "\n")
     @assert(size(v,1)*size(v,2) == P.dim)
 
-    #v = transpose(vin)
-
     #   Create local references to ci_strings
     ket_a = DeterminantString(P.no, P.na)
     ket_b = DeterminantString(P.no, P.nb)
     bra_a = DeterminantString(P.no, P.na)
     bra_b = DeterminantString(P.no, P.nb)
 
-    #ket_a_lookup = fill_ca_lookup3(ket_a)
-    #ket_b_lookup = fill_ca_lookup3(ket_b)
+
+
     no = ket_a.no
-
-    function _scatter!(sig::Array{Float64,3}, VI::Array{Float64,2}, L::Vector{Int}, R::Vector{Int}, Ib::Int)
-        n_roots = size(sig)[3]
-        @inbounds @simd for si in 1:n_roots
-            for Li in 1:length(L)
-                sig[R[Li],Ib,si] += VI[Li,si] 
-                #@inbounds sig[R[Li],Ib,si] += VI[Li,si] 
-            end
-        end
-    end
-
-
-    function _gather!(FJb::Vector{Float64}, occ::Vector{Int}, vir::Vector{Int}, vkl::Array{Float64,2}, Ib::Int,
-                      ket_b_lookup)
-
-        i::Int = 1
-        j::Int = 1
-        Jb::Int = 1
-        sgn::Float64 = 1.0
-        @inbounds @simd for j in occ 
-            for i in vir
-                Jb = ket_b_lookup[i,j,Ib]
-                sgn = sign(Jb)
-                Jb = abs(Jb)
-                FJb[Jb] = FJb[Jb] + vkl[j,i]*sgn
-            end
-        end
-    end
-
-    function _mult_old!(Ckl::Array{Float64,3}, FJb::Array{Float64,1}, VI::Array{Float64,2})
-        Ckl_dim1 = size(Ckl)[1]
-        Ckl_dim2 = size(Ckl)[2]
-        Ckl_dim3 = size(Ckl)[3]
-        Ckl = reshape(Ckl,Ckl_dim1, Ckl_dim2*Ckl_dim3) 
-        VI  = reshape(VI,Ckl_dim2*Ckl_dim3) 
-        FJb  = reshape(FJb,Ckl_dim1) 
-        VI = FJb' * Ckl
-        VI = copy(reshape(VI, Ckl_dim2, Ckl_dim3))
-        Ckl = reshape(Ckl,Ckl_dim1, Ckl_dim2,Ckl_dim3) 
-    end
-
-
-    function _mult!(Ckl::Array{Float64,3}, FJb::Array{Float64,1}, VI::Array{Float64,2})
-        VI .= 0
-        nI = size(Ckl)[1]
-        tmp = 0.0
-        @inbounds @simd for si in 1:n_roots
-            for Jb in 1:ket_b.max
-                tmp = FJb[Jb]
-                if abs(FJb[Jb]) > 1e-14
-                    for I in 1:nI
-                        VI[I,si] += tmp*Ckl[I,Jb,si]
-                    end
-                    #@inbounds VI[:,si] .+= tmp .* Ckl[:,Jb,si]
-                end
-            end
-        end
-    end
-
-
 
     a_max::Int = bra_a.max
     reset!(ket_b)
@@ -477,8 +469,7 @@ end
     compute_aa_terms2(v, H, P::FCIProblem, 
                           ket_a_lookup)
 """
-function compute_ss_terms2(v, H, P::FCIProblem, 
-                          ket_a_lookup, ket_b_lookup)
+function compute_ss_terms2(v, H, P::FCIProblem, ket_a_lookup, ket_b_lookup)
     #={{{=#
 
     #print(" Compute opposite spin terms. Shape of v: ", size(v), "\n")
@@ -493,6 +484,7 @@ function compute_ss_terms2(v, H, P::FCIProblem,
     bra_b = DeterminantString(P.no, P.nb)
 
     no = ket_a.no
+    n_roots = P.n_roots
 
     a_max::Int = bra_a.max
     reset!(ket_a)
@@ -503,19 +495,6 @@ function compute_ss_terms2(v, H, P::FCIProblem,
     #v = reshape(v,ket_a.max, ket_b.max, n_roots) 
     sig = zeros(Float64, ket_a.max, ket_b.max, n_roots) 
     size(sig) == size(v) || throw(DimensionError())
-#    for K in 1:ket_a.max
-#        #  hpq p'q 
-#        for p in 1:ket_a.no, q in 1:ket_a.no
-#            L = ket_a_lookup[K,p,q]
-#            if L==0
-#                continue
-#            end
-#            sgn = sign(L)
-#            L = abs(L)
-#
-#            @views sig[K,:,:] += H.h1[q,p] * sgn * v[L,:,:]
-#        end
-#    end
 
     h1eff = deepcopy(H.h1)
     @tensor begin
@@ -526,6 +505,7 @@ function compute_ss_terms2(v, H, P::FCIProblem,
     ket = ket_a
     reset!(ket) 
     F = zeros(ket_a.max)
+    bra = deepcopy(ket)
     for I in 1:ket.max
         F .= 0
         for k in 1:ket.no, l in 1:ket.no
@@ -536,7 +516,8 @@ function compute_ss_terms2(v, H, P::FCIProblem,
             sign_kl = sign(K)
             K = abs(K)
 
-            bra = deepcopy(ket)
+            #bra = deepcopy(ket)
+            bra.config .= ket.config
             apply_annihilation!(bra,l) 
             if bra.sign == 0
                 continue
@@ -565,6 +546,13 @@ function compute_ss_terms2(v, H, P::FCIProblem,
         @tensor begin
             tmp[K,s] += F[J] * v[J,K,s]
         end
+        #for si in 1:n_roots
+        #    for K in 1:ket_a.max
+        #        sig[I,K,si] += F'*v[:,K,si]
+        #        #sig[I,K,si] += sum(F .* v[:,K,si])
+        #        #sig[I,K,si] += sum(F .* v[:,K,si])
+        #    end
+        #end
         incr!(ket)
     end
 
@@ -582,7 +570,8 @@ function compute_ss_terms2(v, H, P::FCIProblem,
             sign_kl = sign(K)
             K = abs(K)
 
-            bra = deepcopy(ket)
+            bra.config .= ket.config
+            #bra = deepcopy(ket)
             apply_annihilation!(bra,l) 
             if bra.sign == 0
                 continue
