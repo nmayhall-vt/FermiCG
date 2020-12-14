@@ -32,7 +32,7 @@ using Profile
     ints = FermiCG.pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
 
     na = 7
-    nb = r
+    nb = 7
 
     e_mf = mf.e_tot - mf.energy_nuc()
     if 1==0
@@ -56,7 +56,7 @@ using Profile
     A = Diagonal(rand(20)) + .0001*rand(20,20)
     A = A'+A
 
-    function test_matvec(H,v,prb,n)
+    function test_matvec(v,prb,n)
         ket_a = FermiCG.StringCI.DeterminantString(prb.no, prb.na)
         ket_b = FermiCG.StringCI.DeterminantString(prb.no, prb.nb)
 
@@ -68,14 +68,14 @@ using Profile
             println(i)
             flush(stdout)
             v = reshape(v,ket_a.max,ket_b.max, 1)
-            #@time s = FermiCG.StringCI.compute_ab_terms2(v,ints,prb,lookup_a, lookup_b)
+            @time s = FermiCG.StringCI.compute_ab_terms2(v,ints,prb,lookup_a, lookup_b)
             #@profilehtml s = FermiCG.StringCI.compute_ab_terms2(v,ints,prb,lookup_a, lookup_b)
-            @profilehtml s = FermiCG.StringCI.compute_ss_terms2(v,ints,prb,lookup_a, lookup_b)
+            #@profilehtml s = FermiCG.StringCI.compute_ss_terms2(v,ints,prb,lookup_a, lookup_b)
             #s = Matrix(H*v)
         end
     end
 
-    test_matvec(Hmap,v0,problem,1)
+    test_matvec(v0,problem,1)
     
     problem = StringCI.FCIProblem(norbs, na, nb)
     display(problem)
@@ -85,11 +85,10 @@ using Profile
     v0[1,1] = 1
     v0 = v0 * inv(sqrt(v0'*v0))
 
-    Hmap = StringCI.get_map(ints, problem)
     Random.seed!(3);
     A = Diagonal(rand(20)) + .0001*rand(20,20)
     A = A'+A
-    @time test_matvec(Hmap,v0,problem,1)
+    @time test_matvec(v0,problem,2)
 
 #end
 

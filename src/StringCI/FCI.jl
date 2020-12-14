@@ -280,14 +280,18 @@ function _mult!(Ckl::Array{Float64,3}, FJb::Array{Float64,1}, VI::Array{Float64,
     n_roots::Int = size(Ckl)[3]
     ket_max = size(FJb)[1]
     tmp = 0.0
-    @inbounds @simd for si in 1:n_roots
+    @inbounds for si in 1:n_roots
+        #@views v = VI[:,si]
         for Jb in 1:ket_max
             tmp = FJb[Jb]
-            if abs(FJb[Jb]) > 1e-14
-                for I in 1:nI
+            if FJb[Jb] > 1e-14
+            #if tmp > 1e-14
+                #@views c = Ckl[:,Jb,si]
+                #LinearAlgebra.axpy!(tmp,c, v)
+                @simd for I in 1:nI
                     VI[I,si] += tmp*Ckl[I,Jb,si]
                 end
-                #@inbounds VI[:,si] .+= tmp .* Ckl[:,Jb,si]
+                #@views VI[:,si] .+= tmp .* Ckl[:,Jb,si]
             end
         end
     end
@@ -306,6 +310,20 @@ function _scatter!(sig::Array{Float64,3}, VI::Array{Float64,2}, L::Vector{Int}, 
 end
 #=}}}=#
 
+function _getCkl!(Ckl::Array{Float64,3}, v::Array{Float64,3},L::Vector{Int})
+    #={{{=#
+    nI = length(L)
+    n_roots = size(v)[3]
+    ket_max = size(v)[2]
+    @inbounds @simd for si in 1:n_roots
+        for Jb in 1:ket_max
+            for Li in 1:nI
+                Ckl[Li,Jb,si] = v[abs(L[Li]), Jb, si] * sign(L[Li])
+            end
+        end
+    end
+end
+#=}}}=#
 
 """
     compute_ab_terms2(v, H, P::FCIProblem, 
@@ -344,6 +362,7 @@ function compute_ab_terms2(v, H, P::FCIProblem,
     Ckl = Array{Float64,3}
     virt = zeros(Int,ket_b.no-ket_b.ne)
     diff_ref = Set(collect(1:ket_b.no))
+    FJb = copy(FJb_scr1)
     for k in 1:ket_a.no,  l in 1:ket_a.no
         #@printf(" %4i, %4i\n",k,l)
         L = Vector{Int}()
@@ -369,20 +388,20 @@ function compute_ab_terms2(v, H, P::FCIProblem,
         else
             Ckl = deepcopy(Ckl_scr2)
         end
-        nI = length(L)
-        for si in 1:n_roots
-            @simd for Jb in 1:ket_b.max
-                for Li in 1:nI
-                    @inbounds Ckl[Li,Jb,si] = v[abs(L[Li]), Jb, si] * sign(L[Li])
-                end
-            end
-        end
+        #nI = length(L)
+        #for si in 1:n_roots
+        #    @simd for Jb in 1:ket_b.max
+        #        for Li in 1:nI
+        #            @inbounds Ckl[Li,Jb,si] = v[abs(L[Li]), Jb, si] * sign(L[Li])
+        #        end
+        #    end
+        #end
+        _getCkl!(Ckl, v, L)
         
         vkl = H.h2[:,:,l,k]
         reset!(ket_b)
         for Ib in 1:ket_b.max
-            #fill!(FJb, zero(FJb[1]));
-            FJb = copy(FJb_scr1)
+            fill!(FJb,0.0)
             Jb = 1
             sgn = 1
             zero_num = 0
@@ -400,63 +419,27 @@ function compute_ab_terms2(v, H, P::FCIProblem,
             for j in ket_b.config
                 FJb[Ib] += H.h2[j,j,l,k]
             end
-            #for j in ket_b.config
-            #    FJb[Ib] += H.h2[j,j,l,k]
-            #    for i in virt
-            #        Jb = ket_b_lookup[i,j,Ib]
-            #        sgn = sign(Jb)
-            #        Jb = abs(Jb)
-            #        FJb[Jb] += H.h2[j,i,l,k]*sgn
-            #    end
-            #end
           
             if 1==0
                 _mult_old!(Ckl, FJb, VI)
             end
             if 1==0
                 @tensor begin
-                    #VI[I] = FJb[J] * Ckl[J,I]
                     VI[I,s] = FJb[J] * Ckl[J,I,s]
                 end
             end
             if 1==1
                 _mult!(Ckl, FJb, VI)
-#                VI .= 0
-#                nI = length(L)
-#                tmp = 0.0
-#                for si in 1:n_roots
-#                    for Jb in 1:ket_b.max
-#                        #tmp = FJb[Jb]
-#                        #if abs(FJb[Jb]) > 1e-14
-#                        #    #@simd for I in 1:nI
-#                        #    #    VI[I,si] += tmp*Ckl[I,Jb,si]
-#                        #    #end
-#                        #    @views VI[:,si] .+= tmp*Ckl[:,Jb,si]
-#                        #end
-#                        _mult!(VI[:,si],Ckl[:,Jb,si],FJb[Jb])
-#                    end
-#                end
+                #@btime $_mult!($Ckl, $FJb, $VI)
             end
-            #for I = 1:length(L), s = 1:n_roots
-            #    VI[I,s] = FJb[:]' * Ckl[:,I,s]
-            #end
            
             _scatter!(sig,VI,L,R,Ib)
             #@btime $_scatter!($sig,$VI,$L,$R,$Ib)
 
-            #println(size(sig), size(VI))
-            #for si in 1:n_roots
-            #    for Li in 1:length(L)
-            #        @inbounds sig[R[Li],Ib,si] += VI[Li,si] 
-            #    end
-            #end
-            #@views sig[R,Ib,:] .+= VI
             incr!(ket_b)
         end
     end
 
-    #v = reshape(v,ket_a.max*ket_b.max, n_roots) 
-    #sig = reshape(sig,ket_a.max*ket_b.max, n_roots) 
 
     return sig
     
