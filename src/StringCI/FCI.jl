@@ -280,14 +280,17 @@ function _mult!(Ckl::Array{Float64,3}, FJb::Array{Float64,1}, VI::Array{Float64,
     n_roots::Int = size(Ckl)[3]
     ket_max = size(FJb)[1]
     tmp = 0.0
-    @inbounds @simd for si in 1:n_roots
+    for si in 1:n_roots
+        @views V = VI[:,si]
         for Jb in 1:ket_max
             tmp = FJb[Jb]
             if abs(tmp) > 1e-14
-                for I in 1:nI
+                @inbounds @simd for I in 1:nI
                     VI[I,si] += tmp*Ckl[I,Jb,si]
                 end
+                #@views LinearAlgebra.axpy!(tmp, Ckl[:,Jb,si], VI[:,si])
                 #@inbounds VI[:,si] .+= tmp .* Ckl[:,Jb,si]
+                #@inbounds @views @. VI[:,si] += tmp * Ckl[:,Jb,si]
             end
         end
     end
@@ -891,6 +894,7 @@ function get_map(ham, prb::FCIProblem)
     ket_a = DeterminantString(prb.no, prb.na)
     ket_b = DeterminantString(prb.no, prb.nb)
 
+    #@btime lookup_a = $fill_ca_lookup2($ket_a)
     lookup_a = fill_ca_lookup2(ket_a)
     lookup_b = fill_ca_lookup2(ket_b)
     iters = 0

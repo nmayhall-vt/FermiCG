@@ -7,6 +7,7 @@ mutable struct Davidson
     dim::Int
     nroots::Int
     max_iter::Int
+    max_ss_vecs::Int
     tol::Float64
     converged::Bool
     status::Vector{Bool}        # converged status of each root 
@@ -18,9 +19,10 @@ mutable struct Davidson
     ritz_v::Array{Float64,2}
     ritz_e::Vector{Float64}
     resid::Vector{Float64}
+    lindep::Float64
 end
 
-function Davidson(op; max_iter=100, tol=1e-8, nroots=1, v0=nothing)
+function Davidson(op; max_iter=100, max_ss_vecs=8, tol=1e-8, nroots=1, v0=nothing)
     size(op)[1] == size(op)[2] || throw(DimensionError())
     dim = size(op)[1]
     if v0==nothing
@@ -32,7 +34,8 @@ function Davidson(op; max_iter=100, tol=1e-8, nroots=1, v0=nothing)
     return Davidson(op, 
                     dim, 
                     nroots, 
-                    max_iter, 
+                    max_iter,
+                    max_ss_vecs*nroots,
                     tol,
                     false, 
                     [false for i in 1:nroots],
@@ -43,11 +46,12 @@ function Davidson(op; max_iter=100, tol=1e-8, nroots=1, v0=nothing)
                     zeros(dim,0),
                     zeros(nroots,nroots),
                     zeros(nroots),
-                    zeros(nroots))
+                    zeros(nroots),
+                    0.0)
 end
 
 function print_iter(solver::Davidson)
-    @printf(" Iter: %3i", solver.iter_curr)
+    @printf(" Iter: %3i SS: %-4i", solver.iter_curr, size(solver.vec_prev)[2])
     @printf(" E: ")
     for i in 1:solver.nroots
         if solver.status[i]
@@ -64,6 +68,7 @@ function print_iter(solver::Davidson)
             @printf("%5.1e  ", solver.resid[i])
         end
     end
+    @printf(" LinDep: %5.1e", solver.lindep)
     println("")
 end
 
@@ -81,7 +86,6 @@ function solve(solver::Davidson; print=0, Adiag=nothing)
 
     #first diagonalize 
     res = zeros(solver.dim,solver.nroots)
-    res2 = zeros(solver.dim,solver.nroots)
     for iter = 1:solver.max_iter
         solver.iter_curr = iter
         #@printf(" Davidson Iter: %4i SS_Curr %4i\n", iter, size(solver.vec_curr,2))
@@ -100,6 +104,9 @@ function solve(solver::Davidson; print=0, Adiag=nothing)
         #ritz_v = F.vectors[:,1:solver.nroots]
         ritz_e = F.values
         ritz_v = F.vectors
+        ss_size = length(F.values)
+        ritz_v = ritz_v[:,sortperm(ritz_e)][:,1:min(ss_size,solver.max_ss_vecs)]
+        ritz_e = ritz_e[sortperm(ritz_e)][1:min(ss_size,solver.max_ss_vecs)]
         solver.ritz_e = ritz_e
         solver.ritz_v = ritz_v
 
@@ -122,6 +129,11 @@ function solve(solver::Davidson; print=0, Adiag=nothing)
         #res = solver.sig_prev - (solver.vec_prev * Hss)
         #@btime $res = $solver.sig_prev - ($solver.vec_prev * $Hss)
         ss = deepcopy(solver.vec_prev)
+        
+        # compute linear dep of subspace
+        overlap = svdvals(ss'*ss)
+        solver.lindep = minimum(1.0 .- overlap)
+
         new = zeros(solver.dim,0) 
         #solver.statusconv = [false for i in 1:solver.nroots]
         for s in 1:solver.nroots
@@ -150,7 +162,6 @@ function solve(solver::Davidson; print=0, Adiag=nothing)
                 new = hcat(new,res[:,s]/nres)
             end
         end
-        #display(solver.vec_prev'*solver.vec_prev)
         print_iter(solver)
         if all(solver.status)
             solver.converged == true

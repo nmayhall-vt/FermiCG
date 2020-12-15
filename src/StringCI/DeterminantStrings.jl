@@ -1,6 +1,8 @@
 using Printf
 using Parameters
 using StaticArrays
+using BenchmarkTools
+using InteractiveUtils
 import Base: display
 
 
@@ -83,6 +85,20 @@ function Base.length(c::DeterminantString)
     return c.max
 end
 
+"""
+    Base.copy!(c1::DeterminantString,c2::DeterminantString)
+
+copy c2 into c1
+"""
+function Base.copy!(c1::DeterminantString,c2::DeterminantString)
+    c1.config = copy(c2.config)
+    c1.no = c2.no
+    c1.ne = c2.ne
+    c1.sign = c2.sign
+    c1.lin_index = c2.lin_index
+    c1.max = c2.max
+end
+
 
 function Base.print(c::DeterminantString)
     #=
@@ -153,42 +169,63 @@ end
 #=}}}=#
 
 
+"""
+    calc_linear_index!(c::DeterminantString)
+
+Calculate the linear index
+"""
 function calc_linear_index!(c::DeterminantString)
-    #=
-    Return linear index for lexically ordered __config DeterminantString
-    =#
     #={{{=#
     c.lin_index = 1
     v_prev::Int = 0
 
-    for i in 1:c.ne
+    for i::Int in 1:c.ne
         v = c.config[i]
-        #todo: change mchn from function call to data lookup!
-        for j in v_prev+1:v-1
-            #print(c)
-            #print(c.no-j, " ", c.ne-i,'\n')
-            c.lin_index += get_nchk(c.no-j,c.ne-i)
+        for j::Int in v_prev+1:v-1
+            c.lin_index += StringCI.binom_coeff[c.no-j+1,c.ne-i+1]
+            #@btime $c.lin_index += $binom_coeff[$c.no-$j+1,$c.ne-$i+1]
+            #c.lin_index += get_nchk(c.no-j,c.ne-i)
         end
         v_prev = v
     end
-    return
 end
 #=}}}=#
 
 
+"""
+    calc_linear_index!(c::DeterminantString, binomcoeff::Array{Int,2})
+
+Calculate the linear index, passing in binomial coefficient matrix makes it much faster
+"""
+function calc_linear_index!(c::DeterminantString, binomcoeff::Array{Int,2})
+    #={{{=#
+    c.lin_index = 1
+    v_prev::Int = 0
+
+    for i::Int in 1:c.ne
+        v = c.config[i]
+        for j::Int in v_prev+1:v-1
+            c.lin_index += binomcoeff[c.no-j+1,c.ne-i+1]
+        end
+        v_prev = v
+    end
+end
+#=}}}=#
+
+
+"""
+    calc_linear_index(c::DeterminantString)
+    
+Return linear index for lexically ordered __config DeterminantString
+"""
 function calc_linear_index(c::DeterminantString)
-    #=
-    Return linear index for lexically ordered __config DeterminantString
-    =#
     #={{{=#
     v_prev::Int = 0
     lin_index = 1
     for i in 1:c.ne
         v = c.config[i]
         #todo: change mchn from function call to data lookup!
-        for j in v_prev+1:v-1
-            #print(c)
-            #print(c.no-j, " ", c.ne-i,'\n')
+        @inbounds @simd for j in v_prev+1:v-1
             lin_index += get_nchk(c.no-j,c.ne-i)
         end
         v_prev = v
@@ -264,16 +301,22 @@ function fill_ca_lookup2(c::DeterminantString)
 
     tbl = zeros(Int,ket.no, ket.no, max)
     for K in 1:max
-        for p in 1:ket.no
-            for q in 1:ket.no
-                bra = deepcopy(ket)
+        for q in 1:ket.no
+            for p in ket.config
+                #bra = deepcopy(ket)
+                copy!(bra,ket)
+                
                 apply_annihilation!(bra,p)
+                if bra.sign == 0
+                    continue
+                end
                 apply_creation!(bra,q)
-                @assert(issorted(bra.config))
+                issorted(bra.config) || throw(Exception)
                 if bra.sign == 0
                     continue
                 else
-                    calc_linear_index!(bra)
+                    calc_linear_index!(bra,binom_coeff)
+                    #@code_warntype calc_linear_index!(bra,binom_coeff)
                     tbl[q, p, K] = bra.sign*bra.lin_index
                 end
             end

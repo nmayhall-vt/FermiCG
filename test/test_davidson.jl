@@ -31,11 +31,11 @@ using Profile
     nbas = size(mf.mo_coeff)[1]
     ints = FermiCG.pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
 
-    na = 6
+    na = 5
     nb = 6
 
     e_mf = mf.e_tot - mf.energy_nuc()
-    if 0==1
+    if 1==1
         @printf(" Mean-field energy %12.8f", e_mf)
         @time e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,na,nb)
         # @printf(" FCI Energy: %12.8f\n", e_fci)
@@ -58,11 +58,12 @@ using Profile
 
 
     #davidson = FermiCG.Davidson(A,max_iter=400, nroots=nr, tol=1e-5)
-    davidson = FermiCG.Davidson(Hmap,v0=v0,max_iter=40, nroots=nr, tol=1e-5)
+    davidson = FermiCG.Davidson(Hmap,v0=v0,max_iter=40, max_ss_vecs=42, nroots=nr, tol=1e-5)
     Adiag = StringCI.compute_fock_diagonal(problem,mf.mo_energy, e_mf)
     #FermiCG.solve(davidson)
     @printf(" Now iterate: \n")
     flush(stdout)
-    @profilehtml FermiCG.solve(davidson, Adiag=Adiag)
+    @time FermiCG.solve(davidson, Adiag=Adiag)
+    #@profilehtml FermiCG.solve(davidson, Adiag=Adiag)
     #FermiCG.solve(davidson, Adiag=Diagonal(A))
 #end

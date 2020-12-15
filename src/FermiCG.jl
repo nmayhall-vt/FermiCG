@@ -16,6 +16,7 @@ using PackageCompiler
 using Parameters
 using Printf
 using TimerOutputs
+using BenchmarkTools 
 # using Unicode
 #
 #####################################
