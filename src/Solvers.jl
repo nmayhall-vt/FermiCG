@@ -1,5 +1,6 @@
 using LinearAlgebra 
 using Printf
+using BenchmarkTools
 
 mutable struct Davidson
     op 
@@ -66,7 +67,21 @@ function print_iter(solver::Davidson)
     println("")
 end
 
+
+function _apply_diagonal_precond!(res_s::Vector{Float64}, Adiag::Vector{Float64}, denom::Float64)
+    dim = size(Adiag)[1]
+    length(size(Adiag)) == 1 || throw(Exception)
+    length(size(res_s)) == 1 || throw(Exception)
+    @inbounds @simd for i in 1:dim
+        res_s[i] = res_s[i] / (denom - Adiag[i])
+    end
+end
+
 function solve(solver::Davidson; print=0, Adiag=nothing)
+
+    #first diagonalize 
+    res = zeros(solver.dim,solver.nroots)
+    res2 = zeros(solver.dim,solver.nroots)
     for iter = 1:solver.max_iter
         solver.iter_curr = iter
         #@printf(" Davidson Iter: %4i SS_Curr %4i\n", iter, size(solver.vec_curr,2))
@@ -102,7 +117,10 @@ function solve(solver::Davidson; print=0, Adiag=nothing)
         if print>0
             [@printf(" Ritz Value: %12.8f \n",i) for i in ritz_e]
         end
-        res = solver.sig_prev - solver.vec_prev * Hss
+        res = - solver.vec_prev * Hss
+        res .+= solver.sig_prev
+        #res = solver.sig_prev - (solver.vec_prev * Hss)
+        #@btime $res = $solver.sig_prev - ($solver.vec_prev * $Hss)
         ss = deepcopy(solver.vec_prev)
         new = zeros(solver.dim,0) 
         #solver.statusconv = [false for i in 1:solver.nroots]
@@ -116,9 +134,13 @@ function solve(solver::Davidson; print=0, Adiag=nothing)
             end
             if Adiag != nothing
                 level_shift = 1e-3
-                for i in 1:solver.dim
-                    res[i,s] = res[i,s] / (ritz_e[s] - Adiag[i] + level_shift)
-                end
+
+                denom = (ritz_e[s]  + level_shift)
+                _apply_diagonal_precond!(res[:,s], Adiag, denom)
+                #@btime $_apply_diagonal_precond!($res[:,$s], $Adiag, $denom)
+                #@inbounds @simd for i in 1:solver.dim
+                #    res_s[i] = res_s[i] / (denom - Adiag[i])
+                #end
             end
             scr = ss' * res[:,s]
             res[:,s] = res[:,s] - ss * scr 

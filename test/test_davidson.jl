@@ -35,7 +35,7 @@ using Profile
     nb = 6
 
     e_mf = mf.e_tot - mf.energy_nuc()
-    if 1==1
+    if 0==1
         @printf(" Mean-field energy %12.8f", e_mf)
         @time e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,na,nb)
         # @printf(" FCI Energy: %12.8f\n", e_fci)
@@ -63,6 +63,6 @@ using Profile
     #FermiCG.solve(davidson)
     @printf(" Now iterate: \n")
     flush(stdout)
-    @time FermiCG.solve(davidson, Adiag=Adiag)
+    @profilehtml FermiCG.solve(davidson, Adiag=Adiag)
     #FermiCG.solve(davidson, Adiag=Diagonal(A))
 #end
