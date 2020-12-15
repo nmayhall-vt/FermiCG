@@ -280,18 +280,14 @@ function _mult!(Ckl::Array{Float64,3}, FJb::Array{Float64,1}, VI::Array{Float64,
     n_roots::Int = size(Ckl)[3]
     ket_max = size(FJb)[1]
     tmp = 0.0
-    @inbounds for si in 1:n_roots
-        #@views v = VI[:,si]
+    @inbounds @simd for si in 1:n_roots
         for Jb in 1:ket_max
             tmp = FJb[Jb]
-            if FJb[Jb] > 1e-14
-            #if tmp > 1e-14
-                #@views c = Ckl[:,Jb,si]
-                #LinearAlgebra.axpy!(tmp,c, v)
-                @simd for I in 1:nI
+            if abs(tmp) > 1e-14
+                for I in 1:nI
                     VI[I,si] += tmp*Ckl[I,Jb,si]
                 end
-                #@views VI[:,si] .+= tmp .* Ckl[:,Jb,si]
+                #@inbounds VI[:,si] .+= tmp .* Ckl[:,Jb,si]
             end
         end
     end
@@ -430,7 +426,6 @@ function compute_ab_terms2(v, H, P::FCIProblem,
             end
             if 1==1
                 _mult!(Ckl, FJb, VI)
-                #@btime $_mult!($Ckl, $FJb, $VI)
             end
            
             _scatter!(sig,VI,L,R,Ib)
@@ -447,6 +442,40 @@ function compute_ab_terms2(v, H, P::FCIProblem,
 end
 #=}}}=#
 
+
+
+
+function _ss_sum!(sig::Array{Float64,3}, v::Array{Float64,3}, F::Vector{Float64},Ia::Int)
+    nKb     = size(v)[1]
+    n_roots = size(v)[2]
+    nJa     = size(v)[3]
+
+    for Ja in 1:nJa
+        if abs(F[Ja]) > 1e-14 
+            @inbounds @simd for si in 1:n_roots
+                for Kb in 1:nKb
+                    sig[Kb,si,Ia] += F[Ja]*v[Kb,si,Ja]
+                end
+            end
+        end
+    end
+end
+
+function _ss_sum_Ia!(sig::Array{Float64,3}, v::Array{Float64,3}, F::Vector{Float64},Ia::Int)
+    nJa = size(v)[3]
+    nKb = size(v)[1]
+    n_roots = size(v)[2]
+
+    for Ja in 1:nJa
+        if abs(F[Ja]) > 1e-14 
+            @inbounds @simd for si in 1:n_roots
+                for Kb in 1:nKb
+                    sig[Kb,si,Ia] += F[Ja]*v[Kb,si,Ja]
+                end
+            end
+        end
+    end
+end
 
 """
     compute_aa_terms2(v, H, P::FCIProblem, 
@@ -484,7 +513,49 @@ function compute_ss_terms2(v, H, P::FCIProblem, ket_a_lookup, ket_b_lookup)
         h1eff[p,q] -= .5 * H.h2[p,j,j,q]  
     end
 
+    #bb
+    sig = permutedims(sig,[1,3,2])
+    v = permutedims(v,[1,3,2])
+    
+    ket = ket_b
+    reset!(ket) 
+    F = zeros(ket_b.max)
+    for I in 1:ket.max
+        F .= 0
+        for k in 1:ket.no, l in 1:ket.no
+            K = ket_b_lookup[k,l,I]
+            if K == 0
+                continue
+            end
+            sign_kl = sign(K)
+            K = abs(K)
+
+            @inbounds F[K] += sign_kl * h1eff[k,l]
+            for i in 1:ket.no, j in 1:ket.no
+                J = ket_b_lookup[i,j,K]
+                if J == 0
+                    continue
+                end
+                sign_ij = sign(J)
+                J = abs(J)
+                if sign_kl == sign_ij
+                    @inbounds F[J] += .5 * H.h2[i,j,k,l]
+                else
+                    @inbounds F[J] -= .5 * H.h2[i,j,k,l]
+                end
+            end
+        end
+        _ss_sum!(sig,v,F,I)
+    end
+    #sig = permutedims(sig,[1,3,2])
+    #v = permutedims(v,[1,3,2])
+
+
+
     #aa
+    sig = permutedims(sig,[3,2,1])
+    v = permutedims(v,[3,2,1])
+
     ket = ket_a
     reset!(ket) 
     F = zeros(ket_a.max)
@@ -499,18 +570,7 @@ function compute_ss_terms2(v, H, P::FCIProblem, ket_a_lookup, ket_b_lookup)
             sign_kl = sign(K)
             K = abs(K)
 
-            #bra = deepcopy(ket)
-            bra.config .= ket.config
-            apply_annihilation!(bra,l) 
-            if bra.sign == 0
-                continue
-            end
-            apply_creation!(bra,k) 
-            if bra.sign == 0
-                continue
-            end
             @inbounds F[K] += sign_kl * h1eff[k,l]
-            #@views sig[:,I,:] += H.h1[k,l] * sign_kl * v[:,K,:]
             for i in 1:ket.no, j in 1:ket.no
                 J = ket_a_lookup[i,j,K]
                 if J == 0
@@ -523,70 +583,17 @@ function compute_ss_terms2(v, H, P::FCIProblem, ket_a_lookup, ket_b_lookup)
                 else
                     @inbounds F[J] -= .5 * H.h2[i,j,k,l]
                 end
+
             end
         end
-        @views tmp = sig[I,:,:]
-        @tensor begin
-            tmp[K,s] += F[J] * v[J,K,s]
-        end
-        #for si in 1:n_roots
-        #    for K in 1:ket_a.max
-        #        sig[I,K,si] += F'*v[:,K,si]
-        #        #sig[I,K,si] += sum(F .* v[:,K,si])
-        #        #sig[I,K,si] += sum(F .* v[:,K,si])
-        #    end
-        #end
-        incr!(ket)
+
+        _ss_sum_Ia!(sig,v,F,I)
+
     end
-
-    #bb
-    ket = ket_b
-    reset!(ket) 
-    F = zeros(ket_b.max)
-    for I in 1:ket.max
-        F .= 0
-        for k in 1:ket.no, l in 1:ket.no
-            K = ket_b_lookup[k,l,I]
-            if K == 0
-                continue
-            end
-            sign_kl = sign(K)
-            K = abs(K)
-
-            bra.config .= ket.config
-            #bra = deepcopy(ket)
-            apply_annihilation!(bra,l) 
-            if bra.sign == 0
-                continue
-            end
-            apply_creation!(bra,k) 
-            if bra.sign == 0
-                continue
-            end
-            @inbounds F[K] += sign_kl * h1eff[k,l]
-            #@views sig[:,I,:] += H.h1[k,l] * sign_kl * v[:,K,:]
-            for i in 1:ket.no, j in 1:ket.no
-                J = ket_b_lookup[i,j,K]
-                if J == 0
-                    continue
-                end
-                sign_ij = sign(J)
-                J = abs(J)
-                #@inbounds F[J] += .5 *sign_kl * sign_ij * H.h2[i,j,k,l]
-                if sign_kl == sign_ij
-                    @inbounds F[J] += .5 * H.h2[i,j,k,l]
-                else
-                    @inbounds F[J] -= .5 * H.h2[i,j,k,l]
-                end
-            end
-        end
-        @views tmp = sig[:,I,:]
-        @tensor begin
-            tmp[K,s] += F[J] * v[K,J,s]
-        end
-        incr!(ket)
-    end
-
+    
+    sig = permutedims(sig,[3,1,2])
+    v = permutedims(v,[3,1,2])
+    
     return sig
 
 end
