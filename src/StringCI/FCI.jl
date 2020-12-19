@@ -22,13 +22,16 @@ struct FCIProblem
 end
 
 function FCIProblem(no, na, nb)
+    na <= no || throw(DimensionMismatch)
+    nb <= no || throw(DimensionMismatch)
     dima = calc_nchk(no,na)
     dimb = calc_nchk(no,nb)
     return FCIProblem(no, na, nb, dima, dimb, dima*dimb, false, false, 1, "direct", 1)
 end
 
 function display(p::FCIProblem)
-    @printf(" FCIProblem::  NOrbs: %2i NAlpha: %2i NBeta: %2i Dimension: %-9i\n",p.no,p.na,p.nb,p.dim)
+    @printf(" FCIProblem:: #Orbs = %-3i #α = %-2i #β = %-2i Dimension: %-9i\n",p.no,p.na,p.nb,p.dim)
+    #@printf(" FCIProblem::  NOrbs: %2i NAlpha: %2i NBeta: %2i Dimension: %-9i\n",p.no,p.na,p.nb,p.dim)
 end
 
 function compute_spin_diag_terms_full!(H, P::FCIProblem, Hmat)

@@ -33,7 +33,7 @@ using Profile
 
     na = 5
     nb = 5
-    nr = 2
+    nr = 1
 
     e_mf = mf.e_tot - mf.energy_nuc()
     if 0==1

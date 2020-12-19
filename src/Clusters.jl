@@ -1,11 +1,13 @@
+using Arpack 
+using StaticArrays
 
 """
-	idx::Integer
-	orb_list::Array{Integer,1}
+    idx::Int
+    orb_list::Vector{Int}
 """
 struct Cluster
-    idx::Integer
-    orb_list::Array{Integer,1}
+    idx::Int
+    orb_list::Vector{Int}
 end
 
 
@@ -16,8 +18,24 @@ end
 """
 struct ClusterBasis
     cluster::Cluster
-	basis::Dict{Tuple,Array}
+    basis::Dict{SVector{2,Int16},Array{Float64,2}}
 end
+function ClusterBasis(ci::Cluster)
+    return ClusterBasis(ci, Dict{SVector{2,Int16},Array{Float64,2}}())
+end
+
+
+
+"""
+    config::Vector{SVector{Int16,1}}
+"""
+struct FockConfig 
+    config::Vector{SVector{Int16,1}}
+end
+function Base.print(f::FockConfig)
+    print(f.config)
+end
+
 
 
 """
@@ -45,7 +63,7 @@ end
 """
 	clusters::Vector{ClusterBasis}
 	ops::Vector{String}
-	delta::Vector{Integer}
+	delta::Vector{Int}
 	ints
 
 
@@ -67,7 +85,7 @@ input:
 struct ClusteredTerm
 	clusters::Vector{ClusterBasis}
 	ops::Vector{String}
-	delta::Vector{Integer}
+	delta::Vector{Int}
 	ints
 end
 
@@ -97,14 +115,93 @@ struct ClusterOperator
 end
 
 
+"""
+    compute_cluster_eigenbasis(ints::ElectronicInts, ci::Cluster, na, nb, verbose=0, max_roots=10)
 
-function build_ClusterBasis(ints::ElectronicInts, ci::Cluster, na, nb, verbose=0)
+Build a ClusterBasis for Cluster `ci`
+-`ints::ElectronicInts`: In-core integrals
+-`ci::Cluster`: Cluster to form basis for
+-`na::Int`: Number of alpha electrons
+-`nb::Int`: Number of beta electrons
+-`verbose::Int`: Print level
+-`max_roots::Int`: Maximum number of vectors for current focksector basis
+"""
+function compute_cluster_eigenbasis(ints::ElectronicInts, ci::Cluster, na, nb; verbose=0, max_roots=10,
+    rdm1a=nothing, rdm2a=nothing)
+
+    ints_i = subset(ints,ci.orb_list) 
+
     problem = FermiCG.StringCI.FCIProblem(length(ci), na, nb)
     display(problem)
-    @time Hmat = FermiCG.StringCI.build_H_matrix(ints, problem)
-    @time e,v = eigs(Hmat, nev = 10, which=:SR)
-    e = real(e)
-    for ei in e
-        @printf(" Energy: %12.8f\n",ei+ints.h0)
+    nr = min(max_roots, problem.dim)
+    #e, d1, d2 = FermiCG.pyscf_fci(ints_i,na, nb)
+    #println(e)
+    e = [] 
+    v = []
+    if verbose > 0 
+        @time Hmat = FermiCG.StringCI.build_H_matrix(ints_i, problem)
+    else
+        Hmat = FermiCG.StringCI.build_H_matrix(ints_i, problem)
     end
+    if problem.dim < 1000
+        if verbose > 0
+            @time F = eigen(Hmat)
+            e = F.values
+            v = F.vectors
+        else
+            F = eigen(Hmat)
+            e = F.values
+            v = F.vectors
+        end 
+    else
+        if verbose > 0
+            @time e,v = Arpack.eigs(Hmat, nev = nr, which=:SR)
+            e = real(e)
+        else
+            e,v = Arpack.eigs(Hmat, nev = nr, which=:SR)
+            e = real(e)
+        end
+    end
+    state = 1
+    for ei in e
+        @printf(" State %4i Energy: %12.8f %12.8f\n",state,ei, ei+ints.h0)
+        state += 1
+    end
+    return v
+end
+    
+
+"""
+    possible_focksectors(delta_elec=nothing)
+        
+Get list of possible fock spaces accessible to the cluster
+
+- `delta_elec::Vector{Int}`:   (ref_alpha, ref_beta, delta) allows restrictions to fock spaces
+                        based on a delta from some reference occupancy (ref_alpha, ref_beta)
+"""
+function possible_focksectors(c::Cluster,delta_elec=nothing)
+    ref_a = nothing
+    ref_b = nothing
+    delta = nothing
+    if delta_elec != nothing
+        size(delta_elec) == 3 || throw(DimensionMismatch)
+        ref_a = delta_elec[0]
+        ref_b = delta_elec[1]
+        delta = delta_elec[2]
+    end
+
+    no = length(c)
+   
+    fsectors::Vector{SVector{2,Int16}} = []
+    for na in 1:no
+        for nb in 1:no 
+            if delta_elec != nothing
+                if abs(na-ref_a)+abs(nb-ref_b) > delta
+                    continue
+                end
+            end
+            push!(fsectors,[na,nb])
+        end
+    end
+    return fsectors
 end

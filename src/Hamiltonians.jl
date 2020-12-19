@@ -111,20 +111,46 @@ end
 
 
 """
-	subset(ints::ElectronicInts, list)
+    function subset(ints::ElectronicInts, list; rmd1a=nothing, rdm1b=nothing)
 
 Extract a subset of integrals acting on orbitals in list, returned as ElectronicInts type
+-`list`: list of orbital indices in subset
+-`rdm1a`: 1RDM for embedding α density to make CASCI hamiltonian
+-`rdm1b`: 1RDM for embedding β density to make CASCI hamiltonian
+-`
 """
-function subset(ints::ElectronicInts, list)
-    # h0 = ints.h0
-    # h1 = view(ints.h1,list,list)
-    # h2 = view(ints.h1,list,list)
-    # ints2 = ElectronicInts(ints.h0, ints.h1[list,list], ints.h2[list,list,list,list])
-    ints2 = ElectronicInts(ints.h0, view(ints.h1,list,list), view(ints.h2,list,list,list,list))
-    #h1 = ints.h1[:,list][list,:]
-    #h2 = ints.h2
-    return ints2
+function subset(ints::ElectronicInts, list, rdm1a=nothing, rdm1b=nothing)
+    ints_i = ElectronicInts(ints.h0, view(ints.h1,list,list), view(ints.h2,list,list,list,list))
+    if rdm1b != nothing 
+        if rdm1a == nothing
+            throw(Exception)
+        end
+    end
+
+    if rdm1a != nothing
+        if rdm1b == nothing
+            throw(Exception)
+        end
+        da = deepcopy(rdm1a)
+        db = deepcopy(rdm1b)
+        da[:,list] .= 0
+        db[:,list] .= 0
+        da[list,:] .= 0
+        db[list,:] .= 0
+        viirs = ints.h2[list, list,:,:]
+        viqri = ints.h2[list, :, :, list]
+        fa = zeros(length(ci),length(ci))
+        fb = copy(fa)
+        @tensor begin
+            ints_i.h1[p,q] += .5*viirs[p,q,r,s] * (da+db)[r,s]
+            ints_i.h1[p,s] -= .25*viqri[p,q,r,s] * da[q,r]
+            ints_i.h1[p,s] -= .25*viqri[p,q,r,s] * da[q,r]
+        end
+    end
+    return ints_i
 end
+
+
 
 """
 	compute_energy(h0, h1, h2, rdm1, rdm2)
