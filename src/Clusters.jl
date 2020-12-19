@@ -12,25 +12,44 @@ end
 
 
 """
-	cluster::Cluster                  # Cluster to which basis belongs
-	basis::Dict{Tuple,Vector{Array}}  # Basis vectors (na,nb,ss1,ss2)=>[I,J,pqr]
-                                      # Here, ss1, and ss2 denote subspaces in the I and J indices
+    cluster::Cluster                             # Cluster to which basis belongs
+    basis::Dict{Tuple,Vector{Array{Float64,2}}}  # Basis vectors (nα, nβ)=>[ss]=>[I,s]
+                                                 # Here, ss indicates the subspace of states, s
+These basis coefficients map local slater determinants to local vectors
+`(nα, nβ)[ss]: 
+V[αstring*βstring, cluster_state]`
 """
 struct ClusterBasis
     cluster::Cluster
-    basis::Dict{SVector{2,Int16},Array{Float64,2}}
+    basis::Dict{Tuple,Vector{Matrix{Float64}}}
 end
 function ClusterBasis(ci::Cluster)
-    return ClusterBasis(ci, Dict{SVector{2,Int16},Array{Float64,2}}())
+    return ClusterBasis(ci, Dict{Tuple,Vector{Matrix{Float64}}}([]))
+end
+function Base.getindex(cb::ClusterBasis,i) 
+    return cb.cluster[i] 
+end
+function Base.display(cb::ClusterBasis) 
+    @printf(" ClusterBasis for Cluster: %4i\n",cb.cluster.idx)
+    for (sector, subspaces) in cb.basis
+        dim = 0
+        dims = Integer[]
+        for ss in subspaces 
+            dim += size(ss,2)
+            push!(dims,size(ss,2))
+        end
+        @printf("   FockSector = (%2iα, %2iβ): Total Dim = %-4i: Dims = ",sector[1],sector[2],dim)
+        println.(dims)
+    end
 end
 
 
 
 """
-    config::Vector{SVector{Int16,1}}
+    config::Vector{Tuple}
 """
 struct FockConfig 
-    config::Vector{SVector{Int16,1}}
+    config::Vector{Tuple}
 end
 function Base.print(f::FockConfig)
     print(f.config)
@@ -192,7 +211,7 @@ function possible_focksectors(c::Cluster,delta_elec=nothing)
 
     no = length(c)
    
-    fsectors::Vector{SVector{2,Int16}} = []
+    fsectors::Vector{Tuple} = []
     for na in 1:no
         for nb in 1:no 
             if delta_elec != nothing
@@ -200,7 +219,7 @@ function possible_focksectors(c::Cluster,delta_elec=nothing)
                     continue
                 end
             end
-            push!(fsectors,[na,nb])
+            push!(fsectors,(na,nb))
         end
     end
     return fsectors

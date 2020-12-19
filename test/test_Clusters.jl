@@ -4,11 +4,11 @@ using Printf
 #@testset "Clusters" begin
     atoms = []
     push!(atoms,Atom(1,"H",[0,0,0]))
-    push!(atoms,Atom(2,"H",[0,0,1]))
-    push!(atoms,Atom(3,"H",[10,100,2]))
-    push!(atoms,Atom(4,"H",[10,100,3]))
-    push!(atoms,Atom(5,"H",[20,200,4]))
-    push!(atoms,Atom(6,"H",[20,200,5]))
+    push!(atoms,Atom(2,"H",[0,0.1,1]))
+    push!(atoms,Atom(3,"H",[0,0,2]))
+    push!(atoms,Atom(4,"H",[0,0,3]))
+    push!(atoms,Atom(5,"H",[0,0,4]))
+    push!(atoms,Atom(6,"H",[0,0,5]))
     basis = "6-31g"
     basis = "sto-3g"
     mol     = Molecule(0,1,atoms,basis)
@@ -40,7 +40,7 @@ using Printf
 
     clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
     display(clusters)
-    cluster_bases = Vector{ClusterBasis}
+    cluster_bases = Vector{ClusterBasis}()
     for ci in clusters
         println("")
         display(ci)
@@ -49,7 +49,16 @@ using Printf
         basis_i = ClusterBasis(ci) 
         for sec in sectors
             #@printf("(α,β) = (%i,%-i)\n",sec[1],sec[2])
-            basis_i.basis[sec] = FermiCG.compute_cluster_eigenbasis(ints, ci, sec[1], sec[2], max_roots=max_roots)
+            v = Vector{Matrix{Float64}}()
+            push!(v,FermiCG.compute_cluster_eigenbasis(ints, ci, sec[1], sec[2], max_roots=max_roots))
+            basis_i.basis[sec] = v 
+        end
+        push!(cluster_bases,basis_i)
+    end
+    for ci in clusters
+        display(cluster_bases[ci.idx])
+        for cbi in cluster_bases[ci.idx].basis
+            #display(cbi)
         end
     end
 #end
