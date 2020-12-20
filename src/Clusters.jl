@@ -192,30 +192,29 @@ end
     
 
 """
-    possible_focksectors(delta_elec=nothing)
+    possible_focksectors(c::Cluster, delta_elec=nothing)
         
 Get list of possible fock spaces accessible to the cluster
 
-- `delta_elec::Vector{Int}`:   (ref_alpha, ref_beta, delta) allows restrictions to fock spaces
-                        based on a delta from some reference occupancy (ref_alpha, ref_beta)
+- `delta_elec::Vector{Int}`: (nα, nβ, Δ) restricts fock spaces to: nα + nβ ± Δ
 """
-function possible_focksectors(c::Cluster,delta_elec=nothing)
+function possible_focksectors(c::Cluster; delta_elec::Tuple=())
     ref_a = nothing
     ref_b = nothing
     delta = nothing
-    if delta_elec != nothing
-        size(delta_elec) == 3 || throw(DimensionMismatch)
-        ref_a = delta_elec[0]
-        ref_b = delta_elec[1]
-        delta = delta_elec[2]
+    if length(delta_elec) != 0
+        length(delta_elec) == 3 || throw(DimensionMismatch)
+        ref_a = delta_elec[1]
+        ref_b = delta_elec[2]
+        delta = delta_elec[3]
     end
 
     no = length(c)
    
     fsectors::Vector{Tuple} = []
-    for na in 1:no
-        for nb in 1:no 
-            if delta_elec != nothing
+    for na in 0:no
+        for nb in 0:no 
+            if length(delta_elec) != 0
                 if abs(na-ref_a)+abs(nb-ref_b) > delta
                     continue
                 end
