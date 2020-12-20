@@ -933,7 +933,7 @@ input: ints is a struct containing 0, 2, and 4 dimensional tensors
 - `h2`: 2 electron integrals (chemists notation)
 - `prb`: FCIProblem just defines the current CI problem (i.e., fock sector)
 
-ints is simply an ElectronicInts object from FermiCG
+ints is simply an InCoreInts object from FermiCG
 
 """
 function run_fci(ints, problem::FCIProblem; v0=nothing, nroots=1, tol=1e-6,

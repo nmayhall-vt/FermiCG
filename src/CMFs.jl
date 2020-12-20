@@ -4,14 +4,14 @@ using Optim
 
 
 """
-	form_casci_ints(ints::ElectronicInts, ci::Cluster, rdm1a, rdm1b)
+	form_casci_ints(ints::InCoreInts, ci::Cluster, rdm1a, rdm1b)
 
 Obtain a subset of integrals which act on the orbitals in Cluster,
 embedding the 1rdm from the rest of the system
 
-Returns an `ElectronicInts` type
+Returns an `InCoreInts` type
 """
-function form_casci_ints(ints::ElectronicInts, ci::Cluster, rdm1a, rdm1b)
+function form_casci_ints(ints::InCoreInts, ci::Cluster, rdm1a, rdm1b)
     da = deepcopy(rdm1a)
     db = deepcopy(rdm1b)
     da[:,ci.orb_list] .= 0
@@ -93,7 +93,7 @@ Compute the energy of a cluster-wise product state (CMF),
 specified by a list of 1 and 2 particle rdms local to each cluster.
 This method uses the full system integrals.
 
-- `ints::ElectronicInts`: integrals for full system
+- `ints::InCoreInts`: integrals for full system
 - `rdm1s`: dictionary (`ci.idx => Array`) of 1rdms from each cluster (spin summed)
 - `rdm2s`: dictionary (`ci.idx => Array`) of 2rdms from each cluster (spin summed)
 - `clusters::Vector{Cluster}`: vector of cluster objects
@@ -235,21 +235,23 @@ end
 
 
 """
-    cmf_ci(mol::Molecule, C::Matrix, clusters, fspace, dguess; max_iter=10, dconv=1e-6, econv=1e-10, verbose=1)
+    cmf_ci(mol::Molecule, C::Matrix, clusters::Vector{Cluster}, fspace::Vector{Vector{Integer}}, dguess; 
+            max_iter=10, dconv=1e-6, econv=1e-10, verbose=1)
 
-Optimize the 1RDM for CMF-CI, without storing all integrals
+Optimize the 1RDM for CMF-CI, without requiring an InCoreInts object 
 
 # Arguments
 - `mol::Molecule`: a FermiCG.Molecule type
 - `C`: MO coefficients for full system (spin restricted)
 - `clusters::Vector{Cluster}`: vector of Cluster objects
-- `fspace::Vector{Vector{Int}}`: vector of particle number occupations for each cluster specifying the sectors of fock space 
+- `fspace::Vector{Vector{Integer}}`: vector of particle number occupations for each cluster specifying the sectors of fock space 
 - `dguess`: initial guess for 1particle density matrix (spin summed) 
 - `dconv`: Convergence threshold for change in density 
 - `econv`: Convergence threshold for change in energy 
 - `verbose`: how much to print
 """
-function cmf_ci(mol::Molecule, C::Matrix, clusters, fspace, dguess; max_iter=10, dconv=1e-6, econv=1e-10, verbose=1)
+function cmf_ci(mol::Molecule, C::Matrix, clusters::Vector{Cluster}, fspace::Vector{Vector{Integer}}, dguess; 
+                max_iter=10, dconv=1e-6, econv=1e-10, verbose=1)
     rdm1a = deepcopy(dguess)
     rdm1b = deepcopy(dguess)
     energies = []
@@ -295,11 +297,13 @@ end
 
 
 """
-    cmf_ci(ints, clusters, fspace, dguess; max_iter=10, dconv=1e-6, econv=1e-10, verbose=1)
+    cmf_ci(ints, clusters, fspace, dguess; 
+            max_iter=10, dconv=1e-6, econv=1e-10, verbose=1)
 
 Optimize the 1RDM for CMF-CI
 """
-function cmf_ci(ints, clusters, fspace, dguess; max_iter=10, dconv=1e-6, econv=1e-10, verbose=1)
+function cmf_ci(ints, clusters, fspace, dguess; 
+                max_iter=10, dconv=1e-6, econv=1e-10, verbose=1)
 	rdm1a = deepcopy(dguess)
 	rdm1b = deepcopy(dguess)
 	energies = []
@@ -482,12 +486,12 @@ end
 
 
 """
-    cmf_oo(ints::ElectronicInts, clusters::Vector{Cluster}, fspace, dguess; 
+    cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess; 
             max_iter_oo=100, max_iter_ci=100, gconv=1e-6, verbose=0, method="bfgs")
 
 Do CMF with orbital optimization
 """
-function cmf_oo(ints::ElectronicInts, clusters::Vector{Cluster}, fspace, dguess; 
+function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess; 
                 max_iter_oo=100, max_iter_ci=100, gconv=1e-6, verbose=0, method="bfgs")
     norb = size(ints.h1)[1]
     #kappa = zeros(norb*(norb-1))

@@ -135,20 +135,21 @@ end
 
 
 """
-    compute_cluster_eigenbasis(ints::ElectronicInts, ci::Cluster, na, nb, verbose=0, max_roots=10)
+    compute_cluster_eigenbasis(ints::InCoreInts, ci::Cluster, na, nb; 
+    verbose=0, max_roots=10, rdm1a=nothing, rdm2a=nothing)
 
 Build a ClusterBasis for Cluster `ci`
--`ints::ElectronicInts`: In-core integrals
--`ci::Cluster`: Cluster to form basis for
--`na::Int`: Number of alpha electrons
--`nb::Int`: Number of beta electrons
--`verbose::Int`: Print level
--`max_roots::Int`: Maximum number of vectors for current focksector basis
+- `ints::InCoreInts`: In-core integrals
+- `ci::Cluster`: Cluster to form basis for
+- `na::Int`: Number of alpha electrons
+- `nb::Int`: Number of beta electrons
+- `verbose::Int`: Print level
+- `max_roots::Int`: Maximum number of vectors for current focksector basis
 """
-function compute_cluster_eigenbasis(ints::ElectronicInts, ci::Cluster, na, nb; verbose=0, max_roots=10,
-    rdm1a=nothing, rdm2a=nothing)
+function compute_cluster_eigenbasis(ints::InCoreInts, ci::Cluster, na, nb; 
+                                    verbose=0, max_roots=10, rdm1a=nothing, rdm1b=nothing)
 
-    ints_i = subset(ints,ci.orb_list) 
+    ints_i = subset(ints,ci.orb_list, rdm1a, rdm1b) 
 
     problem = FermiCG.StringCI.FCIProblem(length(ci), na, nb)
     display(problem)

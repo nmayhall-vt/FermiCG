@@ -29,7 +29,7 @@ n_elec = data["n_elec"]
 n_elec_a = round(Int,(spin + n_elec)/2)
 n_elec_b = n_elec - n_elec_a
 
-ham 	= ElectronicInts(ints_0b, ints_1b, ints_2b)
+ham 	= InCoreInts(ints_0b, ints_1b, ints_2b)
 #display(rand(Float64, (4,4)) )
 
 

@@ -36,7 +36,7 @@ include("pyscf/PyscfFunctions.jl");
 #####################################
 
 export StringCI
-export ElectronicInts
+export InCoreInts
 export Molecule
 export Atom
 export Cluster

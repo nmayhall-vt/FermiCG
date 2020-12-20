@@ -154,7 +154,7 @@ build 1 and 2 electron integrals using a pyscf SCF object
 - `c_act`: active space orbital MO coeffs
 - `d1_embed`: 1rdm density matrix for the frozen part in the AO basis (e.g, doccs or frozen clusters)
 
-returns an `ElectronicInts` type
+returns an `InCoreInts` type
 """
 function pyscf_build_ints(mol::Molecule, c_act, d1_embed)
 
@@ -190,7 +190,7 @@ function pyscf_build_ints(mol::Molecule, c_act, d1_embed)
 	h1 = h + j - .5*k;
 	#display(h + j - .5*k)
 
-	h = ElectronicInts(h0, h1, h2);
+	h = InCoreInts(h0, h1, h2);
 	return h
 end
 
@@ -200,7 +200,7 @@ end
 #build 1 and 2 electron integrals using a pyscf SCF object
 #active is list of orbital indices which are active
 #
-#returns an `ElectronicInts` type
+#returns an `InCoreInts` type
 #"""
 #function pyscf_build_ints(mol, c_act)
 #
@@ -215,7 +215,7 @@ end
 #	h2 = reshape(h2, (nact, nact, nact, nact))
 #
 #	# println(size(c_act))
-#	h = ElectronicInts(h0, h1, h2);
+#	h = InCoreInts(h0, h1, h2);
 #	return h
 #end
 
