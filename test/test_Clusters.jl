@@ -63,14 +63,15 @@ using Printf
         end
     end
     
-    # now try with restrictions on fock space
+    # now try with restrictions on fock space, and dimensions
     cluster_bases = Vector{ClusterBasis}()
+    max_roots=2
     for ci in clusters
         println("")
         display(ci)
         na_i = init_fspace[ci.idx][1]
         nb_i = init_fspace[ci.idx][2]
-        sectors = FermiCG.possible_focksectors(ci,delta_elec=(na_i, nb_i, 1))
+        sectors = FermiCG.possible_focksectors(ci,delta_elec=(na_i, nb_i, 0))
    
         basis_i = ClusterBasis(ci) 
         for sec in sectors

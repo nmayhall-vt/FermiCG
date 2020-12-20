@@ -166,12 +166,12 @@ function compute_cluster_eigenbasis(ints::InCoreInts, ci::Cluster, na, nb;
     if problem.dim < 1000
         if verbose > 0
             @time F = eigen(Hmat)
-            e = F.values
-            v = F.vectors
+            e = F.values[1:nr]
+            v = F.vectors[:,1:nr]
         else
             F = eigen(Hmat)
-            e = F.values
-            v = F.vectors
+            e = F.values[1:nr]
+            v = F.vectors[:,1:nr]
         end 
     else
         if verbose > 0
@@ -196,7 +196,7 @@ end
         
 Get list of possible fock spaces accessible to the cluster
 
-- `delta_elec::Vector{Int}`: (nα, nβ, Δ) restricts fock spaces to: nα + nβ ± Δ
+- `delta_elec::Vector{Int}`: (nα, nβ, Δ) restricts fock spaces to: (nα,nβ) ± Δ electron transitions
 """
 function possible_focksectors(c::Cluster; delta_elec::Tuple=())
     ref_a = nothing
