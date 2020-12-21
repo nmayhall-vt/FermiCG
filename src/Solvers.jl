@@ -179,5 +179,7 @@ function solve(solver::Davidson; Adiag=nothing, iprint=0)
             break
         end
     end
+
+    return solver.ritz_e, solver.vec_prev*solver.ritz_v[:,1:solver.nroots]
 end
 

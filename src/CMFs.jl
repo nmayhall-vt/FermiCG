@@ -205,11 +205,11 @@ end
 
 
 """
-    cmf_ci_iteration(ints, clusters, rdm1a, rdm1b, fspace; verbose=1)
+    cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rdm1b, fspace; verbose=1)
 
 Perform single CMF-CI iteration, returning new energy, and density
 """
-function cmf_ci_iteration(ints, clusters, rdm1a, rdm1b, fspace; verbose=1)
+function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rdm1b, fspace; verbose=1)
     rdm1_dict = Dict{Integer,Array}()
     rdm2_dict = Dict{Integer,Array}()
     for ci in clusters
@@ -235,7 +235,7 @@ end
 
 
 """
-    cmf_ci(mol::Molecule, C::Matrix, clusters::Vector{Cluster}, fspace::Vector{Vector{Integer}}, dguess; 
+    cmf_ci(mol::Molecule, C::Matrix, clusters::Vector{Cluster}, fspace::Vector, dguess; 
             max_iter=10, dconv=1e-6, econv=1e-10, verbose=1)
 
 Optimize the 1RDM for CMF-CI, without requiring an InCoreInts object 
@@ -250,7 +250,7 @@ Optimize the 1RDM for CMF-CI, without requiring an InCoreInts object
 - `econv`: Convergence threshold for change in energy 
 - `verbose`: how much to print
 """
-function cmf_ci(mol::Molecule, C::Matrix, clusters::Vector{Cluster}, fspace::Vector{Vector{Integer}}, dguess; 
+function cmf_ci(mol::Molecule, C::Matrix, clusters::Vector{Cluster}, fspace::Vector, dguess; 
                 max_iter=10, dconv=1e-6, econv=1e-10, verbose=1)
     rdm1a = deepcopy(dguess)
     rdm1b = deepcopy(dguess)

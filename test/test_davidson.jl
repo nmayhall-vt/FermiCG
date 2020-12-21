@@ -7,7 +7,7 @@ using Arpack
 using Random
 using Profile 
 
-#@testset "davidson" begin
+@testset "davidson" begin
     atoms = []
     push!(atoms,Atom(1,"H",[0,0,0]))
     push!(atoms,Atom(2,"H",[0,0,1]))
@@ -36,12 +36,12 @@ using Profile
     nr = 1
 
     e_mf = mf.e_tot - mf.energy_nuc()
-    if 0==1
-        @printf(" Mean-field energy %12.8f", e_mf)
-        @time e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,na,nb)
-        #@time e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,na,nb,nroots=nr)
-        # @printf(" FCI Energy: %12.8f\n", e_fci)
-    end
+    #if 1==1
+    @printf(" Mean-field energy %12.8f", e_mf)
+    @time e_fci, d1_fci, d2_fci, v_pyscf = FermiCG.pyscf_fci(ints,na,nb,conv_tol=1e-10)
+    #@time e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,na,nb,nroots=nr)
+    # @printf(" FCI Energy: %12.8f\n", e_fci)
+    #end
 
     norbs = size(ints.h1)[1]
 
@@ -65,7 +65,9 @@ using Profile
     @printf(" Now iterate: \n")
     flush(stdout)
     #@time FermiCG.iteration(davidson, Adiag=Adiag, iprint=2)
-    @time FermiCG.solve(davidson, Adiag=Adiag)
+    @time e,v = FermiCG.solve(davidson, Adiag=Adiag);
+
+    @test isapprox(e[1], e_fci, atol=1e-10)
     #@profilehtml FermiCG.solve(davidson, Adiag=Adiag)
     #FermiCG.solve(davidson, Adiag=Diagonal(A))
-#end
+end

@@ -258,7 +258,7 @@ function pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1, verbose=1
         @printf(" FCI:        %12.8f %12.8f \n", efci+ham.h0, efci)
     end
 
-    return efci, d1, d2
+    return efci, d1, d2, ci
 end
 
 
