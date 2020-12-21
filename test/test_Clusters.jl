@@ -1,7 +1,8 @@
 using FermiCG
 using Printf
+using Test
 
-#@testset "Clusters" begin
+@testset "Clusters" begin
     atoms = []
     push!(atoms,Atom(1,"H",[0,0,0]))
     push!(atoms,Atom(2,"H",[0,0,1]))
@@ -55,14 +56,22 @@ using Printf
         push!(cluster_bases,basis_i)
     end
 
+
+    #
+    #   Just test that the sum of all the basis vector matrices is reproduced
     println("")
+    tst1 = 0
     for ci in clusters
         display(cluster_bases[ci.idx])
-        for cbi in cluster_bases[ci.idx].basis
-            #display(cbi)
+        for (key,val) in cluster_bases[ci.idx].basis
+            for ss in val
+                tst1 += sum(ss)
+            end
         end
     end
-    
+    println(tst1)
+    @test isapprox(tst1, -1.6974064473846595, atol=1e-10)
+   
     # now try with restrictions on fock space, and dimensions
     cluster_bases = Vector{ClusterBasis}()
     max_roots=2
@@ -71,7 +80,7 @@ using Printf
         display(ci)
         na_i = init_fspace[ci.idx][1]
         nb_i = init_fspace[ci.idx][2]
-        sectors = FermiCG.possible_focksectors(ci,delta_elec=(na_i, nb_i, 0))
+        sectors = FermiCG.possible_focksectors(ci,delta_elec=(na_i, nb_i, 1))
    
         basis_i = ClusterBasis(ci) 
         for sec in sectors
@@ -83,11 +92,17 @@ using Printf
     end
 
     println("")
+    tst1 = 0
     for ci in clusters
         display(cluster_bases[ci.idx])
-        for cbi in cluster_bases[ci.idx].basis
-            #display(cbi)
+        for (key,val) in cluster_bases[ci.idx].basis
+            for ss in val
+                tst1 += sum(ss)
+            end
         end
     end
-#end
+    println(tst1)
+    @test isapprox(tst1, -14.028337001467657, atol=1e-10)
+   
+end
 
