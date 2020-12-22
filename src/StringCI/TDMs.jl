@@ -17,10 +17,14 @@ function compute_annihilation(no::Integer, bra_na, bra_nb, ket_na, ket_nb, bra_v
     ket_a = DeterminantString(no,ket_na)
     ket_b = DeterminantString(no,ket_nb)
     
-    virt = zeros(typeof(ket_b.no), ket_a.no-ket_a.ne)
 
     ket = ket_a
     bra = bra_a
+    if spin_case == "beta"
+        ket = ket_b
+        bra = bra_b
+    end
+    virt = zeros(typeof(ket.no), ket.no-ket.ne)
 
     #
     # precompute lookup table for binomial coefficients
@@ -43,8 +47,8 @@ function compute_annihilation(no::Integer, bra_na, bra_nb, ket_na, ket_nb, bra_v
         v1 = permutedims(v1, [2,3,1])
         v2 = permutedims(v2, [2,3,1])
     elseif spin_case == "beta"
-        v1 = permutedims(bra_v, [1,3,2])
-        v2 = permutedims(ket_v, [1,3,2])
+        v1 = permutedims(v1, [1,3,2])
+        v2 = permutedims(v2, [1,3,2])
     else
         throw(Exception)
     end
@@ -53,7 +57,8 @@ function compute_annihilation(no::Integer, bra_na, bra_nb, ket_na, ket_nb, bra_v
     #   TDM[p,s,t] = 
     tdm = zeros(Float64, bra_M, ket_M, no)
     reset!(ket)
-    for J in 1:ket_a.max
+    reset!(bra)
+    for J in 1:ket.max
         get_unoccupied!(virt, ket)
         for a in virt
             copy!(bra,ket)
@@ -85,7 +90,7 @@ function compute_annihilation(no::Integer, bra_na, bra_nb, ket_na, ket_nb, bra_v
                 throw(Exception)
             end
         end
-        incr!(ket_a)
+        incr!(ket)
     end
     
     tdm = permutedims(v2, [3,1,2])

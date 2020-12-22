@@ -9,7 +9,24 @@ struct Cluster
     idx::Int
     orb_list::Vector{Int}
 end
+"""
+	length(c::Cluster)
 
+Return number of orbitals in `Cluster`
+"""
+function Base.length(c::Cluster)
+    return length(c.orb_list)
+end
+"""
+	dim_tot(c::Cluster)
+
+Return dimension of hilbert space spanned by number of orbitals in `Cluster`
+"""
+function dim_tot(c::Cluster)
+    return 2^(2*length(c))
+end
+
+######################################################################################################
 
 """
     cluster::Cluster                            # Cluster to which basis belongs
@@ -21,7 +38,6 @@ V[αstring*βstring, cluster_state]`
 struct ClusterBasis
     cluster::Cluster
     basis::Dict{Tuple,Matrix{Float64}}
-    #energies::Dict{Tuple,Vector{Vector{Float64}}}
 end
 function ClusterBasis(ci::Cluster)
     return ClusterBasis(ci, Dict{Tuple,Matrix{Float64}}())
@@ -46,22 +62,39 @@ function Base.display(cb::ClusterBasis)
     end
 end
 
-"""
-	length(c::Cluster)
 
-Return number of orbitals in `Cluster`
-"""
-function Base.length(c::Cluster)
-    return length(c.orb_list)
+######################################################################################################
+struct ClusterOps
+    cluster::Cluster
+    data::Dict{String,Dict{Tuple,Array}}
 end
-
-"""
-	dim_tot(c::Cluster)
-
-Return dimension of hilbert space spanned by number of orbitals in `Cluster`
-"""
-function dim_tot(c::Cluster)
-    return 2^(2*length(c))
+function Base.getindex(co::ClusterOps,i) 
+    return co.data[i] 
+end
+function Base.setindex!(co::ClusterOps,val,key) 
+    co.data[key] = val
+end
+function Base.haskey(co::ClusterOps,key) 
+    return haskey(co.data, key)
+end
+function Base.iterate(co::ClusterOps) 
+    return iterate(co.data) 
+end
+function Base.display(co::ClusterOps) 
+    @printf(" ClusterOps for Cluster: %4i\n",co.cluster.idx)
+    norb = length(co.cluster)
+    for (op,sectors) in co
+        print("   Operator: \n", op)
+        print("     Sectors: \n")
+        for sector in sectors
+            println(sector)
+        end
+    end
+end
+function ClusterOps(ci::Cluster)
+    dic1 = Dict{Tuple,Array{Float64}}()
+    dic2 = Dict{String,typeof(dic1)}() 
+    return ClusterOps(ci, dic2)
 end
 
 
@@ -261,4 +294,77 @@ function possible_focksectors(c::Cluster; delta_elec::Tuple=())
         end
     end
     return fsectors
+end
+
+
+
+
+
+"""
+    tdm_A(cb::ClusterBasis; verbose=0)
+
+Compute `<s|p'|t>` between all cluster states, `s` and `t`, for alpha 
+from accessible sectors of a cluster's fock space.
+
+Returns `Dict[((na,nb),(na,nb))] => Array`
+"""
+function tdm_A(cb::ClusterBasis; verbose=0)
+#={{{=#
+    verbose == 0 || println("")
+    verbose == 0 || display(ci)
+    norbs = length(cb.cluster)
+
+    dicti = Dict{Tuple,Array}()
+    #
+    # loop over fock-space transitions
+    for na in 0:norbs
+        for nb in 0:norbs
+            fockbra = (na+1,nb)
+            fockket = (na,nb)
+            focktrans = (fockbra,fockket)
+
+            if haskey(cb, fockbra) && haskey(cb, fockket)
+                basis_bra = cb[fockbra]
+                basis_ket = cb[fockket]
+                dicti[focktrans] = FermiCG.StringCI.compute_annihilation(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket, "alpha")
+            end
+        end
+    end
+    return dicti
+#=}}}=#
+end
+
+
+"""
+    tdm_B(cb::ClusterBasis; verbose=0)
+
+Compute `<s|p'|t>` between all cluster states, `s` and `t`, for beta
+from accessible sectors of a cluster's fock space.
+
+Returns `Dict[((na,nb),(na,nb))] => Array`
+"""
+function tdm_B(cb::ClusterBasis; verbose=0)
+#={{{=#
+    verbose == 0 || println("")
+    verbose == 0 || display(ci)
+    norbs = length(cb.cluster)
+
+    dicti = Dict{Tuple,Array}()
+    #
+    # loop over fock-space transitions
+    for na in 0:norbs
+        for nb in 0:norbs
+            fockbra = (na,nb+1)
+            fockket = (na,nb)
+            focktrans = (fockbra,fockket)
+
+            if haskey(cb, fockbra) && haskey(cb, fockket)
+                basis_bra = cb[fockbra]
+                basis_ket = cb[fockket]
+                dicti[focktrans] = FermiCG.StringCI.compute_annihilation(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket, "beta")
+            end
+        end
+    end
+    return dicti
+#=}}}=#
 end
