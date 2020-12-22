@@ -2,7 +2,7 @@ using FermiCG
 using Printf
 using Test
 
-@testset "Clusters" begin
+#@testset "TDMs" begin
     atoms = []
     push!(atoms,Atom(1,"H",[0,0,0]))
     push!(atoms,Atom(2,"H",[0,0,1]))
@@ -42,41 +42,28 @@ using Test
     clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
     display(clusters)
 
-    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=1)
-
-    #
-    #   Just test that the sum of all the basis vector matrices is reproduced
-    println("")
-    tst1 = 0
-    for ci in clusters
-        display(cluster_bases[ci.idx])
-        for (key,val) in cluster_bases[ci.idx].basis
-            for ss in val
-                tst1 += sum(ss)
-            end
-        end
-    end
-    println(tst1)
-    @test isapprox(tst1, -1.6974064473846595, atol=1e-10)
-   
-    # now try with restrictions on fock space, and dimensions
-    cluster_bases = Vector{ClusterBasis}()
-    max_roots=2
-    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=1, 
+    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=0, 
                                                        max_roots=2, init_fspace=init_fspace, delta_elec=1)
 
-    println("")
-    tst1 = 0
+
+    norbs = size(ints.h1,1)
     for ci in clusters
-        display(cluster_bases[ci.idx])
-        for (key,val) in cluster_bases[ci.idx].basis
-            for ss in val
-                tst1 += sum(ss)
+        ci_basis = cluster_bases[ci.idx]
+        for na in 2:norbs+1
+            for nb in 1:norbs+1
+                fockbra = (na,nb)
+                fockket = (na-1,nb)
+                focktrans = (fockbra,fockket)
+
+                if haskey(ci_basis.basis, fockbra) && haskey(ci_basis.basis, fockket)
+                    basis_bra = ci_basis.basis[fockbra]
+                    basis_ket = ci_basis.basis[fockket]
+                    display(basis_bra)
+                    #op = compute_A(norbs, fockbra, fockket) 
+                end
             end
         end
     end
-    println(tst1)
-    @test isapprox(tst1, -14.028337001467657, atol=1e-10)
-   
-end
+
+#end
 

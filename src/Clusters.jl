@@ -22,6 +22,7 @@ V[αstring*βstring, cluster_state]`
 struct ClusterBasis
     cluster::Cluster
     basis::Dict{Tuple,Vector{Matrix{Float64}}}
+    #energies::Dict{Tuple,Vector{Vector{Float64}}}
 end
 function ClusterBasis(ci::Cluster)
     return ClusterBasis(ci, Dict{Tuple,Vector{Matrix{Float64}}}([]))
@@ -135,60 +136,104 @@ end
 
 
 """
-    compute_cluster_eigenbasis(ints::InCoreInts, ci::Cluster, na, nb; 
-    verbose=0, max_roots=10, rdm1a=nothing, rdm2a=nothing)
+    compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster}; 
+        init_fspace=nothing, delta_elec=nothing, verbose=0, max_roots=10, 
+        rdm1a=nothing, rdm1b=nothing)
 
-Build a ClusterBasis for Cluster `ci`
+Return a Vector of `ClusterBasis` for each `Cluster` 
 - `ints::InCoreInts`: In-core integrals
-- `ci::Cluster`: Cluster to form basis for
-- `na::Int`: Number of alpha electrons
-- `nb::Int`: Number of beta electrons
+- `clusters::Vector{Cluster}`: Clusters 
 - `verbose::Int`: Print level
-- `max_roots::Int`: Maximum number of vectors for current focksector basis
+- `init_fspace`: list of pairs of (nα,nβ) for each cluster for defining reference space
+                 for selecting out only certain fock sectors
+- `delta_elec`: number of electrons different from reference (init_fspace)
+- `max_roots::Int`: Maximum number of vectors for each focksector basis
+- `rdm1a`: background density matrix for embedding local hamiltonian (alpha)
+- `rdm1b`: background density matrix for embedding local hamiltonian (beta)
 """
-function compute_cluster_eigenbasis(ints::InCoreInts, ci::Cluster, na, nb; 
-                                    verbose=0, max_roots=10, rdm1a=nothing, rdm1b=nothing)
+function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster}; 
+                init_fspace=nothing, delta_elec=nothing, verbose=0, max_roots=10, 
+                rdm1a=nothing, rdm1b=nothing)
 
-    ints_i = subset(ints,ci.orb_list, rdm1a, rdm1b) 
+    # initialize output
+    cluster_bases = Vector{ClusterBasis}()
 
-    problem = FermiCG.StringCI.FCIProblem(length(ci), na, nb)
-    display(problem)
-    nr = min(max_roots, problem.dim)
-    #e, d1, d2 = FermiCG.pyscf_fci(ints_i,na, nb)
-    #println(e)
-    e = [] 
-    v = []
-    if verbose > 0 
-        @time Hmat = FermiCG.StringCI.build_H_matrix(ints_i, problem)
-    else
-        Hmat = FermiCG.StringCI.build_H_matrix(ints_i, problem)
-    end
-    if problem.dim < 1000
-        if verbose > 0
-            @time F = eigen(Hmat)
-            e = F.values[1:nr]
-            v = F.vectors[:,1:nr]
-        else
-            F = eigen(Hmat)
-            e = F.values[1:nr]
-            v = F.vectors[:,1:nr]
-        end 
-    else
-        if verbose > 0
-            @time e,v = Arpack.eigs(Hmat, nev = nr, which=:SR)
-            e = real(e)
-        else
-            e,v = Arpack.eigs(Hmat, nev = nr, which=:SR)
-            e = real(e)
+    for ci in clusters
+        verbose == 0 || display(ci)
+
+        #
+        # Get subset of integrals living on cluster, ci
+        ints_i = subset(ints, ci.orb_list, rdm1a, rdm1b) 
+
+        if all( (rdm1a,rdm1b,init_fspace) .!= nothing)
+            # 
+            # Verify that density matrix provided is consistent with reference fock sectors
+            occs = diag(rdm1a)
+            occs[ci.orb_list] .= 0
+            na_embed = sum(occs)
+            occs = diag(rdm1b)
+            occs[ci.orb_list] .= 0
+            nb_embed = sum(occs)
+            verbose == 0 || @printf(" Number of embedded electrons a,b: %f %f", na_embed, nb_embed)
         end
+            
+        delta_e_i = ()
+        if all( (delta_elec,init_fspace) .!= nothing)
+            delta_e_i = (init_fspace[ci.idx][1], init_fspace[ci.idx][2], delta_elec)
+        end
+        
+        #
+        # Get list of Fock-space sectors for current cluster
+        #
+        sectors = FermiCG.possible_focksectors(ci, delta_elec=delta_e_i)
+
+        #
+        # Loop over sectors and do FCI for each
+        basis_i = ClusterBasis(ci) 
+        for sec in sectors
+            
+            #
+            # Initialize basis for sector as list of matrices, 1 for each subspace
+            ee = Vector{Vector{Float64}}() # energies
+            vv = Vector{Matrix{Float64}}() # eigenvalues
+            e = []
+            v = []
+            #
+            # prepare for FCI calculation for give sector of Fock space
+            problem = FermiCG.StringCI.FCIProblem(length(ci), sec[1], sec[2])
+            verbose == 0 || display(problem)
+            nr = min(max_roots, problem.dim)
+
+            #
+            # Build full Hamiltonian matrix in cluster's Slater Det basis
+            Hmat = FermiCG.StringCI.build_H_matrix(ints_i, problem)
+            if problem.dim < 1000
+                F = eigen(Hmat)
+                e = F.values[1:nr]
+                v = F.vectors[:,1:nr]
+            else
+                e,v = Arpack.eigs(Hmat, nev = nr, which=:SR)
+                e = real(e)[1:nr]
+                v = v[:,1:nr]
+            end
+            push!(ee, e)
+            push!(vv, v)
+            if verbose > 0
+                state=1
+                for ei in e
+                    @printf("   State %4i Energy: %12.8f %12.8f\n",state,ei, ei+ints.h0)
+                    state += 1
+                end
+            end
+
+            basis_i.basis[sec] = vv 
+        end
+        push!(cluster_bases,basis_i)
     end
-    state = 1
-    for ei in e
-        @printf(" State %4i Energy: %12.8f %12.8f\n",state,ei, ei+ints.h0)
-        state += 1
-    end
-    return v
+    return cluster_bases
 end
+
+
     
 
 """
