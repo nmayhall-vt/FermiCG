@@ -12,38 +12,57 @@ end
 
 
 """
-    cluster::Cluster                             # Cluster to which basis belongs
-    basis::Dict{Tuple,Vector{Array{Float64,2}}}  # Basis vectors (nα, nβ)=>[ss]=>[I,s]
-                                                 # Here, ss indicates the subspace of states, s
+    cluster::Cluster                            # Cluster to which basis belongs
+    basis::Dict{Tuple,Matrix{Float64}}          # Basis vectors (nα, nβ)=>[I,s]
 These basis coefficients map local slater determinants to local vectors
-`(nα, nβ)[ss]: 
+`(nα, nβ): 
 V[αstring*βstring, cluster_state]`
 """
 struct ClusterBasis
     cluster::Cluster
-    basis::Dict{Tuple,Vector{Matrix{Float64}}}
+    basis::Dict{Tuple,Matrix{Float64}}
     #energies::Dict{Tuple,Vector{Vector{Float64}}}
 end
 function ClusterBasis(ci::Cluster)
-    return ClusterBasis(ci, Dict{Tuple,Vector{Matrix{Float64}}}([]))
+    return ClusterBasis(ci, Dict{Tuple,Matrix{Float64}}())
 end
 function Base.getindex(cb::ClusterBasis,i) 
-    return cb.cluster[i] 
+    return cb.basis[i] 
+end
+function Base.setindex!(cb::ClusterBasis,val,key) 
+    cb.basis[key] = val
+end
+function Base.haskey(cb::ClusterBasis,key) 
+    return haskey(cb.basis, key)
 end
 function Base.display(cb::ClusterBasis) 
     @printf(" ClusterBasis for Cluster: %4i\n",cb.cluster.idx)
-    for (sector, subspaces) in cb.basis
-        dim = 0
-        dims = Integer[]
-        for ss in subspaces 
-            dim += size(ss,2)
-            push!(dims,size(ss,2))
-        end
-        @printf("   FockSector = (%2iα, %2iβ): Total Dim = %-4i: Dims = ",sector[1],sector[2],dim)
-        println.(dims)
+    norb = length(cb.cluster)
+    for (sector, vecs) in cb.basis
+        dim = size(vecs,2)
+        total_dim = binomial(norb,sector[1]) * binomial(norb,sector[2]) 
+        
+        @printf("   FockSector = (%2iα, %2iβ): Total Dim = %5i: Dim = %4i\n", sector[1],sector[2],total_dim, dim)
     end
 end
 
+"""
+	length(c::Cluster)
+
+Return number of orbitals in `Cluster`
+"""
+function Base.length(c::Cluster)
+    return length(c.orb_list)
+end
+
+"""
+	dim_tot(c::Cluster)
+
+Return dimension of hilbert space spanned by number of orbitals in `Cluster`
+"""
+function dim_tot(c::Cluster)
+    return 2^(2*length(c))
+end
 
 
 """
@@ -58,24 +77,8 @@ end
 
 
 
-"""
-	length(c::Cluster)
-
-Return number of orbitals in `Cluster`
-"""
-function Base.length(c::Cluster)
-    return length(c.orb_list)
-end
 
 
-"""
-	dim_tot(c::Cluster)
-
-Return dimension of hilbert space spanned by number of orbitals in `Cluster`
-"""
-function dim_tot(c::Cluster)
-    return 2^(2*length(c))
-end
 
 
 
@@ -193,12 +196,6 @@ function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster};
         for sec in sectors
             
             #
-            # Initialize basis for sector as list of matrices, 1 for each subspace
-            ee = Vector{Vector{Float64}}() # energies
-            vv = Vector{Matrix{Float64}}() # eigenvalues
-            e = []
-            v = []
-            #
             # prepare for FCI calculation for give sector of Fock space
             problem = FermiCG.StringCI.FCIProblem(length(ci), sec[1], sec[2])
             verbose == 0 || display(problem)
@@ -210,14 +207,12 @@ function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster};
             if problem.dim < 1000
                 F = eigen(Hmat)
                 e = F.values[1:nr]
-                v = F.vectors[:,1:nr]
+                basis_i[sec] = F.vectors[:,1:nr]
             else
                 e,v = Arpack.eigs(Hmat, nev = nr, which=:SR)
                 e = real(e)[1:nr]
-                v = v[:,1:nr]
+                basis_i[sec] = v[:,1:nr]
             end
-            push!(ee, e)
-            push!(vv, v)
             if verbose > 0
                 state=1
                 for ei in e
@@ -225,8 +220,6 @@ function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster};
                     state += 1
                 end
             end
-
-            basis_i.basis[sec] = vv 
         end
         push!(cluster_bases,basis_i)
     end

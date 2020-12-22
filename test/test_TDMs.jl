@@ -2,7 +2,7 @@ using FermiCG
 using Printf
 using Test
 
-#@testset "TDMs" begin
+@testset "TDMs" begin
     atoms = []
     push!(atoms,Atom(1,"H",[0,0,0]))
     push!(atoms,Atom(2,"H",[0,0,1]))
@@ -42,28 +42,31 @@ using Test
     clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
     display(clusters)
 
-    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=0, 
-                                                       max_roots=2, init_fspace=init_fspace, delta_elec=1)
+    #cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=0, 
+    #                                                   max_roots=2, init_fspace=init_fspace, delta_elec=2)
+    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters) 
 
 
     norbs = size(ints.h1,1)
     for ci in clusters
+        println("")
+        display(ci)
         ci_basis = cluster_bases[ci.idx]
-        for na in 2:norbs+1
-            for nb in 1:norbs+1
-                fockbra = (na,nb)
-                fockket = (na-1,nb)
+        for na in 0:norbs
+            for nb in 0:norbs
+                fockbra = (na+1,nb)
+                fockket = (na,nb)
                 focktrans = (fockbra,fockket)
 
-                if haskey(ci_basis.basis, fockbra) && haskey(ci_basis.basis, fockket)
-                    basis_bra = ci_basis.basis[fockbra]
-                    basis_ket = ci_basis.basis[fockket]
-                    display(basis_bra)
-                    #op = compute_A(norbs, fockbra, fockket) 
+                if haskey(ci_basis, fockbra) && haskey(ci_basis, fockket)
+                    basis_bra = ci_basis[fockbra]
+                    basis_ket = ci_basis[fockket]
+                    println(fockbra, "<-",fockket)
+                    op = compute_A(norbs, fockbra, fockket) 
                 end
             end
         end
     end
 
-#end
+end
 

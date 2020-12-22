@@ -50,10 +50,8 @@ using Test
     tst1 = 0
     for ci in clusters
         display(cluster_bases[ci.idx])
-        for (key,val) in cluster_bases[ci.idx].basis
-            for ss in val
-                tst1 += sum(ss)
-            end
+        for (sector,vecs) in cluster_bases[ci.idx].basis
+            tst1 += sum(vecs)
         end
     end
     println(tst1)
@@ -69,10 +67,8 @@ using Test
     tst1 = 0
     for ci in clusters
         display(cluster_bases[ci.idx])
-        for (key,val) in cluster_bases[ci.idx].basis
-            for ss in val
-                tst1 += sum(ss)
-            end
+        for (sector,vecs) in cluster_bases[ci.idx].basis
+            tst1 += sum(vecs)
         end
     end
     println(tst1)
