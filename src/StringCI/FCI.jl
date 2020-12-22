@@ -483,6 +483,7 @@ function _ss_sum_Ia!(sig::Array{Float64,3}, v::Array{Float64,3}, F::Vector{Float
     end
 end
 
+
 """
     compute_aa_terms2(v, H, P::FCIProblem, 
                           ket_a_lookup)
