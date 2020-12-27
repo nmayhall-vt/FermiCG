@@ -10,7 +10,7 @@ Compute an alpha creation operator between states `Cl` and `Cr` vectors in confi
 spaces defined by `bra` and `ket`, respectively.
 """
 function compute_annihilation(no::Integer, bra_na, bra_nb, ket_na, ket_nb, bra_v::Matrix, ket_v::Matrix, spin_case)
-
+#={{{=#
     bra_a = DeterminantString(no,bra_na)
     bra_b = DeterminantString(no,bra_nb)
 
@@ -71,7 +71,7 @@ function compute_annihilation(no::Integer, bra_na, bra_nb, ket_na, ket_nb, bra_v
             @views tdma = tdm[:,:,a]
             sgn = bra.sign
             if spin_case == "beta"
-                if ket_a.ne%2 == 0
+                if ket_a.ne%2 != 0
                     sgn = -sgn
                 end
             end
@@ -92,7 +92,8 @@ function compute_annihilation(no::Integer, bra_na, bra_nb, ket_na, ket_nb, bra_v
         end
         incr!(ket)
     end
-    
-    tdm = permutedims(v2, [3,1,2])
+    tdm = permutedims(tdm, [3,1,2])
+    #println(size(tdm))
     return tdm
+#=}}}=#
 end

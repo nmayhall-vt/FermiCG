@@ -39,7 +39,7 @@ using Test
     init_fspace = [(1,1),(1,1),(1,1)]
     
     clusters    = [(1:4),(5:6)]
-    init_fspace = [(2,2),(1,1)]
+    init_fspace = [(2,1),(1,1)]
 
     max_roots = 20
 
@@ -50,6 +50,10 @@ using Test
     #                                                   max_roots=2, init_fspace=init_fspace, delta_elec=2)
     cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=0, max_roots=100) 
 
+    #for cb in cluster_bases
+    #    display(cb)
+    #end
+
     cluster_ops = Vector{FermiCG.ClusterOps}()
     for ci in clusters
         push!(cluster_ops, FermiCG.ClusterOps(ci)) 
@@ -59,30 +63,35 @@ using Test
     for ci in clusters
         cb = cluster_bases[ci.idx]
 
-        cluster_ops[ci.idx]["A"] = FermiCG.tdm_A(cb) 
-        cluster_ops[ci.idx]["B"] = FermiCG.tdm_B(cb)
-        #
-        # Compute adjoints
-        for (focktrans,tdm) in cluster_ops[ci.idx]["A"]
-            new_tdm = permutedims(tdm,[1,3,2])
-            cluster_ops[ci.idx]["a"] = Dict()
-            cluster_ops[ci.idx]["a"][(focktrans[2],focktrans[1])] = new_tdm
-        end
-        for (focktrans,tdm) in cluster_ops[ci.idx]["B"]
-            new_tdm = permutedims(tdm,[1,3,2])
-            cluster_ops[ci.idx]["b"] = Dict()
-            cluster_ops[ci.idx]["b"][(focktrans[2],focktrans[1])] = new_tdm
-        end
+        cluster_ops[ci.idx]["A"], cluster_ops[ci.idx]["a"] = FermiCG.tdm_A(cb) 
+        cluster_ops[ci.idx]["B"], cluster_ops[ci.idx]["b"] = FermiCG.tdm_B(cb)
     end
 
-    display(cluster_ops)
-
-    ref1 =  [-0.0063314  -0.0497708  -0.156291  -0.156764
-             -0.0497708  -0.131177   -0.343145  -0.383806
-             -0.156291   -0.343145   -0.344804  -0.32713
-             -0.156764   -0.383806   -0.32713   -0.129477]
-    test =cluster_ops[1]["A"][((2,1),(1,1))][:,:,1] 
+    ref1 = [     0.760602    0.194328
+                -0.356922   -0.610415
+                 0.540039   -0.637967
+                -0.0494895   0.42735]
+    test =cluster_ops[2]["A"][((1,1),(0,1))][1,:,:] 
+    display(ref1)
+    display(test)
     @test isapprox(ref1, test, atol=1e-5)
+    
+    #for (ftrans,op) in cluster_ops[1]["B"]
+    #    println(ftrans, "  :  ", size(op))
+    #    display(op[1,:,:])
+    #end
 
+
+    ref2 = [ 0.692476    0.168256   -0.0394252    0.00396003
+             0.633938    0.0369774   0.0770702   -0.0153966
+            -0.0742221   0.646856   -0.636296     0.103912
+            -0.308786   -0.0175901   0.00515862  -0.0633258
+            -0.0776733   0.444367   -0.0201446   -0.621285
+             0.0130287   0.0582555   0.348725    -0.653307]
+
+    display(ref2)
+    display(cluster_ops[1]["A"][((2, 4), (1, 4))][1,:,:]) 
+    test =cluster_ops[1]["B"][((4, 2), (4, 1))][1,:,:] 
+    @test isapprox(ref2, test, atol=1e-5)
 #end
 

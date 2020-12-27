@@ -97,6 +97,13 @@ function ClusterOps(ci::Cluster)
     return ClusterOps(ci, dic2)
 end
 
+"""
+    adjoint(co::ClusterOps; verbose=0)
+
+Take ClusterOps, `co`, and return a new ClusterOps'
+"""
+
+
 
 """
     config::Vector{Tuple}
@@ -315,6 +322,7 @@ function tdm_A(cb::ClusterBasis; verbose=0)
     norbs = length(cb.cluster)
 
     dicti = Dict{Tuple,Array}()
+    dicti_adj = Dict{Tuple,Array}()
     #
     # loop over fock-space transitions
     for na in 0:norbs
@@ -322,15 +330,24 @@ function tdm_A(cb::ClusterBasis; verbose=0)
             fockbra = (na+1,nb)
             fockket = (na,nb)
             focktrans = (fockbra,fockket)
+            focktrans_adj = (fockket,fockbra)
 
             if haskey(cb, fockbra) && haskey(cb, fockket)
                 basis_bra = cb[fockbra]
                 basis_ket = cb[fockket]
+                #println()
+                #println("::::::::::::::: ", fockbra, fockket)
+                #println(": ", fockbra, fockket, size(FermiCG.StringCI.compute_annihilation(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket, "alpha")))
+                #println(":: ", size(basis_bra), size(basis_ket))
                 dicti[focktrans] = FermiCG.StringCI.compute_annihilation(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket, "alpha")
+                # adjoint 
+                basis_bra = cb[fockket]
+                basis_ket = cb[fockbra]
+                dicti_adj[focktrans_adj] =  permutedims(dicti[focktrans], [1,3,2])
             end
         end
     end
-    return dicti
+    return dicti, dicti_adj
 #=}}}=#
 end
 
@@ -350,6 +367,7 @@ function tdm_B(cb::ClusterBasis; verbose=0)
     norbs = length(cb.cluster)
 
     dicti = Dict{Tuple,Array}()
+    dicti_adj = Dict{Tuple,Array}()
     #
     # loop over fock-space transitions
     for na in 0:norbs
@@ -357,14 +375,21 @@ function tdm_B(cb::ClusterBasis; verbose=0)
             fockbra = (na,nb+1)
             fockket = (na,nb)
             focktrans = (fockbra,fockket)
+            focktrans_adj = (fockket,fockbra)
 
             if haskey(cb, fockbra) && haskey(cb, fockket)
                 basis_bra = cb[fockbra]
                 basis_ket = cb[fockket]
                 dicti[focktrans] = FermiCG.StringCI.compute_annihilation(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket, "beta")
+                # adjoint 
+                basis_bra = cb[fockket]
+                basis_ket = cb[fockbra]
+                dicti_adj[focktrans_adj] =  permutedims(dicti[focktrans], [1,3,2])
             end
         end
     end
-    return dicti
+    return dicti, dicti_adj
 #=}}}=#
 end
+
+
