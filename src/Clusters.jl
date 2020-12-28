@@ -310,12 +310,12 @@ end
 """
     tdm_A(cb::ClusterBasis; verbose=0)
 
-Compute `<s|p'|t>` between all cluster states, `s` and `t`, for alpha 
+Compute `<s|p'|t>` between all cluster states, `s` and `t` 
 from accessible sectors of a cluster's fock space.
 
 Returns `Dict[((na,nb),(na,nb))] => Array`
 """
-function tdm_A(cb::ClusterBasis; verbose=0)
+function tdm_A(cb::ClusterBasis, spin_case; verbose=0)
 #={{{=#
     verbose == 0 || println("")
     verbose == 0 || display(ci)
@@ -327,7 +327,63 @@ function tdm_A(cb::ClusterBasis; verbose=0)
     # loop over fock-space transitions
     for na in 0:norbs
         for nb in 0:norbs
-            fockbra = (na+1,nb)
+            fockbra = ()
+            if spin_case == "alpha"
+                fockbra = (na+1,nb)
+            elseif spin_case == "beta"
+                fockbra = (na,nb+1)
+            else
+                throw(DomainError(spin_case))
+            end
+            fockket = (na,nb)
+            focktrans = (fockbra,fockket)
+            focktrans_adj = (fockket,fockbra)
+
+            if haskey(cb, fockbra) && haskey(cb, fockket)
+                basis_bra = cb[fockbra]
+                basis_ket = cb[fockket]
+                dicti[focktrans] = FermiCG.StringCI.compute_annihilation(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket, spin_case)
+                # adjoint 
+                basis_bra = cb[fockket]
+                basis_ket = cb[fockbra]
+                dicti_adj[focktrans_adj] =  permutedims(dicti[focktrans], [1,3,2])
+            end
+        end
+    end
+    return dicti, dicti_adj
+#=}}}=#
+end
+
+
+"""
+    tdm_AA(cb::ClusterBasis; verbose=0)
+
+Compute `<s|p'q'|t>` between all cluster states, `s` and `t` 
+from accessible sectors of a cluster's fock space.
+
+Returns `Dict[((na,nb),(na,nb))] => Array`
+"""
+function tdm_AA(cb::ClusterBasis, spin_case; verbose=0)
+#={{{=#
+    verbose == 0 || println("")
+    verbose == 0 || display(ci)
+    norbs = length(cb.cluster)
+
+    dicti = Dict{Tuple,Array}()
+    dicti_adj = Dict{Tuple,Array}()
+    #
+    # loop over fock-space transitions
+    for na in 0:norbs
+        for nb in 0:norbs
+            fockbra = ()
+            if spin_case == "alpha"
+                fockbra = (na+2,nb)
+            elseif spin_case == "beta"
+                fockbra = (na,nb+2)
+            else
+                throw(DomainError(spin_case))
+            end
+
             fockket = (na,nb)
             focktrans = (fockbra,fockket)
             focktrans_adj = (fockket,fockbra)
@@ -337,13 +393,12 @@ function tdm_A(cb::ClusterBasis; verbose=0)
                 basis_ket = cb[fockket]
                 #println()
                 #println("::::::::::::::: ", fockbra, fockket)
-                #println(": ", fockbra, fockket, size(FermiCG.StringCI.compute_annihilation(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket, "alpha")))
                 #println(":: ", size(basis_bra), size(basis_ket))
-                dicti[focktrans] = FermiCG.StringCI.compute_annihilation(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket, "alpha")
+                dicti[focktrans] = FermiCG.StringCI.compute_AA(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket, spin_case)
                 # adjoint 
                 basis_bra = cb[fockket]
                 basis_ket = cb[fockbra]
-                dicti_adj[focktrans_adj] =  permutedims(dicti[focktrans], [1,3,2])
+                dicti_adj[focktrans_adj] =  permutedims(dicti[focktrans], [2,1,4,3])
             end
         end
     end
@@ -353,14 +408,50 @@ end
 
 
 """
-    tdm_B(cb::ClusterBasis; verbose=0)
+    tdm_Aa(cb::ClusterBasis, spin_case; verbose=0)
 
-Compute `<s|p'|t>` between all cluster states, `s` and `t`, for beta
+Compute `<s|p'q|t>` between all cluster states, `s` and `t` 
 from accessible sectors of a cluster's fock space.
 
 Returns `Dict[((na,nb),(na,nb))] => Array`
 """
-function tdm_B(cb::ClusterBasis; verbose=0)
+function tdm_Aa(cb::ClusterBasis, spin_case; verbose=0)
+#={{{=#
+    verbose == 0 || println("")
+    verbose == 0 || display(ci)
+    norbs = length(cb.cluster)
+
+    dicti = Dict{Tuple,Array}()
+    #
+    # loop over fock-space transitions
+    for na in 0:norbs
+        for nb in 0:norbs
+            fockbra = (na,nb)
+
+            fockket = (na,nb)
+            focktrans = (fockbra,fockket)
+
+            if haskey(cb, fockbra) && haskey(cb, fockket)
+                basis_bra = cb[fockbra]
+                basis_ket = cb[fockket]
+                dicti[focktrans] = FermiCG.StringCI.compute_Aa(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket, spin_case)
+            end
+        end
+    end
+    return dicti
+#=}}}=#
+end
+
+
+"""
+    tdm_Ab(cb::ClusterBasis, spin_case; verbose=0)
+
+Compute `<s|p'q|t>` between all cluster states, `s` and `t` 
+from accessible sectors of a cluster's fock space.
+- `spin_case`: either "ab" or "ba"
+Returns `Dict[((na,nb),(na,nb))] => Array`
+"""
+function tdm_Ab(cb::ClusterBasis, spin_case; verbose=0)
 #={{{=#
     verbose == 0 || println("")
     verbose == 0 || display(ci)
@@ -372,7 +463,15 @@ function tdm_B(cb::ClusterBasis; verbose=0)
     # loop over fock-space transitions
     for na in 0:norbs
         for nb in 0:norbs
-            fockbra = (na,nb+1)
+            fockbra = ()
+            if spin_case == "ab"
+                fockbra = (na+1,nb-1)
+            elseif spin_case == "ba"
+                fockbra = (na-1,nb+1)
+            else
+                throw(DomainError(spin_case))
+            end
+
             fockket = (na,nb)
             focktrans = (fockbra,fockket)
             focktrans_adj = (fockket,fockbra)
@@ -380,16 +479,15 @@ function tdm_B(cb::ClusterBasis; verbose=0)
             if haskey(cb, fockbra) && haskey(cb, fockket)
                 basis_bra = cb[fockbra]
                 basis_ket = cb[fockket]
-                dicti[focktrans] = FermiCG.StringCI.compute_annihilation(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket, "beta")
+                dicti[focktrans] = FermiCG.StringCI.compute_Ab(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket, spin_case)
+                
                 # adjoint 
                 basis_bra = cb[fockket]
                 basis_ket = cb[fockbra]
-                dicti_adj[focktrans_adj] =  permutedims(dicti[focktrans], [1,3,2])
+                dicti_adj[focktrans_adj] =  permutedims(dicti[focktrans], [2,1,4,3])
             end
         end
     end
-    return dicti, dicti_adj
+    return dicti
 #=}}}=#
 end
-
-
