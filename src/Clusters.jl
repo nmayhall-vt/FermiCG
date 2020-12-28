@@ -412,7 +412,7 @@ end
 
 Compute `<s|p'q|t>` between all cluster states, `s` and `t` 
 from accessible sectors of a cluster's fock space.
-
+- `spin_case`: alpha or beta
 Returns `Dict[((na,nb),(na,nb))] => Array`
 """
 function tdm_Aa(cb::ClusterBasis, spin_case; verbose=0)
@@ -444,14 +444,15 @@ end
 
 
 """
-    tdm_Ab(cb::ClusterBasis, spin_case; verbose=0)
+    tdm_Ab(cb::ClusterBasis; verbose=0)
 
 Compute `<s|p'q|t>` between all cluster states, `s` and `t` 
-from accessible sectors of a cluster's fock space.
-- `spin_case`: either "ab" or "ba"
+from accessible sectors of a cluster's fock space, where
+`p'` is alpha and `q` is beta.
+
 Returns `Dict[((na,nb),(na,nb))] => Array`
 """
-function tdm_Ab(cb::ClusterBasis, spin_case; verbose=0)
+function tdm_Ab(cb::ClusterBasis; verbose=0)
 #={{{=#
     verbose == 0 || println("")
     verbose == 0 || display(ci)
@@ -461,16 +462,9 @@ function tdm_Ab(cb::ClusterBasis, spin_case; verbose=0)
     dicti_adj = Dict{Tuple,Array}()
     #
     # loop over fock-space transitions
-    for na in 0:norbs
-        for nb in 0:norbs
-            fockbra = ()
-            if spin_case == "ab"
-                fockbra = (na+1,nb-1)
-            elseif spin_case == "ba"
-                fockbra = (na-1,nb+1)
-            else
-                throw(DomainError(spin_case))
-            end
+    for na in -1:norbs+1
+        for nb in -1:norbs+1
+            fockbra = (na+1,nb-1)
 
             fockket = (na,nb)
             focktrans = (fockbra,fockket)
@@ -479,7 +473,7 @@ function tdm_Ab(cb::ClusterBasis, spin_case; verbose=0)
             if haskey(cb, fockbra) && haskey(cb, fockket)
                 basis_bra = cb[fockbra]
                 basis_ket = cb[fockket]
-                dicti[focktrans] = FermiCG.StringCI.compute_Ab(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket, spin_case)
+                dicti[focktrans] = FermiCG.StringCI.compute_Ab(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket)
                 
                 # adjoint 
                 basis_bra = cb[fockket]
@@ -488,6 +482,6 @@ function tdm_Ab(cb::ClusterBasis, spin_case; verbose=0)
             end
         end
     end
-    return dicti
+    return dicti, dicti_adj
 #=}}}=#
 end
