@@ -70,9 +70,12 @@ using Test
         cluster_ops[ci.idx]["Aa"] = FermiCG.tdm_Aa(cb,"alpha") 
         cluster_ops[ci.idx]["Bb"] = FermiCG.tdm_Aa(cb,"beta") 
         cluster_ops[ci.idx]["Ab"], cluster_ops[ci.idx]["Ba"] = FermiCG.tdm_Ab(cb) 
-        cluster_ops[ci.idx]["AB"], cluster_ops[ci.idx]["ba"], cluster_ops[ci.idx]["BA"], cluster_ops[ci.idx]["ab"] = FermiCG.tdm_AB(cb)
-        cluster_ops[ci.idx]["AAa"], cluster_ops[ci.idx]["Aaa"] = FermiCG.tdm_AAa(cb,"alpha")
-        cluster_ops[ci.idx]["BBb"], cluster_ops[ci.idx]["Bbb"] = FermiCG.tdm_AAa(cb,"beta")
+        # remove BA and ba account for these terms 
+        @time cluster_ops[ci.idx]["AB"], cluster_ops[ci.idx]["ba"], cluster_ops[ci.idx]["BA"], cluster_ops[ci.idx]["ab"] = FermiCG.tdm_AB(cb)
+        @time cluster_ops[ci.idx]["AAa"], cluster_ops[ci.idx]["Aaa"] = FermiCG.tdm_AAa(cb,"alpha")
+        @time cluster_ops[ci.idx]["BBb"], cluster_ops[ci.idx]["Bbb"] = FermiCG.tdm_AAa(cb,"beta")
+        #@time cluster_ops[ci.idx]["ABa"], cluster_ops[ci.idx]["Aba"] = FermiCG.tdm_ABa(cb,"alpha")
+        #@time cluster_ops[ci.idx]["ABb"], cluster_ops[ci.idx]["Bba"] = FermiCG.tdm_ABa(cb,"beta")
 
     end
 
@@ -201,6 +204,6 @@ using Test
     display(cluster_ops[1]["AB"][((3,3),(2,2))][1,3,1,2])
     display(cluster_ops[1]["AAa"][((3,2),(2,2))][1,2,3,1,2])
     display(cluster_ops[1]["Bbb"][((2,1),(2,2))][1,2,3,1,2])
-    println(length(cluster_ops[1]))
+    println(length(cluster_ops[1].data))
 #end
 

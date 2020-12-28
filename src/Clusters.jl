@@ -584,3 +584,17 @@ function tdm_AAa(cb::ClusterBasis, spin_case; verbose=0)
 end
 
 
+"""
+    tdm_ABa(cb::ClusterBasis, spin_case; verbose=0)
+
+Compute `<s|p'q'r|t>` between all cluster states, `s` and `t` 
+from accessible sectors of a cluster's fock space.
+- `spin_case`: alpha or beta
+Returns `Dict[((na,nb),(na,nb))] => Array`
+"""
+function tdm_ABa(cb::ClusterBasis, spin_case; verbose=0)
+#={{{=#
+#=}}}=#
+end
+
+
