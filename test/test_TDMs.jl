@@ -201,5 +201,6 @@ using Test
     display(cluster_ops[1]["AB"][((3,3),(2,2))][1,3,1,2])
     display(cluster_ops[1]["AAa"][((3,2),(2,2))][1,2,3,1,2])
     display(cluster_ops[1]["Bbb"][((2,1),(2,2))][1,2,3,1,2])
+    println(length(cluster_ops[1]))
 #end
 
