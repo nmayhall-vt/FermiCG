@@ -20,6 +20,7 @@ pages = [
             "CMF" => "library/CMFs.md",
             "Hamiltonians" => "library/Hamiltonians.md",
             "Clusters" => "library/Clusters.md",
+            "ClusteredTerms" => "library/ClusteredTerms.md",
             "PyscfFunctions" => "library/PyscfFunctions.md",
             "StringCI" => "library/StringCI.md",
         ],

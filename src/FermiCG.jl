@@ -30,6 +30,7 @@ include("StringCI/StringCI.jl");
 include("Solvers.jl");
 include("Hamiltonians.jl");
 include("Clusters.jl")
+include("ClusteredTerms.jl")
 include("CMFs.jl")
 include("pyscf/PyscfFunctions.jl");
 #

@@ -2,7 +2,7 @@ using FermiCG
 using Printf
 using Test
 
-#@testset "TDMs" begin
+@testset "TDMs" begin
     atoms = []
     push!(atoms,Atom(1,"H",[0,0,0]))
     push!(atoms,Atom(2,"H",[0,0,1]))
@@ -205,5 +205,5 @@ using Test
     display(cluster_ops[1]["AAa"][((3,2),(2,2))][1,2,3,1,2])
     display(cluster_ops[1]["Bbb"][((2,1),(2,2))][1,2,3,1,2])
     println(length(cluster_ops[1].data))
-#end
+end
 
