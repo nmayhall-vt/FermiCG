@@ -20,35 +20,47 @@ input:
 			this includes fock-diagonal couplings,
 			e.g., ["Aa","","Bb"] would have active = [0,2]
 """
-struct ClusteredTerm
-	ops::Vector{String}
-	delta::Vector{Int16}
-        ints::Array{Float64}
+abstract type ClusteredTerm end
+
+struct ClusteredTerm1B <: ClusteredTerm
+    ops::Tuple{String}
+    delta::Tuple{Tuple{Int16,Int16}}
+    clusters::Tuple{Cluster}
+    ints::Array{Float64}
 end
 
-struct ClusterTerm1B
-	c1::Cluster
+struct ClusteredTerm2B <: ClusteredTerm
+    ops::Tuple{String,String}
+    delta::Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}}
+    #active::Vector{Int16}
+    clusters::Tuple{Cluster,Cluster}
+    ints::Array{Float64}
 end
 
-struct ClusterTerm2B
-	c1::Cluster
-	c2::Cluster
+struct ClusteredTerm3B <: ClusteredTerm
+    ops::Vector{String}
+    delta::Vector{Tuple{Int16}}
+    #active::Vector{Int16}
+    clusters::Vector{Cluster}
+    ints::Array{Float64}
 end
 
-struct ClusterTerm3B
-	c1::Cluster
-	c2::Cluster
-	c3::Cluster
+struct ClusteredTerm4B <: ClusteredTerm
+    ops::Vector{String}
+    delta::Vector{Tuple{Int16}}
+    #active::Vector{Int16}
+    clusters::Vector{Cluster}
+    ints::Array{Float64}
 end
 
-struct ClusterTerm4B
-	c1::Cluster
-	c2::Cluster
-	c3::Cluster
-	c4::Cluster
+function Base.display(t::ClusteredTerm1B)
+    @printf( " 1B: %3i    :", t.clusters[1].idx)
+    println(t.ops)
 end
-
-
+function Base.display(t::ClusteredTerm2B)
+    @printf( " 2B: %3i %3i:", t.clusters[1].idx, t.clusters[2].idx)
+    println(t.ops)
+end
 
 """
     extract_1e_terms(h, clusters)
@@ -65,18 +77,35 @@ function extract_1e_terms(h, clusters)
     size(h,1) == norb || throw(Exception)
     size(h,2) == norb || throw(Exception)
 
+    terms = Vector{ClusteredTerm}()
     n_clusters = length(clusters)
     ops_a = Array{String}(undef,n_clusters)
     ops_b = Array{String}(undef,n_clusters)
     fill!(ops_a,"")
     fill!(ops_b,"")
     for ci in clusters
+        #
+        # p'q where p and q are in ci
+        ints = copy(view(h, ci.orb_list, ci.orb_list))
+
+        term = ClusteredTerm1B(("Aa",), ((0,0),), (ci,), ints)
+        push!(terms,term)
+        term = ClusteredTerm1B(("Bb",), ((0,0),), (ci,), ints)
+        push!(terms,term)
+
         for cj in clusters
             ci != cj || continue
-            delta_a = zeros(n_clusters)
-            delta_b = zeros(n_clusters)
-
+            
+            #
+            # p'q where p is in ci and q is in cj
+            ints = copy(view(h, ci.orb_list, cj.orb_list))
+            
+            term = ClusteredTerm2B(("A","a"), ((1,0),(-1,0)), (ci, cj), ints)
+            push!(terms,term)
+            term = ClusteredTerm2B(("B","b"), ((0,1),(0,-1)), (ci, cj), ints)
+            push!(terms,term)
 
         end
     end
+    return terms
 end

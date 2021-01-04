@@ -46,5 +46,9 @@ using Test
     clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
 
     display.(clusters)
-    FermiCG.extract_1e_terms(ints.h1, clusters)
+    terms = FermiCG.extract_1e_terms(ints.h1, clusters)
+
+    for t in terms
+        display(t)
+    end
 #end
