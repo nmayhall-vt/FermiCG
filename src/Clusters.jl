@@ -35,7 +35,12 @@ function Base.display(c::Cluster)
     end
     @printf("\n")
 end
-
+function Base.isless(ci::Cluster, cj::Cluster)
+    return Base.isless(ci.idx, cj.idx)
+end
+function Base.isequal(ci::Cluster, cj::Cluster)
+    return Base.isequal(ci.idx, cj.idx)
+end
 ######################################################################################################
 
 """
@@ -128,7 +133,12 @@ end
 
 
 
-
+function Base.:+(a::Tuple{Int64,Int64}, b::Tuple{Int64,Int64})
+    return (a[1]+b[1], a[2]+b[2])
+end
+function Base.:-(a::Tuple{Int64,Int64}, b::Tuple{Int64,Int64})
+    return (a[1]-b[1], a[2]-b[2])
+end
 
 
 """
@@ -150,7 +160,7 @@ Return a Vector of `ClusterBasis` for each `Cluster`
 function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster}; 
                 init_fspace=nothing, delta_elec=nothing, verbose=0, max_roots=10, 
                 rdm1a=nothing, rdm1b=nothing)
-
+#={{{=#
     # initialize output
     cluster_bases = Vector{ClusterBasis}()
 
@@ -218,8 +228,42 @@ function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster};
     end
     return cluster_bases
 end
+#=}}}=#
 
 
+
+function compute_cluster_ops(cluster_bases::Vector{ClusterBasis})
+
+    clusters = Vector{Cluster}()
+    for ci in cluster_bases
+        push!(clusters, ci.cluster)
+    end
+    
+    cluster_ops = Vector{ClusterOps}()
+    for ci in clusters
+        push!(cluster_ops, ClusterOps(ci)) 
+    end
+
+    for ci in clusters
+        cb = cluster_bases[ci.idx]
+
+        cluster_ops[ci.idx]["A"], cluster_ops[ci.idx]["a"] = FermiCG.tdm_A(cb,"alpha") 
+        cluster_ops[ci.idx]["B"], cluster_ops[ci.idx]["b"] = FermiCG.tdm_A(cb,"beta")
+        cluster_ops[ci.idx]["AA"], cluster_ops[ci.idx]["aa"] = FermiCG.tdm_AA(cb,"alpha") 
+        cluster_ops[ci.idx]["BB"], cluster_ops[ci.idx]["bb"] = FermiCG.tdm_AA(cb,"beta") 
+        cluster_ops[ci.idx]["Aa"] = FermiCG.tdm_Aa(cb,"alpha") 
+        cluster_ops[ci.idx]["Bb"] = FermiCG.tdm_Aa(cb,"beta") 
+        cluster_ops[ci.idx]["Ab"], cluster_ops[ci.idx]["Ba"] = FermiCG.tdm_Ab(cb) 
+        # remove BA and ba account for these terms 
+        @time cluster_ops[ci.idx]["AB"], cluster_ops[ci.idx]["ba"], cluster_ops[ci.idx]["BA"], cluster_ops[ci.idx]["ab"] = FermiCG.tdm_AB(cb)
+        @time cluster_ops[ci.idx]["AAa"], cluster_ops[ci.idx]["Aaa"] = FermiCG.tdm_AAa(cb,"alpha")
+        @time cluster_ops[ci.idx]["BBb"], cluster_ops[ci.idx]["Bbb"] = FermiCG.tdm_AAa(cb,"beta")
+        #@time cluster_ops[ci.idx]["ABa"], cluster_ops[ci.idx]["Aba"] = FermiCG.tdm_ABa(cb,"alpha")
+        #@time cluster_ops[ci.idx]["ABb"], cluster_ops[ci.idx]["Bba"] = FermiCG.tdm_ABa(cb,"beta")
+
+    end
+    return cluster_ops
+end
     
 
 """

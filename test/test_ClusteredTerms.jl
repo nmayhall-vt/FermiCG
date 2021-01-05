@@ -44,11 +44,28 @@ using Test
     max_roots = 20
 
     clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
+    
+    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=0, max_roots=100) 
 
     display.(clusters)
     terms = FermiCG.extract_1e_terms(ints.h1, clusters)
 
-    for t in terms
-        display(t)
+    for t in keys(terms)
+        Int <: Integer || throw(Exception)
+        FermiCG.print_fock_sectors(collect(t))
+        for tt in terms[t]
+            display(tt)
+        end
     end
+
+    cluster_ops = FermiCG.compute_cluster_ops(cluster_bases);
+   
+    fock_bra = ((3,2),(1,2),(1,1),(1,1))
+    fock_ket = ((2,2),(2,2),(1,1),(1,1))
+    bra = (1,1,1,1)
+    ket = (1,1,1,1)
+    fock_trans = fock_bra .- fock_ket
+    me = FermiCG.contract_matrix_element(terms[fock_trans][1], cluster_ops,
+                                    fock_bra, bra, fock_ket, ket)
+    println(me)
 #end
