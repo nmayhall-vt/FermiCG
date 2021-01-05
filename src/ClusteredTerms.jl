@@ -160,10 +160,12 @@ function contract_matrix_element(   term::ClusteredTerm2B,
     fock_bra[c1.idx] == fock_ket[c1.idx] .+ term.delta[1] || throw(Exception)
     fock_bra[c2.idx] == fock_ket[c2.idx] .+ term.delta[2] || throw(Exception)
 
-    gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
-    println(size(gamma1))
     gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    #println(" Gamma1 ", term.ops[1], c1)
+    #display(gamma1)
     gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+    #println(" Gamma2 ", term.ops[2], c2)
+    #display(gamma2)
 
     mat_elem = 0.0
     @tensor begin

@@ -23,8 +23,8 @@ using Test
     mf = FermiCG.pyscf_do_scf(mol)
     nbas = size(mf.mo_coeff)[1]
     ints = FermiCG.pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
-    e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,1,1)
-    @printf(" FCI Energy: %12.8f\n", e_fci)
+    #e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,6,6)
+    #@printf(" FCI Energy: %12.8f\n", e_fci)
     
     C = mf.mo_coeff
     Cl = FermiCG.localize(mf.mo_coeff,"lowdin",mf)
@@ -45,7 +45,7 @@ using Test
 
     clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
     
-    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=0, max_roots=100) 
+    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=0, max_roots=max_roots) 
 
     display.(clusters)
     terms = FermiCG.extract_1e_terms(ints.h1, clusters)
@@ -63,8 +63,10 @@ using Test
     fock_bra = ((3,2),(1,2),(1,1),(1,1))
     fock_ket = ((2,2),(2,2),(1,1),(1,1))
     bra = (1,1,1,1)
-    ket = (1,1,1,1)
+    ket = (2,1,1,1)
     fock_trans = fock_bra .- fock_ket
+    display(terms[fock_trans][1].ints)
+
     me = FermiCG.contract_matrix_element(terms[fock_trans][1], cluster_ops,
                                     fock_bra, bra, fock_ket, ket)
     println(me)
