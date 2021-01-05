@@ -21,6 +21,7 @@ pages = [
             "Hamiltonians" => "library/Hamiltonians.md",
             "Clusters" => "library/Clusters.md",
             "ClusteredTerms" => "library/ClusteredTerms.md",
+            "ClusteredStates" => "library/ClusteredStates.md",
             "PyscfFunctions" => "library/PyscfFunctions.md",
             "StringCI" => "library/StringCI.md",
         ],

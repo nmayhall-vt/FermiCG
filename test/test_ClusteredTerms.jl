@@ -51,8 +51,7 @@ using Test
     terms = FermiCG.extract_1e_terms(ints.h1, clusters)
 
     for t in keys(terms)
-        Int <: Integer || throw(Exception)
-        FermiCG.print_fock_sectors(collect(t))
+        #FermiCG.print_fock_sectors(collect(t))
         for tt in terms[t]
             display(tt)
         end
@@ -60,12 +59,33 @@ using Test
 
     cluster_ops = FermiCG.compute_cluster_ops(cluster_bases);
    
-    fock_bra = ((3,2),(1,2),(1,1),(1,1))
-    fock_ket = ((2,2),(2,2),(1,1),(1,1))
-    bra = (1,1,1,1)
-    ket = (2,1,1,1)
-    fock_trans = fock_bra .- fock_ket
+    fock_bra = [(3,2),(1,2),(1,1),(1,1)]
+    fock_ket = [(2,2),(2,2),(1,1),(1,1)]
+    bra = [1,1,1,1]
+    ket = [2,1,1,1]
+    
+    ci_vector = FermiCG.ClusteredState(clusters)
+    FermiCG.add_fockconfig!(ci_vector,init_fspace)
+    FermiCG.add_fockconfig!(ci_vector,fock_bra)
+    FermiCG.add_fockconfig!(ci_vector,fock_ket)
+    ci_vector[fock_ket][ket] = 1.1
+    println(length(ci_vector))
+    display(ci_vector)
+    FermiCG.print_configs(ci_vector)
+    
+    FermiCG.normalize!(ci_vector)
+    FermiCG.clip!(ci_vector)
+    display(ci_vector)
+    FermiCG.print_configs(ci_vector)
+    
+    FermiCG.zero!(ci_vector)
+    FermiCG.clip!(ci_vector)
+    display(ci_vector)
+    FermiCG.print_configs(ci_vector)
+
+    fock_trans = Tuple(fock_bra .- fock_ket)
     display(terms[fock_trans][1].ints)
+
 
     me = FermiCG.contract_matrix_element(terms[fock_trans][1], cluster_ops,
                                     fock_bra, bra, fock_ket, ket)

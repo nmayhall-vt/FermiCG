@@ -1,11 +1,11 @@
 ```@index
-Pages = ["ClusteredTerms.md"]
+Pages = ["ClusteredStates.md"]
 ```
 
-# ClusteredTerms
+# ClusteredStates
 ```@autodocs
 Modules = [FermiCG]
-Pages   = ["ClusteredTerms.jl"]
+Pages   = ["ClusteredStates.jl"]
 Order   = [:type, :function]
 Depth	= 2
 ```
