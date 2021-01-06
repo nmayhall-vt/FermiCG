@@ -380,9 +380,9 @@ version = "0.52.0+0"
 
 [[GTK3_jll]]
 deps = ["ATK_jll", "Artifacts", "Cairo_jll", "Fontconfig_jll", "FreeType2_jll", "FriBidi_jll", "Glib_jll", "Graphene_jll", "HarfBuzz_jll", "JLLWrappers", "Libdl", "Libepoxy_jll", "Pango_jll", "Pkg", "Wayland_jll", "Xorg_libX11_jll", "Xorg_libXcomposite_jll", "Xorg_libXcursor_jll", "Xorg_libXdamage_jll", "Xorg_libXext_jll", "Xorg_libXfixes_jll", "Xorg_libXi_jll", "Xorg_libXinerama_jll", "Xorg_libXrandr_jll", "Xorg_libXrender_jll", "adwaita_icon_theme_jll", "at_spi2_atk_jll", "gdk_pixbuf_jll", "iso_codes_jll", "xkbcommon_jll"]
-git-tree-sha1 = "98fafcb3e4bedbc9c463708b64b4e647a846c915"
+git-tree-sha1 = "2bfd6b0c19ae1644541a792ce26fc6383db2ffd8"
 uuid = "77ec8976-b24b-556a-a1bf-49a033a670a6"
-version = "3.24.11+4"
+version = "3.24.11+5"
 
 [[GeometryBasics]]
 deps = ["EarCut_jll", "IterTools", "LinearAlgebra", "StaticArrays", "StructArrays", "Tables"]

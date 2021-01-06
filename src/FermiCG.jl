@@ -18,6 +18,7 @@ using Printf
 using TimerOutputs
 using BenchmarkTools 
 using OrderedCollections 
+using IterTools
 # using Unicode
 #
 #####################################

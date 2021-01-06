@@ -41,7 +41,7 @@ using Test
     init_fspace = [(2,2),(2,2),(1,1),(1,1)]
 
 
-    max_roots = 20
+    max_roots = 4
 
     clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
     
@@ -82,12 +82,30 @@ using Test
     FermiCG.clip!(ci_vector)
     display(ci_vector)
     FermiCG.print_configs(ci_vector)
+    
+    FermiCG.add_fockconfig!(ci_vector,[(2,2),(2,2),(1,1),(1,1)])
+    FermiCG.add_fockconfig!(ci_vector,[(3,2),(1,2),(1,1),(1,1)])
 
-    fock_trans = Tuple(fock_bra .- fock_ket)
-    display(terms[fock_trans][1].ints)
+    FermiCG.expand_each_fock_space!(ci_vector, cluster_bases)
+    println(" length: ", length(ci_vector))
+    display(ci_vector)
 
 
-    me = FermiCG.contract_matrix_element(terms[fock_trans][1], cluster_ops,
-                                    fock_bra, bra, fock_ket, ket)
-    println(me)
+    function build(ci_vector, cluster_ops)
+        for (fock_bra, configs_bra) in ci_vector.data
+            for (fock_ket, configs_ket) in ci_vector.data
+                fock_trans = Tuple(fock_bra .- fock_ket)
+                for (config_bra, coeff_bra) in configs_bra
+                    for (config_ket, coeff_ket) in configs_ket
+                        for term in terms[fock_trans]
+                            me = FermiCG.contract_matrix_element(term, cluster_ops, fock_bra, bra, fock_ket, ket)
+                            println(me)
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    build(ci_vector, cluster_ops)
 #end

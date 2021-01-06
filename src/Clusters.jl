@@ -133,10 +133,10 @@ end
 
 
 
-function Base.:+(a::Tuple{Int64,Int64}, b::Tuple{Int64,Int64})
+function Base.:+(a::Tuple{T,T}, b::Tuple{T,T}) where T<:Integer
     return (a[1]+b[1], a[2]+b[2])
 end
-function Base.:-(a::Tuple{Int64,Int64}, b::Tuple{Int64,Int64})
+function Base.:-(a::Tuple{T,T}, b::Tuple{T,T}) where T<:Integer
     return (a[1]-b[1], a[2]-b[2])
 end
 
