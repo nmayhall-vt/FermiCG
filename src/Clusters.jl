@@ -120,17 +120,6 @@ Take ClusterOps, `co`, and return a new ClusterOps'
 
 
 
-"""
-    config::Vector{Tuple}
-"""
-struct FockConfig 
-    config::Vector{Tuple}
-end
-function Base.print(f::FockConfig)
-    print(f.config)
-end
-
-
 
 
 function Base.:+(a::Tuple{T,T}, b::Tuple{T,T}) where T<:Integer

@@ -1,3 +1,24 @@
+abstract type SparseConfig end
+
+struct FockConfig <: SparseConfig
+    config::Vector{Tuple{UInt8,UInt8}}
+end
+struct ClusterConfig <: SparseConfig
+    config::Vector{UInt8}
+end
+struct TransferConfig <: SparseConfig
+    config::Vector{Int8}
+end
+function Base.display(f::SparseConfig)
+    display(f.config)
+end
+function Base.length(f::SparseConfig)
+    return length(f.config)
+end
+function Base.convert(TransferConfig, input::Vector{Tuple{T,T}}) where T<:Integer
+    return TransferConfig([i for i in input])
+end
+
 """
 Abstract type
 """
@@ -9,7 +30,8 @@ abstract type AbstractState end
 """
 struct ClusteredState <: AbstractState 
     clusters::Vector{Cluster}
-    data::OrderedDict{Vector{Tuple{Int16,Int16}},OrderedDict{Vector{Int16},Float64}}
+    data::OrderedDict{FockConfig,OrderedDict{ClusterConfig,Float64}}
+    #data::OrderedDict{Vector{Tuple{Int16,Int16}},OrderedDict{Vector{Int16},Float64}}
 end
 
 """
@@ -27,10 +49,11 @@ end
 """
 function add_fockconfig!(s::ClusteredState, fock::Vector{Tuple{T,T}}) where T<:Integer
     # initialize ground state of fock
-    s.data[fock] = OrderedDict{Vector{Int}, Float64}()
-    config = zeros(Int16,length(s.clusters))
-    config .+= 1
-    s.data[fock][config] = 0
+    fockc = FockConfig(fock)
+    s.data[fockc] = OrderedDict{ClusterConfig, Float64}()
+    config = ClusterConfig(zeros(length(s.clusters).+1))
+    #config .+= 1
+    s.data[fockc][config] = 0
 end
 
 """
