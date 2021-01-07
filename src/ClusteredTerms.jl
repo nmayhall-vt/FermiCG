@@ -90,7 +90,6 @@ function extract_1e_terms(h, clusters)
     fill!(ops_a,"")
     fill!(ops_b,"")
   
-    a::ClusterConfig = [0 for i in clusters]
     zero_fock::TransferConfig = [(0,0) for i in clusters]
     #zero_fock::Vector{Tuple{Int16,Int16}} = [(0,0) for i in clusters]
     #zero_fock = Tuple([(0,0) for i in clusters])

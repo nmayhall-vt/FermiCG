@@ -21,6 +21,8 @@ end
 Base.hash(a::TransferConfig) = hash(a.config)
 Base.hash(a::ClusterConfig) = hash(a.config)
 Base.hash(a::FockConfig) = hash(a.config)
+Base.isequal(x::TransferConfig, y::TransferConfig) = isequal(x.config, y.config)
+#Base.:(==)(x::TransferConfig, y::TransferConfig) = x.config == y.config
 
 Base.length(f::SparseConfig) = length(f.config)
 Base.getindex(s::SparseConfig, i) = s.config[i]
@@ -59,18 +61,29 @@ ClusterConfig(in::Tuple{T}) where T<:Union{Int16,Int} = ClusterConfig([UInt8(i) 
 #ClusterConfig(in::Vector{Int}) = ClusterConfig([UInt8(i) for i in in]) 
 
 
+"""
+    Base.:-(a::FockConfig, b::FockConfig)
+
+Subtract two `FockConfig`'s, returning a `TransferConfig`
+"""
 function Base.:-(a::FockConfig, b::FockConfig)
-    return TransferConfig(a.config .- b.config)
+#    println(" In :-")
+#    display(a)
+#    display(b)
+#    A = [(a[i][1]-b[i][1], a[i][2]-b[i][2]) for i in 1:length(a)]
+#    display(A)
+#    println("a:",)
+    return TransferConfig([(Int8(a[i][1])-Int8(b[i][1]), Int8(a[i][2])-Int8(b[i][2])) for i in 1:length(a)])
 end
 
 """
-Abstract type
+Glue different Sparse Vector State types together
 """
 abstract type AbstractState end
     
 """
     clusters::Vector{Cluster}
-    data::OrderedDict{Vector{Tuple{Int16,Int16}},OrderedDict{Vector{Int16},Float64}}
+    data::OrderedDict{FockConfig,OrderedDict{ClusterConfig,Float64}}
 """
 struct ClusteredState <: AbstractState 
     clusters::Vector{Cluster}
@@ -95,8 +108,7 @@ function add_fockconfig!(s::ClusteredState, fock::Vector{Tuple{T,T}}) where T<:I
     # initialize ground state of fock
     fockc = FockConfig(fock)
     s.data[fockc] = OrderedDict{ClusterConfig, Float64}()
-    config = ClusterConfig(zeros(length(s.clusters).+1))
-    #config .+= 1
+    config = ClusterConfig([1 for i in 1:length(s.clusters)])
     s.data[fockc][config] = 0
 end
 

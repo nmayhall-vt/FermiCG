@@ -87,24 +87,24 @@ using LinearAlgebra
     FermiCG.print_configs(ci_vector)
     
     FermiCG.add_fockconfig!(ci_vector,[(2,2),(2,2),(1,1),(0,0)])
-    FermiCG.add_fockconfig!(ci_vector,[(3,2),(1,2),(1,1),(0,0)])
+    #FermiCG.add_fockconfig!(ci_vector,[(3,2),(1,2),(1,1),(0,0)])
     #FermiCG.add_fockconfig!(ci_vector,reverse([(2,2),(2,2),(1,1),(0,0)]))
     #FermiCG.add_fockconfig!(ci_vector,reverse([(3,2),(1,2),(1,1),(0,0)]))
 
     FermiCG.expand_each_fock_space!(ci_vector, cluster_bases)
-    println(" length: ", length(ci_vector))
-    display(ci_vector)
+   
+    for (k,l) in ci_vector.data
+        display(k)
+        for (kk,ll) in l
+            display(hash(kk))
+        end
+    end
 
+    throw(Exception)
     function build(ci_vector, cluster_ops, terms)
         dim = length(ci_vector)
         H = zeros(dim, dim)
     
-        zero_fock::FermiCG.TransferConfig = [(0,0) for i in clusters]
-        display(terms)
-        display(keys(terms))
-        display(typeof.(keys(terms)))
-        display(zero_fock)
-        display(terms[zero_fock])
         bra_idx = 0
         for (fock_bra, configs_bra) in ci_vector.data
             for (config_bra, coeff_bra) in configs_bra
@@ -113,10 +113,6 @@ using LinearAlgebra
                 for (fock_ket, configs_ket) in ci_vector.data
                     fock_trans = fock_bra - fock_ket
                   
-                    println(typeof(fock_trans))
-                    display(fock_bra)
-                    display(fock_ket)
-                    display(fock_trans)
                     # check if transition is connected by H
                     haskey(terms, fock_trans) || continue
 
@@ -124,7 +120,6 @@ using LinearAlgebra
                         ket_idx += 1
                         ket_idx <= bra_idx || continue
         
-                        println(bra,ket)
                         for term in terms[fock_trans]
                             H[bra_idx, ket_idx] += FermiCG.contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
                         end
