@@ -24,14 +24,15 @@ abstract type ClusteredTerm end
 
 struct ClusteredTerm1B <: ClusteredTerm
     ops::Tuple{String}
-    delta::Tuple{Tuple{Int16,Int16}}
+    delta::TransferConfig
     clusters::Tuple{Cluster}
     ints::Array{Float64}
 end
 
 struct ClusteredTerm2B <: ClusteredTerm
     ops::Tuple{String,String}
-    delta::Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}}
+    #delta::Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}}
+    delta::TransferConfig
     #active::Vector{Int16}
     clusters::Tuple{Cluster,Cluster}
     ints::Array{Float64}
@@ -39,7 +40,7 @@ end
 
 struct ClusteredTerm3B <: ClusteredTerm
     ops::Vector{String}
-    delta::Vector{Tuple{Int16}}
+    delta::TransferConfig
     #active::Vector{Int16}
     clusters::Vector{Cluster}
     ints::Array{Float64}
@@ -47,11 +48,14 @@ end
 
 struct ClusteredTerm4B <: ClusteredTerm
     ops::Vector{String}
-    delta::Vector{Tuple{Int16}}
+    delta::TransferConfig
     #active::Vector{Int16}
     clusters::Vector{Cluster}
     ints::Array{Float64}
 end
+
+#function ClusteredTerm(ops, delta::Vector{Tuple{Int}}, clusters, ints)
+#end
 
 function Base.display(t::ClusteredTerm1B)
     @printf( " 1B: %2i    :", t.clusters[1].idx)
@@ -77,7 +81,7 @@ function extract_1e_terms(h, clusters)
     size(h,1) == norb || throw(Exception)
     size(h,2) == norb || throw(Exception)
 
-    terms = Dict{Vector{Tuple{Int16,Int16}},Vector{ClusteredTerm}}()
+    terms = Dict{TransferConfig,Vector{ClusteredTerm}}()
     #terms = Dict{Vector{Tuple{Int16,Int16}},Vector{ClusteredTerm}}()
     #terms = Dict{Tuple,Vector{ClusteredTerm}}()
     n_clusters = length(clusters)
@@ -85,7 +89,8 @@ function extract_1e_terms(h, clusters)
     ops_b = Array{String}(undef,n_clusters)
     fill!(ops_a,"")
     fill!(ops_b,"")
-   
+  
+    a::ClusterConfig = [0 for i in clusters]
     zero_fock::TransferConfig = [(0,0) for i in clusters]
     #zero_fock::Vector{Tuple{Int16,Int16}} = [(0,0) for i in clusters]
     #zero_fock = Tuple([(0,0) for i in clusters])
@@ -109,37 +114,31 @@ function extract_1e_terms(h, clusters)
             #
             # p'q where p is in ci and q is in cj
             ints = copy(view(h, ci.orb_list, cj.orb_list))
-            
-            term = ClusteredTerm2B(("A","a"), ((1,0),(-1,0)), (ci, cj), ints)
+           
+            term = ClusteredTerm2B(("A","a"), [(1,0),(-1,0)], (ci, cj), ints)
+            #term = ClusteredTerm2B(("A","a"), [(1,0),(-1,0)], (ci, cj), ints)
             fock = deepcopy(zero_fock)
-            fock[ci.idx][1] += 1
-            fock[cj.idx][1] -= 1
+            fock[ci.idx] = (fock[ci.idx][1]+1, fock[ci.idx][2])
+            fock[cj.idx] = (fock[cj.idx][1]-1, fock[cj.idx][2])
             terms[fock] = [term]
-            #terms[Tuple(Tuple.(fock))] = [term]
             
-            term = ClusteredTerm2B(("a","A"), ((-1,0),(1,0)), (ci, cj), -ints)
-            #fock = collect.(zero_fock)
+            term = ClusteredTerm2B(("a","A"), [(-1,0),(1,0)], (ci, cj), -ints)
             fock = deepcopy(zero_fock)
-            fock[ci.idx][1] -= 1
-            fock[cj.idx][1] += 1
+            fock[ci.idx] = (fock[ci.idx][1]-1, fock[ci.idx][2])
+            fock[cj.idx] = (fock[cj.idx][1]+1, fock[cj.idx][2])
             terms[fock] = [term]
-            #terms[Tuple(Tuple.(fock))] = [term]
             
-            term = ClusteredTerm2B(("B","b"), ((0,1),(0,-1)), (ci, cj), ints)
-            #fock = collect.(zero_fock)
+            term = ClusteredTerm2B(("B","b"), [(0,1),(0,-1)], (ci, cj), ints)
             fock = deepcopy(zero_fock)
-            fock[ci.idx][2] += 1
-            fock[cj.idx][2] -= 1
+            fock[ci.idx] = (fock[ci.idx][1], fock[ci.idx][2]+1)
+            fock[cj.idx] = (fock[cj.idx][1], fock[cj.idx][2]-1)
             terms[fock] = [term]
-            #terms[Tuple(Tuple.(fock))] = [term]
             
-            term = ClusteredTerm2B(("b","B"), ((0,-1),(0,1)), (ci, cj), -ints)
-            #fock = collect.(zero_fock)
+            term = ClusteredTerm2B(("b","B"), [(0,-1),(0,1)], (ci, cj), -ints)
             fock = deepcopy(zero_fock)
-            fock[ci.idx][2] -= 1
-            fock[cj.idx][2] += 1
+            fock[ci.idx] = (fock[ci.idx][1], fock[ci.idx][2]-1)
+            fock[cj.idx] = (fock[cj.idx][1], fock[cj.idx][2]+1)
             terms[fock] = [term]
-            #terms[Tuple(Tuple.(fock))] = [term]
         end
     end
     return terms

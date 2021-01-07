@@ -61,11 +61,10 @@ using LinearAlgebra
     end
 
     cluster_ops = FermiCG.compute_cluster_ops(cluster_bases);
-   
-    fock_bra = [(3,2),(1,2),(1,1),(1,1)]
-    fock_ket = [(2,2),(2,2),(1,1),(1,1)]
-    bra = [1,1,1,1]
-    ket = [2,1,1,1]
+    fock_bra = FermiCG.FockConfig([(3,2),(1,2),(1,1),(1,1)])
+    fock_ket = FermiCG.FockConfig([(2,2),(2,2),(1,1),(1,1)])
+    bra = FermiCG.ClusterConfig([1,1,1,1])
+    ket = FermiCG.ClusterConfig([2,1,1,1])
     
     ci_vector = FermiCG.ClusteredState(clusters)
     FermiCG.add_fockconfig!(ci_vector,init_fspace)
@@ -77,7 +76,6 @@ using LinearAlgebra
     FermiCG.print_configs(ci_vector)
    
     display(ci_vector)
-    throw(Exception)
     FermiCG.normalize!(ci_vector)
     FermiCG.clip!(ci_vector)
     display(ci_vector)
@@ -100,17 +98,27 @@ using LinearAlgebra
     function build(ci_vector, cluster_ops, terms)
         dim = length(ci_vector)
         H = zeros(dim, dim)
-
+    
+        zero_fock::FermiCG.TransferConfig = [(0,0) for i in clusters]
+        display(terms)
+        display(keys(terms))
+        display(typeof.(keys(terms)))
+        display(zero_fock)
+        display(terms[zero_fock])
         bra_idx = 0
         for (fock_bra, configs_bra) in ci_vector.data
             for (config_bra, coeff_bra) in configs_bra
                 bra_idx += 1
                 ket_idx = 0
                 for (fock_ket, configs_ket) in ci_vector.data
-                    fock_trans = Tuple(fock_bra .- fock_ket)
-                    
+                    fock_trans = fock_bra - fock_ket
+                  
+                    println(typeof(fock_trans))
+                    display(fock_bra)
+                    display(fock_ket)
+                    display(fock_trans)
                     # check if transition is connected by H
-                    #haskey(terms, fock_trans) || continue
+                    haskey(terms, fock_trans) || continue
 
                     for (config_ket, coeff_ket) in configs_ket
                         ket_idx += 1
