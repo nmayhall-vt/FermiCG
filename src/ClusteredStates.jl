@@ -21,9 +21,16 @@ end
 Base.hash(a::TransferConfig) = hash(a.config)
 Base.hash(a::ClusterConfig) = hash(a.config)
 Base.hash(a::FockConfig) = hash(a.config)
-Base.isequal(x::TransferConfig, y::TransferConfig) = isequal(x.config, y.config)
-#Base.:(==)(x::TransferConfig, y::TransferConfig) = x.config == y.config
 
+Base.isequal(x::FockConfig, y::FockConfig) = all([all(isequal.(x[i],y[i])) for i in 1:length(x.config)])
+Base.isequal(x::TransferConfig, y::TransferConfig) = all([all(isequal.(x[i],y[i])) for i in 1:length(x.config)])
+Base.isequal(x::ClusterConfig, y::ClusterConfig) = all(isequal.(x.config, y.config))
+
+Base.:(==)(x::FockConfig, y::FockConfig) = all([all(x[i].==y[i]) for i in 1:length(x.config)])
+Base.:(==)(x::TransferConfig, y::TransferConfig) = all([all(x[i].==y[i]) for i in 1:length(x.config)])
+Base.:(==)(x::ClusterConfig, y::ClusterConfig) = all(x.config .== y.config)
+
+        
 Base.length(f::SparseConfig) = length(f.config)
 Base.getindex(s::SparseConfig, i) = s.config[i]
 Base.setindex!(s::SparseConfig, i, j) = s.config[j] = i

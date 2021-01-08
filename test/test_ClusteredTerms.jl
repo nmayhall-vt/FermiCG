@@ -86,21 +86,15 @@ using LinearAlgebra
     display(ci_vector)
     FermiCG.print_configs(ci_vector)
     
+
+
     FermiCG.add_fockconfig!(ci_vector,[(2,2),(2,2),(1,1),(0,0)])
-    #FermiCG.add_fockconfig!(ci_vector,[(3,2),(1,2),(1,1),(0,0)])
+    FermiCG.add_fockconfig!(ci_vector,[(3,2),(1,2),(1,1),(0,0)])
     #FermiCG.add_fockconfig!(ci_vector,reverse([(2,2),(2,2),(1,1),(0,0)]))
     #FermiCG.add_fockconfig!(ci_vector,reverse([(3,2),(1,2),(1,1),(0,0)]))
 
     FermiCG.expand_each_fock_space!(ci_vector, cluster_bases)
    
-    for (k,l) in ci_vector.data
-        display(k)
-        for (kk,ll) in l
-            display(hash(kk))
-        end
-    end
-
-    throw(Exception)
     function build(ci_vector, cluster_ops, terms)
         dim = length(ci_vector)
         H = zeros(dim, dim)
