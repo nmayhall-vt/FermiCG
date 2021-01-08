@@ -40,16 +40,10 @@ Base.setindex!(s::SparseConfig, i, j) = s.config[j] = i
 #Base.display(f::FockConfig) = display(Tuple{Int,Int}.(f.config))
 #
 #   Iteration through Configs
-Base.eltype(iter::FockConfig) = Tuple{UInt8,UInt8} 
-Base.eltype(iter::ClusterConfig) = UInt8 
-Base.eltype(iter::TransferConfig) = Tuple{Int8,Int8}
-
-function Base.iterate(conf::SparseConfig, state=1)
-    if state >= length(conf)
-        return nothing
-    end
-    return conf.config[state], state + 1
-end
+#Base.eltype(iter::FockConfig) = Tuple{UInt8,UInt8} 
+#Base.eltype(iter::ClusterConfig) = UInt8 
+#Base.eltype(iter::TransferConfig) = Tuple{Int8,Int8}
+Base.iterate(conf::SparseConfig, state=1) = iterate(conf.config, state)
 
 # Conversions
 Base.convert(::Type{TransferConfig}, input::Vector{Tuple{T,T}}) where T<:Integer = TransferConfig(input)
@@ -67,21 +61,24 @@ ClusterConfig(in::Vector{T}) where T<:Union{Int16,Int} = ClusterConfig([UInt8(i)
 ClusterConfig(in::Tuple{T}) where T<:Union{Int16,Int} = ClusterConfig([UInt8(i) for i in in]) 
 #ClusterConfig(in::Vector{Int}) = ClusterConfig([UInt8(i) for i in in]) 
 
-
 """
     Base.:-(a::FockConfig, b::FockConfig)
 
 Subtract two `FockConfig`'s, returning a `TransferConfig`
 """
 function Base.:-(a::FockConfig, b::FockConfig)
-#    println(" In :-")
-#    display(a)
-#    display(b)
-#    A = [(a[i][1]-b[i][1], a[i][2]-b[i][2]) for i in 1:length(a)]
-#    display(A)
-#    println("a:",)
     return TransferConfig([(Int8(a[i][1])-Int8(b[i][1]), Int8(a[i][2])-Int8(b[i][2])) for i in 1:length(a)])
 end
+
+
+
+
+
+
+
+
+
+
 
 """
 Glue different Sparse Vector State types together
@@ -112,21 +109,14 @@ end
     add_fockconfig!(s::ClusteredState, fock::Vector{Tuple{T,T}}) where T<:Integer
 """
 function add_fockconfig!(s::ClusteredState, fock::Vector{Tuple{T,T}}) where T<:Integer
-    # initialize ground state of fock
-    fockc = FockConfig(fock)
-    s.data[fockc] = OrderedDict{ClusterConfig, Float64}()
-    config = ClusterConfig([1 for i in 1:length(s.clusters)])
-    s.data[fockc][config] = 0
+    add_fockconfig!(s,FockConfig(fock))
 end
 
 """
     add_fockconfig!(s::ClusteredState, fock::FockConfig)
 """
 function add_fockconfig!(s::ClusteredState, fock::FockConfig)
-    # initialize ground state of fock
-    s.data[fock] = OrderedDict{ClusterConfig, Float64}()
-    config = ClusterConfig(zeros(length(s.clusters).+1))
-    s.data[fock][config] = 0
+    s.data[fock] = OrderedDict{ClusterConfig, Float64}(ClusterConfig([1 for i in 1:length(s.clusters)])=>1)
 end
 
 """
@@ -143,8 +133,8 @@ Base.getindex(s::ClusteredState, fock) = s.data[fock]
 
 function Base.length(s::ClusteredState)
     l = 0
-    for f in keys(s.data) 
-        l += length(s.data[f])
+    for (fock,configs) in s.data 
+        l += length(keys(configs))
     end
     return l
 end
@@ -196,16 +186,20 @@ end
 Pretty print
 """
 function print_configs(s::ClusteredState; thresh=1e-3)
+    #display(keys(s.data))
     for (fock,configs) in s.data
+        #display(s.clusters)
+        #display(s.data)
+        length(s.clusters) == length(fock) || throw(Exception)
         length(s.data[fock]) > 0 || continue
         @printf(" Dim %4i fock_space: ",length(s.data[fock]))
-        [@printf(" Cluster %-2i(%i:%i) ",fii,fi[1],fi[2]) for (fii,fi) in enumerate(fock)] 
+        [@printf(" %-2i(%i:%i) ",fii,fi[1],fi[2]) for (fii,fi) in enumerate(fock)] 
         println()
         for (config, value) in s.data[fock]
             for c in config
                 @printf("%3i",c)
             end
-            @printf(" %12.8f\n",value)
+            @printf(":%12.8f\n",value)
         end
     end
 end
@@ -301,7 +295,7 @@ function expand_each_fock_space!(s::ClusteredState, bases)
             dim = size(bases[c.idx][fblock[c.idx]], 2)
             push!(dims, 1:dim)
         end
-        for newconfig in product(dims...) 
+        for newconfig in product(dims...)
             #display(newconfig)
             #println(typeof(newconfig))
             #

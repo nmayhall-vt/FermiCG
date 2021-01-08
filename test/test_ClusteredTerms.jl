@@ -48,7 +48,7 @@ using LinearAlgebra
 
     clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
     
-    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=0, max_roots=max_roots) 
+    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=1, max_roots=max_roots) 
 
     display.(clusters)
     terms = FermiCG.extract_1e_terms(ints.h1, clusters)
@@ -65,16 +65,21 @@ using LinearAlgebra
     fock_ket = FermiCG.FockConfig([(2,2),(2,2),(1,1),(1,1)])
     bra = FermiCG.ClusterConfig([1,1,1,1])
     ket = FermiCG.ClusterConfig([2,1,1,1])
-    
+
+
     ci_vector = FermiCG.ClusteredState(clusters)
     FermiCG.add_fockconfig!(ci_vector,init_fspace)
+    FermiCG.print_configs(ci_vector)
     FermiCG.add_fockconfig!(ci_vector,fock_bra)
+   
+    
     FermiCG.add_fockconfig!(ci_vector,fock_ket)
     ci_vector[fock_ket][ket] = 1.1
-    println(length(ci_vector))
+    println("length(ci_vector):", length(ci_vector))
+    println("length(clusters):", length(ci_vector.clusters))
     display(ci_vector)
     FermiCG.print_configs(ci_vector)
-   
+  
     display(ci_vector)
     FermiCG.normalize!(ci_vector)
     FermiCG.clip!(ci_vector)
@@ -95,6 +100,9 @@ using LinearAlgebra
 
     FermiCG.expand_each_fock_space!(ci_vector, cluster_bases)
    
+    FermiCG.display(ci_vector)
+    display(cluster_bases[1][(2,2)])
+    
     function build(ci_vector, cluster_ops, terms)
         dim = length(ci_vector)
         H = zeros(dim, dim)
@@ -134,6 +142,14 @@ using LinearAlgebra
         @printf(" %4i %12.8f\n", idx, Fi)
     end
     display(H)
+    fock_bra = FermiCG.FockConfig([(2,2),(2,2),(1,1),(0,0)])
+    fock_ket = FermiCG.FockConfig([(3,2),(1,2),(1,1),(0,0)])
+    fock_trans = fock_bra - fock_ket
+    term = terms[fock_trans][1]
+    config_bra = [2,1,1,1]
+    config_ket = [1,1,1,1]
+    test = FermiCG.contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
+    println(test)
     FermiCG.print_configs(ci_vector)
 #end
 

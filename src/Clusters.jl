@@ -198,8 +198,10 @@ function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster};
             Hmat = FermiCG.StringCI.build_H_matrix(ints_i, problem)
             if problem.dim < 1000
                 F = eigen(Hmat)
+
                 e = F.values[1:nr]
                 basis_i[sec] = F.vectors[:,1:nr]
+                #display(e)
             else
                 e,v = Arpack.eigs(Hmat, nev = nr, which=:SR)
                 e = real(e)[1:nr]

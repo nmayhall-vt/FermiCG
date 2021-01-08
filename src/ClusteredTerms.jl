@@ -181,7 +181,7 @@ function contract_matrix_element(   term::ClusteredTerm2B,
         end
         println(n_elec_hopped)
         if n_elec_hopped % 2 != 0
-            state_sign = -1
+            #state_sign = -1
         end
     end
 
@@ -195,6 +195,10 @@ function contract_matrix_element(   term::ClusteredTerm2B,
     #println(" Gamma2 ", term.ops[2], c2)
     #display(gamma2)
 
+    #display(c1)
+    #display(gamma1)
+    #display(gamma2)
+    #println()
     mat_elem = 0.0
     @tensor begin
         mat_elem = gamma1[p] * term.ints[p,q] * gamma2[q]
