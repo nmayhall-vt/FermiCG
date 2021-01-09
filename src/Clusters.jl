@@ -54,18 +54,13 @@ struct ClusterBasis
     cluster::Cluster
     basis::Dict{Tuple,Matrix{Float64}}
 end
-function ClusterBasis(ci::Cluster)
-    return ClusterBasis(ci, Dict{Tuple,Matrix{Float64}}())
-end
-function Base.getindex(cb::ClusterBasis,i) 
-    return cb.basis[i] 
-end
-function Base.setindex!(cb::ClusterBasis,val,key) 
-    cb.basis[key] = val
-end
-function Base.haskey(cb::ClusterBasis,key) 
-    return haskey(cb.basis, key)
-end
+ClusterBasis(ci::Cluster) = ClusterBasis(ci, Dict{Tuple,Matrix{Float64}}())
+
+Base.iterate(cb::ClusterBasis, state=1) = iterate(cb.basis, state)
+Base.length(cb::ClusterBasis) = length(cb.basis)
+Base.getindex(cb::ClusterBasis,i) = cb.basis[i] 
+Base.setindex!(cb::ClusterBasis,val,key) = cb.basis[key] = val
+Base.haskey(cb::ClusterBasis,key) = haskey(cb.basis, key)
 function Base.display(cb::ClusterBasis) 
     @printf(" ClusterBasis for Cluster: %4i\n",cb.cluster.idx)
     norb = length(cb.cluster)
@@ -83,18 +78,11 @@ struct ClusterOps
     cluster::Cluster
     data::Dict{String,Dict{Tuple,Array}}
 end
-function Base.getindex(co::ClusterOps,i) 
-    return co.data[i] 
-end
-function Base.setindex!(co::ClusterOps,val,key) 
-    co.data[key] = val
-end
-function Base.haskey(co::ClusterOps,key) 
-    return haskey(co.data, key)
-end
-function Base.iterate(co::ClusterOps) 
-    return iterate(co.data) 
-end
+Base.iterate(i::ClusterOps, state=1) = iterate(i.data, state)
+Base.length(i::ClusterOps) = length(co.data)
+Base.getindex(co::ClusterOps,i) = co.data[i] 
+Base.setindex!(co::ClusterOps,val,key) = co.data[key] = val
+Base.haskey(co::ClusterOps,key) = haskey(co.data, key)
 function Base.display(co::ClusterOps) 
     @printf(" ClusterOps for Cluster: %4i\n",co.cluster.idx)
     norb = length(co.cluster)
@@ -222,8 +210,10 @@ end
 #=}}}=#
 
 
-
-function compute_cluster_ops(cluster_bases::Vector{ClusterBasis})
+"""
+    compute_cluster_ops(cluster_bases::Vector{ClusterBasis})
+"""
+function compute_cluster_ops(cluster_bases::Vector{ClusterBasis},ints)
 
     clusters = Vector{Cluster}()
     for ci in cluster_bases
@@ -235,8 +225,11 @@ function compute_cluster_ops(cluster_bases::Vector{ClusterBasis})
         push!(cluster_ops, ClusterOps(ci)) 
     end
 
+
     for ci in clusters
         cb = cluster_bases[ci.idx]
+        
+        cluster_ops[ci.idx]["H"] = FermiCG.tdm_H(cb, subset(ints, ci.orb_list)) 
 
         cluster_ops[ci.idx]["A"], cluster_ops[ci.idx]["a"] = FermiCG.tdm_A(cb,"alpha") 
         cluster_ops[ci.idx]["B"], cluster_ops[ci.idx]["b"] = FermiCG.tdm_A(cb,"beta")
@@ -293,6 +286,37 @@ end
 
 
 
+
+
+"""
+    tdm_H(cb::ClusterBasis; verbose=0)
+
+Compute local Hamiltonian `<s|H|t>` between all cluster states, `s` and `t` 
+from accessible sectors of a cluster's fock space.
+
+Returns `Dict[((na,nb),(na,nb))] => Array`
+"""
+function tdm_H(cb::ClusterBasis, ints; verbose=0)
+#={{{=#
+    verbose == 0 || println("")
+    verbose == 0 || display(ci)
+    norbs = length(cb.cluster)
+
+    dicti = Dict{Tuple,Array}()
+    #
+    # loop over fock-space transitions
+    for (fock,basis) in cb
+        focktrans = (fock,fock)
+
+        problem = StringCI.FCIProblem(norbs, fock[1], fock[2])
+        display(problem)
+        Hmap = StringCI.get_map(ints, problem)
+
+        dicti[focktrans] = cb[fock]' * Matrix((Hmap * cb[fock]))
+    end
+    return dicti
+#=}}}=#
+end
 
 
 """

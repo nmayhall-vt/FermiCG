@@ -44,11 +44,11 @@ using LinearAlgebra
     init_fspace = [(2,2),(2,2),(1,1),(1,1)]
 
 
-    max_roots = 2
+    max_roots = 8
 
     clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
     
-    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=1, max_roots=max_roots) 
+    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=0, max_roots=max_roots) 
 
     display.(clusters)
     terms = FermiCG.extract_1e_terms(ints.h1, clusters)
@@ -60,7 +60,7 @@ using LinearAlgebra
         end
     end
 
-    cluster_ops = FermiCG.compute_cluster_ops(cluster_bases);
+    cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
     fock_bra = FermiCG.FockConfig([(3,2),(1,2),(1,1),(1,1)])
     fock_ket = FermiCG.FockConfig([(2,2),(2,2),(1,1),(1,1)])
     bra = FermiCG.ClusterConfig([1,1,1,1])
@@ -93,15 +93,16 @@ using LinearAlgebra
     
 
 
-    FermiCG.add_fockconfig!(ci_vector,[(2,2),(2,2),(1,1),(0,0)])
-    FermiCG.add_fockconfig!(ci_vector,[(3,2),(1,2),(1,1),(0,0)])
+    FermiCG.add_fockconfig!(ci_vector,[(2,2),(2,2),(0,1),(1,0)])
+    FermiCG.add_fockconfig!(ci_vector,[(3,2),(1,2),(0,1),(1,0)])
+    FermiCG.add_fockconfig!(ci_vector,[(3,2),(2,2),(0,1),(0,0)])
     #FermiCG.add_fockconfig!(ci_vector,reverse([(2,2),(2,2),(1,1),(0,0)]))
     #FermiCG.add_fockconfig!(ci_vector,reverse([(3,2),(1,2),(1,1),(0,0)]))
 
     FermiCG.expand_each_fock_space!(ci_vector, cluster_bases)
    
-    FermiCG.display(ci_vector)
-    display(cluster_bases[1][(2,2)])
+    display(ci_vector)
+    #display(cluster_bases[1][(2,2)])
     
     function build(ci_vector, cluster_ops, terms)
         dim = length(ci_vector)
@@ -141,15 +142,15 @@ using LinearAlgebra
     for (idx,Fi) in enumerate(F.values[1:min(10,length(F.values))])
         @printf(" %4i %12.8f\n", idx, Fi)
     end
-    display(H)
-    fock_bra = FermiCG.FockConfig([(2,2),(2,2),(1,1),(0,0)])
-    fock_ket = FermiCG.FockConfig([(3,2),(1,2),(1,1),(0,0)])
-    fock_trans = fock_bra - fock_ket
-    term = terms[fock_trans][1]
-    config_bra = [2,1,1,1]
-    config_ket = [1,1,1,1]
-    test = FermiCG.contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
-    println(test)
-    FermiCG.print_configs(ci_vector)
+#    display(H)
+#    fock_bra = FermiCG.FockConfig([(2,2),(2,2),(1,1),(0,0)])
+#    fock_ket = FermiCG.FockConfig([(3,2),(1,2),(1,1),(0,0)])
+#    fock_trans = fock_bra - fock_ket
+#    term = terms[fock_trans][1]
+#    config_bra = [2,1,1,1]
+#    config_ket = [1,1,1,1]
+#    test = FermiCG.contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
+#    println(test)
+#    FermiCG.print_configs(ci_vector)
 #end
 

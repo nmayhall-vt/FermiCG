@@ -345,7 +345,6 @@ function compute_ab_terms2(v, H, P::FCIProblem,
     bra_b = DeterminantString(P.no, P.nb)
 
 
-
     no = ket_a.no
 
     a_max::Int = bra_a.max
@@ -357,8 +356,8 @@ function compute_ab_terms2(v, H, P::FCIProblem,
     #v = reshape(v,ket_a.max, ket_b.max, n_roots) 
     sig = zeros(Float64, ket_a.max, ket_b.max, n_roots) 
     FJb_scr1 = zeros(Float64, ket_b.max) 
-    Ckl_scr1 = zeros(Float64, get_nchk(ket_a.no-1,ket_a.ne-1), size(v)[2], size(v)[3])
-    Ckl_scr2 = zeros(Float64, get_nchk(ket_a.no-2,ket_a.ne-1), size(v)[2], size(v)[3])
+    Ckl_scr1 = zeros(Float64, binomial(ket_a.no-1,ket_a.ne-1), size(v)[2], size(v)[3])
+    Ckl_scr2 = zeros(Float64, binomial(ket_a.no-2,ket_a.ne-1), size(v)[2], size(v)[3])
     #Ckl_scr1 = zeros(Float64, size(v)[2], get_nchk(ket_a.no-1,ket_a.ne-1), size(v)[3])
     #Ckl_scr2 = zeros(Float64, size(v)[2], get_nchk(ket_a.no-2,ket_a.ne-1), size(v)[3])
     Ckl = Array{Float64,3}

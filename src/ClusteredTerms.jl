@@ -66,6 +66,7 @@ function Base.display(t::ClusteredTerm2B)
     println(t.ops, " ints: ", size(t.ints))
 end
 
+
 """
     extract_1e_terms(h, clusters)
 
@@ -100,10 +101,8 @@ function extract_1e_terms(h, clusters)
         # p'q where p and q are in ci
         ints = copy(view(h, ci.orb_list, ci.orb_list))
 
-        #term = ClusteredTerm1B(("Aa",), ((0,0),), (ci,), ints)
-        #push!(terms[zero_fock],term)
-        #term = ClusteredTerm1B(("Bb",), ((0,0),), (ci,), ints)
-        #push!(terms[zero_fock],term)
+        term = ClusteredTerm1B(("H",), ((0,0),), (ci,), ints)
+        push!(terms[zero_fock],term)
 
     end
     for ci in clusters
@@ -179,26 +178,16 @@ function contract_matrix_element(   term::ClusteredTerm2B,
         for ci in c1.idx:c2.idx-1
             n_elec_hopped += fock_ket[ci][1] + fock_ket[ci][2]
         end
-        println(n_elec_hopped)
         if n_elec_hopped % 2 != 0
-            #state_sign = -1
+            state_sign = -1
         end
     end
 
-    if state_sign == -1
-        println(state_sign)
-    end
     gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
     #println(" Gamma1 ", term.ops[1], c1)
     #display(gamma1)
     gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
-    #println(" Gamma2 ", term.ops[2], c2)
-    #display(gamma2)
-
-    #display(c1)
-    #display(gamma1)
-    #display(gamma2)
-    #println()
+    
     mat_elem = 0.0
     @tensor begin
         mat_elem = gamma1[p] * term.ints[p,q] * gamma2[q]
