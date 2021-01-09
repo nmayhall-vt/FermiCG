@@ -136,16 +136,98 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
             
 
             #
-            # p'q'sr where p,r is in ci and q,s is in cj
+            # (pr|qs) p'q'sr        pr have same spin, and qs have same spin
+            #  V     Op
+            #  pqsr ->      -> SS(12)  ->  OS(12)      v
+            #  1122:    PQsr   AA,aa       AB,ba       1212
+            #  1212:   -PsQr  -Aa,Aa      -Ab,Ba       1221 = 1212
+            #  1221:    PrQs   Aa,Aa       Aa,Bb       1122 
+            #  2112:    QsPr   Aa,Aa       Bb,Aa       2211 = 1122
+            #  2121:   -QrPs  -Aa,Aa      -Ba,Ab       2112 = 1212
+            #  2211:    srPQ   aa,AA       ba,AB       2121 = 1212
             #
-            # <ps|qr>p'q'sr -> p'rq's
-            ints_i = copy(view(ints.h2, ci.orb_list, ci.orb_list, cj.orb_list, cj.orb_list))
-           
-            term = ClusteredTerm2B(("Aa","Aa"), [(0,0),(0,0)], (ci, cj), ints_i)
-            push!(terms[zero_fock],term)
-            term = ClusteredTerm2B(("Bb","Bb"), [(0,0),(0,0)], (ci, cj), ints_i)
-            push!(terms[zero_fock],term)
+            #   4*6 = 24 terms 12 SS and 12 OS terms
+            #
+            #
+            #   (AA,aa): (12|12)    1
+            #   (Aa,Aa):2(11||22)   4
+            #   (aa,AA): (12|12)    1
+            #   (BB,bb): (12|12)    1
+            #   (Bb,Bb):2(11||22)   4
+            #   (bb,BB): (12|12)    1
+            #   12 total
+            #
+            #   (E,E): 8(11|22) - 4(12|12) = (Aa+Bb, Aa+Bb) = AaAa(4) + BbBb(4) + AaBb(2) + BbAa(2) = 12 terms
+            #   (AA,aa): (12|12)    1
+            #   (aa,AA): (12|12)    1
+            #   (BB,bb): (12|12)    1
+            #   (bb,BB): (12|12)    1
             
+            #   (AB,ba):2(12|12)    2
+            #   (Ab,Ba):-(12|12)    2
+            #   (Ba,Ab):-(12|12)    2
+            #   (ba,AB):2(12|12)    2
+            
+            #x  (BA,ab): (12|12)    
+            #x  (ab,BA): (12|12)    
+            v1122 = .125*copy(view(ints.h2, ci.orb_list, ci.orb_list, cj.orb_list, cj.orb_list))
+            v1212 = .125*copy(view(ints.h2, ci.orb_list, cj.orb_list, ci.orb_list, cj.orb_list))
+            #
+            ## now transpose 1212 so that all terms can be contracted with first cluster (ci.idx<cj.idx) first then second with fast index
+            v1212 = copy(permutedims(v1212, [1,3,2,4]))
+
+            term = ClusteredTerm2B(("E1","E1"), [(0,0),(0,0)], (ci, cj), 8*v1122 - 4*v1212) 
+            push!(terms[zero_fock],term)
+
+            if false
+                term = ClusteredTerm2B(("AA","aa"), [(2,0),(-2,0)], (ci, cj), v1212); 
+                fock = deepcopy(zero_fock)
+                fock[ci.idx] = (fock[ci.idx][1]+2, fock[ci.idx][2])
+                fock[cj.idx] = (fock[cj.idx][1]-2, fock[cj.idx][2])
+                terms[fock] = [term]
+
+                term = ClusteredTerm2B(("BB","bb"), [(0,2),(0,-2)], (ci, cj), v1212); 
+                fock = deepcopy(zero_fock)
+                fock[ci.idx] = (fock[ci.idx][1], fock[ci.idx][2]+2)
+                fock[cj.idx] = (fock[cj.idx][1], fock[cj.idx][2]-2)
+                terms[fock] = [term]
+
+                term = ClusteredTerm2B(("aa","AA"), [(-2,0),(2,0)], (ci, cj), v1212)
+                fock = deepcopy(zero_fock)
+                fock[ci.idx] = (fock[ci.idx][1]-2, fock[ci.idx][2])
+                fock[cj.idx] = (fock[cj.idx][1]+2, fock[cj.idx][2])
+                terms[fock] = [term]
+
+                term = ClusteredTerm2B(("bb","BB"), [(0,-2),(0,2)], (ci, cj), v1212)
+                fock = deepcopy(zero_fock)
+                fock[ci.idx] = (fock[ci.idx][1], fock[ci.idx][2]-2)
+                fock[cj.idx] = (fock[cj.idx][1], fock[cj.idx][2]+2)
+                terms[fock] = [term]
+
+                term = ClusteredTerm2B(("AB","ba"), [(1,1),(-1,-1)], (ci, cj), 2*v1212)
+                fock = deepcopy(zero_fock)
+                fock[ci.idx] = (fock[ci.idx][1]+1, fock[ci.idx][2]+1)
+                fock[cj.idx] = (fock[cj.idx][1]-1, fock[cj.idx][2]-1)
+                terms[fock] = [term]
+
+                term = ClusteredTerm2B(("ba","AB"), [(-1,-1),(1,1)], (ci, cj), 2*v1212)
+                fock = deepcopy(zero_fock)
+                fock[ci.idx] = (fock[ci.idx][1]-1, fock[ci.idx][2]-1)
+                fock[cj.idx] = (fock[cj.idx][1]+1, fock[cj.idx][2]+1)
+                terms[fock] = [term]
+
+                term = ClusteredTerm2B(("Ab","Ba"), [(1,-1),(-1,1)], (ci, cj),-2*v1212)
+                fock = deepcopy(zero_fock)
+                fock[ci.idx] = (fock[ci.idx][1]+1, fock[ci.idx][2]-1)
+                fock[cj.idx] = (fock[cj.idx][1]-1, fock[cj.idx][2]+1)
+                terms[fock] = [term]
+
+                term = ClusteredTerm2B(("Ba","Ab"), [(-1,1),(1,-1)], (ci, cj),-2*v1212)
+                fock = deepcopy(zero_fock)
+                fock[ci.idx] = (fock[ci.idx][1]-1, fock[ci.idx][2]+1)
+                fock[cj.idx] = (fock[cj.idx][1]+1, fock[cj.idx][2]-1)
+                terms[fock] = [term]
+            end
             
         end
     end
@@ -174,6 +256,10 @@ function contract_matrix_element(   term::ClusteredTerm2B,
         bra[ci] == ket[ci] || return 0.0 
     end
 
+    #display(fock_bra)
+    #display(fock_ket)
+    #display(term.delta)
+    #display(term)
     # 
     # make sure active clusters are correct transitions 
     fock_bra[c1.idx] == fock_ket[c1.idx] .+ term.delta[1] || throw(Exception)

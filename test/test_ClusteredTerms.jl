@@ -6,7 +6,7 @@ using LinearAlgebra
 #@testset "ClusteredTerms" begin
     atoms = []
     push!(atoms,Atom(1,"H",[0,0,0]))
-    push!(atoms,Atom(2,"H",[0,0,1]))
+    push!(atoms,Atom(2,"H",[0,0.4,1]))
     push!(atoms,Atom(3,"H",[1,0,2]))
     push!(atoms,Atom(4,"H",[1,0,3]))
     push!(atoms,Atom(5,"H",[2,0,4]))
@@ -41,10 +41,10 @@ using LinearAlgebra
     #clusters    = reverse([(1:4),(5:8),(9:10),(11:12)])
     #init_fspace = reverse([(2,2),(2,2),(1,1),(1,1)])
     clusters    = [(1:4),(5:8),(9:10),(11:12)]
-    init_fspace = [(2,2),(2,2),(1,1),(1,1)]
+    init_fspace = [(2,2),(2,2),(0,1),(1,0)]
 
 
-    max_roots = 8
+    max_roots = 2 
 
     clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
     
@@ -61,46 +61,47 @@ using LinearAlgebra
     end
 
     cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
-    fock_bra = FermiCG.FockConfig([(3,2),(1,2),(1,1),(1,1)])
-    fock_ket = FermiCG.FockConfig([(2,2),(2,2),(1,1),(1,1)])
-    bra = FermiCG.ClusterConfig([1,1,1,1])
-    ket = FermiCG.ClusterConfig([2,1,1,1])
+#    fock_bra = FermiCG.FockConfig([(3,2),(1,2),(1,1),(1,1)])
+#    fock_ket = FermiCG.FockConfig([(2,2),(2,2),(1,1),(1,1)])
+#    bra = FermiCG.ClusterConfig([1,1,1,1])
+#    ket = FermiCG.ClusterConfig([2,1,1,1])
+#
+#
+#    ci_vector = FermiCG.ClusteredState(clusters)
+#    FermiCG.add_fockconfig!(ci_vector,init_fspace)
+#    FermiCG.print_configs(ci_vector)
+#    FermiCG.add_fockconfig!(ci_vector,fock_bra)
+#   
+#    
+#    FermiCG.add_fockconfig!(ci_vector,fock_ket)
+#    ci_vector[fock_ket][ket] = 1.1
+#    println("length(ci_vector):", length(ci_vector))
+#    println("length(clusters):", length(ci_vector.clusters))
+#    display(ci_vector)
+#    FermiCG.print_configs(ci_vector)
+#  
+#    display(ci_vector)
+#    FermiCG.normalize!(ci_vector)
+#    FermiCG.clip!(ci_vector)
+#    display(ci_vector)
+#    FermiCG.print_configs(ci_vector)
+#    
+#    FermiCG.zero!(ci_vector)
+#    FermiCG.clip!(ci_vector)
+#    display(ci_vector)
+#    FermiCG.print_configs(ci_vector)
+    
 
 
     ci_vector = FermiCG.ClusteredState(clusters)
-    FermiCG.add_fockconfig!(ci_vector,init_fspace)
-    FermiCG.print_configs(ci_vector)
-    FermiCG.add_fockconfig!(ci_vector,fock_bra)
-   
-    
-    FermiCG.add_fockconfig!(ci_vector,fock_ket)
-    ci_vector[fock_ket][ket] = 1.1
-    println("length(ci_vector):", length(ci_vector))
-    println("length(clusters):", length(ci_vector.clusters))
-    display(ci_vector)
-    FermiCG.print_configs(ci_vector)
-  
-    display(ci_vector)
-    FermiCG.normalize!(ci_vector)
-    FermiCG.clip!(ci_vector)
-    display(ci_vector)
-    FermiCG.print_configs(ci_vector)
-    
-    FermiCG.zero!(ci_vector)
-    FermiCG.clip!(ci_vector)
-    display(ci_vector)
-    FermiCG.print_configs(ci_vector)
-    
-
-
-    FermiCG.add_fockconfig!(ci_vector,[(2,2),(2,2),(0,1),(1,0)])
-    FermiCG.add_fockconfig!(ci_vector,[(3,2),(1,2),(0,1),(1,0)])
-    FermiCG.add_fockconfig!(ci_vector,[(3,2),(2,2),(0,1),(0,0)])
+    FermiCG.add_fockconfig!(ci_vector,[(2,2),(2,2),(1,1),(1,1)])
+    #FermiCG.add_fockconfig!(ci_vector,[(3,2),(1,2),(0,1),(1,0)])
+    #FermiCG.add_fockconfig!(ci_vector,[(3,2),(2,2),(0,1),(0,0)])
     #FermiCG.add_fockconfig!(ci_vector,reverse([(2,2),(2,2),(1,1),(0,0)]))
     #FermiCG.add_fockconfig!(ci_vector,reverse([(3,2),(1,2),(1,1),(0,0)]))
 
     FermiCG.expand_each_fock_space!(ci_vector, cluster_bases)
-   
+    
     display(ci_vector)
     #display(cluster_bases[1][(2,2)])
     

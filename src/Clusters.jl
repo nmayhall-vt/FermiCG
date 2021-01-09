@@ -245,6 +245,14 @@ function compute_cluster_ops(cluster_bases::Vector{ClusterBasis},ints)
         #@time cluster_ops[ci.idx]["ABa"], cluster_ops[ci.idx]["Aba"] = FermiCG.tdm_ABa(cb,"alpha")
         #@time cluster_ops[ci.idx]["ABb"], cluster_ops[ci.idx]["Bba"] = FermiCG.tdm_ABa(cb,"beta")
 
+
+        # Compute single excitation operator
+        tmp = Dict{Tuple,Array}()
+        for (fock,basis) in cb
+            tmp[(fock,fock)] = (cluster_ops[ci.idx]["Aa"][(fock,fock)] + cluster_ops[ci.idx]["Bb"][(fock,fock)])
+        end
+        cluster_ops[ci.idx]["E1"] = tmp 
+        
     end
     return cluster_ops
 end
@@ -299,20 +307,26 @@ Returns `Dict[((na,nb),(na,nb))] => Array`
 function tdm_H(cb::ClusterBasis, ints; verbose=0)
 #={{{=#
     verbose == 0 || println("")
-    verbose == 0 || display(ci)
+    verbose == 0 || display(cb.cluster)
     norbs = length(cb.cluster)
 
     dicti = Dict{Tuple,Array}()
     #
     # loop over fock-space transitions
+    verbose == 0 || display(cb.cluster)
     for (fock,basis) in cb
         focktrans = (fock,fock)
-
         problem = StringCI.FCIProblem(norbs, fock[1], fock[2])
         verbose == 0 || display(problem)
         Hmap = StringCI.get_map(ints, problem)
 
         dicti[focktrans] = cb[fock]' * Matrix((Hmap * cb[fock]))
+
+        if verbose > 0
+            for e in 1:size(cb[fock],2)
+                @printf(" %4i %12.8f\n", e, dicti[focktrans][e,e])
+            end
+        end
     end
     return dicti
 #=}}}=#
