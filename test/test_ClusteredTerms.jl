@@ -51,7 +51,7 @@ using LinearAlgebra
     cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=0, max_roots=max_roots) 
 
     display.(clusters)
-    terms = FermiCG.extract_1e_terms(ints.h1, clusters)
+    terms = FermiCG.extract_ClusteredTerms(ints, clusters)
 
     for t in keys(terms)
         #FermiCG.print_fock_sectors(collect(t))

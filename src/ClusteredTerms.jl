@@ -68,19 +68,19 @@ end
 
 
 """
-    extract_1e_terms(h, clusters)
+    extract_terms(ints::InCoreInts, clusters)
 
 Extract all ClusteredTerm types from a given 1e integral tensor 
 and a list of clusters
 """
-function extract_1e_terms(h, clusters)
+function extract_ClusteredTerms(ints::InCoreInts, clusters)
     norb = 0
     for ci in clusters
         norb += length(ci)
     end
-    length(size(h)) == 2 || throw(Exception)
-    size(h,1) == norb || throw(Exception)
-    size(h,2) == norb || throw(Exception)
+    length(size(ints.h1)) == 2 || throw(Exception)
+    size(ints.h1,1) == norb || throw(Exception)
+    size(ints.h1,2) == norb || throw(Exception)
 
     terms = Dict{TransferConfig,Vector{ClusteredTerm}}()
     #terms = Dict{Vector{Tuple{Int16,Int16}},Vector{ClusteredTerm}}()
@@ -97,13 +97,10 @@ function extract_1e_terms(h, clusters)
     terms[zero_fock] = Vector{ClusteredTerm}()
     
     for ci in clusters
-        #
-        # p'q where p and q are in ci
-        ints = copy(view(h, ci.orb_list, ci.orb_list))
-
-        term = ClusteredTerm1B(("H",), ((0,0),), (ci,), ints)
+        # instead of forming p'q and p'q'sr just precontract and keep them in 
+        # ClusterOps
+        term = ClusteredTerm1B(("H",), ((0,0),), (ci,), zeros(1,1))
         push!(terms[zero_fock],term)
-
     end
     for ci in clusters
         for cj in clusters
@@ -111,32 +108,45 @@ function extract_1e_terms(h, clusters)
             
             #
             # p'q where p is in ci and q is in cj
-            ints = copy(view(h, ci.orb_list, cj.orb_list))
+            ints_i = copy(view(ints.h1, ci.orb_list, cj.orb_list))
            
-            term = ClusteredTerm2B(("A","a"), [(1,0),(-1,0)], (ci, cj), ints)
-            #term = ClusteredTerm2B(("A","a"), [(1,0),(-1,0)], (ci, cj), ints)
+            term = ClusteredTerm2B(("A","a"), [(1,0),(-1,0)], (ci, cj), ints_i)
             fock = deepcopy(zero_fock)
             fock[ci.idx] = (fock[ci.idx][1]+1, fock[ci.idx][2])
             fock[cj.idx] = (fock[cj.idx][1]-1, fock[cj.idx][2])
             terms[fock] = [term]
             
-            term = ClusteredTerm2B(("a","A"), [(-1,0),(1,0)], (ci, cj), -ints)
+            term = ClusteredTerm2B(("a","A"), [(-1,0),(1,0)], (ci, cj), -ints_i)
             fock = deepcopy(zero_fock)
             fock[ci.idx] = (fock[ci.idx][1]-1, fock[ci.idx][2])
             fock[cj.idx] = (fock[cj.idx][1]+1, fock[cj.idx][2])
             terms[fock] = [term]
             
-            term = ClusteredTerm2B(("B","b"), [(0,1),(0,-1)], (ci, cj), ints)
+            term = ClusteredTerm2B(("B","b"), [(0,1),(0,-1)], (ci, cj), ints_i)
             fock = deepcopy(zero_fock)
             fock[ci.idx] = (fock[ci.idx][1], fock[ci.idx][2]+1)
             fock[cj.idx] = (fock[cj.idx][1], fock[cj.idx][2]-1)
             terms[fock] = [term]
             
-            term = ClusteredTerm2B(("b","B"), [(0,-1),(0,1)], (ci, cj), -ints)
+            term = ClusteredTerm2B(("b","B"), [(0,-1),(0,1)], (ci, cj), -ints_i)
             fock = deepcopy(zero_fock)
             fock[ci.idx] = (fock[ci.idx][1], fock[ci.idx][2]-1)
             fock[cj.idx] = (fock[cj.idx][1], fock[cj.idx][2]+1)
             terms[fock] = [term]
+            
+
+            #
+            # p'q'sr where p,r is in ci and q,s is in cj
+            #
+            # <ps|qr>p'q'sr -> p'rq's
+            ints_i = copy(view(ints.h2, ci.orb_list, ci.orb_list, cj.orb_list, cj.orb_list))
+           
+            term = ClusteredTerm2B(("Aa","Aa"), [(0,0),(0,0)], (ci, cj), ints_i)
+            push!(terms[zero_fock],term)
+            term = ClusteredTerm2B(("Bb","Bb"), [(0,0),(0,0)], (ci, cj), ints_i)
+            push!(terms[zero_fock],term)
+            
+            
         end
     end
     return terms
@@ -183,15 +193,35 @@ function contract_matrix_element(   term::ClusteredTerm2B,
         end
     end
 
-    gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
-    #println(" Gamma1 ", term.ops[1], c1)
-    #display(gamma1)
-    gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
-    
+   
+        
     mat_elem = 0.0
-    @tensor begin
-        mat_elem = gamma1[p] * term.ints[p,q] * gamma2[q]
+
+
+    if length(term.ops[1]) == 1 && length(term.ops[2]) == 1 
+        #
+        # <I|p'|J> h(pq) <K|q|L>
+        gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+        gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+        @tensor begin
+            mat_elem = gamma1[p] * term.ints[p,q] * gamma2[q]
+        end
+
+    elseif length(term.ops[1]) == 2 && length(term.ops[2]) == 2 
+        #
+        # <I|p'q|J> v(pqrs) <K|rs|L>
+        gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,:,bra[c1.idx],ket[c1.idx]]
+        gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,:,bra[c2.idx],ket[c2.idx]]
+        mat_elem = 0.0
+        @tensor begin
+            mat_elem = (gamma1[p,q] * term.ints[p,q,r,s]) * gamma2[r,s]
+        end
+    else
+        display(term.ops)
+        println(length(term.ops[1]) , length(term.ops[2]))
+        throw(Exception)
     end
+        
     return state_sign * mat_elem
 end
 

@@ -309,7 +309,7 @@ function tdm_H(cb::ClusterBasis, ints; verbose=0)
         focktrans = (fock,fock)
 
         problem = StringCI.FCIProblem(norbs, fock[1], fock[2])
-        display(problem)
+        verbose == 0 || display(problem)
         Hmap = StringCI.get_map(ints, problem)
 
         dicti[focktrans] = cb[fock]' * Matrix((Hmap * cb[fock]))

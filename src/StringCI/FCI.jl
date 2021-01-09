@@ -358,8 +358,6 @@ function compute_ab_terms2(v, H, P::FCIProblem,
     FJb_scr1 = zeros(Float64, ket_b.max) 
     Ckl_scr1 = zeros(Float64, binomial(ket_a.no-1,ket_a.ne-1), size(v)[2], size(v)[3])
     Ckl_scr2 = zeros(Float64, binomial(ket_a.no-2,ket_a.ne-1), size(v)[2], size(v)[3])
-    #Ckl_scr1 = zeros(Float64, size(v)[2], get_nchk(ket_a.no-1,ket_a.ne-1), size(v)[3])
-    #Ckl_scr2 = zeros(Float64, size(v)[2], get_nchk(ket_a.no-2,ket_a.ne-1), size(v)[3])
     Ckl = Array{Float64,3}
     virt = zeros(Int,ket_b.no-ket_b.ne)
     diff_ref = Set(collect(1:ket_b.no))
