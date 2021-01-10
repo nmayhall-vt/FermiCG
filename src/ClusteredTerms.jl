@@ -167,18 +167,39 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
             #   (Ab,Ba):-(12|12)    2
             #   (Ba,Ab):-(12|12)    2
             #   (ba,AB):2(12|12)    2
-            
+           
             #x  (BA,ab): (12|12)    
             #x  (ab,BA): (12|12)    
-            v1122 = .125*copy(view(ints.h2, ci.orb_list, ci.orb_list, cj.orb_list, cj.orb_list))
-            v1212 = .125*copy(view(ints.h2, ci.orb_list, cj.orb_list, ci.orb_list, cj.orb_list))
+            
+            
+            # <IJ| sum_pr^A sum_qs^B (pr|qs) p'q'sr |I'J'>
+            # <I|p'r|I'> (pr|qs) <J|q's|J'>
+            #
+            #
+            v1122 = .5*copy(view(ints.h2, ci.orb_list, ci.orb_list, cj.orb_list, cj.orb_list))
+            v1212 = .5*copy(view(ints.h2, ci.orb_list, cj.orb_list, ci.orb_list, cj.orb_list))
             #
             ## now transpose 1212 so that all terms can be contracted with first cluster (ci.idx<cj.idx) first then second with fast index
             v1212 = copy(permutedims(v1212, [1,3,2,4]))
 
-            term = ClusteredTerm2B(("E1","E1"), [(0,0),(0,0)], (ci, cj), 8*v1122 - 4*v1212) 
-            push!(terms[zero_fock],term)
-
+            tmp = 1
+            if tmp == 1 
+                term = ClusteredTerm2B(("E1","E1"), [(0,0),(0,0)], (ci, cj), 2*v1122) 
+                push!(terms[zero_fock],term)
+                term = ClusteredTerm2B(("Aa","Aa"), [(0,0),(0,0)], (ci, cj), -2*v1212) 
+                push!(terms[zero_fock],term)
+                term = ClusteredTerm2B(("Bb","Bb"), [(0,0),(0,0)], (ci, cj), -2*v1212) 
+                push!(terms[zero_fock],term)
+            elseif tmp == 2 
+                term = ClusteredTerm2B(("Aa","Aa"), [(0,0),(0,0)], (ci, cj), 2*v1122 - 2*v1212) 
+                push!(terms[zero_fock],term)
+                term = ClusteredTerm2B(("Bb","Bb"), [(0,0),(0,0)], (ci, cj), 2*v1122 - 2*v1212) 
+                push!(terms[zero_fock],term)
+                term = ClusteredTerm2B(("Bb","Aa"), [(0,0),(0,0)], (ci, cj), 2*v1122) 
+                push!(terms[zero_fock],term)
+                term = ClusteredTerm2B(("Aa","Bb"), [(0,0),(0,0)], (ci, cj), 2*v1122) 
+                push!(terms[zero_fock],term)
+            end
             if false
                 term = ClusteredTerm2B(("AA","aa"), [(2,0),(-2,0)], (ci, cj), v1212); 
                 fock = deepcopy(zero_fock)
