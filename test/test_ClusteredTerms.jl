@@ -106,29 +106,29 @@ using LinearAlgebra
         return H
     end
     
-    H = build(ci_vector, cluster_ops, terms)
+    @time H = build(ci_vector, cluster_ops, terms)
 
     F = eigen(H)
     for (idx,Fi) in enumerate(F.values[1:min(10,length(F.values))])
         @printf(" %4i %18.12f\n", idx, Fi)
     end
-    for i in 1:size(H,1)
-        #@printf("%18.12f\n", H[i,1])
-    end
-    fock = FermiCG.FockConfig([(2,2),(2,2),(1,1),(1,1)])
-#    fock_bra = FermiCG.FockConfig([(2,2),(2,2),(1,1),(0,0)])
-#    fock_ket = FermiCG.FockConfig([(3,2),(1,2),(1,1),(0,0)])
-#    fock_trans = fock_bra - fock_ket
-    fock_trans = fock - fock
-    config_bra = [2,2,1,1]
-    config_ket = [1,1,1,1]
-    test = 0
-    for term in  terms[fock_trans]
-        test1 = FermiCG.contract_matrix_element(term, cluster_ops, fock, config_bra, fock, config_ket)
-        println(test1/2, term.ops)
-        global test += test1
-    end
-    println(test)
-    FermiCG.print_configs(ci_vector)
+#    for i in 1:size(H,1)
+#        #@printf("%18.12f\n", H[i,1])
+#    end
+#    fock = FermiCG.FockConfig([(2,2),(2,2),(1,1),(1,1)])
+##    fock_bra = FermiCG.FockConfig([(2,2),(2,2),(1,1),(0,0)])
+##    fock_ket = FermiCG.FockConfig([(3,2),(1,2),(1,1),(0,0)])
+##    fock_trans = fock_bra - fock_ket
+#    fock_trans = fock - fock
+#    config_bra = [2,2,1,1]
+#    config_ket = [1,1,1,1]
+#    test = 0
+#    for term in  terms[fock_trans]
+#        test1 = FermiCG.contract_matrix_element(term, cluster_ops, fock, config_bra, fock, config_ket)
+#        println(test1/2, term.ops)
+#        global test += test1
+#    end
+#    println(test)
+#    FermiCG.print_configs(ci_vector)
 #end
 

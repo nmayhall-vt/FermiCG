@@ -180,7 +180,15 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
             v1212 = .5*copy(view(ints.h2, ci.orb_list, cj.orb_list, ci.orb_list, cj.orb_list))
             #
             ## now transpose 1212 so that all terms can be contracted with first cluster (ci.idx<cj.idx) first then second with fast index
-            v1212 = copy(permutedims(v1212, [3,1,2,4]))
+            v1212 = copy(permutedims(v1212, [1,3,4,2]))
+
+            #v1122 = copy(reshape(v1122, (size(v1122,1)*size(v1122,2), size(v1122,3)*size(v1122,4))))
+            #v1212 = copy(reshape(v1212, (size(v1212,1)*size(v1212,2), size(v1212,3)*size(v1212,4))))
+            
+            # todo (maybe, need to test): 
+            #
+            # change the shape to a matrix to vectorize the contraction better
+            # gamma(i) v(i,j) gamma(j)
 
             tmp = 1
             if tmp == 1 
@@ -307,8 +315,18 @@ function contract_matrix_element(   term::ClusteredTerm2B,
 
    
         
-    mat_elem = 0.0
 
+#    #
+#    # <I|xi|J> h(xi,xi') <K|xi|L>
+#    gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+#    gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+#    
+#    mat_elem = 0.0
+#    for i in 1:length(gamma1)
+#        @simd for j in 1:length(gamma2)
+#            mat_elem += gamma1[i]*term.ints[i,j]*gamma2[j]
+#        end
+#    end
 
     if length(term.ops[1]) == 1 && length(term.ops[2]) == 1 
         #

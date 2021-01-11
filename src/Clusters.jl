@@ -461,6 +461,7 @@ function tdm_Aa(cb::ClusterBasis, spin_case; verbose=0)
                 basis_bra = cb[fockbra]
                 basis_ket = cb[fockket]
                 dicti[focktrans] = FermiCG.StringCI.compute_Aa(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket, spin_case)
+                #dicti[focktrans] = reshape(dicti[focktrans],(norbs*norbs, size(dicti[focktrans],3), size(dicti[focktrans],4)))
             end
         end
     end
