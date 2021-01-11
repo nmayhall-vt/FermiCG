@@ -180,7 +180,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
             v1212 = .5*copy(view(ints.h2, ci.orb_list, cj.orb_list, ci.orb_list, cj.orb_list))
             #
             ## now transpose 1212 so that all terms can be contracted with first cluster (ci.idx<cj.idx) first then second with fast index
-            v1212 = copy(permutedims(v1212, [1,3,2,4]))
+            v1212 = copy(permutedims(v1212, [3,1,2,4]))
 
             tmp = 1
             if tmp == 1 
@@ -191,9 +191,14 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
                 term = ClusteredTerm2B(("Bb","Bb"), [(0,0),(0,0)], (ci, cj), -2*v1212) 
                 push!(terms[zero_fock],term)
             elseif tmp == 2 
-                term = ClusteredTerm2B(("Aa","Aa"), [(0,0),(0,0)], (ci, cj), 2*v1122 - 2*v1212) 
+                term = ClusteredTerm2B(("Aa","Aa"), [(0,0),(0,0)], (ci, cj), -2*v1212) 
                 push!(terms[zero_fock],term)
-                term = ClusteredTerm2B(("Bb","Bb"), [(0,0),(0,0)], (ci, cj), 2*v1122 - 2*v1212) 
+                term = ClusteredTerm2B(("Bb","Bb"), [(0,0),(0,0)], (ci, cj), -2*v1212) 
+                push!(terms[zero_fock],term)
+                
+                term = ClusteredTerm2B(("Aa","Aa"), [(0,0),(0,0)], (ci, cj), 2*v1122 - 0*v1212) 
+                push!(terms[zero_fock],term)
+                term = ClusteredTerm2B(("Bb","Bb"), [(0,0),(0,0)], (ci, cj), 2*v1122 - 0*v1212) 
                 push!(terms[zero_fock],term)
                 term = ClusteredTerm2B(("Bb","Aa"), [(0,0),(0,0)], (ci, cj), 2*v1122) 
                 push!(terms[zero_fock],term)
