@@ -187,6 +187,7 @@ Pretty print
 """
 function print_configs(s::ClusteredState; thresh=1e-3)
     #display(keys(s.data))
+    idx = 1
     for (fock,configs) in s.data
         #display(s.clusters)
         #display(s.data)
@@ -196,10 +197,12 @@ function print_configs(s::ClusteredState; thresh=1e-3)
         [@printf(" %-2i(%i:%i) ",fii,fi[1],fi[2]) for (fii,fi) in enumerate(fock)] 
         println()
         for (config, value) in s.data[fock]
+            @printf(" %5i",idx)
             for c in config
                 @printf("%3i",c)
             end
             @printf(":%12.8f\n",value)
+            idx += 1
         end
     end
 end

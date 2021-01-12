@@ -83,6 +83,7 @@ Base.length(i::ClusterOps) = length(co.data)
 Base.getindex(co::ClusterOps,i) = co.data[i] 
 Base.setindex!(co::ClusterOps,val,key) = co.data[key] = val
 Base.haskey(co::ClusterOps,key) = haskey(co.data, key)
+Base.keys(co::ClusterOps) = keys(co.data)
 function Base.display(co::ClusterOps) 
     @printf(" ClusterOps for Cluster: %4i\n",co.cluster.idx)
     norb = length(co.cluster)
@@ -252,7 +253,19 @@ function compute_cluster_ops(cluster_bases::Vector{ClusterBasis},ints)
             tmp[(fock,fock)] = (cluster_ops[ci.idx]["Aa"][(fock,fock)] + cluster_ops[ci.idx]["Bb"][(fock,fock)])
         end
         cluster_ops[ci.idx]["E1"] = tmp 
-        
+
+        #
+        # reshape data into 3index quantities: e.g., (pqr, I, J)
+        for opstring in keys(cluster_ops[ci.idx])
+            opstring != "H" || continue
+            for ftrans in keys(cluster_ops[ci.idx][opstring])
+                data = cluster_ops[ci.idx][opstring][ftrans]
+                dim1 = prod(size(data)[1:(length(size(data))-2)])
+                dim2 = size(data)[length(size(data))-1]
+                dim3 = size(data)[length(size(data))-0]
+                cluster_ops[ci.idx][opstring][ftrans] = copy(reshape(data, (dim1,dim2,dim3)))
+            end
+        end
     end
     return cluster_ops
 end

@@ -6,13 +6,13 @@ using LinearAlgebra
 #@testset "ClusteredTerms" begin
     atoms = []
     push!(atoms,Atom(1,"H",[0,0,0]))
-    push!(atoms,Atom(2,"H",[0,0.4,1]))
-    push!(atoms,Atom(3,"H",[1,0,2]))
-    push!(atoms,Atom(4,"H",[1,0,3]))
-    push!(atoms,Atom(5,"H",[2,0,4]))
-    push!(atoms,Atom(6,"H",[2,0,5]))
-    push!(atoms,Atom(7,"H",[3,0,6]))
-    push!(atoms,Atom(8,"H",[3,0,7]))
+    push!(atoms,Atom(2,"H",[0,1,0]))
+    push!(atoms,Atom(3,"H",[0,0,2]))
+    push!(atoms,Atom(4,"H",[0,0,3]))
+    push!(atoms,Atom(5,"H",[0,0.4,4]))
+    push!(atoms,Atom(6,"H",[0,0,5]))
+    push!(atoms,Atom(7,"H",[0,0,6]))
+    push!(atoms,Atom(8,"H",[0,0,7]))
     push!(atoms,Atom(9,"H",[0,0,8]))
     push!(atoms,Atom(10,"H",[0,0,9]))
     push!(atoms,Atom(11,"H",[0,0,10]))
@@ -41,10 +41,9 @@ using LinearAlgebra
     #clusters    = reverse([(1:4),(5:8),(9:10),(11:12)])
     #init_fspace = reverse([(2,2),(2,2),(1,1),(1,1)])
     clusters    = [(1:4),(5:8),(9:10),(11:12)]
-    init_fspace = [(2,2),(2,2),(0,1),(1,0)]
 
 
-    max_roots = 4 
+    max_roots = 2 
 
     clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
     
@@ -53,17 +52,24 @@ using LinearAlgebra
     display.(clusters)
     terms = FermiCG.extract_ClusteredTerms(ints, clusters)
 
-    for t in keys(terms)
-        #FermiCG.print_fock_sectors(collect(t))
-        for tt in terms[t]
-            display(tt)
-        end
-    end
+#    for t in keys(terms)
+#        #FermiCG.print_fock_sectors(collect(t))
+#        print(t)
+#        for tt in terms[t]
+#            display(tt) 
+#            display(typeof(tt))
+#        end
+#    end
 
     cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
 
     ci_vector = FermiCG.ClusteredState(clusters)
     FermiCG.add_fockconfig!(ci_vector,[(2,2),(2,2),(1,1),(1,1)])
+    #FermiCG.add_fockconfig!(ci_vector,[(1,2),(3,2),(1,1),(1,1)])
+    #FermiCG.add_fockconfig!(ci_vector,[(3,1),(1,3),(1,1),(1,1)])
+    #FermiCG.add_fockconfig!(ci_vector,[(1,3),(3,1),(1,1),(1,1)])
+    #FermiCG.add_fockconfig!(ci_vector,[(1,3),(2,1),(3,1),(1,1)])
+    #FermiCG.add_fockconfig!(ci_vector,[(0,2),(4,2),(1,1),(1,1)])
     #FermiCG.add_fockconfig!(ci_vector,[(3,2),(1,2),(0,1),(1,0)])
     #FermiCG.add_fockconfig!(ci_vector,[(3,2),(2,2),(0,1),(0,0)])
     #FermiCG.add_fockconfig!(ci_vector,reverse([(2,2),(2,2),(1,1),(0,0)]))
@@ -72,7 +78,7 @@ using LinearAlgebra
     FermiCG.expand_each_fock_space!(ci_vector, cluster_bases)
     
     display(ci_vector)
-    display(cluster_bases[2][(2,2)])
+    #display(cluster_bases[2][(2,2)])
     
     function build(ci_vector, cluster_ops, terms)
         dim = length(ci_vector)
@@ -85,19 +91,22 @@ using LinearAlgebra
                 ket_idx = 0
                 for (fock_ket, configs_ket) in ci_vector.data
                     fock_trans = fock_bra - fock_ket
-                  
+
                     # check if transition is connected by H
-                    haskey(terms, fock_trans) || continue
+                    if haskey(terms, fock_trans) == false
+                        ket_idx += length(configs_ket)
+                        continue
+                    end
 
                     for (config_ket, coeff_ket) in configs_ket
                         ket_idx += 1
-                        ket_idx <= bra_idx || continue
+                        #ket_idx <= bra_idx || continue
         
                         for term in terms[fock_trans]
                             H[bra_idx, ket_idx] += FermiCG.contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
                         end
-
-                        H[ket_idx, bra_idx] = H[bra_idx, ket_idx]
+                    
+                        #H[ket_idx, bra_idx] = H[bra_idx, ket_idx]
 
                     end
                 end
@@ -105,14 +114,28 @@ using LinearAlgebra
         end
         return H
     end
-    
+
+    if false 
+        display(keys(terms))
+        tmp = FermiCG.TransferConfig([(2,0),(-2,0),(0,0),(0,0)])
+        display(haskey(terms,tmp))
+        for i in terms[tmp]
+            display(i)
+        end
+
+        throw(Exception)
+    end
     @time H = build(ci_vector, cluster_ops, terms)
 
+
+    println(" Assymetry in H:", maximum(abs.(H-H')))
     F = eigen(H)
     for (idx,Fi) in enumerate(F.values[1:min(10,length(F.values))])
-        @printf(" %4i %18.12f\n", idx, Fi)
+        @printf(" %4i %18.13f\n", idx, Fi)
     end
-#    for i in 1:size(H,1)
+    #display(round.(H[1:16,17:32]; digits=8))
+    #display(round.(H[1:16,1:16]; digits=8))
+    #    for i in 1:size(H,1)
 #        #@printf("%18.12f\n", H[i,1])
 #    end
 #    fock = FermiCG.FockConfig([(2,2),(2,2),(1,1),(1,1)])
