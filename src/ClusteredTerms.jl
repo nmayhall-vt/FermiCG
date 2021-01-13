@@ -47,7 +47,7 @@ struct ClusteredTerm3B <: ClusteredTerm
 end
 
 struct ClusteredTerm4B <: ClusteredTerm
-    ops::Tuple{String,String,String}
+    ops::Tuple{String,String,String,String}
     delta::TransferConfig
     clusters::Tuple{Cluster,Cluster,Cluster,Cluster}
     ints::Array{Float64}
@@ -382,7 +382,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
     end
    
     # get 2-body 1-electron terms
-    if false 
+    if true 
         for ci in clusters
             for cj in clusters
                 #={{{=#
@@ -476,13 +476,13 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
 
                 i < j || continue
 
-                spin_cases =[   ["A","A","a","a"],
+                spin_cases =[["A","A","a","a"],
                              ["B","B","b","b"],
                              ["A","B","b","a"],
                              ["B","A","a","b"]
                             ]
 
-                fock_cases =[   [(1,0),(1,0),(-1,0),(-1,0)],
+                fock_cases =[[(1,0),(1,0),(-1,0),(-1,0)],
                              [(0,1),(0,1),(0,-1),(0,-1)],
                              [(1,0),(0,1),(0,-1),(-1,0)],
                              [(0,1),(1,0),(-1,0),(0,-1)]

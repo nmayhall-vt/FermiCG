@@ -243,8 +243,8 @@ function compute_cluster_ops(cluster_bases::Vector{ClusterBasis},ints)
         @time cluster_ops[ci.idx]["AB"], cluster_ops[ci.idx]["ba"], cluster_ops[ci.idx]["BA"], cluster_ops[ci.idx]["ab"] = FermiCG.tdm_AB(cb)
         @time cluster_ops[ci.idx]["AAa"], cluster_ops[ci.idx]["Aaa"] = FermiCG.tdm_AAa(cb,"alpha")
         @time cluster_ops[ci.idx]["BBb"], cluster_ops[ci.idx]["Bbb"] = FermiCG.tdm_AAa(cb,"beta")
-        #@time cluster_ops[ci.idx]["ABa"], cluster_ops[ci.idx]["Aba"] = FermiCG.tdm_ABa(cb,"alpha")
-        #@time cluster_ops[ci.idx]["ABb"], cluster_ops[ci.idx]["Bba"] = FermiCG.tdm_ABa(cb,"beta")
+        @time cluster_ops[ci.idx]["ABa"], cluster_ops[ci.idx]["Aba"] = FermiCG.tdm_ABa(cb,"alpha")
+        @time cluster_ops[ci.idx]["ABb"], cluster_ops[ci.idx]["Bba"] = FermiCG.tdm_ABa(cb,"beta")
 
 
         # Compute single excitation operator
@@ -633,8 +633,55 @@ from accessible sectors of a cluster's fock space.
 Returns `Dict[((na,nb),(na,nb))] => Array`
 """
 function tdm_ABa(cb::ClusterBasis, spin_case; verbose=0)
-#={{{=#
-#=}}}=#
+    #={{{=#
+    verbose == 0 || println("")
+    verbose == 0 || display(ci)
+    norbs = length(cb.cluster)
+
+    dicti = Dict{Tuple,Array}()
+    dicti_adj = Dict{Tuple,Array}()
+    dictj = Dict{Tuple,Array}()
+    dictj_adj = Dict{Tuple,Array}()
+    #
+    # loop over fock-space transitions
+    for na in -2:norbs+2
+        for nb in -2:norbs+2
+            fockbra = ()
+            if spin_case == "alpha"
+                fockbra = (na,nb+1)
+            elseif spin_case == "beta"
+                fockbra = (na+1,nb)
+            else
+                throw(DomainError(spin_case))
+            end
+
+            fockket = (na,nb)
+            focktrans = (fockbra,fockket)
+            focktrans_adj = (fockket,fockbra)
+
+            if haskey(cb, fockbra) && haskey(cb, fockket)
+                basis_bra = cb[fockbra]
+                basis_ket = cb[fockket]
+                if spin_case == "alpha"
+                    dicti[focktrans]     = FermiCG.StringCI.compute_ABa(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket)
+                    dicti[focktrans_adj] = FermiCG.StringCI.compute_ABa(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket)
+                elseif spin_case == "beta"
+                    dicti[focktrans]     = FermiCG.StringCI.compute_ABb(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket)
+                    dicti[focktrans_adj] = FermiCG.StringCI.compute_ABb(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket)
+                else
+                    error("Wrong spin_case: ",spin_case)
+                end
+
+                # adjoint 
+                basis_bra = cb[fockket]
+                basis_ket = cb[fockbra]
+
+                dicti_adj[focktrans_adj] =  permutedims(dicti[focktrans], [3,2,1,5,4])
+            end
+        end
+    end
+    return dicti, dicti_adj
+    #=}}}=#
 end
 
 

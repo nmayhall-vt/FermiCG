@@ -283,9 +283,12 @@ end
 
 
 """
-    expand_each_fock_space!(s::ClusteredState):
+    expand_each_fock_space!(s::ClusteredState, bases)
+
+For each fock space sector defined, add all possible basis states
+- `basis::Vector{ClusterBasis}` 
 """
-function expand_each_fock_space!(s::ClusteredState, bases)
+function expand_each_fock_space!(s::ClusteredState, bases::Vector{ClusterBasis})
     # {{{
     println("\n Make each Fock-Block the full space")
     # create full space for each fock block defined
@@ -311,3 +314,40 @@ function expand_each_fock_space!(s::ClusteredState, bases)
 end
 # }}}
 
+"""
+    expand_to_full_space(s::ClusteredState, bases)
+
+Define all possible fock space sectors and add all possible basis states
+- `basis::Vector{ClusterBasis}` 
+- `na`: Number of alpha electrons total
+- `nb`: Number of alpha electrons total
+"""
+function expand_to_full_space!(s::ClusteredState, bases::Vector{ClusterBasis}, na, nb)
+    # {{{
+    println("\n Expand to full space")
+    ns = []
+
+    for c in s.clusters
+        nsi = []
+        for (fspace,basis) in bases[c.idx]
+            push!(nsi,fspace)
+        end
+        push!(ns,nsi)
+    end
+    for newfock in product(ns...)
+        nacurr = 0
+        nbcurr = 0
+        for c in newfock
+            nacurr += c[1]
+            nbcurr += c[2]
+        end
+        if (nacurr == na) && (nbcurr == nb)
+            config = FockConfig(collect(newfock))
+            add_fockconfig!(s,config) 
+        end
+    end
+    expand_each_fock_space!(s,bases)
+
+    return
+end
+# }}}

@@ -658,3 +658,217 @@ function compute_AAa(no::Integer, bra_na, bra_nb, ket_na, ket_nb, bra_v::Matrix,
     return tdm
 #=}}}=#
 end
+
+
+"""
+    compute_ABa(no::Integer, bra_na, bra_nb, ket_na, ket_nb, bra_v::Matrix, ket_v::Matrix, spin_case)
+
+Compute represntation of 2creation operators between states `bra_v` and `ket_v`
+# Arguments
+- `no`: number of orbitals
+- `bra_na`: number of alpha electrons in bra
+- `bra_nb`: number of beta electrons in bra
+- `ket_na`: number of alpha electrons in ket
+- `ket_nb`: number of beta electrons in ket
+- `bra_v`: basis vectors in bra
+- `ket_v`: basis vectors ket
+- `spin_case`: either (alpha|beta) giving ABa or BAb
+"""
+function compute_ABa(no::Integer, bra_na, bra_nb, ket_na, ket_nb, bra_v::Matrix, ket_v::Matrix)
+#={{{=#
+    bra_a = DeterminantString(no,bra_na)
+    bra_b = DeterminantString(no,bra_nb)
+
+    ket_a = DeterminantString(no,ket_na)
+    ket_b = DeterminantString(no,ket_nb)
+
+    bra_na == ket_na+0 || throw(DimensionMismatch)
+    bra_nb == ket_nb+1 || throw(DimensionMismatch)
+   
+    #
+    # precompute lookup table for binomial coefficients
+    _binomial = Array{Int,2}(undef,no+1,no+1)
+    for i in 0:no
+        for j in i:no
+            _binomial[j+1,i+1] = binomial(j,i)
+        end
+    end
+
+    bra_M = size(bra_v,2)
+    ket_M = size(ket_v,2)
+
+    v1 = reshape(bra_v, bra_a.max, bra_b.max, bra_M)
+    v2 = reshape(ket_v, ket_a.max, ket_b.max, ket_M)
+    v1 = permutedims(v1, [3,1,2])
+    v2 = permutedims(v2, [3,1,2])
+
+    #
+    #   TDM[pqr,s,t] = 
+    tdm = zeros(Float64, bra_M, ket_M, no, no, no)
+    bra_a = deepcopy(ket_a)
+    bra_b = deepcopy(ket_b)
+    
+    sgnK = 1
+    if (ket_a.ne) % 2 != 0 
+        sgnK = -sgnK
+    end
+
+    # here, p'r are Alpha
+    #  v(K,L,s) <KL|p'q'r|IJ> V(I,J,t)
+    # -v(K,L,s) <L|<K|p'rq'|I>|J> V(I,J,t)
+    # -v(K,L,s) <L|<K|p'r|I>q'|J> V(I,J,t) (-1)^N(I)
+    # -v(K,L,s) <K|p'r|I> <L|q'|J> V(I,J,t) (-1)^N(I)
+    #
+    reset!(ket_a)
+    for K in 1:ket_a.max
+
+        reset!(ket_b)
+        for L in 1:ket_b.max
+            for p in 1:no
+                for r in 1:no
+                    copy!(bra_a,ket_a)
+                    apply_creation!(bra_a,p)
+                    apply_annihilation!(bra_a,r)
+                    bra_a.sign != 0 || continue
+                    calc_linear_index!(bra_a,_binomial)
+                    I = bra_a.lin_index
+                    
+                    for q in 1:no
+
+                        copy!(bra_b,ket_b)
+                        apply_creation!(bra_b,q)
+                        bra_b.sign != 0 || continue
+                        calc_linear_index!(bra_b,_binomial)
+                        J = bra_b.lin_index
+
+                        @views tdm_pq = tdm[:,:,p,q,r] 
+                        @views v1_IJ = v1[:,I,J]
+                        @views v2_KL = v2[:,K,L]
+                        sgn = sgnK * bra_a.sign * bra_b.sign
+
+                        if sgn == 1 
+                            @tensor begin 
+                                tdm_pq[s,t] += v1_IJ[s] * v2_KL[t]
+                            end
+                        elseif sgn == -1
+                            @tensor begin 
+                                tdm_pq[s,t] -= v1_IJ[s] * v2_KL[t]
+                            end
+                        else
+                            throw(Exception)
+                        end
+                    end #q
+                end #r
+            end #p
+            incr!(ket_b)
+        end #L
+        incr!(ket_a)
+    end #K
+    tdm = permutedims(tdm, [3,4,5,1,2])
+    return tdm
+#=}}}=#
+end
+
+
+"""
+    compute_ABb(no::Integer, bra_na, bra_nb, ket_na, ket_nb, bra_v::Matrix, ket_v::Matrix, spin_case)
+
+Compute represntation of 2creation operators between states `bra_v` and `ket_v`
+# Arguments
+- `no`: number of orbitals
+- `bra_na`: number of alpha electrons in bra
+- `bra_nb`: number of beta electrons in bra
+- `ket_na`: number of alpha electrons in ket
+- `ket_nb`: number of beta electrons in ket
+- `bra_v`: basis vectors in bra
+- `ket_v`: basis vectors ket
+- `spin_case`: either (alpha|beta) giving ABa or BAb
+"""
+function compute_ABb(no::Integer, bra_na, bra_nb, ket_na, ket_nb, bra_v::Matrix, ket_v::Matrix)
+#={{{=#
+    bra_a = DeterminantString(no,bra_na)
+    bra_b = DeterminantString(no,bra_nb)
+
+    ket_a = DeterminantString(no,ket_na)
+    ket_b = DeterminantString(no,ket_nb)
+
+    bra_na == ket_na+1 || throw(DimensionMismatch)
+    bra_nb == ket_nb+0 || throw(DimensionMismatch)
+   
+    #
+    # precompute lookup table for binomial coefficients
+    _binomial = Array{Int,2}(undef,no+1,no+1)
+    for i in 0:no
+        for j in i:no
+            _binomial[j+1,i+1] = binomial(j,i)
+        end
+    end
+
+    bra_M = size(bra_v,2)
+    ket_M = size(ket_v,2)
+
+    v1 = reshape(bra_v, bra_a.max, bra_b.max, bra_M)
+    v2 = reshape(ket_v, ket_a.max, ket_b.max, ket_M)
+    v1 = permutedims(v1, [3,1,2])
+    v2 = permutedims(v2, [3,1,2])
+
+    #
+    #   TDM[pqr,s,t] = 
+    tdm = zeros(Float64, bra_M, ket_M, no, no, no)
+    bra_a = deepcopy(ket_a)
+    bra_b = deepcopy(ket_b)
+
+    # here, q'r are Beta
+    #  v(K,L,s) <KL|p'q'r|IJ> V(I,J,t)
+    # -v(K,L,s) <L|<K|p'|I>q'r|J> V(I,J,t) 
+    # -v(K,L,s) <K|p'r|I> <L|q'r|J> V(I,J,t) 
+    #
+    reset!(ket_a)
+    for K in 1:ket_a.max
+
+        reset!(ket_b)
+        for L in 1:ket_b.max
+            for p in 1:no
+                copy!(bra_a,ket_a)
+                apply_creation!(bra_a,p)
+                bra_a.sign != 0 || continue
+                calc_linear_index!(bra_a,_binomial)
+                I = bra_a.lin_index
+
+                for q in 1:no
+                    for r in 1:no
+
+                        copy!(bra_b,ket_b)
+                        apply_creation!(bra_b,q)
+                        apply_annihilation!(bra_b,r)
+                        bra_b.sign != 0 || continue
+                        calc_linear_index!(bra_b,_binomial)
+                        J = bra_b.lin_index
+
+                        @views tdm_pq = tdm[:,:,p,q,r] 
+                        @views v1_IJ = v1[:,I,J]
+                        @views v2_KL = v2[:,K,L]
+                        sgn = bra_a.sign * bra_b.sign
+
+                        if sgn == 1 
+                            @tensor begin 
+                                tdm_pq[s,t] += v1_IJ[s] * v2_KL[t]
+                            end
+                        elseif sgn == -1
+                            @tensor begin 
+                                tdm_pq[s,t] -= v1_IJ[s] * v2_KL[t]
+                            end
+                        else
+                            error(" sign?: ", sgn) 
+                        end
+                    end #r
+                end #q
+            end #p
+            incr!(ket_b)
+        end #L
+        incr!(ket_a)
+    end #K
+    tdm = permutedims(tdm, [3,4,5,1,2])
+    return tdm
+#=}}}=#
+end
