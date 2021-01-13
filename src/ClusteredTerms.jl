@@ -57,12 +57,20 @@ end
 #end
 
 function Base.display(t::ClusteredTerm1B)
-    @printf( " 1B: %2i    :", t.clusters[1].idx)
-    println(t.ops, size(t.ints))
+    @printf( " 1B: %2i          :", t.clusters[1].idx)
+    println(t.ops)
 end
 function Base.display(t::ClusteredTerm2B)
-    @printf( " 2B: %2i %2i :", t.clusters[1].idx, t.clusters[2].idx)
-    println(t.ops, " ints: ", size(t.ints))
+    @printf( " 2B: %2i %2i       :", t.clusters[1].idx, t.clusters[2].idx)
+    println(t.ops)
+end
+function Base.display(t::ClusteredTerm3B)
+    @printf( " 2B: %2i %2i %2i    :", t.clusters[1].idx, t.clusters[2].idx, t.clusters[3].idx)
+    println(t.ops)
+end
+function Base.display(t::ClusteredTerm4B)
+    @printf( " 2B: %2i %2i %2i %2i :", t.clusters[1].idx, t.clusters[2].idx, t.clusters[3].idx, t.clusters[4].idx)
+    println(t.ops)
 end
 
 
@@ -813,7 +821,7 @@ end
 combine terms to keep only unique operators
 """
 function unique!(clustered_ham::Dict{TransferConfig,Vector{ClusteredTerm}})
-
+#={{{=#
     println(" Remove duplicates")
     #
     # first just remove duplicates
@@ -829,13 +837,12 @@ function unique!(clustered_ham::Dict{TransferConfig,Vector{ClusteredTerm}})
                 keystr *= string(i,"(",j.idx,")")
             end
             if haskey(unique,keystr)
-                display(keystr)
                 unique[keystr].ints .+= term.ints
             else
-                unique[keystr] = term
+                unique[keystr] = deepcopy(term)
             end
         end
-        clustered_ham[ftrans] = []
+        clustered_ham[ftrans] = Vector{ClusteredTerm}()
         for (keystr, term) in unique
             push!(clustered_ham[ftrans],term)
         end
@@ -843,6 +850,7 @@ function unique!(clustered_ham::Dict{TransferConfig,Vector{ClusteredTerm}})
     end
 
     @printf(" Number of terms reduced from %5i to %5i\n", nstart, nfinal)
+#=}}}=#
 end
 
 
