@@ -802,11 +802,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
     end
 
     unique!(terms)
-    #for (fock,termlist) in terms
-    #    for op in termlist
-    #        display(op)
-    #    end
-    #end
+    
     return terms
 end
 
@@ -821,18 +817,32 @@ function unique!(clustered_ham::Dict{TransferConfig,Vector{ClusteredTerm}})
     println(" Remove duplicates")
     #
     # first just remove duplicates
+    nstart = 0
+    nfinal = 0
     for (ftrans, terms) in clustered_ham
 
-        display(ftrans)
+        unique = Dict()
         for term in terms
+            nstart += 1
+            keystr = ""
             for (i,j) in zip(term.ops,term.clusters)
-                println(string(i,",",j.idx)
-                #display(zip(term.ops,term.clusters)))
+                keystr *= string(i,"(",j.idx,")")
+            end
+            if haskey(unique,keystr)
+                display(keystr)
+                unique[keystr].ints .+= term.ints
+            else
+                unique[keystr] = term
             end
         end
+        clustered_ham[ftrans] = []
+        for (keystr, term) in unique
+            push!(clustered_ham[ftrans],term)
+        end
+        nfinal += length(clustered_ham[ftrans]) 
     end
 
-    error()
+    @printf(" Number of terms reduced from %5i to %5i\n", nstart, nfinal)
 end
 
 
