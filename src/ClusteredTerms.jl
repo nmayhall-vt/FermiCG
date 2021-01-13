@@ -75,6 +75,7 @@ end
 
 
 function bubble_sort(inp)
+    #={{{=#
     cmpcount, swapcount = 0, 0
     blist = copy(inp)
     bperm = collect(1:length(inp))
@@ -89,7 +90,9 @@ function bubble_sort(inp)
         end
     end
     return bperm, swapcount
+#=}}}=#
 end
+
 
 """
     extract_terms(ints::InCoreInts, clusters)
@@ -130,6 +133,45 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
     
 
 
+    if false 
+        for ci in clusters
+            for cj in clusters
+                ci < cj || continue
+                #={{{=#
+                #
+                # p'q where p is in ci and q is in cj
+                ints_i = copy(view(ints.h1, ci.orb_list, cj.orb_list))
+
+                term = ClusteredTerm2B(("A","a"), [(1,0),(-1,0)], (ci, cj), ints_i)
+                fock = deepcopy(zero_fock)
+                fock[ci.idx] = (fock[ci.idx][1]+1, fock[ci.idx][2])
+                fock[cj.idx] = (fock[cj.idx][1]-1, fock[cj.idx][2])
+                terms[fock] = [term]
+
+                term = ClusteredTerm2B(("a","A"), [(-1,0),(1,0)], (ci, cj), -ints_i)
+                fock = deepcopy(zero_fock)
+                fock[ci.idx] = (fock[ci.idx][1]-1, fock[ci.idx][2])
+                fock[cj.idx] = (fock[cj.idx][1]+1, fock[cj.idx][2])
+                terms[fock] = [term]
+
+                term = ClusteredTerm2B(("B","b"), [(0,1),(0,-1)], (ci, cj), ints_i)
+                fock = deepcopy(zero_fock)
+                fock[ci.idx] = (fock[ci.idx][1], fock[ci.idx][2]+1)
+                fock[cj.idx] = (fock[cj.idx][1], fock[cj.idx][2]-1)
+                terms[fock] = [term]
+
+                term = ClusteredTerm2B(("b","B"), [(0,-1),(0,1)], (ci, cj), -ints_i)
+                fock = deepcopy(zero_fock)
+                fock[ci.idx] = (fock[ci.idx][1], fock[ci.idx][2]-1)
+                fock[cj.idx] = (fock[cj.idx][1], fock[cj.idx][2]+1)
+                terms[fock] = [term]
+
+
+
+                #=}}}=#
+            end
+        end
+    end
     if false
         for ci in clusters
             for cj in clusters
@@ -385,10 +427,13 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
 
                 end
 
+                #=}}}=#
             end
-        end#=}}}=#
+        end
     end
-   
+  
+
+
     # get 2-body 1-electron terms
     if true 
         for ci in clusters
@@ -584,7 +629,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
     end
 
     # get 3-body 2-electron terms
-    if false 
+    if true 
         for ci in clusters
             for cj in clusters
                 for ck in clusters
@@ -926,16 +971,19 @@ function contract_matrix_element(   term::ClusteredTerm2B,
     # 
     # determine sign from rearranging clusters if odd number of operators
     state_sign = 1
+        
     for (oi,o) in enumerate(term.ops)
-        length(o) % 2 != 0 || continue #only count electrons if operator is odd
-        n_elec_hopped = 0
-        for ci in 1:oi-1
-            n_elec_hopped += fock_ket[ci][1] + fock_ket[ci][2]
-        end
-        if n_elec_hopped % 2 != 0
-            state_sign *= -1
+        if length(o) % 2 != 0  #only count electrons if operator is odd
+            n_elec_hopped = 0
+            for ci in 1:term.clusters[oi].idx-1
+                n_elec_hopped += fock_ket[ci][1] + fock_ket[ci][2]
+            end
+            if n_elec_hopped % 2 != 0
+                state_sign *= -1
+            end
         end
     end
+
 
     #
     # <I|p'|J> h(pq) <K|q|L>
@@ -1028,13 +1076,14 @@ function contract_matrix_element(   term::ClusteredTerm3B,
     # determine sign from rearranging clusters if odd number of operators
     state_sign = 1
     for (oi,o) in enumerate(term.ops)
-        length(o) % 2 != 0 || continue #only count electrons if operator is odd
-        n_elec_hopped = 0
-        for ci in 1:oi-1
-            n_elec_hopped += fock_ket[ci][1] + fock_ket[ci][2]
-        end
-        if n_elec_hopped % 2 != 0
-            state_sign *= -1
+        if length(o) % 2 != 0  #only count electrons if operator is odd
+            n_elec_hopped = 0
+            for ci in 1:term.clusters[oi].idx-1
+                n_elec_hopped += fock_ket[ci][1] + fock_ket[ci][2]
+            end
+            if n_elec_hopped % 2 != 0
+                state_sign *= -1
+            end
         end
     end
 
@@ -1091,14 +1140,16 @@ function contract_matrix_element(   term::ClusteredTerm4B,
     # 
     # determine sign from rearranging clusters if odd number of operators
     state_sign = 1
+    state_sign = 1
     for (oi,o) in enumerate(term.ops)
-        length(o) % 2 != 0 || continue #only count electrons if operator is odd
-        n_elec_hopped = 0
-        for ci in 1:oi-1
-            n_elec_hopped += fock_ket[ci][1] + fock_ket[ci][2]
-        end
-        if n_elec_hopped % 2 != 0
-            state_sign *= -1
+        if length(o) % 2 != 0  #only count electrons if operator is odd
+            n_elec_hopped = 0
+            for ci in 1:term.clusters[oi].idx-1
+                n_elec_hopped += fock_ket[ci][1] + fock_ket[ci][2]
+            end
+            if n_elec_hopped % 2 != 0
+                state_sign *= -1
+            end
         end
     end
 
