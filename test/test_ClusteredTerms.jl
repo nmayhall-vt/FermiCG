@@ -65,9 +65,15 @@ using LinearAlgebra
 
     ci_vector = FermiCG.ClusteredState(clusters)
     FermiCG.add_fockconfig!(ci_vector,[(2,2),(2,2),(1,1),(1,1)])
-    #FermiCG.add_fockconfig!(ci_vector,[(1,2),(3,2),(1,1),(1,1)])
+    #FermiCG.add_fockconfig!(ci_vector,[(2,2),(0,2),(1,1),(1,1)])
+    #FermiCG.add_fockconfig!(ci_vector,[(0,2),(2,2),(1,1),(1,1)])
+    #FermiCG.add_fockconfig!(ci_vector,[(0,2),(4,2),(1,1),(1,1)])
+    FermiCG.add_fockconfig!(ci_vector,[(2,1),(2,3),(1,1),(1,1)])
     #FermiCG.add_fockconfig!(ci_vector,[(3,1),(1,3),(1,1),(1,1)])
     #FermiCG.add_fockconfig!(ci_vector,[(1,3),(3,1),(1,1),(1,1)])
+    #FermiCG.add_fockconfig!(ci_vector,[(3,1),(2,2),(0,2),(1,1)])
+    #FermiCG.add_fockconfig!(ci_vector,[(1,3),(2,2),(2,0),(1,1)])
+    
     #FermiCG.add_fockconfig!(ci_vector,[(1,3),(2,1),(3,1),(1,1)])
     #FermiCG.add_fockconfig!(ci_vector,[(0,2),(4,2),(1,1),(1,1)])
     #FermiCG.add_fockconfig!(ci_vector,[(3,2),(1,2),(0,1),(1,0)])
@@ -128,7 +134,7 @@ using LinearAlgebra
     @time H = build(ci_vector, cluster_ops, terms)
 
 
-    println(" Assymetry in H:", maximum(abs.(H-H')))
+    maximum(abs.(H-H')) < 1e-14 || error("Hamiltonian not symmetric") 
     F = eigen(H)
     for (idx,Fi) in enumerate(F.values[1:min(10,length(F.values))])
         @printf(" %4i %18.13f\n", idx, Fi)

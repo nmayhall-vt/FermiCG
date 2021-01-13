@@ -39,18 +39,17 @@ struct ClusteredTerm2B <: ClusteredTerm
 end
 
 struct ClusteredTerm3B <: ClusteredTerm
-    ops::Vector{String}
+    ops::Tuple{String,String,String}
     delta::TransferConfig
     #active::Vector{Int16}
-    clusters::Vector{Cluster}
+    clusters::Tuple{Cluster,Cluster,Cluster}
     ints::Array{Float64}
 end
 
 struct ClusteredTerm4B <: ClusteredTerm
-    ops::Vector{String}
+    ops::Tuple{String,String,String}
     delta::TransferConfig
-    #active::Vector{Int16}
-    clusters::Vector{Cluster}
+    clusters::Tuple{Cluster,Cluster,Cluster,Cluster}
     ints::Array{Float64}
 end
 
@@ -381,8 +380,9 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
             end
         end#=}}}=#
     end
-    
-    if true 
+   
+    # get 2-body 1-electron terms
+    if false 
         for ci in clusters
             for cj in clusters
                 #={{{=#
@@ -407,7 +407,6 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
                 #
                 #   (pr|qs) p'q'sr
                 #
-                display.(termstr)
                 for term in termstr 
 
                     #
@@ -448,8 +447,6 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
                                 throw(Exception)
                             end
                         end
-                        term
-                        display([oper1,oper2])
 
                         clusteredterm = ClusteredTerm2B((oper1,oper2), [Tuple(fock1),Tuple(fock2)], (ci, cj), h)
                         #display(clusteredterm)
@@ -468,6 +465,8 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
         end
         #=}}}=#
     end
+    
+    # get 2-body 2-electron terms
     if true 
         for ci in clusters
             for cj in clusters
@@ -489,17 +488,6 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
                              [(0,1),(1,0),(-1,0),(0,-1)]
                             ]
 
-                #            termstr = [ [ci, ci, cj, cj],
-                #                        [ci, cj, ci, cj],
-                #                        [ci, cj, cj, ci],
-                #                        [cj, ci, ci, cj],
-                #                        [cj, ci, cj, ci],
-                #                        [cj, cj, ci, ci],
-                #                        #[ci, cj, cj, cj],
-                #                        #[cj, ci, cj, cj],
-                #                        #[cj, cj, ci, cj],
-                #                        #[cj, cj, cj, ci]
-                #                       ]
 
                 termstr = []
                 append!(termstr,unique(permutations([ci,ci,cj,cj])))
@@ -509,14 +497,13 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
                 #
                 #   (pr|qs) p'q'sr
                 #
-                display.(termstr)
                 for term in termstr 
 
                     #
                     #   find permutations and sign needed to sort the indices 
                     #   such that clusters increase from left to right
                     perm, countswap = bubble_sort(term) 
-                    perm == sortperm(term, alg=MergeSort)|| throw(Exception) 
+                    perm == sortperm(term, alg=MergeSort)|| error("problem with bubble_sort") 
 
                     permsign = 1
                     if countswap%2 != 0 
@@ -531,7 +518,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
                     #
                     # now align (pqsr) ints so that they align with indices from operators after sorting
                     # in this ordering, one can simply contract by sum(v .* d)
-                    v = .5 * permsign .* permutedims(vpqsr,perm)
+                    v = (.5 * permsign) .* permutedims(vpqsr,perm)
 
                     #
                     # now reshape ints so they can be contracted like gamma(pqr) V(pqr,s) gamma(s)
@@ -587,18 +574,175 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
         end
         #=}}}=#
     end
-    for (fock,termlist) in terms
-        for op in termlist
-            display(op)
+    
+    # get 3-body 2-electron terms
+    if true 
+        for ci in clusters
+            for cj in clusters
+                for ck in clusters
+                    #={{{=#
+                    i = ci.idx
+                    j = cj.idx
+                    k = ck.idx
+
+                    i < j < k || continue
+
+                    spin_cases =[["A","A","a","a"],
+                                 ["B","B","b","b"],
+                                 ["A","B","b","a"],
+                                 ["B","A","a","b"]
+                                ]
+
+                    fock_cases =[[(1,0),(1,0),(-1,0),(-1,0)],
+                                 [(0,1),(0,1),(0,-1),(0,-1)],
+                                 [(1,0),(0,1),(0,-1),(-1,0)],
+                                 [(0,1),(1,0),(-1,0),(0,-1)]
+                                ]
+
+
+                    termstr = []
+                    append!(termstr,unique(permutations([ci,ci,cj,ck])))
+                    append!(termstr,unique(permutations([ci,cj,cj,ck])))
+                    append!(termstr,unique(permutations([ci,cj,ck,ck])))
+
+                    #
+                    #   (pr|qs) p'q'sr
+                    #
+                    for term in termstr 
+
+                        #
+                        #   find permutations and sign needed to sort the indices 
+                        #   such that clusters increase from left to right
+                        perm, countswap = bubble_sort(term) 
+                        perm == sortperm(term, alg=MergeSort)|| error("problem with bubble_sort") 
+
+                        permsign = 1
+                        if countswap%2 != 0 
+                            permsign = -1
+                        end
+
+                        vprqs = view(ints.h2,term[1].orb_list, term[4].orb_list, term[2].orb_list, term[3].orb_list) 
+                        #
+                        # align (prqs) ints so that they align with indices from operators before sorting
+                        vpqsr = permutedims(vprqs,[1,3,4,2])
+
+                        #
+                        # now align (pqsr) ints so that they align with indices from operators after sorting
+                        # in this ordering, one can simply contract by sum(v .* d)
+                        v = (.5 * permsign) .* permutedims(vpqsr,perm)
+
+                        #
+                        # now reshape ints so they can be contracted like gamma(pqr) V(pqr,s) gamma(s)
+                        newshape = [1,1,1]
+
+                        for cidx in 1:length(term[perm])
+                            if term[perm][cidx] == ci
+                                newshape[1] *= size(v,cidx)
+                            elseif term[perm][cidx] == cj
+                                newshape[2] *= size(v,cidx)
+                            elseif term[perm][cidx] == ck
+                                newshape[3] *= size(v,cidx)
+                            else
+                                throw(Exception)
+                            end
+                        end
+                        v = copy(reshape(v,newshape...))
+
+                        for sidx in 1:length(spin_cases)
+                            oper = spin_cases[sidx][perm]
+                            fock = fock_cases[sidx][perm]
+                            oper1 = ""
+                            oper2 = ""
+                            oper3 = ""
+                            fock1 = [0,0]
+                            fock2 = [0,0]
+                            fock3 = [0,0]
+                            for cidx in 1:length(term[perm])
+                                if term[perm][cidx] == ci
+                                    oper1 *= oper[cidx]
+                                    fock1 .+= fock[cidx]
+                                elseif term[perm][cidx] == cj
+                                    oper2 *= oper[cidx]
+                                    fock2 .+= fock[cidx]
+                                elseif term[perm][cidx] == ck
+                                    oper3 *= oper[cidx]
+                                    fock3 .+= fock[cidx]
+                                else
+                                    throw(Exception)
+                                end
+                            end
+
+                            clusteredterm = ClusteredTerm3B((oper1,oper2,oper3), [Tuple(fock1),Tuple(fock2),Tuple(fock3)], (ci, cj, ck), v)
+                            #display(clusteredterm)
+                            focktrans = deepcopy(zero_fock)
+                            focktrans[ci.idx] = Tuple(fock1)
+                            focktrans[cj.idx] = Tuple(fock2)
+                            focktrans[ck.idx] = Tuple(fock3)
+                            if haskey(terms,focktrans)
+                                push!(terms[focktrans], clusteredterm)
+                            else
+                                terms[focktrans] = [clusteredterm]
+                            end
+                        end
+                        #all(isapprox(vpqsr,0.0)) || continue
+                    end
+
+                end
+            end
+            #=}}}=#
         end
     end
+
+    #for (fock,termlist) in terms
+    #    for op in termlist
+    #        display(op)
+    #    end
+    #end
     return terms
 end
 
+"""
+    contract_matrix_element(   term::ClusteredTerm1B, 
+                                    cluster_ops::Vector{ClusterOps},
+                                    fock_bra, bra, fock_ket, ket)
 
+Contraction for local (1body) terms. No contraction is needed,
+just a lookup from the correct operator
+"""
+function contract_matrix_element(   term::ClusteredTerm1B, 
+                                    cluster_ops::Vector{ClusterOps},
+                                    fock_bra, bra, fock_ket, ket)
+#={{{=#
+    c1 = term.clusters[1]
+    length(fock_bra) == length(fock_ket) || throw(Exception)
+    length(bra) == length(ket) || throw(Exception)
+    n_clusters = length(bra)
+    # 
+    # make sure inactive clusters are diagonal
+    for ci in 1:n_clusters
+        ci != c1.idx || continue
+
+        fock_bra[ci] == fock_ket[ci] || throw(Exception)
+        bra[ci] == ket[ci] || return 0.0 
+    end
+    # 
+    # make sure active clusters are correct transitions 
+    fock_bra[c1.idx] == fock_ket[c1.idx] .+ term.delta[1] || throw(Exception)
+
+    return cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][bra[c1.idx],ket[c1.idx]]
+#=}}}=#
+end
+
+
+"""
+    contract_matrix_element(   term::ClusteredTerm2B, 
+                                    cluster_ops::Vector{ClusterOps},
+                                    fock_bra, bra, fock_ket, ket)
+"""
 function contract_matrix_element(   term::ClusteredTerm2B, 
                                     cluster_ops::Vector{ClusterOps},
                                     fock_bra, bra, fock_ket, ket)
+#={{{=#
     #display(term)
     #println(bra, ket)
 
@@ -629,14 +773,14 @@ function contract_matrix_element(   term::ClusteredTerm2B,
     # 
     # determine sign from rearranging clusters if odd number of operators
     state_sign = 1
-    n_elec_hopped = 0
-    #println(c1.idx, " ",  c2.idx)
-    if length(term.ops[2]) % 2 != 0
-        for ci in c1.idx:c2.idx-1
+    for (oi,o) in enumerate(term.ops)
+        length(o) % 2 != 0 || continue #only count electrons if operator is odd
+        n_elec_hopped = 0
+        for ci in 1:oi-1
             n_elec_hopped += fock_ket[ci][1] + fock_ket[ci][2]
         end
         if n_elec_hopped % 2 != 0
-            state_sign = -1
+            state_sign *= -1
         end
     end
 
@@ -691,23 +835,25 @@ function contract_matrix_element(   term::ClusteredTerm2B,
 #    end
         
     return state_sign * mat_elem
+#=}}}=#
 end
 
-"""
-    contract_matrix_element(   term::ClusteredTerm1B, 
-                                    cluster_ops::Vector{ClusterOps},
-                                    fock_bra, bra, fock_ket, ket)
 
-Contraction for local (1body) terms. No contraction is needed,
-just a lookup from the correct operator
 """
-function contract_matrix_element(   term::ClusteredTerm1B, 
+    contract_matrix_element(   term::ClusteredTerm3B, 
                                     cluster_ops::Vector{ClusterOps},
                                     fock_bra, bra, fock_ket, ket)
+"""
+function contract_matrix_element(   term::ClusteredTerm3B, 
+                                    cluster_ops::Vector{ClusterOps},
+                                    fock_bra, bra, fock_ket, ket)
+#={{{=#
     #display(term)
     #println(bra, ket)
 
     c1 = term.clusters[1]
+    c2 = term.clusters[2]
+    c3 = term.clusters[3]
     length(fock_bra) == length(fock_ket) || throw(Exception)
     length(bra) == length(ket) || throw(Exception)
     n_clusters = length(bra)
@@ -715,16 +861,88 @@ function contract_matrix_element(   term::ClusteredTerm1B,
     # make sure inactive clusters are diagonal
     for ci in 1:n_clusters
         ci != c1.idx || continue
+        ci != c2.idx || continue
+        ci != c3.idx || continue
 
-        fock_bra[ci] == fock_ket[ci] || throw(Exception)
+        fock_bra[ci] == fock_ket[ci] || error("wrong fock space:",term,fock_bra, fock_ket) 
         bra[ci] == ket[ci] || return 0.0 
     end
+
     # 
     # make sure active clusters are correct transitions 
     fock_bra[c1.idx] == fock_ket[c1.idx] .+ term.delta[1] || throw(Exception)
+    fock_bra[c2.idx] == fock_ket[c2.idx] .+ term.delta[2] || throw(Exception)
+    fock_bra[c3.idx] == fock_ket[c3.idx] .+ term.delta[3] || throw(Exception)
 
-    return cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][bra[c1.idx],ket[c1.idx]]
+    # 
+    # determine sign from rearranging clusters if odd number of operators
+    state_sign = 1
+    for (oi,o) in enumerate(term.ops)
+        length(o) % 2 != 0 || continue #only count electrons if operator is odd
+        n_elec_hopped = 0
+        for ci in 1:oi-1
+            n_elec_hopped += fock_ket[ci][1] + fock_ket[ci][2]
+        end
+        if n_elec_hopped % 2 != 0
+            state_sign *= -1
+        end
+    end
+
+
+    #
+    # <I|p'|J> h(pq) <K|q|L>
+    @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+    @views gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,bra[c3.idx],ket[c3.idx]]
+    mat_elem = 0.0
+    @tensor begin
+        mat_elem = ((gamma1[p] * term.ints[p,q,r]) * gamma2[q]) * gamma3[r]
+    end
+
+    #if term.ops[1] == "aa" 
+    #    display(term)
+    #    println(mat_elem)
+    #end
+
+#    #
+#    # <I|xi|J> h(xi,xi') <K|xi|L>
+#    gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+#    gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+#    
+#    mat_elem = 0.0
+#    for i in 1:length(gamma1)
+#        @simd for j in 1:length(gamma2)
+#            mat_elem += gamma1[i]*term.ints[i,j]*gamma2[j]
+#        end
+#    end
+
+#    if length(term.ops[1]) == 1 && length(term.ops[2]) == 1 
+#        #
+#        # <I|p'|J> h(pq) <K|q|L>
+#        gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+#        gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+#        @tensor begin
+#            mat_elem = gamma1[p] * term.ints[p,q] * gamma2[q]
+#        end
+
+#    elseif length(term.ops[1]) == 2 && length(term.ops[2]) == 2 
+#        #
+#        # <I|p'q|J> v(pqrs) <K|rs|L>
+#        gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,:,bra[c1.idx],ket[c1.idx]]
+#        gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,:,bra[c2.idx],ket[c2.idx]]
+#        mat_elem = 0.0
+#        @tensor begin
+#            mat_elem = (gamma1[p,q] * term.ints[p,q,r,s]) * gamma2[r,s]
+#        end
+#    else
+#        display(term.ops)
+#        println(length(term.ops[1]) , length(term.ops[2]))
+#        throw(Exception)
+#    end
+        
+    return state_sign * mat_elem
 end
+#=}}}=#
 
 
 function print_fock_sectors(sector::Vector{Tuple{T,T}}) where T<:Integer
