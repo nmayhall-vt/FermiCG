@@ -801,6 +801,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
         end
     end
 
+    unique!(terms)
     #for (fock,termlist) in terms
     #    for op in termlist
     #        display(op)
@@ -808,6 +809,28 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
     #end
     return terms
 end
+
+
+"""
+    unique!(ClusteredHam::Dict{TransferConfig,Vector{ClusteredTerm}})
+
+combine terms to keep only unique operators
+"""
+function unique!(clustered_ham::Dict{TransferConfig,Vector{ClusteredTerm}})
+
+    println(" Remove duplicates")
+    #
+    # first just remove duplicates
+    for (ftrans, terms) in clustered_ham
+        display(ftrans)
+        for term in terms
+            display(term)
+        end
+    end
+
+    error()
+end
+
 
 """
     contract_matrix_element(   term::ClusteredTerm1B, 
