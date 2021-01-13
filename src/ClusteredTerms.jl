@@ -822,9 +822,13 @@ function unique!(clustered_ham::Dict{TransferConfig,Vector{ClusteredTerm}})
     #
     # first just remove duplicates
     for (ftrans, terms) in clustered_ham
+
         display(ftrans)
         for term in terms
-            display(term)
+            for (i,j) in zip(term.ops,term.clusters)
+                println(string(i,",",j.idx)
+                #display(zip(term.ops,term.clusters)))
+            end
         end
     end
 
