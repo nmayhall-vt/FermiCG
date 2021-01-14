@@ -1,4 +1,4 @@
-
+using LinearAlgebra
 
 abstract type SparseConfig end
 
@@ -210,7 +210,7 @@ end
 """
     norm(s::ClusteredState)
 """
-function norm(s::ClusteredState)
+function LinearAlgebra.norm(s::ClusteredState)
     norm = 0
     for (fock,configs) in s.data
         for (config,coeff) in configs

@@ -84,7 +84,7 @@ using Test
                  0.540039   -0.637967
                 -0.0494895   0.42735]
     test =cluster_ops[2]["A"][((1,1),(0,1))][1,:,:] 
-    @test isapprox(ref1, test, atol=1e-5)
+    @test isapprox(abs.(ref1), abs.(test), atol=1e-5)
     
     #for (ftrans,op) in cluster_ops[1]["B"]
     #    println(ftrans, "  :  ", size(op))
@@ -102,12 +102,12 @@ using Test
     #display(ref2)
     #display(cluster_ops[1]["A"][((2, 4), (1, 4))][1,:,:]) 
     test =cluster_ops[1]["B"][((4, 2), (4, 1))][1,:,:] 
-    @test isapprox(ref2, test, atol=1e-5)
+    @test isapprox(abs.(ref2), abs.(test), atol=1e-5)
    
     ref = [  0.997916  0.064526
            -0.064526  0.997916]
     test =cluster_ops[2]["AA"][((2, 1), (0, 1))][1,2,:,:] 
-    @test isapprox(ref, test, atol=1e-5)
+    @test isapprox(abs.(ref), abs.(test), atol=1e-5)
   
     ref = [ -0.210308     0.134555     -0.0105751   -0.0130626
            -0.146011     0.459975      0.0957622   -0.0409076
