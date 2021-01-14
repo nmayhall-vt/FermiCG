@@ -43,7 +43,7 @@ using LinearAlgebra
     clusters    = [(1:4),(5:8),(9:10),(11:12)]
 
 
-    max_roots = 2 
+    max_roots = 3 
 
     clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
     
@@ -86,7 +86,8 @@ using LinearAlgebra
     #FermiCG.add_fockconfig!(ci_vector,reverse([(2,2),(2,2),(1,1),(0,0)]))
     #FermiCG.add_fockconfig!(ci_vector,reverse([(3,2),(1,2),(1,1),(0,0)]))
 
-    FermiCG.expand_each_fock_space!(ci_vector, cluster_bases)
+    #FermiCG.expand_each_fock_space!(ci_vector, cluster_bases)
+    FermiCG.expand_to_full_space!(ci_vector, cluster_bases)
     
     display(ci_vector)
     #display(cluster_bases[2][(2,2)])
