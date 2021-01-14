@@ -629,7 +629,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
     end
 
     # get 3-body 2-electron terms
-    if true 
+    if false 
         for ci in clusters
             for cj in clusters
                 for ck in clusters
@@ -970,20 +970,8 @@ function contract_matrix_element(   term::ClusteredTerm2B,
 
     # 
     # determine sign from rearranging clusters if odd number of operators
-    state_sign = 1
+    state_sign = compute_terms_state_sign(term, fock_ket) 
         
-    for (oi,o) in enumerate(term.ops)
-        if length(o) % 2 != 0  #only count electrons if operator is odd
-            n_elec_hopped = 0
-            for ci in 1:term.clusters[oi].idx-1
-                n_elec_hopped += fock_ket[ci][1] + fock_ket[ci][2]
-            end
-            if n_elec_hopped % 2 != 0
-                state_sign *= -1
-            end
-        end
-    end
-
 
     #
     # <I|p'|J> h(pq) <K|q|L>
@@ -1140,7 +1128,6 @@ function contract_matrix_element(   term::ClusteredTerm4B,
     # 
     # determine sign from rearranging clusters if odd number of operators
     state_sign = 1
-    state_sign = 1
     for (oi,o) in enumerate(term.ops)
         if length(o) % 2 != 0  #only count electrons if operator is odd
             n_elec_hopped = 0
@@ -1167,6 +1154,25 @@ function contract_matrix_element(   term::ClusteredTerm4B,
     return state_sign * mat_elem
 end
 #=}}}=#
+
+
+function compute_terms_state_sign(term::ClusteredTerm, fock_ket::FockConfig)
+    # 
+    # determine sign from rearranging clusters if odd number of operators
+    state_sign = 1
+    for (oi,o) in enumerate(term.ops)
+        if length(o) % 2 != 0  #only count electrons if operator is odd
+            n_elec_hopped = 0
+            for ci in 1:term.clusters[oi].idx-1
+                n_elec_hopped += fock_ket[ci][1] + fock_ket[ci][2]
+            end
+            if n_elec_hopped % 2 != 0
+                state_sign *= -1
+            end
+        end
+    end
+    return state_sign
+end
 
 
 function print_fock_sectors(sector::Vector{Tuple{T,T}}) where T<:Integer

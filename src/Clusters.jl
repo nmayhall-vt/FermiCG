@@ -240,12 +240,26 @@ function compute_cluster_ops(cluster_bases::Vector{ClusterBasis},ints)
         cluster_ops[ci.idx]["Bb"] = FermiCG.tdm_Aa(cb,"beta") 
         cluster_ops[ci.idx]["Ab"], cluster_ops[ci.idx]["Ba"] = FermiCG.tdm_Ab(cb) 
         # remove BA and ba account for these terms 
-        @time cluster_ops[ci.idx]["AB"], cluster_ops[ci.idx]["ba"], cluster_ops[ci.idx]["BA"], cluster_ops[ci.idx]["ab"] = FermiCG.tdm_AB(cb)
-        @time cluster_ops[ci.idx]["AAa"], cluster_ops[ci.idx]["Aaa"] = FermiCG.tdm_AAa(cb,"alpha")
-        @time cluster_ops[ci.idx]["BBb"], cluster_ops[ci.idx]["Bbb"] = FermiCG.tdm_AAa(cb,"beta")
-        @time cluster_ops[ci.idx]["ABa"], cluster_ops[ci.idx]["Aba"] = FermiCG.tdm_ABa(cb,"alpha")
-        @time cluster_ops[ci.idx]["ABb"], cluster_ops[ci.idx]["Bba"] = FermiCG.tdm_ABa(cb,"beta")
+        cluster_ops[ci.idx]["AB"], cluster_ops[ci.idx]["ba"], cluster_ops[ci.idx]["BA"], cluster_ops[ci.idx]["ab"] = FermiCG.tdm_AB(cb)
+        cluster_ops[ci.idx]["AAa"], cluster_ops[ci.idx]["Aaa"] = FermiCG.tdm_AAa(cb,"alpha")
+        cluster_ops[ci.idx]["BBb"], cluster_ops[ci.idx]["Bbb"] = FermiCG.tdm_AAa(cb,"beta")
+        cluster_ops[ci.idx]["ABa"], cluster_ops[ci.idx]["Aba"] = FermiCG.tdm_ABa(cb,"alpha")
+        cluster_ops[ci.idx]["ABb"], cluster_ops[ci.idx]["Bba"] = FermiCG.tdm_ABa(cb,"beta")
 
+        to_delete = [#"Ab",
+                     
+                     #"Ba",
+                     #"AB",
+                     #"BA",
+                     #"ab",
+                     #"ba"
+                     ]
+
+        for op in to_delete
+            for (ftran,array) in cluster_ops[ci.idx][op]
+                cluster_ops[ci.idx][op][ftran] .*= 0.0
+            end
+        end
 
         # Compute single excitation operator
         tmp = Dict{Tuple,Array}()
@@ -518,6 +532,7 @@ function tdm_Ab(cb::ClusterBasis; verbose=0)
                 # adjoint 
                 basis_bra = cb[fockket]
                 basis_ket = cb[fockbra]
+                #dicti[focktrans] = FermiCG.StringCI.compute_Ba(norbs, fockket[1], fockket[2], fockket[1], fockket[2], basis_bra, basis_ket)
                 dicti_adj[focktrans_adj] =  permutedims(dicti[focktrans], [2,1,4,3])
             end
         end

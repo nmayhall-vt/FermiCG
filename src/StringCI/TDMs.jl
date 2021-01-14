@@ -387,7 +387,7 @@ function compute_Ab(no::Integer, bra_na, bra_nb, ket_na, ket_nb, bra_v::Matrix, 
     bra_b = deepcopy(ket_b)
     
     sgnK = 1
-    if (ket_a.ne + ket_b.ne) % 2 != 0 
+    if ket_a.ne % 2 != 0 
         sgnK = -sgnK
     end
 
@@ -501,7 +501,7 @@ function compute_AB(no::Integer, bra_na, bra_nb, ket_na, ket_nb, bra_v::Matrix, 
     bra_b = deepcopy(ket_b)
     
     sgnK = 1
-    if (ket_a.ne + ket_b.ne) % 2 != 0 
+    if ket_a.ne % 2 != 0 
         sgnK = -sgnK
     end
 
