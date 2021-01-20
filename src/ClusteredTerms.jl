@@ -122,12 +122,14 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
     #zero_fock::Vector{Tuple{Int16,Int16}} = [(0,0) for i in clusters]
     #zero_fock = Tuple([(0,0) for i in clusters])
     terms[zero_fock] = Vector{ClusteredTerm}()
-    
-    for ci in clusters
-        # instead of forming p'q and p'q'sr just precontract and keep them in 
-        # ClusterOps
-        term = ClusteredTerm1B(("H",), ((0,0),), (ci,), zeros(1,1))
-        push!(terms[zero_fock],term)
+   
+    if true 
+        for ci in clusters
+            # instead of forming p'q and p'q'sr just precontract and keep them in 
+            # ClusterOps
+            term = ClusteredTerm1B(("H",), ((0,0),), (ci,), zeros(1,1))
+            push!(terms[zero_fock],term)
+        end
     end
 
     
@@ -854,7 +856,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
         end
     end
 
-    unique!(terms)
+    #unique!(terms)
     
     return terms
 end
@@ -1063,7 +1065,6 @@ function contract_matrix_element(   term::ClusteredTerm3B,
     # 
     # determine sign from rearranging clusters if odd number of operators
     state_sign = compute_terms_state_sign(term, fock_ket) 
-
 
     #
     # <I|p'|J> h(pq) <K|q|L>

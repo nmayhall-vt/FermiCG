@@ -246,12 +246,18 @@ function compute_cluster_ops(cluster_bases::Vector{ClusterBasis},ints)
         cluster_ops[ci.idx]["ABa"], cluster_ops[ci.idx]["Aba"] = FermiCG.tdm_ABa(cb,"alpha")
         cluster_ops[ci.idx]["ABb"], cluster_ops[ci.idx]["Bba"] = FermiCG.tdm_ABa(cb,"beta")
 
-#        to_delete = ["Ab",
-#                     "Ba",
-#                     "AB",
-#                     "BA",
-#                     "ab",
-#                     "ba"
+#        to_delete = [#"Aa",
+#                     #"Bb",
+#                     #"Ab",
+#                     #"Ba",
+#                     #"AB",
+#                     #"ba",
+#                     #"BA",
+#                     #"ab",
+#                     #"AA",
+#                     #"BB",
+#                     #"aa",
+#                     #"bb"
 #                     ]
 #        for op in to_delete
 #            for (ftran,array) in cluster_ops[ci.idx][op]
@@ -573,11 +579,9 @@ function tdm_AB(cb::ClusterBasis; verbose=0)
                 basis_bra = cb[fockbra]
                 basis_ket = cb[fockket]
                 dicti[focktrans] = FermiCG.StringCI.compute_AB(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket)
-                dictj[focktrans] = -FermiCG.StringCI.compute_AB(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket)
+                dictj[focktrans] = -permutedims(dicti[focktrans], [2,1,3,4])
                 
                 # adjoint 
-                basis_bra = cb[fockket]
-                basis_ket = cb[fockbra]
                 dicti_adj[focktrans_adj] =  permutedims(dicti[focktrans], [2,1,4,3])
                 dictj_adj[focktrans_adj] =  permutedims(dictj[focktrans], [2,1,4,3])
             end
