@@ -617,7 +617,7 @@ function compute_AAa(no::Integer, bra_na, bra_nb, ket_na, ket_nb, bra_v::Matrix,
     end
 
     #
-    #   TDM[p,s,t] = 
+    #   TDM[s,t,p,q,r] = 
     tdm = zeros(Float64, bra_M, ket_M, no, no, no)
     reset!(ket)
     reset!(bra)
@@ -637,6 +637,11 @@ function compute_AAa(no::Integer, bra_na, bra_nb, ket_na, ket_nb, bra_v::Matrix,
                 @views ket_vJ = v2[:,:,J]
                 @views tdm_pqr = tdm[:,:,p,q,r]
                 sgn = bra.sign
+                if spin_case == "beta"
+                    if ket_a.ne%2 != 0
+                        sgn = -sgn
+                    end
+                end
 
                 if sgn == 1 
                     @tensor begin 

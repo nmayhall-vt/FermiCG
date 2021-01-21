@@ -246,24 +246,33 @@ function compute_cluster_ops(cluster_bases::Vector{ClusterBasis},ints)
         cluster_ops[ci.idx]["ABa"], cluster_ops[ci.idx]["Aba"] = FermiCG.tdm_ABa(cb,"alpha")
         cluster_ops[ci.idx]["ABb"], cluster_ops[ci.idx]["Bba"] = FermiCG.tdm_ABa(cb,"beta")
 
-#        to_delete = [#"Aa",
-#                     #"Bb",
-#                     #"Ab",
-#                     #"Ba",
-#                     #"AB",
-#                     #"ba",
-#                     #"BA",
-#                     #"ab",
-#                     #"AA",
-#                     #"BB",
-#                     #"aa",
-#                     #"bb"
-#                     ]
-#        for op in to_delete
-#            for (ftran,array) in cluster_ops[ci.idx][op]
-#                cluster_ops[ci.idx][op][ftran] .*= 0.0
-#            end
-#        end
+        to_delete = [
+                     #"AAa",
+                     #"Aaa",
+                     #"BBb",
+                     #"Bbb",
+                     #"ABa",
+                     #"Aba",
+                     "ABb",
+                     "Bba",
+                     #"Aa",
+                     #"Bb",
+                     #"Ab",
+                     #"Ba",
+                     #"AB",
+                     #"ba",
+                     #"BA",
+                     #"ab",
+                     #"AA",
+                     #"BB",
+                     #"aa",
+                     #"bb"
+                     ]
+        for op in to_delete
+            for (ftran,array) in cluster_ops[ci.idx][op]
+                cluster_ops[ci.idx][op][ftran] .*= 0.0
+            end
+        end
 
         # Compute single excitation operator
         tmp = Dict{Tuple,Array}()

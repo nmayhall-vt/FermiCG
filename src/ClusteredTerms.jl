@@ -546,8 +546,8 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
 
                 termstr = []
                 append!(termstr,unique(permutations([ci,ci,cj,cj])))
-                #append!(termstr,unique(permutations([ci,cj,cj,cj])))
-                #append!(termstr,unique(permutations([ci,ci,ci,cj])))
+                append!(termstr,unique(permutations([ci,cj,cj,cj])))
+                append!(termstr,unique(permutations([ci,ci,ci,cj])))
 
                 #
                 #   (pr|qs) p'q'sr
@@ -588,7 +588,6 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
                             throw(Exception)
                         end
                     end
-                    v = copy(reshape(v,newshape...))
 
                     for sidx in 1:length(spin_cases)
                         oper = spin_cases[sidx][perm]
@@ -608,8 +607,54 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
                                 throw(Exception)
                             end
                         end
+                        vcurr = deepcopy(v)
+                       
+                        if true 
+                            if oper1 == "BA"
+                                oper1 = "AB"
+                                vcurr = -permutedims(vcurr,[2,1,3,4])
+                            elseif oper1 == "ba"
+                                oper1 = "ab"
+                                vcurr = -permutedims(vcurr,[2,1,3,4])
+                            elseif oper1 == "BAa"
+                                oper1 = "ABa"
+                                vcurr = -permutedims(vcurr,[2,1,3,4])
+                            elseif oper1 == "BAb"
+                                oper1 = "ABb"
+                                vcurr = -permutedims(vcurr,[2,1,3,4])
+                            elseif oper1 == "Bab"
+                                oper1 = "Bba"
+                                vcurr = -permutedims(vcurr,[1,3,2,4])
+                            elseif oper1 == "Aab"
+                                oper1 = "Aba"
+                                vcurr = -permutedims(vcurr,[1,3,2,4])
+                            end
+                            
 
-                        clusteredterm = ClusteredTerm2B((oper1,oper2), [Tuple(fock1),Tuple(fock2)], (ci, cj), v)
+                            if oper2 == "BA"
+                                oper2 = "AB"
+                                vcurr = -permutedims(vcurr,[1,2,4,3])
+                            elseif oper2 == "ba"
+                                oper2 = "ab"
+                                vcurr = -permutedims(vcurr,[1,2,4,3])
+                            elseif oper2 == "BAa"
+                                oper2 = "ABa"
+                                vcurr = -permutedims(vcurr,[1,3,2,4])
+                            elseif oper2 == "BAb"
+                                oper2 = "ABb"
+                                vcurr = -permutedims(vcurr,[1,3,2,4])
+                            elseif oper2 == "Bab"
+                                oper2 = "Bba"
+                                vcurr = -permutedims(vcurr,[1,2,4,3])
+                            elseif oper2 == "Aab"
+                                oper2 = "Aba"
+                                vcurr = -permutedims(vcurr,[1,2,4,3])
+                            end
+                        end
+                        
+                        vcurr = copy(reshape(vcurr,newshape...))
+
+                        clusteredterm = ClusteredTerm2B((oper1,oper2), [Tuple(fock1),Tuple(fock2)], (ci, cj), vcurr)
                         #display(clusteredterm)
                         focktrans = deepcopy(zero_fock)
                         focktrans[ci.idx] = Tuple(fock1)
@@ -631,7 +676,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
     end
 
     # get 3-body 2-electron terms
-    if true 
+    if false 
         for ci in clusters
             for cj in clusters
                 for ck in clusters
@@ -856,7 +901,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
         end
     end
 
-    #unique!(terms)
+    unique!(terms)
     
     return terms
 end
@@ -874,8 +919,58 @@ function unique!(clustered_ham::Dict{TransferConfig,Vector{ClusteredTerm}})
     # first just remove duplicates
     nstart = 0
     nfinal = 0
-    for (ftrans, terms) in clustered_ham
+#    for (ftrans, terms) in clustered_ham
+#        tmp = deepcopy(terms)
+#        for term in terms
+#            println(term.ops)
+##            swap = false
+##            idx = 0
+##            for (opidx,op) in enumerate(term.ops)
+##                if op == "BA"
+##                    swap = true
+##                    idx = opidx
+##                end
+##            end
+##            if swap
+##                println(size(term.ints))
+##                v = term.ints 
+##                v = copy(reshape(v, (size(v,1), size(v,2), size(v,3), size(v,4))))
+##                v = -permutedims(v,[2,1,3,4])
+##                v = reshape(v, (size(v,1)*size(v,2)*size(v,3), size(v,4)))
+##
+##                newterm = ClusteredTerm2B(("ABb","a"), term.delta, term.clusters, term.ints)
+##                push!(tmp,newterm)
+##            end
+#
+#            if term.ops == ("BAb","a")
+#               
+#                println(size(term.ints))
+#                v = term.ints 
+#                v = copy(reshape(v, (size(v,1), size(v,2), size(v,3), size(v,4))))
+#                v = -permutedims(v,[2,1,3,4])
+#                v = reshape(v, (size(v,1)*size(v,2)*size(v,3), size(v,4)))
+#
+#                newterm = ClusteredTerm2B(("ABb","a"), term.delta, term.clusters, term.ints)
+#                push!(tmp,newterm)
+#            else
+#                push!(tmp,term)
+#            end
+#        end
+#
+#        clustered_ham[ftrans] = tmp
+#    end
+        
+#        tmp = deepcopy(terms)
+#        for term in tmp
+#            for op in term.ops
+#                if op == "BAb"
+#
+#                    fconfig = 
+#                    newterm = ClusteredTerm2B((oper1,oper2,oper3,oper4), ftrans, term.clusters, v)
 
+
+
+    for (ftrans, terms) in clustered_ham
         unique = Dict()
         for term in terms
             nstart += 1
