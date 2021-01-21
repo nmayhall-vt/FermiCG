@@ -559,7 +559,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
                     #   such that clusters increase from left to right
                     perm, countswap = bubble_sort(term) 
                     perm == sortperm(term, alg=MergeSort)|| error("problem with bubble_sort") 
-
+            
                     permsign = 1
                     if countswap%2 != 0 
                         permsign = -1
@@ -651,7 +651,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
                                 vcurr = -permutedims(vcurr,[1,2,4,3])
                             end
                         end
-                        
+                       
                         vcurr = copy(reshape(vcurr,newshape...))
 
                         clusteredterm = ClusteredTerm2B((oper1,oper2), [Tuple(fock1),Tuple(fock2)], (ci, cj), vcurr)
@@ -676,7 +676,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
     end
 
     # get 3-body 2-electron terms
-    if false 
+    if true 
         for ci in clusters
             for cj in clusters
                 for ck in clusters
@@ -746,7 +746,6 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
                                 throw(Exception)
                             end
                         end
-                        v = copy(reshape(v,newshape...))
 
                         for sidx in 1:length(spin_cases)
                             oper = spin_cases[sidx][perm]
@@ -771,8 +770,39 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
                                     throw(Exception)
                                 end
                             end
+                            vcurr = deepcopy(v)
 
-                            clusteredterm = ClusteredTerm3B((oper1,oper2,oper3), [Tuple(fock1),Tuple(fock2),Tuple(fock3)], (ci, cj, ck), v)
+                            if true 
+                                if oper1 == "BA"
+                                    oper1 = "AB"
+                                    vcurr = -permutedims(vcurr,[2,1,3,4])
+                                elseif oper1 == "ba"
+                                    oper1 = "ab"
+                                    vcurr = -permutedims(vcurr,[2,1,3,4])
+                                end
+
+
+                                if oper2 == "BA"
+                                    oper2 = "AB"
+                                    vcurr = -permutedims(vcurr,[1,3,2,4])
+                                elseif oper2 == "ba"
+                                    oper2 = "ab"
+                                    vcurr = -permutedims(vcurr,[1,3,2,4])
+                                end
+
+
+                                if oper3 == "BA"
+                                    oper3 = "AB"
+                                    vcurr = -permutedims(vcurr,[1,2,4,3])
+                                elseif oper3 == "ba"
+                                    oper3 = "ab"
+                                    vcurr = -permutedims(vcurr,[1,2,4,3])
+                                end
+                            end
+
+                            vcurr = copy(reshape(vcurr,newshape...))
+
+                            clusteredterm = ClusteredTerm3B((oper1,oper2,oper3), [Tuple(fock1),Tuple(fock2),Tuple(fock3)], (ci, cj, ck), vcurr)
                             #display(clusteredterm)
                             focktrans = deepcopy(zero_fock)
                             focktrans[ci.idx] = Tuple(fock1)
@@ -1072,6 +1102,9 @@ function contract_matrix_element(   term::ClusteredTerm2B,
 
     #
     # <I|p'|J> h(pq) <K|q|L>
+#    display(term)
+#    display(fock_bra)
+#    display(fock_ket)
     gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
     gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
     mat_elem = 0.0
@@ -1241,7 +1274,7 @@ function compute_terms_state_sign(term::ClusteredTerm, fock_ket::FockConfig)
                 n_elec_hopped += fock_ket[ci][1] + fock_ket[ci][2]
             end
             if n_elec_hopped % 2 != 0
-                state_sign *= -1
+                state_sign = -state_sign
             end
         end
     end

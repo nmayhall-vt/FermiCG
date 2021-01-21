@@ -245,16 +245,24 @@ function compute_cluster_ops(cluster_bases::Vector{ClusterBasis},ints)
         cluster_ops[ci.idx]["BBb"], cluster_ops[ci.idx]["Bbb"] = FermiCG.tdm_AAa(cb,"beta")
         cluster_ops[ci.idx]["ABa"], cluster_ops[ci.idx]["Aba"] = FermiCG.tdm_ABa(cb,"alpha")
         cluster_ops[ci.idx]["ABb"], cluster_ops[ci.idx]["Bba"] = FermiCG.tdm_ABa(cb,"beta")
+        #cluster_ops[ci.idx]["ABa"], cluster_ops[ci.idx]["Aba"], cluster_ops[ci.idx]["BAa"], cluster_ops[ci.idx]["Aab"] = FermiCG.tdm_ABa(cb,"alpha")
+        #cluster_ops[ci.idx]["ABb"], cluster_ops[ci.idx]["Bba"], cluster_ops[ci.idx]["BAb"], cluster_ops[ci.idx]["Bab"] = FermiCG.tdm_ABa(cb,"beta")
 
         to_delete = [
                      #"AAa",
                      #"Aaa",
                      #"BBb",
                      #"Bbb",
+                     #
                      #"ABa",
                      #"Aba",
-                     "ABb",
-                     "Bba",
+                     ##"BAa",
+                     ##"Aab",
+                     #
+                     #"ABb",
+                     #"Bba",
+                     ##"BAb",
+                     ##"Bab",
                      #"Aa",
                      #"Bb",
                      #"Ab",
@@ -270,7 +278,7 @@ function compute_cluster_ops(cluster_bases::Vector{ClusterBasis},ints)
                      ]
         for op in to_delete
             for (ftran,array) in cluster_ops[ci.idx][op]
-                cluster_ops[ci.idx][op][ftran] .*= 0.0
+                cluster_ops[ci.idx][op][ftran] .*= 0
             end
         end
 
@@ -690,10 +698,10 @@ function tdm_ABa(cb::ClusterBasis, spin_case; verbose=0)
                 basis_ket = cb[fockket]
                 if spin_case == "alpha"
                     dicti[focktrans]     = FermiCG.StringCI.compute_ABa(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket)
-                    dicti[focktrans_adj] = FermiCG.StringCI.compute_ABa(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket)
+                    dictj[focktrans] = -permutedims(dicti[focktrans], [2,1,3,4,5])
                 elseif spin_case == "beta"
                     dicti[focktrans]     = FermiCG.StringCI.compute_ABb(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket)
-                    dicti[focktrans_adj] = FermiCG.StringCI.compute_ABb(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket)
+                    dictj[focktrans] = -permutedims(dicti[focktrans], [2,1,3,4,5])
                 else
                     error("Wrong spin_case: ",spin_case)
                 end
@@ -703,10 +711,11 @@ function tdm_ABa(cb::ClusterBasis, spin_case; verbose=0)
                 basis_ket = cb[fockbra]
 
                 dicti_adj[focktrans_adj] =  permutedims(dicti[focktrans], [3,2,1,5,4])
+                dictj_adj[focktrans_adj] =  permutedims(dictj[focktrans], [3,2,1,5,4])
             end
         end
     end
-    return dicti, dicti_adj
+    return dicti, dicti_adj, dictj, dictj_adj
     #=}}}=#
 end
 

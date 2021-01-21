@@ -713,7 +713,7 @@ function compute_ABa(no::Integer, bra_na, bra_nb, ket_na, ket_nb, bra_v::Matrix,
     bra_a = deepcopy(ket_a)
     bra_b = deepcopy(ket_b)
     
-    sgnK = 1
+    sgnK = -1
     if (ket_a.ne) % 2 != 0 
         sgnK = -sgnK
     end
@@ -732,8 +732,9 @@ function compute_ABa(no::Integer, bra_na, bra_nb, ket_na, ket_nb, bra_v::Matrix,
             for p in 1:no
                 for r in 1:no
                     copy!(bra_a,ket_a)
-                    apply_creation!(bra_a,p)
                     apply_annihilation!(bra_a,r)
+                    bra_a.sign != 0 || continue
+                    apply_creation!(bra_a,p)
                     bra_a.sign != 0 || continue
                     calc_linear_index!(bra_a,_binomial)
                     I = bra_a.lin_index
@@ -746,18 +747,19 @@ function compute_ABa(no::Integer, bra_na, bra_nb, ket_na, ket_nb, bra_v::Matrix,
                         calc_linear_index!(bra_b,_binomial)
                         J = bra_b.lin_index
 
-                        @views tdm_pq = tdm[:,:,p,q,r] 
+                        @views tdm_pqr = tdm[:,:,p,q,r] 
                         @views v1_IJ = v1[:,I,J]
                         @views v2_KL = v2[:,K,L]
+                        #sgn = bra_a.sign * bra_b.sign
                         sgn = sgnK * bra_a.sign * bra_b.sign
 
                         if sgn == 1 
                             @tensor begin 
-                                tdm_pq[s,t] += v1_IJ[s] * v2_KL[t]
+                                tdm_pqr[s,t] += v1_IJ[s] * v2_KL[t]
                             end
                         elseif sgn == -1
                             @tensor begin 
-                                tdm_pq[s,t] -= v1_IJ[s] * v2_KL[t]
+                                tdm_pqr[s,t] -= v1_IJ[s] * v2_KL[t]
                             end
                         else
                             throw(Exception)
@@ -826,7 +828,7 @@ function compute_ABb(no::Integer, bra_na, bra_nb, ket_na, ket_nb, bra_v::Matrix,
     # here, q'r are Beta
     #  v(K,L,s) <KL|p'q'r|IJ> V(I,J,t)
     # -v(K,L,s) <L|<K|p'|I>q'r|J> V(I,J,t) 
-    # -v(K,L,s) <K|p'r|I> <L|q'r|J> V(I,J,t) 
+    # -v(K,L,s) <K|p'|I> <L|q'r|J> V(I,J,t) 
     #
     reset!(ket_a)
     for K in 1:ket_a.max
@@ -844,24 +846,25 @@ function compute_ABb(no::Integer, bra_na, bra_nb, ket_na, ket_nb, bra_v::Matrix,
                     for r in 1:no
 
                         copy!(bra_b,ket_b)
-                        apply_creation!(bra_b,q)
                         apply_annihilation!(bra_b,r)
+                        apply_creation!(bra_b,q)
+                        
                         bra_b.sign != 0 || continue
                         calc_linear_index!(bra_b,_binomial)
                         J = bra_b.lin_index
 
-                        @views tdm_pq = tdm[:,:,p,q,r] 
+                        @views tdm_pqr = tdm[:,:,p,q,r] 
                         @views v1_IJ = v1[:,I,J]
                         @views v2_KL = v2[:,K,L]
-                        sgn = bra_a.sign * bra_b.sign
+                        sgn = bra_a.sign * bra_b.sign 
 
                         if sgn == 1 
                             @tensor begin 
-                                tdm_pq[s,t] += v1_IJ[s] * v2_KL[t]
+                                tdm_pqr[s,t] += v1_IJ[s] * v2_KL[t]
                             end
                         elseif sgn == -1
                             @tensor begin 
-                                tdm_pq[s,t] -= v1_IJ[s] * v2_KL[t]
+                                tdm_pqr[s,t] -= v1_IJ[s] * v2_KL[t]
                             end
                         else
                             error(" sign?: ", sgn) 
