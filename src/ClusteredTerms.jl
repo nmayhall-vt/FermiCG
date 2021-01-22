@@ -1108,9 +1108,10 @@ function contract_matrix_element(   term::ClusteredTerm2B,
     gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
     gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
     mat_elem = 0.0
-    @tensor begin
-        mat_elem = gamma1[p] * term.ints[p,q] * gamma2[q]
-    end
+    #@tensor begin
+    #    mat_elem = gamma1[p] * term.ints[p,q] * gamma2[q]
+    #end
+    mat_elem = _contract(term.ints, gamma1, gamma2)
 
     #if term.ops[1] == "aa" 
     #    display(term)
@@ -1158,6 +1159,46 @@ function contract_matrix_element(   term::ClusteredTerm2B,
 end
 
 
+function _contract(ints,gamma1,gamma2)
+    mat_elem = 0.0
+    tmp = 0.0
+    for j in 1:length(gamma2)
+        tmp = gamma2[j]
+        @simd for i in 1:length(gamma1)
+            mat_elem += gamma1[i]*ints[i,j]*tmp
+        end
+    end
+    return mat_elem
+end
+function _contract(ints,gamma1,gamma2,gamma3)
+    mat_elem = 0.0
+    tmp = 0.0
+    for k in 1:length(gamma3)
+        for j in 1:length(gamma2)
+            tmp = gamma2[j]*gamma3[k]
+            @simd for i in 1:length(gamma1)
+                mat_elem += gamma1[i]*ints[i,j,k]*tmp
+            end
+        end
+    end
+    return mat_elem
+end
+function _contract(ints,gamma1,gamma2,gamma3,gamma4)
+    mat_elem = 0.0
+    tmp = 0.0
+    for l in 1:length(gamma4)
+        for k in 1:length(gamma3)
+            for j in 1:length(gamma2)
+                tmp = gamma2[j]*gamma3[k]*gamma4[l]
+                @simd for i in 1:length(gamma1)
+                    mat_elem += gamma1[i]*ints[i,j,k,l]*tmp
+                end
+            end
+        end
+    end
+    return mat_elem
+end
+
 """
     contract_matrix_element(   term::ClusteredTerm3B, 
                                     cluster_ops::Vector{ClusterOps},
@@ -1199,10 +1240,11 @@ function contract_matrix_element(   term::ClusteredTerm3B,
     @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
     @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
     @views gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,bra[c3.idx],ket[c3.idx]]
-    mat_elem = 0.0
-    @tensor begin
-        mat_elem = ((gamma1[p] * term.ints[p,q,r]) * gamma2[q]) * gamma3[r]
-    end
+    #mat_elem = 0.0
+    #@tensor begin
+    #    mat_elem = ((gamma1[p] * term.ints[p,q,r]) * gamma2[q]) * gamma3[r]
+    #end
+    mat_elem = _contract(term.ints, gamma1, gamma2, gamma3)
     return state_sign * mat_elem
 end
 #=}}}=#
@@ -1254,10 +1296,11 @@ function contract_matrix_element(   term::ClusteredTerm4B,
     @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
     @views gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,bra[c3.idx],ket[c3.idx]]
     @views gamma4 = cluster_ops[c4.idx][term.ops[4]][(fock_bra[c4.idx],fock_ket[c4.idx])][:,bra[c4.idx],ket[c4.idx]]
-    mat_elem = 0.0
-    @tensor begin
-        mat_elem = (((gamma1[p] * term.ints[p,q,r,s]) * gamma2[q]) * gamma3[r]) * gamma4[s]
-    end
+    #mat_elem = 0.0
+    #@tensor begin
+    #    mat_elem = (((gamma1[p] * term.ints[p,q,r,s]) * gamma2[q]) * gamma3[r]) * gamma4[s]
+    #end
+    mat_elem = _contract(term.ints, gamma1, gamma2, gamma3, gamma4)
     return state_sign * mat_elem
 end
 #=}}}=#

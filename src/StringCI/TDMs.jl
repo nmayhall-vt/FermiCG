@@ -713,7 +713,7 @@ function compute_ABa(no::Integer, bra_na, bra_nb, ket_na, ket_nb, bra_v::Matrix,
     bra_a = deepcopy(ket_a)
     bra_b = deepcopy(ket_b)
     
-    sgnK = -1
+    sgnK = -1 # start from -1 to account for ABa -> AaB
     if (ket_a.ne) % 2 != 0 
         sgnK = -sgnK
     end
