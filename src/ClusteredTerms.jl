@@ -123,320 +123,19 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
     #zero_fock = Tuple([(0,0) for i in clusters])
     terms[zero_fock] = Vector{ClusteredTerm}()
    
+    # 1-body terms
     if true 
         for ci in clusters
+#={{{=#
             # instead of forming p'q and p'q'sr just precontract and keep them in 
             # ClusterOps
             term = ClusteredTerm1B(("H",), ((0,0),), (ci,), zeros(1,1))
             push!(terms[zero_fock],term)
+#=}}}=#
         end
     end
 
-    
-
-
-    if false 
-        for ci in clusters
-            for cj in clusters
-                ci < cj || continue
-                #={{{=#
-                #
-                # p'q where p is in ci and q is in cj
-                ints_i = copy(view(ints.h1, ci.orb_list, cj.orb_list))
-
-                term = ClusteredTerm2B(("A","a"), [(1,0),(-1,0)], (ci, cj), ints_i)
-                fock = deepcopy(zero_fock)
-                fock[ci.idx] = (fock[ci.idx][1]+1, fock[ci.idx][2])
-                fock[cj.idx] = (fock[cj.idx][1]-1, fock[cj.idx][2])
-                terms[fock] = [term]
-
-                term = ClusteredTerm2B(("a","A"), [(-1,0),(1,0)], (ci, cj), -ints_i)
-                fock = deepcopy(zero_fock)
-                fock[ci.idx] = (fock[ci.idx][1]-1, fock[ci.idx][2])
-                fock[cj.idx] = (fock[cj.idx][1]+1, fock[cj.idx][2])
-                terms[fock] = [term]
-
-                term = ClusteredTerm2B(("B","b"), [(0,1),(0,-1)], (ci, cj), ints_i)
-                fock = deepcopy(zero_fock)
-                fock[ci.idx] = (fock[ci.idx][1], fock[ci.idx][2]+1)
-                fock[cj.idx] = (fock[cj.idx][1], fock[cj.idx][2]-1)
-                terms[fock] = [term]
-
-                term = ClusteredTerm2B(("b","B"), [(0,-1),(0,1)], (ci, cj), -ints_i)
-                fock = deepcopy(zero_fock)
-                fock[ci.idx] = (fock[ci.idx][1], fock[ci.idx][2]-1)
-                fock[cj.idx] = (fock[cj.idx][1], fock[cj.idx][2]+1)
-                terms[fock] = [term]
-
-
-
-                #=}}}=#
-            end
-        end
-    end
-    if false
-        for ci in clusters
-            for cj in clusters
-                ci < cj || continue
-                #={{{=#
-                #
-                # p'q where p is in ci and q is in cj
-                ints_i = copy(view(ints.h1, ci.orb_list, cj.orb_list))
-
-                term = ClusteredTerm2B(("A","a"), [(1,0),(-1,0)], (ci, cj), ints_i)
-                fock = deepcopy(zero_fock)
-                fock[ci.idx] = (fock[ci.idx][1]+1, fock[ci.idx][2])
-                fock[cj.idx] = (fock[cj.idx][1]-1, fock[cj.idx][2])
-                terms[fock] = [term]
-
-                term = ClusteredTerm2B(("a","A"), [(-1,0),(1,0)], (ci, cj), -ints_i)
-                fock = deepcopy(zero_fock)
-                fock[ci.idx] = (fock[ci.idx][1]-1, fock[ci.idx][2])
-                fock[cj.idx] = (fock[cj.idx][1]+1, fock[cj.idx][2])
-                terms[fock] = [term]
-
-                term = ClusteredTerm2B(("B","b"), [(0,1),(0,-1)], (ci, cj), ints_i)
-                fock = deepcopy(zero_fock)
-                fock[ci.idx] = (fock[ci.idx][1], fock[ci.idx][2]+1)
-                fock[cj.idx] = (fock[cj.idx][1], fock[cj.idx][2]-1)
-                terms[fock] = [term]
-
-                term = ClusteredTerm2B(("b","B"), [(0,-1),(0,1)], (ci, cj), -ints_i)
-                fock = deepcopy(zero_fock)
-                fock[ci.idx] = (fock[ci.idx][1], fock[ci.idx][2]-1)
-                fock[cj.idx] = (fock[cj.idx][1], fock[cj.idx][2]+1)
-                terms[fock] = [term]
-
-
-                #
-                # (pr|qs) p'q'sr        pr have same spin, and qs have same spin
-                #  V     Op
-                #  pqsr ->      -> SS(12)  ->  OS(12)      v
-                #  1122:    PQsr   AA,aa       AB,ba       1212
-                #  1212:   -PsQr  -Aa,Aa      -Ab,Ba       1221 = 1212
-                #  1221:    PrQs   Aa,Aa       Aa,Bb       1122 
-                #  2112:    QsPr   Aa,Aa       Bb,Aa       2211 = 1122
-                #  2121:   -QrPs  -Aa,Aa      -Ba,Ab       2112 = 1212
-                #  2211:    srPQ   aa,AA       ba,AB       2121 = 1212
-                #
-                #   4*6 = 24 terms 12 SS and 12 OS terms
-                #
-                #
-                #   (AA,aa): (12|12)    1
-                #   (Aa,Aa):2(11||22)   4
-                #   (aa,AA): (12|12)    1
-                #   (BB,bb): (12|12)    1
-                #   (Bb,Bb):2(11||22)   4
-                #   (bb,BB): (12|12)    1
-                #   12 total
-                #
-                #   (E,E): 8(11|22) - 4(12|12) = (Aa+Bb, Aa+Bb) = AaAa(4) + BbBb(4) + AaBb(2) + BbAa(2) = 12 terms
-                #   (AA,aa): (12|12)    1
-                #   (aa,AA): (12|12)    1
-                #   (BB,bb): (12|12)    1
-                #   (bb,BB): (12|12)    1
-
-                #   (AB,ba):2(12|12)    2
-                #   (Ab,Ba):-(12|12)    2
-                #   (Ba,Ab):-(12|12)    2
-                #   (ba,AB):2(12|12)    2
-
-                #x  (BA,ab): (12|12)    
-                #x  (ab,BA): (12|12)    
-
-
-                # <IJ| sum_pr^A sum_qs^B (pr|qs) p'q'sr |I'J'>
-                # <I|p'r|I'> (pr|qs) <J|q's|J'>
-                #
-                #
-                v1122 = .5*copy(view(ints.h2, ci.orb_list, ci.orb_list, cj.orb_list, cj.orb_list))
-                v1212 = .5*copy(view(ints.h2, ci.orb_list, cj.orb_list, ci.orb_list, cj.orb_list))
-                #
-                ## now transpose 1212 so that all terms can be contracted with first cluster (ci.idx<cj.idx) first then second with fast index
-                v1212 = copy(permutedims(v1212, [1,3,4,2]))
-
-                v1122 = copy(reshape(v1122, (size(v1122,1)*size(v1122,2), size(v1122,3)*size(v1122,4))))
-                v1212 = copy(reshape(v1212, (size(v1212,1)*size(v1212,2), size(v1212,3)*size(v1212,4))))
-
-                # todo (maybe, need to test): 
-                #
-                # change the shape to a matrix to vectorize the contraction better
-                # gamma(i) v(i,j) gamma(j)
-
-                term = ClusteredTerm2B(("E1","E1"), [(0,0),(0,0)], (ci, cj), 2*v1122) 
-                push!(terms[zero_fock],term)
-                term = ClusteredTerm2B(("Aa","Aa"), [(0,0),(0,0)], (ci, cj), -2*v1212) 
-                push!(terms[zero_fock],term)
-                term = ClusteredTerm2B(("Bb","Bb"), [(0,0),(0,0)], (ci, cj), -2*v1212) 
-                push!(terms[zero_fock],term)
-
-                #
-                #   AA,aa terms
-                #
-                #   (pr|qs) p'q'sr     1={pq} 2={rs}
-                #   transpose =>   v(pq,sr) gamma(pq) gamma(sr)
-                #
-                #   don't need to do again, same as above
-                #v1212 = .5*copy(view(ints.h2, ci.orb_list, cj.orb_list, ci.orb_list, cj.orb_list))
-
-                term = ClusteredTerm2B(("AA","aa"), [(2,0),(-2,0)], (ci, cj), v1212); 
-                fock = deepcopy(zero_fock)
-                fock[ci.idx] = (fock[ci.idx][1]+2, fock[ci.idx][2])
-                fock[cj.idx] = (fock[cj.idx][1]-2, fock[cj.idx][2])
-                terms[fock] = [term]
-
-                term = ClusteredTerm2B(("aa","AA"), [(-2,0),(2,0)], (ci, cj), v1212)
-                fock = deepcopy(zero_fock)
-                fock[ci.idx] = (fock[ci.idx][1]-2, fock[ci.idx][2])
-                fock[cj.idx] = (fock[cj.idx][1]+2, fock[cj.idx][2])
-
-                term = ClusteredTerm2B(("BB","bb"), [(0,2),(0,-2)], (ci, cj), v1212); 
-                fock = deepcopy(zero_fock)
-                fock[ci.idx] = (fock[ci.idx][1], fock[ci.idx][2]+2)
-                fock[cj.idx] = (fock[cj.idx][1], fock[cj.idx][2]-2)
-                terms[fock] = [term]
-
-                term = ClusteredTerm2B(("bb","BB"), [(0,-2),(0,2)], (ci, cj), v1212)
-                fock = deepcopy(zero_fock)
-                fock[ci.idx] = (fock[ci.idx][1], fock[ci.idx][2]-2)
-                fock[cj.idx] = (fock[cj.idx][1], fock[cj.idx][2]+2)
-                terms[fock] = [term]
-
-                term = ClusteredTerm2B(("AB","ba"), [(1,1),(-1,-1)], (ci, cj), 2*v1212)
-                fock = deepcopy(zero_fock)
-                fock[ci.idx] = (fock[ci.idx][1]+1, fock[ci.idx][2]+1)
-                fock[cj.idx] = (fock[cj.idx][1]-1, fock[cj.idx][2]-1)
-                terms[fock] = [term]
-
-                term = ClusteredTerm2B(("ba","AB"), [(-1,-1),(1,1)], (ci, cj), 2*v1212)
-                fock = deepcopy(zero_fock)
-                fock[ci.idx] = (fock[ci.idx][1]-1, fock[ci.idx][2]-1)
-                fock[cj.idx] = (fock[cj.idx][1]+1, fock[cj.idx][2]+1)
-                terms[fock] = [term]
-
-                term = ClusteredTerm2B(("Ab","Ba"), [(1,-1),(-1,1)], (ci, cj),-2*v1212)
-                fock = deepcopy(zero_fock)
-                fock[ci.idx] = (fock[ci.idx][1]+1, fock[ci.idx][2]-1)
-                fock[cj.idx] = (fock[cj.idx][1]-1, fock[cj.idx][2]+1)
-                terms[fock] = [term]
-
-                term = ClusteredTerm2B(("Ba","Ab"), [(-1,1),(1,-1)], (ci, cj),-2*v1212)
-                fock = deepcopy(zero_fock)
-                fock[ci.idx] = (fock[ci.idx][1]-1, fock[ci.idx][2]+1)
-                fock[cj.idx] = (fock[cj.idx][1]+1, fock[cj.idx][2]-1)
-                terms[fock] = [term]
-
-
-
-                #
-                # (pr|qs) p'q'sr        pr have same spin, and qs have same spin
-                #  V     Op
-                #  pqsr ->      ->  SS(12)  ->  OS(12)      v    =  v       transpose store each as p,qsr
-                #  1222:    P,Qsr   A,Aaa       A,Bba       prqs    prqs   
-                #  2122:    P,Qsr   A,Aaa       B,Aba      -qrps   -psqr   
-                #  2212:    p,QSr   a,AAa       b,ABa       qrsp    psqr      
-                #  2221:    p,QSr   a,AAa       a,ABb      -qpsr   -pqsr 
-                #                                                           transpose store each as pqs,r 
-                #  1112:    PQs,r   AAa,a       ABb,a       prqs    qspr   
-                #  1121:    PQs,r   AAa,a       ABa,b      -psqr   -psqr   
-                #  1211:    Pqs,R   Aaa,A       Aba,B       psrq    psqr   
-                #  2111:    Pqs,R   Aaa,a       Bba,A      -rspq   -pqsr    
-                #                                                       
-                #
-                #
-                #
-                #  2111:    Qsr,P   Aaa,A       Bba,A      -prqs   -qsrp   
-                #  1211:    Qsr,P   Aaa,A       Aba,B       qrps    qrsp   
-                #  1121:    QSr,p   AAa,a       ABa,b      -qrsp   -qrsp
-                #  1112:    QSr,p   AAa,a       ABb,a       qpsr    srqp
-                #
-                scale = 2
-                v_prqs = scale*copy(view(ints.h2, ci.orb_list, cj.orb_list, cj.orb_list, cj.orb_list))
-                v_psqr = scale*copy(view(ints.h2, ci.orb_list, cj.orb_list, cj.orb_list, cj.orb_list))
-                v_pqsr = scale*copy(view(ints.h2, ci.orb_list, cj.orb_list, cj.orb_list, cj.orb_list))
-
-                w_qspr = scale*copy(view(ints.h2, ci.orb_list, cj.orb_list, ci.orb_list, ci.orb_list))
-                w_psqr = scale*copy(view(ints.h2, ci.orb_list, cj.orb_list, ci.orb_list, ci.orb_list))
-                w_pqsr = scale*copy(view(ints.h2, ci.orb_list, cj.orb_list, ci.orb_list, ci.orb_list))
-
-                # permute indices so the align with pqs,r
-                v_prqs = copy(permutedims(v_prqs, [1,3,4,2]))
-                v_psqr = copy(permutedims(v_psqr, [1,3,2,4]))
-                v_pqsr = copy(permutedims(v_pqsr, [1,2,3,4]))
-
-                # permute indices so the align with pqs,r 
-                w_qspr = copy(permutedims(w_qspr, [4,1,2,3]))
-                w_psqr = copy(permutedims(w_psqr, [4,1,3,2]))
-                w_pqsr = copy(permutedims(w_pqsr, [4,3,1,2]))
-
-                v_prqs = copy(reshape(v_prqs, (size(v_prqs,1),size(v_prqs,2)*size(v_prqs,3)*size(v_prqs,4))))
-                v_psqr = copy(reshape(v_psqr, (size(v_psqr,1),size(v_psqr,2)*size(v_psqr,3)*size(v_psqr,4))))
-                v_pqsr = copy(reshape(v_pqsr, (size(v_pqsr,1),size(v_pqsr,2)*size(v_pqsr,3)*size(v_pqsr,4))))
-
-                w_qspr = copy(reshape(w_qspr, (size(w_qspr,1)*size(w_qspr,2)*size(w_qspr,3),size(w_qspr,4))))
-                w_psqr = copy(reshape(w_psqr, (size(w_psqr,1)*size(w_psqr,2)*size(w_psqr,3),size(w_psqr,4))))
-                w_pqsr = copy(reshape(w_pqsr, (size(w_pqsr,1)*size(w_pqsr,2)*size(w_pqsr,3),size(w_pqsr,4))))
-
-                term = ClusteredTerm2B(("Aaa","A"), [(-1,0),(1,0)], (ci, cj), 0*w_psqr - w_pqsr); 
-                fock = deepcopy(zero_fock)
-                fock[ci.idx] = (fock[ci.idx][1]-1, fock[ci.idx][2]+0)
-                fock[cj.idx] = (fock[cj.idx][1]+1, fock[cj.idx][2]-0)
-                push!(terms[fock], term)
-
-                term = ClusteredTerm2B(("AAa","a"), [(1,0),(-1,0)], (ci, cj), w_qspr + 0*w_psqr); 
-                fock = deepcopy(zero_fock)
-                fock[ci.idx] = (fock[ci.idx][1]+1, fock[ci.idx][2]+0)
-                fock[cj.idx] = (fock[cj.idx][1]-1, fock[cj.idx][2]-0)
-                push!(terms[fock], term)
-
-                if false 
-
-                    term = ClusteredTerm2B(("A","Aaa"), [(1,0),(-1,0)], (ci, cj), v_prqs - v_psqr); 
-                    fock = deepcopy(zero_fock)
-                    fock[ci.idx] = (fock[ci.idx][1]+1, fock[ci.idx][2]+0)
-                    fock[cj.idx] = (fock[cj.idx][1]-1, fock[cj.idx][2]-0)
-                    push!(terms[fock], term)
-
-                    term = ClusteredTerm2B(("a","AAa"), [(-1,0),(1,0)], (ci, cj), v_psqr - v_pqsr); 
-                    fock = deepcopy(zero_fock)
-                    fock[ci.idx] = (fock[ci.idx][1]-1, fock[ci.idx][2]+0)
-                    fock[cj.idx] = (fock[cj.idx][1]+1, fock[cj.idx][2]-0)
-                    push!(terms[fock], term)
-
-                    term = ClusteredTerm2B(("B","Bbb"), [(0,1),(0,-1)], (ci, cj), v_prqs - v_psqr); 
-                    fock = deepcopy(zero_fock)
-                    fock[ci.idx] = (fock[ci.idx][1]+0, fock[ci.idx][2]+1)
-                    fock[cj.idx] = (fock[cj.idx][1]-0, fock[cj.idx][2]-1)
-                    push!(terms[fock], term)
-
-                    term = ClusteredTerm2B(("b","BBb"), [(0,-1),(0,1)], (ci, cj), v_psqr - v_pqsr); 
-                    fock = deepcopy(zero_fock)
-                    fock[ci.idx] = (fock[ci.idx][1]-0, fock[ci.idx][2]-1)
-                    fock[cj.idx] = (fock[cj.idx][1]+0, fock[cj.idx][2]+1)
-                    push!(terms[fock], term)
-
-                    term = ClusteredTerm2B(("Bbb","B"), [(0,-1),(0,1)], (ci, cj), v_qrsp - v_qsrp); 
-                    fock = deepcopy(zero_fock)
-                    fock[ci.idx] = (fock[ci.idx][1]+0, fock[ci.idx][2]-1)
-                    fock[cj.idx] = (fock[cj.idx][1]+0, fock[cj.idx][2]+1)
-                    push!(terms[fock], term)
-
-                    term = ClusteredTerm2B(("BBb","b"), [(0,1),(0,-1)], (ci, cj), v_srqp - v_qrsp); 
-                    fock = deepcopy(zero_fock)
-                    fock[ci.idx] = (fock[ci.idx][1]+0, fock[ci.idx][2]+1)
-                    fock[cj.idx] = (fock[cj.idx][1]-0, fock[cj.idx][2]-1)
-                    push!(terms[fock], term)
-
-                end
-
-                #=}}}=#
-            end
-        end
-    end
-  
-
-
-    # get 2-body 1-electron terms
+    # 2-body 1-electron terms
     if true 
         for ci in clusters
             for cj in clusters
@@ -521,7 +220,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
         #=}}}=#
     end
     
-    # get 2-body 2-electron terms
+    # 2-body 2-electron terms
     if true 
         for ci in clusters
             for cj in clusters
@@ -675,7 +374,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
         end
     end
 
-    # get 3-body 2-electron terms
+    # 3-body 2-electron terms
     if true 
         for ci in clusters
             for cj in clusters
@@ -823,7 +522,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
         end
     end
 
-    # get 4-body 2-electron terms
+    # 4-body 2-electron terms
     if true 
         for ci in clusters
             for cj in clusters

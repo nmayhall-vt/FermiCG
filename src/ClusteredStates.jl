@@ -88,6 +88,8 @@ abstract type AbstractState end
 """
     clusters::Vector{Cluster}
     data::OrderedDict{FockConfig,OrderedDict{ClusterConfig,Float64}}
+
+This represents an arbitrarily sparse state. E.g., used in TPSCI
 """
 struct ClusteredState <: AbstractState 
     clusters::Vector{Cluster}

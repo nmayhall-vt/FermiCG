@@ -34,6 +34,7 @@ include("Hamiltonians.jl");
 include("Clusters.jl")
 include("ClusteredStates.jl")
 include("ClusteredTerms.jl")
+include("Tucker.jl")
 include("CMFs.jl")
 include("pyscf/PyscfFunctions.jl");
 #
