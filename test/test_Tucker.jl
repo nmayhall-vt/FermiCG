@@ -51,10 +51,11 @@ using Test
     for ci in clusters
         push!(tmp, FermiCG.ClusterSubspace(ci,init_fspace[ci.idx][1],init_fspace[ci.idx][2],1,p_space[ci.idx]))
     end
+    
+    
+    tb = FermiCG.TuckerBlock(tmp)
 
-    display.(tmp)
-    println(length.(tmp))
-
+    display(tb)
         
 
 end

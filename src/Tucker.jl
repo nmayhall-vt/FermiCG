@@ -15,13 +15,15 @@ This type is used to characterize a given ``TuckerBlock'' for a given FockConfig
 """
 struct TuckerBlock
     config::Vector{ClusterSubspace}
-    start::Int
-    stop::Int
+end
+function Base.display(tb::TuckerBlock)
+    println(" TuckerBlock: ")
+    display.(tb.config)
 end
 
 
 function Base.display(css::ClusterSubspace)
-    @printf(" %3i range: %5i:%-5i ",css.cluster.idx, css.start, css.stop)
+    @printf("   Cluster: %3i range: %3i:%-3i ",css.cluster.idx, css.start, css.stop)
     println((css.na, css.nb))
 end
 function Base.length(css::ClusterSubspace)
@@ -46,4 +48,5 @@ E.g., used in n-body Tucker
 struct TuckerState <: AbstractState 
     clusters::Vector{Cluster}
     data::OrderedDict{TuckerBlock,Array}
+    ranges::Vector{UnitRange{Int}}
 end
