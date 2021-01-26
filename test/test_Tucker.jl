@@ -44,7 +44,7 @@ using Test
 
     # create reference Tucker Block
     init_fspace = [(1,1),(1,1),(1,1)]
-    p_space = [1,2,1]
+    p_space = [1,2,3]
     tucker_blocks = Vector{FermiCG.TuckerBlock}()
     
     tmp = Vector{FermiCG.ClusterSubspace}()
@@ -56,6 +56,7 @@ using Test
     tb = FermiCG.TuckerBlock(tmp)
 
     display(tb)
+    display(length(tb))
         
 
 end

@@ -22,6 +22,7 @@ pages = [
             "Clusters" => "library/Clusters.md",
             "ClusteredTerms" => "library/ClusteredTerms.md",
             "ClusteredStates" => "library/ClusteredStates.md",
+            "Tucker" => "library/Tucker.md",
             "PyscfFunctions" => "library/PyscfFunctions.md",
             "StringCI" => "library/StringCI.md",
         ],
