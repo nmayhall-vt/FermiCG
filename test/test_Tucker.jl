@@ -2,7 +2,7 @@ using FermiCG
 using Printf
 using Test
 
-@testset "Clusters" begin
+#@testset "Clusters" begin
     atoms = []
     push!(atoms,Atom(1,"H",[0,0,0]))
     push!(atoms,Atom(2,"H",[0,0,1]))
@@ -44,9 +44,16 @@ using Test
 
     # create reference Tucker Block
     init_fspace = [(1,1),(1,1),(1,1)]
-    p_space = [1,2,3]
+    p_space = [1,4,2]
     tucker_blocks = Vector{FermiCG.TuckerBlock}()
-    
+   
+    tstate = FermiCG.TuckerState(clusters)
+    FermiCG.add_fockconfig!(tstate, init_fspace)
+    display(tstate, thresh=-1)
+    display(length(tstate))
+    #display(FermiCG.dim(FermiCG.FockConfig(init_fspace)))
+    error()
+
     tmp = Vector{FermiCG.ClusterSubspace}()
     for ci in clusters
         push!(tmp, FermiCG.ClusterSubspace(ci,init_fspace[ci.idx][1],init_fspace[ci.idx][2],1,p_space[ci.idx]))
@@ -59,4 +66,4 @@ using Test
     display(length(tb))
         
 
-end
+#end

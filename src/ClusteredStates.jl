@@ -69,6 +69,18 @@ Subtract two `FockConfig`'s, returning a `TransferConfig`
 function Base.:-(a::FockConfig, b::FockConfig)
     return TransferConfig([(Int8(a[i][1])-Int8(b[i][1]), Int8(a[i][2])-Int8(b[i][2])) for i in 1:length(a)])
 end
+"""
+    dim(fc::FockConfig, no)
+
+Return total dimension of space indexed by `fc` on `no` orbitals
+"""
+function dim(fc::FockConfig, clusters)
+    dim = 1
+    for ci in clusters
+        dim *= binomial(length(ci), fc[ci.idx][1]) * binomial(length(ci), fc[ci.idx][2])
+    end
+    return dim
+end
 
 
 
@@ -108,9 +120,9 @@ function ClusteredState(clusters)
 end
 
 """
-    add_fockconfig!(s::ClusteredState, fock::Vector{Tuple{T,T}}) where T<:Integer
+    add_fockconfig!(s::AbstractState, fock::Vector{Tuple{T,T}}) where T<:Integer
 """
-function add_fockconfig!(s::ClusteredState, fock::Vector{Tuple{T,T}}) where T<:Integer
+function add_fockconfig!(s::AbstractState, fock::Vector{Tuple{T,T}}) where T<:Integer
     add_fockconfig!(s,FockConfig(fock))
 end
 
@@ -124,7 +136,7 @@ end
 """
     setindex!(s::ClusteredState, a::OrderedDict, b)
 """
-function Base.setindex!(s::ClusteredState, a::OrderedDict, b)
+function Base.setindex!(s::AbstractState, a, b)
     s.data[b] = a
 end
 """

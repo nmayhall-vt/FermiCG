@@ -20,10 +20,20 @@ end
 """
 	dim_tot(c::Cluster)
 
-Return dimension of hilbert space spanned by number of orbitals in `Cluster`
+Return dimension of hilbert space spanned by number of orbitals in `Cluster`. 
+This is all sectors
 """
 function dim_tot(c::Cluster)
     return 2^(2*length(c))
+end
+"""
+	dim_tot(c::Cluster, na, nb)
+
+Return dimension of hilbert space spanned by number of orbitals in `Cluster`
+with `na` and `nb` number of alpha/beta electrons.
+"""
+function dim_tot(c::Cluster, na, nb)
+    return binomial(length(c), na)*binomial(length(c), na) 
 end
 """
 	display(c::Cluster)
