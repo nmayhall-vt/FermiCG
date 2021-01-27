@@ -57,6 +57,8 @@ end
 function TuckerConfig()
     return TuckerConfig([])
 end
+Base.hash(a::TuckerConfig) = hash(a.config)
+Base.isequal(x::TuckerConfig, y::TuckerConfig) = all(isequal.(x.config, y.config))
 Base.push!(tc::TuckerConfig, range) = push!(tc.config,range)
 
 # Conversions
@@ -155,11 +157,8 @@ function Base.display(s::TuckerState; thresh=1e-3)
     @printf(" %-20s%-20s%-20s\n", "-------", "---------", "----------")
     for (fock,configs) in s.data
         prob = 0
-        for (config, coeffs) in configs 
-            prob += sum(coeffs.*coeffs)
-        end
         if prob > thresh
-            @printf(" %-20.3f%-20i", prob,length(s.data[fock]))
+            @printf(" %-20.3f%-20s", prob,"")
             for sector in fock 
                 @printf("(%2i,%-2i)", sector[1],sector[2])
             end
@@ -168,16 +167,16 @@ function Base.display(s::TuckerState; thresh=1e-3)
             @printf("     %-16s%-20s%-20s\n", "Weight", "", "Subspaces") 
             @printf("     %-16s%-20s%-20s\n", "-------", "", "----------")
             for (config, coeffs) in configs 
-                prob = sum(coeffs.*coeffs)
-                if prob > thresh
-                    @printf("     %-16.3f%-20i", prob,length(coeffs))
+                probi = sum(coeffs.*coeffs)
+                prob += probi
+                if probi > thresh
+                    @printf("     %-16.3f%-20i", probi,length(coeffs))
                     for range in config 
                         @printf("%4s", range)
                     end
                 end
                 println()
             end
-            println()
             println()
         end
     end

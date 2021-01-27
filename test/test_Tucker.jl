@@ -59,7 +59,7 @@ using Test
     display(length(ci_vector))
     display(ci_vector, thresh=-1)
     
-    FermiCG.expand_each_fock_space!(ci_vector, cluster_bases)
+    FermiCG.expand_to_full_space!(ci_vector, cluster_bases, 3, 3)
     
     display(length(ci_vector))
     display(ci_vector, thresh=-1)

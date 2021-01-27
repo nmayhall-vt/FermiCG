@@ -336,7 +336,7 @@ Define all possible fock space sectors and add all possible basis states
 - `na`: Number of alpha electrons total
 - `nb`: Number of alpha electrons total
 """
-function expand_to_full_space!(s::ClusteredState, bases::Vector{ClusterBasis}, na, nb)
+function expand_to_full_space!(s::AbstractState, bases::Vector{ClusterBasis}, na, nb)
     # {{{
     println("\n Expand to full space")
     ns = []
