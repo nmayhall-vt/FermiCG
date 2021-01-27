@@ -47,23 +47,27 @@ using Test
     p_space = [1,4,2]
     tucker_blocks = Vector{FermiCG.TuckerBlock}()
    
-    tstate = FermiCG.TuckerState(clusters)
-    FermiCG.add_fockconfig!(tstate, init_fspace)
-    display(tstate, thresh=-1)
-    display(length(tstate))
+    ci_vector = FermiCG.TuckerState(clusters)
+    FermiCG.add_fockconfig!(ci_vector, [(1,1),(1,1),(1,1)])
+    FermiCG.add_fockconfig!(ci_vector, [(2,1),(0,1),(1,1)])
+    FermiCG.add_fockconfig!(ci_vector, [(0,1),(2,1),(1,1)])
+    
+    FermiCG.expand_each_fock_space!(ci_vector, cluster_bases)
+    
+    display(length(ci_vector))
+    display(ci_vector, thresh=-1)
     #display(FermiCG.dim(FermiCG.FockConfig(init_fspace)))
-    error()
 
-    tmp = Vector{FermiCG.ClusterSubspace}()
-    for ci in clusters
-        push!(tmp, FermiCG.ClusterSubspace(ci,init_fspace[ci.idx][1],init_fspace[ci.idx][2],1,p_space[ci.idx]))
-    end
-    
-    
-    tb = FermiCG.TuckerBlock(tmp)
-
-    display(tb)
-    display(length(tb))
+#    tmp = Vector{FermiCG.ClusterSubspace}()
+#    for ci in clusters
+#        push!(tmp, FermiCG.ClusterSubspace(ci,init_fspace[ci.idx][1],init_fspace[ci.idx][2],1,p_space[ci.idx]))
+#    end
+#    
+#    
+#    tb = FermiCG.TuckerBlock(tmp)
+#
+#    display(tb)
+#    display(length(tb))
         
 
 #end

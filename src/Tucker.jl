@@ -54,6 +54,14 @@ end
 struct TuckerConfig <: SparseConfig
     config::Vector{UnitRange{Int}}
 end
+function TuckerConfig()
+    return TuckerConfig([])
+end
+Base.push!(tc::TuckerConfig, range) = push!(tc.config,range)
+
+# Conversions
+Base.convert(::Type{TuckerConfig}, input::Vector{UnitRange{T}}) where T<:Integer = TuckerConfig(input)
+
 """
     dim(tc::TuckerConfig)
 
@@ -97,7 +105,8 @@ end
     add_fockconfig!(s::ClusteredState, fock::FockConfig)
 """
 function add_fockconfig!(s::TuckerState, fock::FockConfig)
-    s.data[fock] = OrderedDict{TuckerConfig, Array}(TuckerConfig([1:1 for i in 1:length(s.clusters)])=>[0.0])
+    s.data[fock] = OrderedDict{TuckerConfig, Array}()
+    #s.data[fock] = OrderedDict{TuckerConfig, Array}(TuckerConfig([1:1 for i in 1:length(s.clusters)])=>[0.0])
 end
 
 """
@@ -136,6 +145,7 @@ end
 Pretty print
 """
 function Base.display(s::TuckerState; thresh=1e-3)
+#={{{=#
     @printf(" --------------------------------------------------\n")
     @printf(" ---------- Fockspaces in state ------: Dim = %5i  \n",length(s))
     @printf(" --------------------------------------------------\n")
@@ -155,7 +165,7 @@ function Base.display(s::TuckerState; thresh=1e-3)
             end
             println()
 
-            @printf("     %-16s%-20s%-20s\n", "Weight", "", "Ranges") 
+            @printf("     %-16s%-20s%-20s\n", "Weight", "", "Subspaces") 
             @printf("     %-16s%-20s%-20s\n", "-------", "", "----------")
             for (config, coeffs) in configs 
                 prob = sum(coeffs.*coeffs)
@@ -165,11 +175,42 @@ function Base.display(s::TuckerState; thresh=1e-3)
                         @printf("%4s", range)
                     end
                 end
+                println()
             end
+            println()
             println()
         end
     end
     print(" --------------------------------------------------\n")
+#=}}}=#
 end
+
+
+
+"""
+    expand_each_fock_space!(s::TuckerState, bases)
+
+For each fock space sector defined, add all possible basis states 
+- `bases::Vector{ClusterBasis}` 
+"""
+function expand_each_fock_space!(s::TuckerState, bases::Vector{ClusterBasis})
+    # {{{
+    println("\n Make each Fock-Block the full space")
+    # create full space for each fock block defined
+    for (fblock,configs) in s.data
+        #println(fblock)
+        dims = TuckerConfig()
+        #display(fblock)
+        for c in s.clusters
+            # get number of vectors for current fock space
+            dim = size(bases[c.idx][fblock[c.idx]], 2)
+            push!(dims, 1:dim)
+        end
+       
+        s.data[fblock][dims] = zeros(Tuple(length.(dims)))
+
+    end
+end
+# }}}
 
 
