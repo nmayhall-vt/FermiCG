@@ -52,6 +52,13 @@ using Test
     FermiCG.add_fockconfig!(ci_vector, [(2,1),(0,1),(1,1)])
     FermiCG.add_fockconfig!(ci_vector, [(0,1),(2,1),(1,1)])
     
+    FermiCG.add_fockconfig!(ci_vector, [(2,1),(0,1),(1,1)])
+    
+    FermiCG.expand_each_fock_space!(ci_vector, cluster_bases)
+    
+    display(length(ci_vector))
+    display(ci_vector, thresh=-1)
+    
     FermiCG.expand_each_fock_space!(ci_vector, cluster_bases)
     
     display(length(ci_vector))
