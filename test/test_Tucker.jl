@@ -1,6 +1,7 @@
 using FermiCG
 using Printf
 using Test
+using LinearAlgebra
 
 #@testset "Clusters" begin
     atoms = []
@@ -45,7 +46,9 @@ using Test
     # create reference Tucker Block
     init_fspace = [(1,1),(1,1),(1,1)]
     p_space = [1,4,2]
-    tucker_blocks = Vector{FermiCG.TuckerBlock}()
+    
+    p_spaces = Vector{FermiCG.TuckerSubspace}()
+    q_spaces = Vector{FermiCG.TuckerSubspace}()
    
     ci_vector = FermiCG.TuckerState(clusters)
     FermiCG.add_fockconfig!(ci_vector, [(1,1),(1,1),(1,1)])
@@ -58,23 +61,105 @@ using Test
     
     display(length(ci_vector))
     display(ci_vector, thresh=-1)
+ 
+    for ci in clusters
+        tss = FermiCG.TuckerSubspace(ci)
+        tss[(1,1)] = 1:1
+        tss[(2,1)] = 1:1
+        tss[(1,2)] = 1:1
+        tss[(0,1)] = 1:1
+        tss[(1,0)] = 1:1
+        push!(p_spaces, tss)
+    end
     
-    FermiCG.expand_to_full_space!(ci_vector, cluster_bases, 3, 3)
+    display.(p_spaces)
     
-    display(length(ci_vector))
-    display(ci_vector, thresh=-1)
-    #display(FermiCG.dim(FermiCG.FockConfig(init_fspace)))
+    for tssp in p_spaces 
+        tss = FermiCG.get_ortho_compliment(tssp, cluster_bases[tssp.cluster.idx])
+        push!(q_spaces, tss)
+    end
 
-#    tmp = Vector{FermiCG.ClusterSubspace}()
-#    for ci in clusters
-#        push!(tmp, FermiCG.ClusterSubspace(ci,init_fspace[ci.idx][1],init_fspace[ci.idx][2],1,p_space[ci.idx]))
-#    end
-#    
-#    
-#    tb = FermiCG.TuckerBlock(tmp)
-#
-#    display(tb)
-#    display(length(tb))
-        
+    display.(q_spaces)
+
+
+    p_vector = FermiCG.TuckerState(clusters, p_spaces, 3, 3)
+
+    q_vector = FermiCG.TuckerState(clusters)
+    for ci in clusters
+        tmp_spaces = copy(p_spaces)
+        tmp_spaces[ci.idx] = q_spaces[ci.idx]
+        FermiCG.add!(q_vector, FermiCG.TuckerState(clusters, tmp_spaces, 3, 3))
+    end
+    if false
+        for ci in clusters
+            for cj in clusters
+                ci.idx < cj.idx || continue
+                tmp_spaces = copy(p_spaces)
+                tmp_spaces[ci.idx] = q_spaces[ci.idx]
+                tmp_spaces[cj.idx] = q_spaces[cj.idx]
+                FermiCG.add!(q_vector, FermiCG.TuckerState(clusters, tmp_spaces, 3, 3))
+            end
+        end
+    end
+    if false
+        for ci in clusters
+            for cj in clusters
+                for ck in clusters
+                    ci.idx < cj.idx || continue
+                    cj.idx < ck.idx || continue
+                    tmp_spaces = copy(p_spaces)
+                    tmp_spaces[ci.idx] = q_spaces[ci.idx]
+                    tmp_spaces[cj.idx] = q_spaces[cj.idx]
+                    tmp_spaces[ck.idx] = q_spaces[ck.idx]
+                    FermiCG.add!(q_vector, FermiCG.TuckerState(clusters, tmp_spaces, 3, 3))
+                end
+            end
+        end
+    end
+    if false
+        for ci in clusters
+            for cj in clusters
+                for ck in clusters
+                    for cl in clusters
+                        ci.idx < cj.idx || continue
+                        cj.idx < ck.idx || continue
+                        ck.idx < cl.idx || continue
+                        tmp_spaces = copy(p_spaces)
+                        tmp_spaces[ci.idx] = q_spaces[ci.idx]
+                        tmp_spaces[cj.idx] = q_spaces[cj.idx]
+                        tmp_spaces[ck.idx] = q_spaces[ck.idx]
+                        tmp_spaces[cl.idx] = q_spaces[cl.idx]
+                        FermiCG.add!(q_vector, FermiCG.TuckerState(clusters, tmp_spaces, 3, 3))
+                    end
+                end
+            end
+        end
+    end
+   
+    FermiCG.randomize!(p_vector)
+    FermiCG.randomize!(q_vector)
+
+    FermiCG.orthogonalize!(p_vector)
+    FermiCG.orthogonalize!(q_vector)
+
+    S = FermiCG.dot(p_vector, p_vector)
+    display(S - I)
+    @test isapprox(S-I, zeros(size(S)), atol=1e-10)
+    
+    S = FermiCG.dot(q_vector, q_vector)
+    display(S - I)
+    @test isapprox(S-I, zeros(size(S)), atol=1e-10)
+
+    
+
+    if false
+        full_vector = FermiCG.TuckerState(clusters)
+        FermiCG.expand_to_full_space!(full_vector, cluster_bases, 3, 3)
+        #display(length(ci_vector))
+        display(full_vector)
+    end
+
+
+            
 
 #end
