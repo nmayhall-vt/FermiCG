@@ -523,7 +523,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
     end
 
     # 4-body 2-electron terms
-    if false 
+    if true 
         for ci in clusters
             for cj in clusters
                 for ck in clusters
