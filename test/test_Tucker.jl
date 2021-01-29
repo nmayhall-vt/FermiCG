@@ -11,6 +11,8 @@ using LinearAlgebra
     push!(atoms,Atom(4,"H",[0,0,3]))
     push!(atoms,Atom(5,"H",[0,0,4]))
     push!(atoms,Atom(6,"H",[0,0,5]))
+    push!(atoms,Atom(7,"H",[0,0,6]))
+    push!(atoms,Atom(8,"H",[0,0,7]))
     basis = "6-31g"
     basis = "sto-3g"
     mol     = Molecule(0,1,atoms,basis)
@@ -34,6 +36,7 @@ using LinearAlgebra
     
     # define clusters
     clusters    = [(1:2),(3:4),(5:6)]
+    clusters    = [(1:2),(3:4),(5:6),(7:8)]
     
 
 
@@ -51,11 +54,10 @@ using LinearAlgebra
     q_spaces = Vector{FermiCG.TuckerSubspace}()
    
     ci_vector = FermiCG.TuckerState(clusters)
-    FermiCG.add_fockconfig!(ci_vector, [(1,1),(1,1),(1,1)])
-    FermiCG.add_fockconfig!(ci_vector, [(2,1),(0,1),(1,1)])
-    FermiCG.add_fockconfig!(ci_vector, [(0,1),(2,1),(1,1)])
-    
-    FermiCG.add_fockconfig!(ci_vector, [(2,1),(0,1),(1,1)])
+    #FermiCG.add_fockconfig!(ci_vector, [(1,1),(1,1),(1,1)])
+    #FermiCG.add_fockconfig!(ci_vector, [(2,1),(0,1),(1,1)])
+    #FermiCG.add_fockconfig!(ci_vector, [(0,1),(2,1),(1,1)])
+    #FermiCG.add_fockconfig!(ci_vector, [(2,1),(0,1),(1,1)])
     
     FermiCG.expand_each_fock_space!(ci_vector, cluster_bases)
     
@@ -82,7 +84,7 @@ using LinearAlgebra
     display.(q_spaces)
 
 
-    p_vector = FermiCG.TuckerState(clusters, p_spaces, 3, 3, nroots=1)
+    p_vector = FermiCG.TuckerState(clusters, p_spaces, 3, 2, nroots=1)
 
     q_vector = FermiCG.TuckerState(clusters)
     for ci in clusters
@@ -137,11 +139,12 @@ using LinearAlgebra
     end
    
     if true 
-        FermiCG.expand_to_full_space!(p_vector, cluster_bases, 3, 3)
-        FermiCG.expand_each_fock_space!(p_vector, cluster_bases, nroots=400)
-    
+        FermiCG.expand_to_full_space!(p_vector, cluster_bases, 3, 2)
+        FermiCG.expand_each_fock_space!(p_vector, cluster_bases)
+   
+        println(" Length of Vector: ", length(p_vector))
         v = FermiCG.get_vector(p_vector)
-        v = Matrix(1.0I,size(v))
+        v = Matrix(1.0I,length(p_vector),length(p_vector))
         
         FermiCG.set_vector!(p_vector,v)
 
@@ -173,7 +176,7 @@ using LinearAlgebra
 
     S = FermiCG.dot(p_vector, sigma_vector)
 
-    FermiCG.build_sigma!(sigma_vector, p_vector, cluster_ops, clustered_ham)
+    @time FermiCG.build_sigma!(sigma_vector, p_vector, cluster_ops, clustered_ham)
     #println(p_vector.data)
     #println(sigma_vector.data)
     

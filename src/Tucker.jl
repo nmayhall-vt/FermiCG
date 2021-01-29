@@ -830,6 +830,109 @@ function form_sigma_block!(term::ClusteredTerm3B,
     return  
 #=}}}=#
 end
+"""
+"""
+function form_sigma_block!(term::ClusteredTerm4B, 
+                            cluster_ops::Vector{ClusterOps},
+                            fock_bra::FockConfig, bra::TuckerConfig, 
+                            fock_ket::FockConfig, ket::TuckerConfig,
+                            bra_coeffs, ket_coeffs)
+#={{{=#
+    #display(term)
+    #println(bra, ket)
+
+    c1 = term.clusters[1]
+    c2 = term.clusters[2]
+    c3 = term.clusters[3]
+    c4 = term.clusters[4]
+    length(fock_bra) == length(fock_ket) || throw(Exception)
+    length(bra) == length(ket) || throw(Exception)
+    n_clusters = length(bra)
+    # 
+    # make sure inactive clusters are diagonal
+    for ci in 1:n_clusters
+        ci != c1.idx || continue
+        ci != c2.idx || continue
+        ci != c3.idx || continue
+        ci != c4.idx || continue
+
+        fock_bra[ci] == fock_ket[ci] || throw(Exception)
+        bra[ci] == ket[ci] || return 0.0 
+    end
+
+    # 
+    # make sure active clusters are correct transitions 
+    fock_bra[c1.idx] == fock_ket[c1.idx] .+ term.delta[1] || throw(Exception)
+    fock_bra[c2.idx] == fock_ket[c2.idx] .+ term.delta[2] || throw(Exception)
+    fock_bra[c3.idx] == fock_ket[c3.idx] .+ term.delta[3] || throw(Exception)
+    fock_bra[c4.idx] == fock_ket[c4.idx] .+ term.delta[4] || throw(Exception)
+
+    # 
+    # determine sign from rearranging clusters if odd number of operators
+    state_sign = compute_terms_state_sign(term, fock_ket) 
+        
+
+    #
+    # op[IKMO,JLNP] = <I|p'|J> h(pqrs) <K|q|L> <M|r|N> <O|s|P>
+    gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+    gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,bra[c3.idx],ket[c3.idx]]
+    gamma4 = cluster_ops[c4.idx][term.ops[4]][(fock_bra[c4.idx],fock_ket[c4.idx])][:,bra[c4.idx],ket[c4.idx]]
+   
+    op = Array{Float64}[]
+    @tensor begin
+        op[J,L,N,P,I,K,M,O] := term.ints[p,q,r,s] * gamma1[p,I,J] * gamma2[q,K,L] * gamma3[r,M,N] * gamma4[s,O,P]  
+    end
+    #@tensor begin
+    #    op[q,r,I,J] := term.ints[p,q,r] * gamma1[p,I,J]
+    #    op[r,I,J,K,L] := op[q,r,I,J] * gamma2[q,K,L]  
+    #    op[J,L,N,I,K,M] := op[r,I,J,K,L] * gamma2[r,M,N]  
+    #end
+    
+    # possibly cache some of these integrals
+
+    # now transpose state vectors and multiply, also, try without transposing to compare
+    indices = collect(1:n_clusters+1)
+    indices[c1.idx] = 0
+    indices[c2.idx] = 0
+    indices[c3.idx] = 0
+    indices[c4.idx] = 0
+    perm,_ = bubble_sort(indices)
+
+    length(size(ket_coeffs)) == n_clusters + 1 || error(" tensors should be folded")
+    
+    n_roots = last(size(ket_coeffs))
+    ket_coeffs2 = permutedims(ket_coeffs,perm)
+    bra_coeffs2 = permutedims(bra_coeffs,perm)
+
+    dim1 = size(ket_coeffs2)
+    ket_coeffs2 = reshape(ket_coeffs2, dim1[1]*dim1[2]*dim1[3]*dim1[4], prod(dim1[5:end]))
+
+    dim2 = size(bra_coeffs2)
+    bra_coeffs2 = reshape(bra_coeffs2, dim2[1]*dim2[2]*dim2[3]*dim2[4], prod(dim2[5:end]))
+
+    op = reshape(op, prod(size(op)[1:4]),prod(size(op)[5:8]))
+    if state_sign == 1
+        bra_coeffs2 .+= op' * ket_coeffs2
+    elseif state_sign == -1
+        bra_coeffs2 .-= op' * ket_coeffs2
+    else
+        error()
+    end
+    
+
+    ket_coeffs2 = reshape(ket_coeffs2, dim1)
+    bra_coeffs2 = reshape(bra_coeffs2, dim2)
+   
+    # now untranspose
+    perm,_ = bubble_sort(perm)
+    ket_coeffs2 = permutedims(ket_coeffs2,perm)
+    bra_coeffs2 = permutedims(bra_coeffs2,perm)
+    
+    bra_coeffs .= bra_coeffs2
+    return  
+#=}}}=#
+end
 
 
 """
