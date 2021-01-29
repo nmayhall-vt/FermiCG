@@ -523,7 +523,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
     end
 
     # 4-body 2-electron terms
-    if true 
+    if false 
         for ci in clusters
             for cj in clusters
                 for ck in clusters
@@ -735,7 +735,8 @@ just a lookup from the correct operator
 """
 function contract_matrix_element(   term::ClusteredTerm1B, 
                                     cluster_ops::Vector{ClusterOps},
-                                    fock_bra, bra, fock_ket, ket)
+                                    fock_bra::FockConfig, bra::ClusterConfig, 
+                                    fock_ket::FockConfig, ket::ClusterConfig)
 #={{{=#
     c1 = term.clusters[1]
     length(fock_bra) == length(fock_ket) || throw(Exception)
@@ -765,7 +766,8 @@ end
 """
 function contract_matrix_element(   term::ClusteredTerm2B, 
                                     cluster_ops::Vector{ClusterOps},
-                                    fock_bra, bra, fock_ket, ket)
+                                    fock_bra::FockConfig, bra::ClusterConfig, 
+                                    fock_ket::FockConfig, ket::ClusterConfig)
 #={{{=#
     #display(term)
     #println(bra, ket)
@@ -858,6 +860,7 @@ function contract_matrix_element(   term::ClusteredTerm2B,
 end
 
 
+
 function _contract(ints,gamma1,gamma2)
     mat_elem = 0.0
     tmp = 0.0
@@ -905,7 +908,8 @@ end
 """
 function contract_matrix_element(   term::ClusteredTerm3B, 
                                     cluster_ops::Vector{ClusterOps},
-                                    fock_bra, bra, fock_ket, ket)
+                                    fock_bra::FockConfig, bra::ClusterConfig, 
+                                    fock_ket::FockConfig, ket::ClusterConfig)
 #={{{=#
     c1 = term.clusters[1]
     c2 = term.clusters[2]
@@ -956,7 +960,8 @@ end
 """
 function contract_matrix_element(   term::ClusteredTerm4B, 
                                     cluster_ops::Vector{ClusterOps},
-                                    fock_bra, bra, fock_ket, ket)
+                                    fock_bra::FockConfig, bra::ClusterConfig, 
+                                    fock_ket::FockConfig, ket::ClusterConfig)
 #={{{=#
     c1 = term.clusters[1]
     c2 = term.clusters[2]

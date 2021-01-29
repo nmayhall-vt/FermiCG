@@ -65,10 +65,10 @@ using LinearAlgebra
     for ci in clusters
         tss = FermiCG.TuckerSubspace(ci)
         tss[(1,1)] = 1:1
-        tss[(2,1)] = 1:1
-        tss[(1,2)] = 1:1
-        tss[(0,1)] = 1:1
-        tss[(1,0)] = 1:1
+        #tss[(2,1)] = 1:1
+        #tss[(1,2)] = 1:1
+        #tss[(0,1)] = 1:1
+        #tss[(1,0)] = 1:1
         push!(p_spaces, tss)
     end
     
@@ -82,7 +82,7 @@ using LinearAlgebra
     display.(q_spaces)
 
 
-    p_vector = FermiCG.TuckerState(clusters, p_spaces, 3, 3)
+    p_vector = FermiCG.TuckerState(clusters, p_spaces, 3, 3, nroots=1)
 
     q_vector = FermiCG.TuckerState(clusters)
     for ci in clusters
@@ -136,29 +136,62 @@ using LinearAlgebra
         end
     end
    
+    if true 
+        FermiCG.expand_to_full_space!(p_vector, cluster_bases, 3, 3)
+        FermiCG.expand_each_fock_space!(p_vector, cluster_bases, nroots=400)
+    
+        v = FermiCG.get_vector(p_vector)
+        v = Matrix(1.0I,size(v))
+        
+        FermiCG.set_vector!(p_vector,v)
+
+        #display(p_vector, thresh=-1)
+    end
     FermiCG.randomize!(p_vector)
     FermiCG.randomize!(q_vector)
+
 
     FermiCG.orthogonalize!(p_vector)
     FermiCG.orthogonalize!(q_vector)
 
     S = FermiCG.dot(p_vector, p_vector)
-    display(S - I)
-    @test isapprox(S-I, zeros(size(S)), atol=1e-10)
+    @test isapprox(S-I, zeros(size(S)), atol=1e-9)
     
-    S = FermiCG.dot(q_vector, q_vector)
-    display(S - I)
-    @test isapprox(S-I, zeros(size(S)), atol=1e-10)
+    #S = FermiCG.dot(q_vector, q_vector)
+    ##display(S - I)
+    #@test isapprox(S-I, zeros(size(S)), atol=1e-10)
 
+   
+    display.(clusters)
+    clustered_ham = FermiCG.extract_ClusteredTerms(ints, clusters)
     
 
-    if false
-        full_vector = FermiCG.TuckerState(clusters)
-        FermiCG.expand_to_full_space!(full_vector, cluster_bases, 3, 3)
-        #display(length(ci_vector))
-        display(full_vector)
+    cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
+
+    sigma_vector = deepcopy(p_vector)
+    FermiCG.zero!(sigma_vector)
+
+    S = FermiCG.dot(p_vector, sigma_vector)
+
+    FermiCG.build_sigma!(sigma_vector, p_vector, cluster_ops, clustered_ham)
+    #println(p_vector.data)
+    #println(sigma_vector.data)
+    
+    #v = FermiCG.get_vector(p_vector)
+    #s = FermiCG.get_vector(sigma_vector)
+
+    H = FermiCG.dot(p_vector, sigma_vector)
+    
+    #display(diag(H))
+    dim = size(H,1)
+
+
+    F = eigen(H)
+    for (idx,Fi) in enumerate(F.values[1:min(10,length(F.values))])
+        @printf(" %4i %18.13f\n", idx, Fi)
     end
-
+        
+    println()
 
             
 

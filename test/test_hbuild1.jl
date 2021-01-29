@@ -5,14 +5,21 @@ using LinearAlgebra
 
 @testset "full_hbuild" begin
     atoms = []
+#    push!(atoms,Atom(1,"H",[0,0,0]))
+#    push!(atoms,Atom(2,"H",[0,1,0]))
+#    push!(atoms,Atom(3,"H",[0,0,2]))
+#    push!(atoms,Atom(4,"H",[0,0,3]))
+#    push!(atoms,Atom(5,"H",[0,0.4,4]))
+#    push!(atoms,Atom(6,"H",[0,0,5]))
+#    push!(atoms,Atom(7,"H",[0,0,6]))
+#    push!(atoms,Atom(8,"H",[0,0,7]))
+    
     push!(atoms,Atom(1,"H",[0,0,0]))
-    push!(atoms,Atom(2,"H",[0,1,0]))
+    push!(atoms,Atom(2,"H",[0,0,1]))
     push!(atoms,Atom(3,"H",[0,0,2]))
     push!(atoms,Atom(4,"H",[0,0,3]))
-    push!(atoms,Atom(5,"H",[0,0.4,4]))
+    push!(atoms,Atom(5,"H",[0,0,4]))
     push!(atoms,Atom(6,"H",[0,0,5]))
-    push!(atoms,Atom(7,"H",[0,0,6]))
-    push!(atoms,Atom(8,"H",[0,0,7]))
     #push!(atoms,Atom(9,"H",[0,0,8]))
     #push!(atoms,Atom(10,"H",[0,0,9]))
     basis = "sto-3g"
@@ -22,7 +29,7 @@ using LinearAlgebra
     mf = FermiCG.pyscf_do_scf(mol)
     nbas = size(mf.mo_coeff)[1]
     ints = FermiCG.pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
-    e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,3,2,conv_tol=1e-10,max_cycle=100)
+    e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,3,3,conv_tol=1e-10,max_cycle=100)
     @printf(" FCI Energy: %12.8f\n", e_fci)
    
     C = mf.mo_coeff
@@ -40,7 +47,8 @@ using LinearAlgebra
     clusters    = [(1:4),(5:8)]
     clusters    = [(1:4),(5:6),(7:10)]
     clusters    = [(1:2),(3:4),(5:6),(7:8),(9:10)]
-    clusters    = [(1:4),(5:6),(7:8)]
+    clusters    = [(1:2),(3:4),(5:6)]
+    #clusters    = [(1:4),(5:6),(7:8)]
 
     max_roots = 100 
 
@@ -55,6 +63,7 @@ using LinearAlgebra
     cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
 
     ci_vector = FermiCG.ClusteredState(clusters)
+#    FermiCG.add_fockconfig!(ci_vector,[(1,1),(1,1),(1,1)])
 #    FermiCG.add_fockconfig!(ci_vector,[(1,1),(1,0),(0,1)])
 #    FermiCG.add_fockconfig!(ci_vector,[(1,1),(0,1),(1,0)])
 #    
@@ -63,7 +72,7 @@ using LinearAlgebra
 #    FermiCG.add_fockconfig!(ci_vector,[(2,0),(1,0),(1,0)])
 #    FermiCG.add_fockconfig!(ci_vector,[(2,2),(0,0),(0,0)])
 
-    FermiCG.expand_to_full_space!(ci_vector, cluster_bases, 3, 2)
+    FermiCG.expand_to_full_space!(ci_vector, cluster_bases, 3, 3)
     
     display(ci_vector)
     #display(cluster_bases[2][(2,2)])
