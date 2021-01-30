@@ -520,6 +520,8 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess;
     e_err = 0
     da = zeros(size(ints.h1))
     db = zeros(size(ints.h1))
+    da1 = zeros(size(ints.h1))
+    db1 = zeros(size(ints.h1))
     iter = 0
     kappa = zeros(norb*(norb-1))
 
@@ -621,7 +623,7 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess;
         kappa = Optim.minimizer(res)
         K = unpack_gradient(kappa, norb)
         U = exp(K)
-        return e, U
+        return e, U, da1, db1
     elseif method=="diis"
         res = do_diis(f, g, callback, kappa, gconv, max_iter_oo, method)
     end

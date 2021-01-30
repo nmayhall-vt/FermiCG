@@ -1,3 +1,9 @@
+using Profile
+using LinearMaps
+using BenchmarkTools
+#using KrylovKit
+using IterativeSolvers
+
 #"""
 #This type is used to characterize a given `TuckerBlock` for a given FockConfig
 #
@@ -275,13 +281,15 @@ function fold!(ts::TuckerState)
 end
 
 """
-    randomize!(ts::TuckerState)
+    randomize!(ts::TuckerState; scale=1)
+
+Add some random noise to the vector
 """
-function randomize!(ts::TuckerState)
+function randomize!(ts::TuckerState; scale=1)
     #={{{=#
     for (fock,configs) in ts
         for (config,coeffs) in configs 
-            ts[fock][config] = rand(size(coeffs)...) .- .5
+            ts[fock][config] += scale .* (rand(size(coeffs)...) .- .5)
         end
     end
     #=}}}=#
@@ -323,7 +331,7 @@ function orthogonalize!(ts::TuckerState)
 end
 
 """
-    TuckerState(clusters, tss::Vector{TuckerSubspace})
+    TuckerState(clusters, tss::Vector{TuckerSubspace}, na, nb; nroots=1)
 
 Constructor
 - `clusters::Vector{Cluster}`
@@ -331,15 +339,15 @@ Constructor
 - `na::Int` Number of alpha
 - `nb::Int` Number of beta
 """
-function TuckerState(clusters, ss, na, nb; nroots=1)
+function TuckerState(clusters, tss, na, nb; nroots=1)
    #={{{=#
-    length(ss) == length(clusters) || error("# of clusters don't match # of subspaces")
+    length(tss) == length(clusters) || error("# of clusters don't match # of subspaces")
 
     s = TuckerState(clusters)
     ns = []
-    for tss in ss
+    for tssi in tss
         nsi = []
-        for (fock,range) in tss.data
+        for (fock,range) in tssi.data
             push!(nsi,fock)
         end
         push!(ns,nsi)
@@ -358,8 +366,8 @@ function TuckerState(clusters, ss, na, nb; nroots=1)
 
             tuckconfig = TuckerConfig()
             for ci in clusters
-                tss = ss[ci.idx]
-                push!(tuckconfig, tss.data[newfock[ci.idx]])
+                tssi = tss[ci.idx]
+                push!(tuckconfig, tssi.data[newfock[ci.idx]])
             end
 
             haskey(s.data, fockconfig) == false || error(" here:", fockconfig)
@@ -479,22 +487,27 @@ end
 
 Pretty print
 """
-function Base.display(s::TuckerState; thresh=1e-3)
+function Base.display(s::TuckerState; root=1, thresh=1e-3)
 #={{{=#
     @printf(" --------------------------------------------------\n")
-    @printf(" ---------- Fockspaces in state ------: Dim = %5i  \n",length(s))
+    @printf(" -----------State --------------------:       %5i  \n",root)
+    @printf(" ---------- # Fockspaces -------------: Dim = %5i  \n",length(keys(s.data)))
+    @printf(" ---------- # Configs ----------------: Dim = %5i  \n",length(s))
     @printf(" --------------------------------------------------\n")
     @printf(" Printing contributions greater than: %f", thresh)
     @printf("\n")
     @printf(" %-20s%-20s%-20s\n", "Weight", "# Configs", "(α,β)...") 
     @printf(" %-20s%-20s%-20s\n", "-------", "---------", "----------")
+    unfold!(s)
     for (fock,configs) in s.data
         prob = 0
+        len = 0
         for (config, coeffs) in configs 
-            prob += sum(coeffs.*coeffs)
+            prob += coeffs[:,root]' * coeffs[:,root]
+            len += length(coeffs[:,root])
         end
         if prob > thresh
-            @printf(" %-20.3f%-20s", prob,"")
+            @printf(" %-20.3f%-20i", prob,len)
             for sector in fock 
                 @printf("(%2i,%-2i)", sector[1],sector[2])
             end
@@ -503,12 +516,10 @@ function Base.display(s::TuckerState; thresh=1e-3)
             @printf("     %-16s%-20s%-20s\n", "Weight", "", "Subspaces") 
             @printf("     %-16s%-20s%-20s\n", "-------", "", "----------")
             for (config, coeffs) in configs 
-                probi = sum(coeffs.*coeffs)
-                if probi > thresh
-                    @printf("     %-16.3f%-20i", probi,length(coeffs))
-                    for range in config 
-                        @printf("%4s", range)
-                    end
+                probi = coeffs[:,root]' * coeffs[:,root]
+                @printf("     %-16.3f%-20i", probi,length(coeffs))
+                for range in config 
+                    @printf("%4s", range)
                 end
                 println()
             end
@@ -516,6 +527,46 @@ function Base.display(s::TuckerState; thresh=1e-3)
         end
     end
     print(" --------------------------------------------------\n")
+    fold!(s)
+#=}}}=#
+end
+"""
+    print_fock_occupations(s::TuckerState; root=1, thresh=1e-3)
+
+Pretty print
+"""
+function print_fock_occupations(s::TuckerState; root=1, thresh=1e-3)
+#={{{=#
+
+    unfold!(s)
+    @printf(" --------------------------------------------------\n")
+    @printf(" -----------State --------------------:       %5i  \n",root)
+    @printf(" ---------- # Fockspaces -------------: Dim = %5i  \n",length(keys(s.data)))
+    @printf(" ---------- # Configs ----------------: Dim = %5i  \n",length(s))
+    @printf(" --------------------------------------------------\n")
+    @printf(" Printing contributions greater than: %f", thresh)
+    @printf("\n")
+    @printf(" %-20s%-20s%-20s\n", "Weight", "# Configs", "(α,β)...") 
+    @printf(" %-20s%-20s%-20s\n", "-------", "---------", "----------")
+    sum = 0
+    for (fock,configs) in s.data
+        prob = 0
+        len = 0
+        for (config, coeffs) in configs 
+            prob += coeffs[:,root]' * coeffs[:,root]
+            len += length(coeffs[:,root])
+        end
+        if prob > thresh
+            @printf(" %-20.3f%-20i", prob,len)
+            for sector in fock 
+                @printf("(%2i,%-2i)", sector[1],sector[2])
+            end
+            println()
+        end
+        sum += prob
+    end
+    print(" --------------------------------------------------\n")
+    fold!(s)
 #=}}}=#
 end
 
@@ -968,4 +1019,96 @@ function build_sigma!(sigma_vector, ci_vector, cluster_ops, clustered_ham)
     end
     return 
     #=}}}=#
+end
+
+
+
+"""
+    get_map(ci_vector, cluster_ops, clustered_ham)
+
+Get LinearMap with takes a vector and returns action of H on that vector
+"""
+function get_map(ci_vector::TuckerState, cluster_ops, clustered_ham; shift = nothing)
+    #={{{=#
+    iters = 0
+   
+    dim = length(ci_vector)
+    function mymatvec(v)
+        iters += 1
+        
+        nr = 0
+        if length(size(v)) == 1
+            nr = 1
+            v = reshape(v, length(v), nr)
+        elseif length(size(v)) == 2
+            nr = size(v)[2]
+        else
+            error(" is tensor not unfolded?")
+        end
+    
+      
+        set_vector!(ci_vector, v)
+        
+        fold!(ci_vector)
+        sig = deepcopy(ci_vector)
+        zero!(sig)
+        build_sigma!(sig, ci_vector, cluster_ops, clustered_ham)
+
+        unfold!(ci_vector)
+        
+        sig = get_vector(sig)
+
+        if shift != nothing
+            # this is how we do CEPA
+            sig += shift * get_vector(ci_vector)
+        end
+
+        return sig 
+    end
+    return LinearMap(mymatvec, dim, dim; issymmetric=true, ismutating=false, ishermitian=true)
+end
+#=}}}=#
+
+function tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham; tol=1e-5)
+
+    unfold!(ci_vector) 
+    Hmap = get_map(ci_vector, cluster_ops, clustered_ham)
+
+    v0 = get_vector(ci_vector)
+    nr = size(v0)[2] 
+    
+    davidson = Davidson(Hmap,v0=v0,max_iter=80, max_ss_vecs=40, nroots=nr, tol=1e-5)
+    #Adiag = StringCI.compute_fock_diagonal(problem,mf.mo_energy, e_mf)
+    #FermiCG.solve(davidson)
+    @printf(" Now iterate: \n")
+    flush(stdout)
+    #@time FermiCG.iteration(davidson, Adiag=Adiag, iprint=2)
+    @time e,v = FermiCG.solve(davidson)
+
+end
+
+function tucker_cepa_solve!(ci_vector, cluster_ops, clustered_ham, e_ref; tol=1e-5)
+
+    unfold!(ci_vector) 
+    Hmap = get_map(ci_vector, cluster_ops, clustered_ham, shift=e_ref)
+
+    v0 = get_vector(ci_vector)
+    nr = size(v0)[2] 
+    b =zeros(size(v0)) 
+    
+    powm!(Hmap, v0)
+    #cg!(v0, Hmap, b)
+    
+    set_vector!(ci_vector, v0)
+    
+    Hmap = get_map(ci_vector, cluster_ops, clustered_ham)
+    display(v0)
+    E =  Matrix(Hmap * v0)[1]
+    display(e_ref)
+    display(E)
+    #@printf(" CEPA Energy: %12.8f ", E)
+    
+    
+    #x, info = linsolve(Hmap,zeros(size(v0)))
+
 end

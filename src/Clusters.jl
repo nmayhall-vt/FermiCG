@@ -159,6 +159,10 @@ function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster};
         # Get subset of integrals living on cluster, ci
         ints_i = subset(ints, ci.orb_list, rdm1a, rdm1b) 
 
+        if (rdm1a != nothing && init_fspace == nothing)
+            error(" Cant embed withing init_fspace")
+        end
+
         if all( (rdm1a,rdm1b,init_fspace) .!= nothing)
             # 
             # Verify that density matrix provided is consistent with reference fock sectors

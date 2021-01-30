@@ -140,7 +140,7 @@ function subset(ints::InCoreInts, list, rdm1a=nothing, rdm1b=nothing)
         db[list,:] .= 0
         viirs = ints.h2[list, list,:,:]
         viqri = ints.h2[list, :, :, list]
-        fa = zeros(length(ci),length(ci))
+        fa = zeros(length(list),length(list))
         fb = copy(fa)
         @tensor begin
             ints_i.h1[p,q] += .5*viirs[p,q,r,s] * (da+db)[r,s]
