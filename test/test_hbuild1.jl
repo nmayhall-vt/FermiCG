@@ -5,6 +5,12 @@ using LinearAlgebra
 
 @testset "full_hbuild" begin
     atoms = []
+        push!(atoms,Atom(1,"H",[-1.30,00,0.00]))
+        push!(atoms,Atom(2,"H",[-1.30,00,1.00]))
+        push!(atoms,Atom(3,"H",[ 0.00,30,0.00]))
+        push!(atoms,Atom(4,"H",[ 0.00,30,1.00]))
+        push!(atoms,Atom(5,"H",[ 1.33,60,0.00]))
+        push!(atoms,Atom(6,"H",[ 1.30,60,1.00]))
 #    push!(atoms,Atom(1,"H",[0,0,0]))
 #    push!(atoms,Atom(2,"H",[0,1,0]))
 #    push!(atoms,Atom(3,"H",[0,0,2]))
@@ -14,14 +20,14 @@ using LinearAlgebra
 #    push!(atoms,Atom(7,"H",[0,0,6]))
 #    push!(atoms,Atom(8,"H",[0,0,7]))
     
-    push!(atoms,Atom(1,"H",[0,0,0]))
-    push!(atoms,Atom(2,"H",[0,0,1]))
-    push!(atoms,Atom(3,"H",[0,0,2]))
-    push!(atoms,Atom(4,"H",[0,0,3]))
-    push!(atoms,Atom(5,"H",[0,0,4]))
-    push!(atoms,Atom(6,"H",[0,0,5]))
-    push!(atoms,Atom(7,"H",[0,0,6]))
-    push!(atoms,Atom(8,"H",[0,0,7]))
+#    push!(atoms,Atom(1,"H",[0,0,0]))
+#    push!(atoms,Atom(2,"H",[0,0,1]))
+#    push!(atoms,Atom(3,"H",[0,0,2]))
+#    push!(atoms,Atom(4,"H",[0,0,3]))
+#    push!(atoms,Atom(5,"H",[0,0,4]))
+#    push!(atoms,Atom(6,"H",[0,0,5]))
+#    push!(atoms,Atom(7,"H",[0,0,6]))
+#    push!(atoms,Atom(8,"H",[0,0,7]))
     #push!(atoms,Atom(9,"H",[0,0,8]))
     #push!(atoms,Atom(10,"H",[0,0,9]))
     basis = "sto-3g"
@@ -31,7 +37,7 @@ using LinearAlgebra
     mf = FermiCG.pyscf_do_scf(mol)
     nbas = size(mf.mo_coeff)[1]
     ints = FermiCG.pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
-    e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,3,2,conv_tol=1e-10,max_cycle=100)
+    e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,3,3,conv_tol=1e-10,max_cycle=100)
     @printf(" FCI Energy: %12.8f\n", e_fci)
    
     C = mf.mo_coeff
@@ -49,7 +55,7 @@ using LinearAlgebra
     clusters    = [(1:4),(5:8)]
     clusters    = [(1:4),(5:6),(7:10)]
     clusters    = [(1:2),(3:4),(5:6),(7:8),(9:10)]
-    clusters    = [(1:2),(3:4),(5:6),(7:8)]
+    clusters    = [(1:2),(3:4),(5:6)]
     #clusters    = [(1:4),(5:6),(7:8)]
 
     max_roots = 100 
@@ -74,7 +80,7 @@ using LinearAlgebra
 #    FermiCG.add_fockconfig!(ci_vector,[(2,0),(1,0),(1,0)])
 #    FermiCG.add_fockconfig!(ci_vector,[(2,2),(0,0),(0,0)])
 
-    FermiCG.expand_to_full_space!(ci_vector, cluster_bases, 3, 2)
+    FermiCG.expand_to_full_space!(ci_vector, cluster_bases, 3, 3)
     
     display(ci_vector)
     #display(cluster_bases[2][(2,2)])
@@ -121,11 +127,13 @@ using LinearAlgebra
     dim = size(H,1)
 
 
+
     F = eigen(H)
     for (idx,Fi) in enumerate(F.values[1:min(10,length(F.values))])
         @printf(" %4i %18.13f\n", idx, Fi)
     end
-        
+    display(ci_vector)
+    display(F.vectors[:,1])
     println()
     
     @test isapprox(F.values[1], -9.2156766772454, atol=1e-10)

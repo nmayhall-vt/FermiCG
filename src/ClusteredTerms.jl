@@ -99,6 +99,7 @@ end
 
 Extract all ClusteredTerm types from a given 1e integral tensor 
 and a list of clusters
+returns `terms::Dict{TransferConfig,Vector{ClusteredTerm}}`
 """
 function extract_ClusteredTerms(ints::InCoreInts, clusters)
     norb = 0

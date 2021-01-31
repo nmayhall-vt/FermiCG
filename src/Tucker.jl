@@ -490,9 +490,9 @@ Pretty print
 function Base.display(s::TuckerState; root=1, thresh=1e-3)
 #={{{=#
     @printf(" --------------------------------------------------\n")
-    @printf(" -----------State --------------------:       %5i  \n",root)
-    @printf(" ---------- # Fockspaces -------------: Dim = %5i  \n",length(keys(s.data)))
-    @printf(" ---------- # Configs ----------------: Dim = %5i  \n",length(s))
+    @printf(" ---------- State        -------------------: %5i  \n",root)
+    @printf(" ---------- # Fockspaces -------------------: %5i  \n",length(keys(s.data)))
+    @printf(" ---------- # Configs    -------------------: %5i  \n",length(s))
     @printf(" --------------------------------------------------\n")
     @printf(" Printing contributions greater than: %f", thresh)
     @printf("\n")
@@ -540,9 +540,9 @@ function print_fock_occupations(s::TuckerState; root=1, thresh=1e-3)
 
     unfold!(s)
     @printf(" --------------------------------------------------\n")
-    @printf(" -----------State --------------------:       %5i  \n",root)
-    @printf(" ---------- # Fockspaces -------------: Dim = %5i  \n",length(keys(s.data)))
-    @printf(" ---------- # Configs ----------------: Dim = %5i  \n",length(s))
+    @printf(" ---------- State        -------------------: %5i  \n",root)
+    @printf(" ---------- # Fockspaces -------------------: %5i  \n",length(keys(s.data)))
+    @printf(" ---------- # Configs    -------------------: %5i  \n",length(s))
     @printf(" --------------------------------------------------\n")
     @printf(" Printing contributions greater than: %f", thresh)
     @printf("\n")
@@ -1084,43 +1084,70 @@ function tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham; tol=1e-5)
     flush(stdout)
     #@time FermiCG.iteration(davidson, Adiag=Adiag, iprint=2)
     @time e,v = FermiCG.solve(davidson)
-
+    set_vector!(ci_vector,v)
+    return e,v
 end
 
+"""
+0 = <x|H - E0|x'>v(x') + <x|H - E0|p>v(p) 
+0 = <x|H - E0|x'>v(x') + <x|H|p>v(p) 
+A(x,x')v(x') = -H(x,p)v(p)
+
+here, x is outside the reference space, and p is inside
+
+Ax=b
+
+works for one root at a time
+"""
 function tucker_cepa_solve!(ref_vector, ci_vector, cluster_ops, clustered_ham; tol=1e-5)
 
-    unfold!(ref_vector) 
-    unfold!(ci_vector) 
-    Hmap = get_map(ref_vector, cluster_ops, clustered_ham, shift=0)
-    v_ref = get_vector(ref_vector)
-    e_ref = v_ref' * Matrix(Hmap * v_ref)
-    display(e_ref)
-    @printf(" Energy of Reference: %12.8f", first(e_ref))
+    fold!(ref_vector) 
+    fold!(ci_vector) 
+    sig = deepcopy(ref_vector) 
+    zero!(sig)
+    build_sigma!(sig, ref_vector, cluster_ops, clustered_ham)
+    e0 = dot(ref_vector, sig)
+    size(e0) == (1,1) || error("Only one state at a time please")
+    e0 = e0[1,1]
+    @printf(" Reference Energy: %12.8f\n",e0)
+    
 
+    x_vector = deepcopy(ci_vector)
+    #
+    # now remove reference space from ci_vector
     for (fock,configs) in ref_vector
-        for (config,coeffs) in configs
-            delete!(ci_vector[fock], config)
+        if haskey(x_vector, fock)
+            for (config,coeffs) in configs
+                if haskey(x_vector[fock], config)
+                    delete!(x_vector[fock], config)
+                end
+            end
         end
     end
+
+    b = deepcopy(x_vector) 
+    zero!(b)
+    build_sigma!(b, ref_vector, cluster_ops, clustered_ham)
+    bv = -get_vector(b) 
+
+    Axx = get_map(x_vector, cluster_ops, clustered_ham, shift=e0)
+
+
+    solver = cg(Axx,b)
+    for iter in solver
+        println("Iteration # ", iter)
+    end
+    #x = linsolve(Axx,b)
+    #powm!(Axx, v0, b)
     
-    Hmap = get_map(ci_vector, cluster_ops, clustered_ham, shift=e_ref)
-    v0 = get_vector(ci_vector)
-    nr = size(v0)[2] 
-    b =zeros(size(v0)) 
+    set_vector!(x_vector, x)
+   
+    sig = deepcopy(ref_vector)
+    zero!(sig)
+    build_sigma!(sig,x_vector, cluster_ops, clustered_ham)
+    ecorr = dot(sig,ref_vector)
     
-    powm!(Hmap, v0)
-    #cg!(v0, Hmap, b)
-    
-    set_vector!(ci_vector, v0)
-    
-    Hmap = get_map(ci_vector, cluster_ops, clustered_ham)
-    display(v0)
-    E =  Matrix(Hmap * v0)[1]
-    display(e_ref)
-    display(E)
-    #@printf(" CEPA Energy: %12.8f ", E)
-    
-    
+    @printf(" E(CEPA): corr %12.8f electronic %12.8f\n",ecorr, ecorr+e0)
     #x, info = linsolve(Hmap,zeros(size(v0)))
 
 end

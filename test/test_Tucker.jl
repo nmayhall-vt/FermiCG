@@ -86,6 +86,7 @@ using LinearAlgebra
     clustered_ham = FermiCG.extract_ClusteredTerms(ints, clusters)
     cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
 
+
     
     p_spaces = Vector{FermiCG.TuckerSubspace}()
     q_spaces = Vector{FermiCG.TuckerSubspace}()
@@ -101,7 +102,7 @@ using LinearAlgebra
  
     for ci in clusters
         tss = FermiCG.TuckerSubspace(ci)
-        tss[(1,1)] = 1:1
+        tss[(1,1)] = 1:2
         #tss[(2,1)] = 1:1
         #tss[(1,2)] = 1:1
         #tss[(0,1)] = 1:1
@@ -122,9 +123,9 @@ using LinearAlgebra
 
     nroots = 1
     ci_vector = FermiCG.TuckerState(clusters, p_spaces, na, nb, nroots=nroots)
-
+    
     ref_vector = deepcopy(ci_vector)
-    if true 
+    if false 
         for ci in clusters
             tmp_spaces = copy(p_spaces)
             tmp_spaces[ci.idx] = q_spaces[ci.idx]
@@ -188,10 +189,10 @@ using LinearAlgebra
     # initialize with eye
     FermiCG.set_vector!(ref_vector, Matrix(1.0I, length(ref_vector),nroots))
     FermiCG.set_vector!(ci_vector, Matrix(1.0I, length(ci_vector),nroots))
-    
-    FermiCG.randomize!(ci_vector, scale=1e-4)
+   
+    #FermiCG.randomize!(ci_vector, scale=1e-4)
 
-    FermiCG.orthogonalize!(ci_vector)
+    #FermiCG.orthogonalize!(ci_vector)
     
     S = FermiCG.dot(ci_vector, ci_vector)
     @test isapprox(S-I, zeros(size(S)), atol=1e-12)
@@ -200,19 +201,22 @@ using LinearAlgebra
 
     FermiCG.print_fock_occupations(ci_vector)
     @time FermiCG.tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham)
+    #@time FermiCG.tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham)
     FermiCG.print_fock_occupations(ci_vector)
-    display(ci_vector)
-    
-    FermiCG.print_fock_occupations(ref_vector)
-    @time FermiCG.tucker_ci_solve!(ref_vector, cluster_ops, clustered_ham)
-    FermiCG.print_fock_occupations(ref_vector)
-    println(" Reference State:" )
-    display(ref_vector)
-    
-    @time FermiCG.tucker_cepa_solve!(ref_vector, ci_vector, cluster_ops, clustered_ham)
-    FermiCG.print_fock_occupations(ci_vector)
-    display(ci_vector)
+    display(ci_vector, thresh=-1)
+    #display(FermiCG.get_vector(ci_vector))
+   
+    if true 
+        FermiCG.print_fock_occupations(ref_vector)
+        @time FermiCG.tucker_ci_solve!(ref_vector, cluster_ops, clustered_ham)
+        FermiCG.print_fock_occupations(ref_vector)
+        println(" Reference State:" )
+        display(ref_vector)
 
+        @time FermiCG.tucker_cepa_solve!(ref_vector, ci_vector, cluster_ops, clustered_ham)
+        FermiCG.print_fock_occupations(ci_vector)
+        display(ci_vector)
+    end
 
 #    @time FermiCG.build_sigma!(sigma_vector, p_vector, cluster_ops, clustered_ham)
 #    #println(p_vector.data)
