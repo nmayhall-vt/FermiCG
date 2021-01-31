@@ -102,7 +102,7 @@ using LinearAlgebra
  
     for ci in clusters
         tss = FermiCG.TuckerSubspace(ci)
-        tss[(1,1)] = 1:2
+        tss[(1,1)] = 1:1
         #tss[(2,1)] = 1:1
         #tss[(1,2)] = 1:1
         #tss[(0,1)] = 1:1
@@ -199,23 +199,23 @@ using LinearAlgebra
 
 
 
-    FermiCG.print_fock_occupations(ci_vector)
+    #FermiCG.print_fock_occupations(ci_vector)
     @time FermiCG.tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham)
     #@time FermiCG.tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham)
     FermiCG.print_fock_occupations(ci_vector)
-    display(ci_vector, thresh=-1)
+    #display(ci_vector, thresh=-1)
     #display(FermiCG.get_vector(ci_vector))
    
     if true 
-        FermiCG.print_fock_occupations(ref_vector)
+        #FermiCG.print_fock_occupations(ref_vector)
         @time FermiCG.tucker_ci_solve!(ref_vector, cluster_ops, clustered_ham)
-        FermiCG.print_fock_occupations(ref_vector)
+        #FermiCG.print_fock_occupations(ref_vector)
         println(" Reference State:" )
         display(ref_vector)
 
         @time FermiCG.tucker_cepa_solve!(ref_vector, ci_vector, cluster_ops, clustered_ham)
         FermiCG.print_fock_occupations(ci_vector)
-        display(ci_vector)
+        #display(ci_vector)
     end
 
 #    @time FermiCG.build_sigma!(sigma_vector, p_vector, cluster_ops, clustered_ham)

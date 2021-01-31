@@ -433,9 +433,14 @@ end
 """
 function set_vector!(ts::TuckerState, v)
 
-    length(size(v)) == 2 || error(" Only takes matrices")
+    length(size(v)) <= 2 || error(" Only takes matrices", size(v))
     nbasis = size(v)[1]
-    nroots = size(v)[2] 
+    nroots = 0
+    if length(size(v)) == 1
+        nroots = 1
+    elseif length(size(v)) == 2
+        nroots = size(v)[2] 
+    end
 
     #println(length(ts), nroots)
     idx = 1
@@ -1130,23 +1135,39 @@ function tucker_cepa_solve!(ref_vector, ci_vector, cluster_ops, clustered_ham; t
     build_sigma!(b, ref_vector, cluster_ops, clustered_ham)
     bv = -get_vector(b) 
 
-    Axx = get_map(x_vector, cluster_ops, clustered_ham, shift=e0)
-
-
-    solver = cg(Axx,b)
-    for iter in solver
-        println("Iteration # ", iter)
+    function mymatvec(v)
+        unfold!(x_vector)
+        set_vector!(x_vector, v)
+        fold!(x_vector)
+        sig = deepcopy(x_vector)
+        zero!(sig)
+        build_sigma!(sig, x_vector, cluster_ops, clustered_ham)
+        unfold!(x_vector)
+        unfold!(sig)
+        
+        sig_out = get_vector(sig)
+        sig_out .-= e0*get_vector(x_vector)
+        return sig_out
     end
-    #x = linsolve(Axx,b)
-    #powm!(Axx, v0, b)
+    dim = length(x_vector)
+    Axx = LinearMap(mymatvec, dim, dim)
+    #Axx = LinearMap(mymatvec, dim, dim; issymmetric=true, ismutating=false, ishermitian=true)
     
+    x, solver = cg(Axx,bv,initially_zero=true, log=true)
+
     set_vector!(x_vector, x)
    
     sig = deepcopy(ref_vector)
     zero!(sig)
     build_sigma!(sig,x_vector, cluster_ops, clustered_ham)
     ecorr = dot(sig,ref_vector)
-    
+    size(ecorr) == (1,1) || error(" Dimension Error")
+    ecorr = ecorr[1]
+  
+    zero!(ci_vector)
+    add!(ci_vector, ref_vector)
+    add!(ci_vector, x_vector)
+
     @printf(" E(CEPA): corr %12.8f electronic %12.8f\n",ecorr, ecorr+e0)
     #x, info = linsolve(Hmap,zeros(size(v0)))
 
