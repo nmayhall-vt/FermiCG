@@ -1087,11 +1087,23 @@ function tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham; tol=1e-5)
 
 end
 
-function tucker_cepa_solve!(ci_vector, cluster_ops, clustered_ham, e_ref; tol=1e-5)
+function tucker_cepa_solve!(ref_vector, ci_vector, cluster_ops, clustered_ham; tol=1e-5)
 
+    unfold!(ref_vector) 
     unfold!(ci_vector) 
-    Hmap = get_map(ci_vector, cluster_ops, clustered_ham, shift=e_ref)
+    Hmap = get_map(ref_vector, cluster_ops, clustered_ham, shift=0)
+    v_ref = get_vector(ref_vector)
+    e_ref = v_ref' * Matrix(Hmap * v_ref)
+    display(e_ref)
+    @printf(" Energy of Reference: %12.8f", first(e_ref))
 
+    for (fock,configs) in ref_vector
+        for (config,coeffs) in configs
+            delete!(ci_vector[fock], config)
+        end
+    end
+    
+    Hmap = get_map(ci_vector, cluster_ops, clustered_ham, shift=e_ref)
     v0 = get_vector(ci_vector)
     nr = size(v0)[2] 
     b =zeros(size(v0)) 

@@ -90,7 +90,7 @@ using LinearAlgebra
     p_spaces = Vector{FermiCG.TuckerSubspace}()
     q_spaces = Vector{FermiCG.TuckerSubspace}()
    
-    ci_vector = FermiCG.TuckerState(clusters)
+    #ci_vector = FermiCG.TuckerState(clusters)
     #FermiCG.add_fockconfig!(ci_vector, [(1,1),(1,1),(1,1)])
     #FermiCG.add_fockconfig!(ci_vector, [(2,1),(0,1),(1,1)])
     #FermiCG.add_fockconfig!(ci_vector, [(0,1),(2,1),(1,1)])
@@ -123,6 +123,7 @@ using LinearAlgebra
     nroots = 1
     ci_vector = FermiCG.TuckerState(clusters, p_spaces, na, nb, nroots=nroots)
 
+    ref_vector = deepcopy(ci_vector)
     if true 
         for ci in clusters
             tmp_spaces = copy(p_spaces)
@@ -185,6 +186,7 @@ using LinearAlgebra
    
 
     # initialize with eye
+    FermiCG.set_vector!(ref_vector, Matrix(1.0I, length(ref_vector),nroots))
     FermiCG.set_vector!(ci_vector, Matrix(1.0I, length(ci_vector),nroots))
     
     FermiCG.randomize!(ci_vector, scale=1e-4)
@@ -201,7 +203,13 @@ using LinearAlgebra
     FermiCG.print_fock_occupations(ci_vector)
     display(ci_vector)
     
-    @time FermiCG.tucker_cepa_solve!(ci_vector, cluster_ops, clustered_ham, e_ref)
+    FermiCG.print_fock_occupations(ref_vector)
+    @time FermiCG.tucker_ci_solve!(ref_vector, cluster_ops, clustered_ham)
+    FermiCG.print_fock_occupations(ref_vector)
+    println(" Reference State:" )
+    display(ref_vector)
+    
+    @time FermiCG.tucker_cepa_solve!(ref_vector, ci_vector, cluster_ops, clustered_ham)
     FermiCG.print_fock_occupations(ci_vector)
     display(ci_vector)
 
