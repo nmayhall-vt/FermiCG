@@ -27,6 +27,7 @@ struct ClusteredTerm1B <: ClusteredTerm
     delta::TransferConfig
     clusters::Tuple{Cluster}
     ints::Array{Float64}
+    cache::Dict
 end
 
 struct ClusteredTerm2B <: ClusteredTerm
@@ -36,6 +37,7 @@ struct ClusteredTerm2B <: ClusteredTerm
     #active::Vector{Int16}
     clusters::Tuple{Cluster,Cluster}
     ints::Array{Float64}
+    cache::Dict
 end
 
 struct ClusteredTerm3B <: ClusteredTerm
@@ -44,6 +46,7 @@ struct ClusteredTerm3B <: ClusteredTerm
     #active::Vector{Int16}
     clusters::Tuple{Cluster,Cluster,Cluster}
     ints::Array{Float64}
+    cache::Dict
 end
 
 struct ClusteredTerm4B <: ClusteredTerm
@@ -51,6 +54,7 @@ struct ClusteredTerm4B <: ClusteredTerm
     delta::TransferConfig
     clusters::Tuple{Cluster,Cluster,Cluster,Cluster}
     ints::Array{Float64}
+    cache::Dict
 end
 
 #function ClusteredTerm(ops, delta::Vector{Tuple{Int}}, clusters, ints)
@@ -130,7 +134,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
 #={{{=#
             # instead of forming p'q and p'q'sr just precontract and keep them in 
             # ClusterOps
-            term = ClusteredTerm1B(("H",), ((0,0),), (ci,), zeros(1,1))
+            term = ClusteredTerm1B(("H",), ((0,0),), (ci,), zeros(1,1),Dict())
             push!(terms[zero_fock],term)
 #=}}}=#
         end
@@ -203,7 +207,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
                             end
                         end
 
-                        clusteredterm = ClusteredTerm2B((oper1,oper2), [Tuple(fock1),Tuple(fock2)], (ci, cj), h)
+                        clusteredterm = ClusteredTerm2B((oper1,oper2), [Tuple(fock1),Tuple(fock2)], (ci, cj), h, Dict())
                         #display(clusteredterm)
                         focktrans = deepcopy(zero_fock)
                         focktrans[ci.idx] = Tuple(fock1)
@@ -354,7 +358,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
                        
                         vcurr = copy(reshape(vcurr,newshape...))
 
-                        clusteredterm = ClusteredTerm2B((oper1,oper2), [Tuple(fock1),Tuple(fock2)], (ci, cj), vcurr)
+                        clusteredterm = ClusteredTerm2B((oper1,oper2), [Tuple(fock1),Tuple(fock2)], (ci, cj), vcurr, Dict())
                         #display(clusteredterm)
                         focktrans = deepcopy(zero_fock)
                         focktrans[ci.idx] = Tuple(fock1)
@@ -502,7 +506,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
 
                             vcurr = copy(reshape(vcurr,newshape...))
 
-                            clusteredterm = ClusteredTerm3B((oper1,oper2,oper3), [Tuple(fock1),Tuple(fock2),Tuple(fock3)], (ci, cj, ck), vcurr)
+                            clusteredterm = ClusteredTerm3B((oper1,oper2,oper3), [Tuple(fock1),Tuple(fock2),Tuple(fock3)], (ci, cj, ck), vcurr, Dict())
                             #display(clusteredterm)
                             focktrans = deepcopy(zero_fock)
                             focktrans[ci.idx] = Tuple(fock1)
@@ -611,7 +615,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
                                     end
                                 end
 
-                                clusteredterm = ClusteredTerm4B((oper1,oper2,oper3,oper4), [Tuple(fock1),Tuple(fock2),Tuple(fock3),Tuple(fock4)], (ci, cj, ck, cl), v)
+                                clusteredterm = ClusteredTerm4B((oper1,oper2,oper3,oper4), [Tuple(fock1),Tuple(fock2),Tuple(fock3),Tuple(fock4)], (ci, cj, ck, cl), v, Dict())
                                 focktrans = deepcopy(zero_fock)
                                 focktrans[ci.idx] = Tuple(fock1)
                                 focktrans[cj.idx] = Tuple(fock2)

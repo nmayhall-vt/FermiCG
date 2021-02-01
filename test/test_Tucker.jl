@@ -2,6 +2,7 @@ using FermiCG
 using Printf
 using Test
 using LinearAlgebra
+using Profile 
 
 #@testset "Clusters" begin
     atoms = []
@@ -9,18 +10,19 @@ using LinearAlgebra
     na = 0
     nb = 0
     init_fspace = []
-    if false
+    if true 
         push!(atoms,Atom(1,"H",[0,0,0]))
         push!(atoms,Atom(2,"H",[0,0,1]))
-        push!(atoms,Atom(3,"H",[0,0,2]))
-        push!(atoms,Atom(4,"H",[0,0,3]))
-        push!(atoms,Atom(5,"H",[0,0,4]))
-        push!(atoms,Atom(6,"H",[0,0,5]))
-        push!(atoms,Atom(7,"H",[0,0,6]))
-        push!(atoms,Atom(8,"H",[0,0,7]))
+        push!(atoms,Atom(3,"H",[0,1,2]))
+        push!(atoms,Atom(4,"H",[0,1,3]))
+        push!(atoms,Atom(5,"H",[0,2,4]))
+        push!(atoms,Atom(6,"H",[0,2,5]))
+        push!(atoms,Atom(7,"H",[0,3,6]))
+        push!(atoms,Atom(8,"H",[0,3,7]))
     
 
         clusters    = [(1:2),(3:4),(5:6),(7:8)]
+        init_fspace = [(1,1),(1,1),(1,1),(1,1)]
         na = 4
         nb = 4
     elseif true
@@ -70,7 +72,7 @@ using LinearAlgebra
 
     rdm1 = zeros(size(ints.h1))
     e_cmf, U, Da, Db  = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, 
-                                       max_iter_oo=0, verbose=0, gconv=1e-6, method="cg")
+                                       max_iter_oo=20, verbose=0, gconv=1e-6, method="cg")
     ints = FermiCG.orbital_rotation(ints,U)
     #cmf_out = FermiCG.cmf_ci(ints, clusters, init_fspace, rdm1, verbose=1)
     #e_ref = cmf_out[1]
@@ -81,7 +83,7 @@ using LinearAlgebra
     # build Hamiltonian, cluster_basis and cluster ops
     #display(Da)
     #cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=2, max_roots=max_roots)
-    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=2, max_roots=max_roots, 
+    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=0, max_roots=max_roots, 
                                                        init_fspace=init_fspace, rdm1a=Da, rdm1b=Db)
     clustered_ham = FermiCG.extract_ClusteredTerms(ints, clusters)
     cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
@@ -125,7 +127,7 @@ using LinearAlgebra
     ci_vector = FermiCG.TuckerState(clusters, p_spaces, na, nb, nroots=nroots)
     
     ref_vector = deepcopy(ci_vector)
-    if false 
+    if true 
         for ci in clusters
             tmp_spaces = copy(p_spaces)
             tmp_spaces[ci.idx] = q_spaces[ci.idx]
@@ -199,44 +201,28 @@ using LinearAlgebra
 
 
 
-    #FermiCG.print_fock_occupations(ci_vector)
-    @time FermiCG.tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham)
-    #@time FermiCG.tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham)
-    FermiCG.print_fock_occupations(ci_vector)
-    #display(ci_vector, thresh=-1)
-    #display(FermiCG.get_vector(ci_vector))
-   
+    if true 
+        #FermiCG.print_fock_occupations(ci_vector)
+        println(" Length of CI Vector: ", length(ci_vector))
+        @time FermiCG.tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham)
+        #@time FermiCG.tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham)
+        FermiCG.print_fock_occupations(ci_vector)
+        #display(ci_vector, thresh=-1)
+        #display(FermiCG.get_vector(ci_vector))
+    end
+    
     if true 
         #FermiCG.print_fock_occupations(ref_vector)
         @time FermiCG.tucker_ci_solve!(ref_vector, cluster_ops, clustered_ham)
-        #FermiCG.print_fock_occupations(ref_vector)
         println(" Reference State:" )
-        display(ref_vector)
+        FermiCG.print_fock_occupations(ref_vector)
+        #FermiCG.print_fock_occupations(ci_vector)
 
         @time FermiCG.tucker_cepa_solve!(ref_vector, ci_vector, cluster_ops, clustered_ham)
         FermiCG.print_fock_occupations(ci_vector)
         #display(ci_vector)
     end
 
-#    @time FermiCG.build_sigma!(sigma_vector, p_vector, cluster_ops, clustered_ham)
-#    #println(p_vector.data)
-#    #println(sigma_vector.data)
-#    
-#    #v = FermiCG.get_vector(p_vector)
-#    #s = FermiCG.get_vector(sigma_vector)
-#
-#    H = FermiCG.dot(p_vector, sigma_vector)
-#    
-#    #display(diag(H))
-#    dim = size(H,1)
-#
-#
-#    F = eigen(H)
-#    for (idx,Fi) in enumerate(F.values[1:min(10,length(F.values))])
-#        @printf(" %4i %18.13f\n", idx, Fi)
-#    end
-#        
-#    println()
 
             
 

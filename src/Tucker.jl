@@ -731,13 +731,18 @@ function form_sigma_block!(term::ClusteredTerm2B,
     #display(size(term.ints))
     #display(size(gamma1))
     #display(size(gamma2))
-    @tensor begin
-        op[p,K,L] := term.ints[p,q] * gamma2[q,K,L]
-    end
-    @tensor begin
-        op[J,L,I,K] := gamma1[p,I,J] * op[p,K,L] 
+    cache_key = (fock_bra[c1.idx], fock_bra[c2.idx], fock_ket[c1.idx], fock_ket[c2.idx], bra[c1.idx], bra[c2.idx], ket[c1.idx], ket[c2.idx])
+    if haskey(term.cache, cache_key)
+        op = term.cache[cache_key]
+    else
+        @tensor begin
+            op[q,J,I] := term.ints[p,q] * gamma1[p,I,J]
+            op[J,L,I,K] := op[q,J,I] * gamma2[q,K,L]
+        end
+        term.cache[cache_key] = op
     end
     
+
     # possibly cache some of these integrals
 
     # now transpose state vectors and multiply, also, try without transposing to compare
@@ -834,16 +839,42 @@ function form_sigma_block!(term::ClusteredTerm3B,
     gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,bra[c3.idx],ket[c3.idx]]
    
     op = Array{Float64}[]
-    @tensor begin
-        op[J,L,N,I,K,M] := term.ints[p,q,r] * gamma1[p,I,J] * gamma2[q,K,L] * gamma3[r,M,N]  
-    end
     #@tensor begin
-    #    op[q,r,I,J] := term.ints[p,q,r] * gamma1[p,I,J]
-    #    op[r,I,J,K,L] := op[q,r,I,J] * gamma2[q,K,L]  
-    #    op[J,L,N,I,K,M] := op[r,I,J,K,L] * gamma2[r,M,N]  
+    #    op[J,L,N,I,K,M] := term.ints[p,q,r] * gamma1[p,I,J] * gamma2[q,K,L] * gamma3[r,M,N]  
     #end
+    cache_key = (fock_bra[c1.idx], fock_bra[c2.idx], fock_bra[c3.idx], 
+                 fock_ket[c1.idx], fock_ket[c2.idx], fock_ket[c3.idx], 
+                 bra[c1.idx], bra[c2.idx], bra[c3.idx], 
+                 ket[c1.idx], ket[c2.idx], ket[c3.idx])
+
     
-    # possibly cache some of these integrals
+    if haskey(term.cache, cache_key)
+        op = term.cache[cache_key]
+    else
+        @tensor begin
+            op[q,r,I,J] := term.ints[p,q,r] * gamma1[p,I,J]
+            op[r,I,J,K,L] := op[q,r,I,J] * gamma2[q,K,L]  
+            op[J,L,N,I,K,M] := op[r,I,J,K,L] * gamma3[r,M,N]  
+        end
+        term.cache[cache_key] = op
+   
+        # compress this
+#        opsize = size(op)
+#        op = reshape(op, prod(size(op)[1:3]), prod(size(op)[4:6]))
+#        F = svd(op)
+#        #display(F.S)
+#        cut = 0
+#        for si in 1:length(F.S) 
+#            if F.S[si] < 1e-5
+#                F.S[si] = 0
+#                cut += 1
+#            end
+#        end
+#        display((length(F.S), cut))
+#        op = F.U * Diagonal(F.S) * F.Vt
+#        op = reshape(op,opsize)
+    end
+   
 
     # now transpose state vectors and multiply, also, try without transposing to compare
     indices = collect(1:n_clusters+1)
@@ -946,6 +977,18 @@ function form_sigma_block!(term::ClusteredTerm4B,
     #end
     
     # possibly cache some of these integrals
+    # compress this
+#    opsize = size(op)
+#    op = reshape(op, prod(size(op)[1:4]), prod(size(op)[5:8]))
+#    F = svd(op)
+#    #display(F.S)
+#    for si in 1:length(F.S) 
+#        if F.S[si] < 1e-3
+#            F.S[si] = 0
+#        end
+#    end
+#    op = F.U * Diagonal(F.S) * F.Vt
+#    op = reshape(op,opsize)
 
     # now transpose state vectors and multiply, also, try without transposing to compare
     indices = collect(1:n_clusters+1)
@@ -1075,7 +1118,7 @@ end
 #=}}}=#
 
 function tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham; tol=1e-5)
-
+#={{{=#
     unfold!(ci_vector) 
     Hmap = get_map(ci_vector, cluster_ops, clustered_ham)
 
@@ -1092,6 +1135,8 @@ function tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham; tol=1e-5)
     set_vector!(ci_vector,v)
     return e,v
 end
+#=}}}=#
+
 
 """
 0 = <x|H - E0|x'>v(x') + <x|H - E0|p>v(p) 
@@ -1105,7 +1150,7 @@ Ax=b
 works for one root at a time
 """
 function tucker_cepa_solve!(ref_vector, ci_vector, cluster_ops, clustered_ham; tol=1e-5)
-
+#={{{=#
     fold!(ref_vector) 
     fold!(ci_vector) 
     sig = deepcopy(ref_vector) 
@@ -1171,4 +1216,4 @@ function tucker_cepa_solve!(ref_vector, ci_vector, cluster_ops, clustered_ham; t
     @printf(" E(CEPA): corr %12.8f electronic %12.8f\n",ecorr, ecorr+e0)
     #x, info = linsolve(Hmap,zeros(size(v0)))
 
-end
+end#=}}}=#
