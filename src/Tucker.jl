@@ -1215,5 +1215,5 @@ function tucker_cepa_solve!(ref_vector, ci_vector, cluster_ops, clustered_ham; t
 
     @printf(" E(CEPA): corr %12.8f electronic %12.8f\n",ecorr, ecorr+e0)
     #x, info = linsolve(Hmap,zeros(size(v0)))
-
+    return ecorr+e0, x
 end#=}}}=#

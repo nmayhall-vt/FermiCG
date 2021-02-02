@@ -5,27 +5,55 @@ using LinearAlgebra
 using Profile 
 
 #@testset "Clusters" begin
+#
+out_radii = []
+out_fci = []
+out_ref = []
+out_nb2 = []
+out_cepa = []
+for step in 1:20
+    rad = .9 + step * .1
     atoms = []
     clusters = []
     na = 0
     nb = 0
     init_fspace = []
-    if true 
-        push!(atoms,Atom(1,"H",[0,0,0]))
-        push!(atoms,Atom(2,"H",[0,0,1]))
-        push!(atoms,Atom(3,"H",[0,1,2]))
-        push!(atoms,Atom(4,"H",[0,1,3]))
-        push!(atoms,Atom(5,"H",[0,2,4]))
-        push!(atoms,Atom(6,"H",[0,2,5]))
-        push!(atoms,Atom(7,"H",[0,3,6]))
-        push!(atoms,Atom(8,"H",[0,3,7]))
+    
+    function generate_H_ring(n,radius)
+        theta = 2*pi/n
+
+        atoms = []
+        for i in 0:n-1
+            push!(atoms,Atom(i+1,"H",[radius*cos(theta*i), radius*sin(theta*i), 0]))
+        end
+        return atoms
+    end
+
+    if false 
+        r = 1
+        push!(atoms,Atom(1,"H",[0,0,0*r]))
+        push!(atoms,Atom(2,"H",[0,0,1*r]))
+        push!(atoms,Atom(3,"H",[0,0,2*r]))
+        push!(atoms,Atom(4,"H",[0,0,3*r]))
+        push!(atoms,Atom(5,"H",[0,0,4*r]))
+        push!(atoms,Atom(6,"H",[0,0,5*r]))
+        push!(atoms,Atom(7,"H",[0,0,6*r]))
+        push!(atoms,Atom(8,"H",[0,0,7*r]))
+        push!(atoms,Atom(9,"H",[0,0,8*r]))
+        push!(atoms,Atom(10,"H",[0,0,9*r]))
+        push!(atoms,Atom(11,"H",[0,0,10*r]))
+        push!(atoms,Atom(12,"H",[0,0,11*r]))
     
 
         clusters    = [(1:2),(3:4),(5:6),(7:8)]
         init_fspace = [(1,1),(1,1),(1,1),(1,1)]
         na = 4
         nb = 4
-    elseif true
+        clusters    = [(1:2),(3:4),(5:6),(7:8),(9:10),(11:12)]
+        init_fspace = [(1,1),(1,1),(1,1),(1,1),(1,1),(1,1)]
+        na = 6
+        nb = 6
+    elseif false 
         push!(atoms,Atom(1,"H",[-1.30,0,0.00]))
         push!(atoms,Atom(2,"H",[-1.30,0,1.00]))
         push!(atoms,Atom(3,"H",[ 0.00,0,0.00]))
@@ -37,6 +65,12 @@ using Profile
         init_fspace = [(1,1),(1,1),(1,1)]
         na = 3
         nb = 3
+    elseif true
+        atoms = generate_H_ring(8,rad)
+        clusters    = [(1:2),(3:4),(5:6),(7:8)]
+        init_fspace = [(1,1),(1,1),(1,1),(1,1)]
+        na = 4
+        nb = 4
     end
 
     basis = "6-31g"
@@ -50,7 +84,10 @@ using Profile
     ints = FermiCG.pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
     e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints, na, nb, conv_tol=1e-10,max_cycle=100)
     @printf(" FCI Energy: %12.8f\n", e_fci)
-    
+   
+    push!(out_radii, rad)
+    push!(out_fci, e_fci + ints.h0)
+   
     # localize orbitals
     C = mf.mo_coeff
     Cl = FermiCG.localize(mf.mo_coeff,"lowdin",mf)
@@ -72,7 +109,8 @@ using Profile
 
     rdm1 = zeros(size(ints.h1))
     e_cmf, U, Da, Db  = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, 
-                                       max_iter_oo=20, verbose=0, gconv=1e-6, method="cg")
+                                       max_iter_oo=40, verbose=0, gconv=1e-6, method="cg")
+    FermiCG.pyscf_write_molden(mol,Cl*U,filename="cmf.molden")
     ints = FermiCG.orbital_rotation(ints,U)
     #cmf_out = FermiCG.cmf_ci(ints, clusters, init_fspace, rdm1, verbose=1)
     #e_ref = cmf_out[1]
@@ -89,6 +127,7 @@ using Profile
     cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
 
 
+    continue
     
     p_spaces = Vector{FermiCG.TuckerSubspace}()
     q_spaces = Vector{FermiCG.TuckerSubspace}()
@@ -204,7 +243,8 @@ using Profile
     if true 
         #FermiCG.print_fock_occupations(ci_vector)
         println(" Length of CI Vector: ", length(ci_vector))
-        @time FermiCG.tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham)
+        @time e_nb2 = FermiCG.tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham)
+        push!(out_nb2, e_nb2[1] + ints.h0)
         #@time FermiCG.tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham)
         FermiCG.print_fock_occupations(ci_vector)
         #display(ci_vector, thresh=-1)
@@ -213,16 +253,19 @@ using Profile
     
     if true 
         #FermiCG.print_fock_occupations(ref_vector)
-        @time FermiCG.tucker_ci_solve!(ref_vector, cluster_ops, clustered_ham)
+        e_ref = FermiCG.tucker_ci_solve!(ref_vector, cluster_ops, clustered_ham)
         println(" Reference State:" )
+        push!(out_ref, e_ref[1] + ints.h0)
         FermiCG.print_fock_occupations(ref_vector)
         #FermiCG.print_fock_occupations(ci_vector)
 
-        @time FermiCG.tucker_cepa_solve!(ref_vector, ci_vector, cluster_ops, clustered_ham)
+        @time e_cepa = FermiCG.tucker_cepa_solve!(ref_vector, ci_vector, cluster_ops, clustered_ham)
+        println(e_cepa[1])
+        push!(out_cepa, e_cepa[1] + ints.h0)
         FermiCG.print_fock_occupations(ci_vector)
         #display(ci_vector)
     end
-
+end
 
             
 
