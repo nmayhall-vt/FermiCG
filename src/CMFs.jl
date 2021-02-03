@@ -503,10 +503,10 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess;
         for (ii,i) in enumerate(k)
             k1 = deepcopy(k)
             k1[ii] += stepsize
-            e1 = cmf_oo_iteration(ints, clusters, fspace, max_iter_ci, dguess, k1)[1]
+            e1 = f(k1) 
             k2 = deepcopy(k)
             k2[ii] -= stepsize
-            e2 = cmf_oo_iteration(ints, clusters, fspace, max_iter_ci, dguess, k2)[1]
+            e2 = f(k2) 
             grad[ii] = (e1-e2)/(2*stepsize)
         end
         return grad
@@ -562,7 +562,7 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess;
         U = exp(K)
         #println(size(U), size(kappa))
         ints2 = orbital_rotation(ints,U)
-
+        
         e, gd1a, gd1b, rdm1_dict, rdm2_dict = cmf_ci(ints2, clusters, fspace, da+db, dconv=gconv/10.0, verbose=verbose)
         grad = zeros(size(ints2.h1))
         for ci in clusters
@@ -570,7 +570,8 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess;
             h_1	   = ints2.h1[:,ci.orb_list]
             v_111  = ints2.h2[:, ci.orb_list, ci.orb_list, ci.orb_list]
             @tensor begin
-                grad_1[p,q] += v_111[p,v,u,w] * rdm2_dict[ci.idx][q,u,w,v]
+                grad_1[p,q] += v_111[p,v,u,w] * rdm2_dict[ci.idx][q,v,u,w]
+                #grad_1[p,q] += v_111[p,v,u,w] * rdm2_dict[ci.idx][q,u,w,v]
                 grad_1[p,q] += h_1[p,r] * rdm1_dict[ci.idx][r,q]
             end
             for cj in clusters
@@ -595,11 +596,11 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess;
         return gout
     end
 
-    #	grad1 = g(kappa)
-    #	grad2 = g_analytic(kappa)
-    #	display(round.(grad1,digits=6))
-    #	display(round.(grad2,digits=6))
-    #   return
+#    grad1 = g_numerical(kappa)
+#    grad2 = g(kappa)
+#    display(round.(unpack_gradient(grad1, norb),digits=6))
+#    display(round.(unpack_gradient(grad2, norb),digits=6))
+#    return
 
     
     if (method=="bfgs") || (method=="cg") || (method=="gd")

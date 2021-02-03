@@ -19,8 +19,8 @@ out_nb2 = []
 out_cepa = []
 out_rhf = []
 out_mp2 = []
-n_steps = 40 
-start = 1
+n_steps = 1 
+start = 2
 stop = 5
 stepsize = (stop-start)/n_steps
 
@@ -243,7 +243,7 @@ for step in 1:n_steps
             end
         end
     end
-    if true 
+    if false 
         for ci in clusters
             for cj in clusters
                 for ck in clusters
