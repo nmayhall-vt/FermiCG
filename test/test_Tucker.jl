@@ -3,6 +3,12 @@ using Printf
 using Test
 using LinearAlgebra
 using Profile 
+using HDF5
+
+using PyCall
+pydir = joinpath(dirname(pathof(FermiCG)), "python")
+pushfirst!(PyVector(pyimport("sys")."path"), pydir)
+ENV["PYTHON"] = Sys.which("python")
 
 #@testset "Clusters" begin
 #
@@ -11,8 +17,15 @@ out_fci = []
 out_ref = []
 out_nb2 = []
 out_cepa = []
-for step in 1:20
-    rad = .9 + step * .1
+out_rhf = []
+out_mp2 = []
+n_steps = 40 
+start = 1
+stop = 5
+stepsize = (stop-start)/n_steps
+
+for step in 1:n_steps
+    rad = start + (step-1) * stepsize 
     atoms = []
     clusters = []
     na = 0
@@ -71,6 +84,20 @@ for step in 1:20
         init_fspace = [(1,1),(1,1),(1,1),(1,1)]
         na = 4
         nb = 4
+        
+        atoms = generate_H_ring(10,rad)
+        clusters    = [(1:2),(3:4),(5:6),(7:8),(9:10)]
+        init_fspace = [(1,1),(1,1),(1,1),(1,1),(1,1)]
+        na = 5
+        nb = 5
+        
+        atoms = generate_H_ring(12,rad)
+        clusters    = [(1:4),(5:8),(9:12)]
+        init_fspace = [(2,2),(2,2),(2,2)]
+        clusters    = [(1:2),(3:4),(5:6),(7:8),(9:10),(11:12)]
+        init_fspace = [(1,1),(1,1),(1,1),(1,1),(1,1),(1,1)]
+        na = 6
+        nb = 6
     end
 
     basis = "6-31g"
@@ -80,13 +107,30 @@ for step in 1:20
    
     # get integrals
     mf = FermiCG.pyscf_do_scf(mol)
+    push!(out_rhf, mf.e_tot)
     nbas = size(mf.mo_coeff)[1]
     ints = FermiCG.pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
-    e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints, na, nb, conv_tol=1e-10,max_cycle=100)
-    @printf(" FCI Energy: %12.8f\n", e_fci)
-   
+    #e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints, na, nb, conv_tol=1e-10,max_cycle=100, nroots=2)
+	
+    #run fci with pyscf
+    if false 
+        pyscf = pyimport("pyscf")
+        fci = pyimport("pyscf.fci")
+        mp = pyimport("pyscf.mp")
+        mp2 = mp.MP2(mf)
+        push!(out_mp2, mp2.kernel()[1])
+        cisolver = pyscf.fci.direct_spin1.FCI()
+        cisolver.max_cycle = 100 
+        cisolver.conv_tol = 1e-10 
+        nelec = na + nb
+        norb = size(ints.h1)[1]
+        e_fci, ci = cisolver.kernel(ints.h1, ints.h2, norb , nelec, ecore=0, nroots = 1, verbose=100)
+        e_fci = min(e_fci...)
+        @printf(" FCI Energy: %12.8f\n", e_fci)
+
+        push!(out_fci, e_fci + ints.h0)
+    end
     push!(out_radii, rad)
-    push!(out_fci, e_fci + ints.h0)
    
     # localize orbitals
     C = mf.mo_coeff
@@ -102,16 +146,32 @@ for step in 1:20
     
     # define clusters
     
+    #fname = "job.scr" 
+    #fid = h5open(fname, "r")
+    #Cl = read(fid["mo_coeffs"]) 
+    #close(fid)
+    #ints = FermiCG.pyscf_build_ints(mol,Cl, zeros(nbas,nbas));
 
 
     clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
     display(clusters)
 
     rdm1 = zeros(size(ints.h1))
+    #e_cmf, U, Da, Db  = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, 
+    #                                   max_iter_oo=40, verbose=0, gconv=1e-6, method="gd", alpha=1e-1)
+    #ints = FermiCG.orbital_rotation(ints,U)
+    
     e_cmf, U, Da, Db  = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, 
-                                       max_iter_oo=40, verbose=0, gconv=1e-6, method="cg")
+                                       max_iter_oo=40, verbose=0, gconv=1e-6, method="bfgs")
     FermiCG.pyscf_write_molden(mol,Cl*U,filename="cmf.molden")
     ints = FermiCG.orbital_rotation(ints,U)
+
+    #fname = "job.scr" 
+    #fid = h5open(fname, "w")
+    #fid["mo_coeffs"] = Cl*U
+    #close(fid)
+  
+    #continue
     #cmf_out = FermiCG.cmf_ci(ints, clusters, init_fspace, rdm1, verbose=1)
     #e_ref = cmf_out[1]
     
@@ -127,7 +187,6 @@ for step in 1:20
     cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
 
 
-    continue
     
     p_spaces = Vector{FermiCG.TuckerSubspace}()
     q_spaces = Vector{FermiCG.TuckerSubspace}()
@@ -184,7 +243,7 @@ for step in 1:20
             end
         end
     end
-    if false 
+    if true 
         for ci in clusters
             for cj in clusters
                 for ck in clusters
@@ -212,7 +271,7 @@ for step in 1:20
                         tmp_spaces[cj.idx] = q_spaces[cj.idx]
                         tmp_spaces[ck.idx] = q_spaces[ck.idx]
                         tmp_spaces[cl.idx] = q_spaces[cl.idx]
-                        FermiCG.add!(q_vector, FermiCG.TuckerState(clusters, tmp_spaces, 3, 3))
+                        FermiCG.add!(ci_vector, FermiCG.TuckerState(clusters, tmp_spaces, na, nb))
                     end
                 end
             end
@@ -244,7 +303,7 @@ for step in 1:20
         #FermiCG.print_fock_occupations(ci_vector)
         println(" Length of CI Vector: ", length(ci_vector))
         @time e_nb2 = FermiCG.tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham)
-        push!(out_nb2, e_nb2[1] + ints.h0)
+        push!(out_nb2, min(e_nb2[1]...) + ints.h0)
         #@time FermiCG.tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham)
         FermiCG.print_fock_occupations(ci_vector)
         #display(ci_vector, thresh=-1)
@@ -255,7 +314,7 @@ for step in 1:20
         #FermiCG.print_fock_occupations(ref_vector)
         e_ref = FermiCG.tucker_ci_solve!(ref_vector, cluster_ops, clustered_ham)
         println(" Reference State:" )
-        push!(out_ref, e_ref[1] + ints.h0)
+        push!(out_ref,  min(e_ref[1]...) + ints.h0)
         FermiCG.print_fock_occupations(ref_vector)
         #FermiCG.print_fock_occupations(ci_vector)
 
@@ -263,7 +322,7 @@ for step in 1:20
         println(e_cepa[1])
         push!(out_cepa, e_cepa[1] + ints.h0)
         FermiCG.print_fock_occupations(ci_vector)
-        #display(ci_vector)
+        display(ci_vector)
     end
 end
 

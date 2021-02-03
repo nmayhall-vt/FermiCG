@@ -492,7 +492,7 @@ end
 Do CMF with orbital optimization
 """
 function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess; 
-                max_iter_oo=100, max_iter_ci=100, gconv=1e-6, verbose=0, method="bfgs")
+                max_iter_oo=100, max_iter_ci=100, gconv=1e-6, verbose=0, method="bfgs", alpha=nothing)
     norb = size(ints.h1)[1]
     #kappa = zeros(norb*(norb-1))
     # e, da, db = cmf_oo_iteration(ints, clusters, fspace, max_iter_ci, dguess, kappa)
@@ -602,10 +602,17 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess;
     #   return
 
     
-    if (method=="bfgs") || (method=="cg")
+    if (method=="bfgs") || (method=="cg") || (method=="gd")
         optmethod = BFGS()
         if method=="cg"
             optmethod = ConjugateGradient()
+        elseif method=="gd"
+
+            if alpha == nothing
+                optmethod = GradientDescent()
+            else 
+                optmethod = GradientDescent(alphaguess=alpha)
+            end
         end
 
         options = Optim.Options(
