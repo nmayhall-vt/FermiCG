@@ -113,6 +113,19 @@ Base.isequal(x::TuckerConfig, y::TuckerConfig) = all(isequal.(x.config, y.config
 Base.push!(tc::TuckerConfig, range) = push!(tc.config,range)
 Base.:(==)(x::TuckerConfig, y::TuckerConfig) = all(x.config .== y.config)
 
+"""
+Check if `tc1` is a subset of `tc2`
+"""
+function is_subset(tc1::TuckerConfig, tc2::TuckerConfig)
+    length(tc1.config) == length(tc2.config) || return false
+    for i in 1:length(tc1)
+        if first(tc1[i]) < first(tc2[i]) || last(tc1[i]) > last(tc2[i])
+            return false
+        end
+    end
+    return true
+end
+
 # Conversions
 Base.convert(::Type{TuckerConfig}, input::Vector{UnitRange{T}}) where T<:Integer = TuckerConfig(input)
 
@@ -494,6 +507,7 @@ Pretty print
 """
 function Base.display(s::TuckerState; root=1, thresh=1e-3)
 #={{{=#
+    println()
     @printf(" --------------------------------------------------\n")
     @printf(" ---------- State        -------------------: %5i  \n",root)
     @printf(" ---------- # Fockspaces -------------------: %5i  \n",length(keys(s.data)))
@@ -531,8 +545,9 @@ function Base.display(s::TuckerState; root=1, thresh=1e-3)
             println()
         end
     end
-    print(" --------------------------------------------------\n")
     fold!(s)
+    print(" --------------------------------------------------\n")
+    println()
 #=}}}=#
 end
 """
@@ -543,6 +558,7 @@ Pretty print
 function print_fock_occupations(s::TuckerState; root=1, thresh=1e-3)
 #={{{=#
 
+    println()
     unfold!(s)
     @printf(" --------------------------------------------------\n")
     @printf(" ---------- State        -------------------: %5i  \n",root)
@@ -572,6 +588,7 @@ function print_fock_occupations(s::TuckerState; root=1, thresh=1e-3)
     end
     print(" --------------------------------------------------\n")
     fold!(s)
+    println()
 #=}}}=#
 end
 
@@ -1217,3 +1234,92 @@ function tucker_cepa_solve!(ref_vector, ci_vector, cluster_ops, clustered_ham; t
     #x, info = linsolve(Hmap,zeros(size(v0)))
     return ecorr+e0, x
 end#=}}}=#
+
+"""
+Compute the first-order interacting space as defined by clustered_ham
+
+
+
+e.g., 
+ 1(p') 3(r) 4(q's)  *  v[(1,1),(1,1),(1,1),(1,1)][1:1,1:1,1:1,1:1]  =>  v[(2,1), (1,1), (0,1), (1,1)][1:N, 1:1, 1:N, 1:N]
+"""
+function get_foi(v::TuckerState, clustered_ham, bases::Vector{ClusterBasis}; nroots=1, nbody=1)
+    println(" Prepare empty TuckerState spanning the FOI of input")
+    foi = deepcopy(v)
+    na = 0
+    nb = 0
+
+
+    for (fock, tconfigs) in v
+            
+        na = sum([f[1] for f in fock])
+        nb = sum([f[2] for f in fock])
+        for (fock_trans, terms) in clustered_ham
+
+            # 
+            # new fock sector configuration
+            new_fock = fock + fock_trans
+
+
+            # 
+            # check that each cluster doesn't have too many/few electrons
+            ok = true
+            for ci in v.clusters
+                if new_fock[ci.idx][1] > length(ci) || new_fock[ci.idx][2] > length(ci)
+                    ok = false
+                end
+                if new_fock[ci.idx][1] < 0 || new_fock[ci.idx][2] < 0
+                    ok = false
+                end
+            end
+            ok == true || continue
+
+
+            if haskey(v.data, new_fock) == false
+                add_fockconfig!(foi, new_fock)
+            end
+            
+
+            #
+            # find the cluster state index ranges (TuckerConfig) reached by Hamiltonian
+            for (tconfig, coeffs) in tconfigs 
+                for term in terms
+                    new_tconfig = deepcopy(tconfig)
+
+                    length(term.clusters) <= nbody || continue
+
+                    #
+                    # for current term, expand index ranges for active clusters
+                    for cidx in 1:length(term.clusters)
+                        ci = term.clusters[cidx]
+                        #tmp_spaces[ci.idx] = q_spaces[ci.idx][new_fock[ci.idx]]
+                        start = 1
+                        stop  = size(bases[ci.idx][new_fock[ci.idx]])[2]
+                        new_tconfig[ci.idx] = start:stop 
+                    end
+
+                    # 
+                    # remove any previously defined TuckerConfigs which are subspaces of the new TuckerConfig 
+                    for key in keys(foi[new_fock])
+                        if is_subset(key, new_tconfig)
+                            delete!(foi[new_fock], key)
+                        end
+                    end
+
+                    # 
+                    # determine if new TuckerConfig is a subspace of any previously defined TuckerConfigs 
+                    is_new = true
+                    for key in keys(foi[new_fock])
+                        if is_subset(new_tconfig, key)
+                            is_new = false
+                        end
+                    end
+                    if is_new == true
+                        foi[new_fock][new_tconfig] = zeros(length.(new_tconfig)..., nroots) 
+                    end
+                end
+            end
+        end
+    end
+    return foi
+end

@@ -11,7 +11,7 @@ pushfirst!(PyVector(pyimport("sys")."path"), pydir)
 ENV["PYTHON"] = Sys.which("python")
 
 #@testset "Clusters" begin
-#
+
 out_radii = []
 out_fci = []
 out_ref = []
@@ -19,8 +19,8 @@ out_nb2 = []
 out_cepa = []
 out_rhf = []
 out_mp2 = []
-n_steps = 1 
-start = 2
+n_steps = 40 
+start = 1
 stop = 5
 stepsize = (stop-start)/n_steps
 
@@ -92,10 +92,10 @@ for step in 1:n_steps
         nb = 5
         
         atoms = generate_H_ring(12,rad)
-        clusters    = [(1:4),(5:8),(9:12)]
-        init_fspace = [(2,2),(2,2),(2,2)]
         clusters    = [(1:2),(3:4),(5:6),(7:8),(9:10),(11:12)]
         init_fspace = [(1,1),(1,1),(1,1),(1,1),(1,1),(1,1)]
+        clusters    = [(1:4),(5:8),(9:12)]
+        init_fspace = [(2,2),(2,2),(2,2)]
         na = 6
         nb = 6
     end
@@ -202,7 +202,7 @@ for step in 1:n_steps
  
     for ci in clusters
         tss = FermiCG.TuckerSubspace(ci)
-        tss[(1,1)] = 1:1
+        tss[(2,2)] = 1:1
         #tss[(2,1)] = 1:1
         #tss[(1,2)] = 1:1
         #tss[(0,1)] = 1:1

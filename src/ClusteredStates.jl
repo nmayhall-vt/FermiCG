@@ -30,6 +30,14 @@ Base.:(==)(x::FockConfig, y::FockConfig) = all([all(x[i].==y[i]) for i in 1:leng
 Base.:(==)(x::TransferConfig, y::TransferConfig) = all([all(x[i].==y[i]) for i in 1:length(x.config)])
 Base.:(==)(x::ClusterConfig, y::ClusterConfig) = all(x.config .== y.config)
 
+function Base.:(+)(x::FockConfig, y::TransferConfig)
+    out = []
+    for ci in 1:length(x)
+        push!(out, (x[ci][1] + y[ci][1], x[ci][2] + y[ci][2]))
+    end
+    return FockConfig(out)
+end
+
         
 Base.length(f::SparseConfig) = length(f.config)
 Base.getindex(s::SparseConfig, i) = s.config[i]
