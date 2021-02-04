@@ -1243,7 +1243,8 @@ Compute the first-order interacting space as defined by clustered_ham
 e.g., 
  1(p') 3(r) 4(q's)  *  v[(1,1),(1,1),(1,1),(1,1)][1:1,1:1,1:1,1:1]  =>  v[(2,1), (1,1), (0,1), (1,1)][1:N, 1:1, 1:N, 1:N]
 """
-function get_foi(v::TuckerState, clustered_ham, bases::Vector{ClusterBasis}; nroots=1, nbody=1)
+#function get_foi(v::TuckerState, clustered_ham, bases::Vector{ClusterBasis}; nroots=1, nbody=1)
+function get_foi(v::TuckerState, clustered_ham, q_spaces; nroots=1, nbody=1)
     println(" Prepare empty TuckerState spanning the FOI of input")
     foi = deepcopy(v)
     na = 0
@@ -1293,9 +1294,10 @@ function get_foi(v::TuckerState, clustered_ham, bases::Vector{ClusterBasis}; nro
                     for cidx in 1:length(term.clusters)
                         ci = term.clusters[cidx]
                         #tmp_spaces[ci.idx] = q_spaces[ci.idx][new_fock[ci.idx]]
-                        start = 1
-                        stop  = size(bases[ci.idx][new_fock[ci.idx]])[2]
-                        new_tconfig[ci.idx] = start:stop 
+                        #start = 1
+                        #stop  = size(bases[ci.idx][new_fock[ci.idx]])[2]
+                        #new_tconfig[ci.idx] = start:stop 
+                        new_tconfig[ci.idx] = q_spaces[ci.idx]new_fock[ci.idx]
                     end
 
                     # 
