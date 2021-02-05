@@ -312,7 +312,7 @@ function _scatter!(sig::Array{Float64,3}, VI::Array{Float64,2}, L::Vector{Int}, 
 end
 #=}}}=#
 
-function _getCkl!(Ckl::Array{Float64,3}, v::Array{Float64,3},L::Vector{Int})
+function _getCkl!(Ckl::Array{Float64,3}, v,L::Vector{Int})
     #={{{=#
     nI = length(L)
     n_roots = size(v)[3]
