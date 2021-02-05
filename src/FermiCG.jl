@@ -28,6 +28,7 @@ using IterTools
 #####################################
 # Local Imports
 #
+include("Utils.jl")
 include("StringCI/StringCI.jl");
 include("Solvers.jl");
 include("Hamiltonians.jl");

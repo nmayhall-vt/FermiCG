@@ -261,7 +261,7 @@ end
 """
 function unfold!(ts::TuckerState)
 #={{{=#
-    for (fock,configs) in ts
+    for (fock,configs) in ts.data
         #display(fock)
         for (config,coeffs) in configs 
             #length(size(coeffs)) == length(ts.clusters)+1 || error(" Can only unfold a folded vector")
@@ -271,7 +271,9 @@ function unfold!(ts::TuckerState)
             #display(size(coeffs))
             #display(size(config))
             #display(nroots)
-
+        
+            #display(fock)
+            #display(config)
             ts[fock][config] = reshape(coeffs, (prod(size(config)),nroots))
         end
     end
@@ -282,7 +284,7 @@ end
 """
 function fold!(ts::TuckerState)
 #={{{=#
-    for (fock,configs) in ts
+    for (fock,configs) in ts.data
         for (config,coeffs) in configs 
             #length(size(coeffs)) == 2 || error(" Can only fold an unfolded vector")
             nroots = last(size(coeffs)) 
@@ -413,6 +415,26 @@ function Base.length(s::TuckerState)
     return l
 end
 """
+    prune_empty_fock_spaces!(s::TuckerState)
+        
+remove fock_spaces that don't have any configurations 
+"""
+function prune_empty_fock_spaces!(s::TuckerState)
+    focklist = keys(s.data)
+    for fock in focklist 
+        if length(s.data[fock]) == 0
+            delete!(s.data, fock)
+        end
+    end
+    focklist = keys(s.data)
+    #println(" Here's what's left")
+    #for fock in keys(s.data)
+    #end
+    #    display(fock)
+    #    display(s[fock])
+    #end
+end
+"""
     get_vector(s::TuckerState)
 """
 function get_vector(ts::TuckerState)
@@ -426,6 +448,8 @@ function get_vector(ts::TuckerState)
             end
         end
     end
+
+    nroots != nothing || error(" Couldn't find nroots? length:", length(ts))
 
     v = zeros(length(ts), nroots)
     #println(length(ts), nroots)
@@ -865,31 +889,42 @@ function form_sigma_block!(term::ClusteredTerm3B,
                  ket[c1.idx], ket[c2.idx], ket[c3.idx])
 
     
-    if haskey(term.cache, cache_key)
-        op = term.cache[cache_key]
-    else
-        @tensor begin
-            op[q,r,I,J] := term.ints[p,q,r] * gamma1[p,I,J]
-            op[r,I,J,K,L] := op[q,r,I,J] * gamma2[q,K,L]  
-            op[J,L,N,I,K,M] := op[r,I,J,K,L] * gamma3[r,M,N]  
-        end
-        term.cache[cache_key] = op
-   
-        # compress this
+#    if haskey(term.cache, cache_key)
+#        op = term.cache[cache_key]
+#    else
+#        @tensor begin
+#            op[q,r,I,J] := term.ints[p,q,r] * gamma1[p,I,J]
+#            op[r,I,J,K,L] := op[q,r,I,J] * gamma2[q,K,L]  
+#            op[J,L,N,I,K,M] := op[r,I,J,K,L] * gamma3[r,M,N]  
+#        end
+#        term.cache[cache_key] = op
+#  
+#        #tucker_decompose(op)
+#        # compress this
 #        opsize = size(op)
 #        op = reshape(op, prod(size(op)[1:3]), prod(size(op)[4:6]))
 #        F = svd(op)
 #        #display(F.S)
 #        cut = 0
 #        for si in 1:length(F.S) 
-#            if F.S[si] < 1e-5
+#            if F.S[si] < 1e-4
 #                F.S[si] = 0
 #                cut += 1
 #            end
 #        end
-#        display((length(F.S), cut))
-#        op = F.U * Diagonal(F.S) * F.Vt
+#        #if cut > 0
+#        #    display((length(F.S), cut))
+#        #end
+#        #op = F.U * Diagonal(F.S) * F.Vt
 #        op = reshape(op,opsize)
+#        core, factors = tucker_decompose(op, thresh=-1, verbose=0)
+#        op = tucker_recompose(core, factors)
+#    end
+
+    @tensor begin
+        op[q,r,I,J] := term.ints[p,q,r] * gamma1[p,I,J]
+        op[r,I,J,K,L] := op[q,r,I,J] * gamma2[q,K,L]  
+        op[J,L,N,I,K,M] := op[r,I,J,K,L] * gamma3[r,M,N]  
     end
    
 
@@ -1148,7 +1183,7 @@ function tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham; tol=1e-5)
     @printf(" Now iterate: \n")
     flush(stdout)
     #@time FermiCG.iteration(davidson, Adiag=Adiag, iprint=2)
-    @time e,v = FermiCG.solve(davidson)
+    e,v = FermiCG.solve(davidson)
     set_vector!(ci_vector,v)
     return e,v
 end
@@ -1215,7 +1250,7 @@ function tucker_cepa_solve!(ref_vector, ci_vector, cluster_ops, clustered_ham; t
     Axx = LinearMap(mymatvec, dim, dim)
     #Axx = LinearMap(mymatvec, dim, dim; issymmetric=true, ismutating=false, ishermitian=true)
     
-    x, solver = cg(Axx,bv,initially_zero=true, log=true)
+    x, solver = cg!(get_vector(x_vector), Axx,bv,log=true)
 
     set_vector!(x_vector, x)
    
@@ -1230,22 +1265,19 @@ function tucker_cepa_solve!(ref_vector, ci_vector, cluster_ops, clustered_ham; t
     add!(ci_vector, ref_vector)
     add!(ci_vector, x_vector)
 
-    @printf(" E(CEPA): corr %12.8f electronic %12.8f\n",ecorr, ecorr+e0)
     #x, info = linsolve(Hmap,zeros(size(v0)))
     return ecorr+e0, x
 end#=}}}=#
 
 """
+    get_foi(v::TuckerState, clustered_ham, q_spaces; nroots=1, nbody=2)
 Compute the first-order interacting space as defined by clustered_ham
-
-
 
 e.g., 
  1(p') 3(r) 4(q's)  *  v[(1,1),(1,1),(1,1),(1,1)][1:1,1:1,1:1,1:1]  =>  v[(2,1), (1,1), (0,1), (1,1)][1:N, 1:1, 1:N, 1:N]
 """
-#function get_foi(v::TuckerState, clustered_ham, bases::Vector{ClusterBasis}; nroots=1, nbody=1)
-function get_foi(v::TuckerState, clustered_ham, q_spaces; nroots=1, nbody=1)
-    println(" Prepare empty TuckerState spanning the FOI of input")
+function get_foi(v::TuckerState, clustered_ham, q_spaces; nroots=1, nbody=2)
+    println(" Prepare empty TuckerState spanning the FOI of input")#={{{=#
     foi = deepcopy(v)
     na = 0
     nb = 0
@@ -1297,7 +1329,7 @@ function get_foi(v::TuckerState, clustered_ham, q_spaces; nroots=1, nbody=1)
                         #start = 1
                         #stop  = size(bases[ci.idx][new_fock[ci.idx]])[2]
                         #new_tconfig[ci.idx] = start:stop 
-                        new_tconfig[ci.idx] = q_spaces[ci.idx]new_fock[ci.idx]
+                        new_tconfig[ci.idx] = q_spaces[ci.idx][new_fock[ci.idx]]
                     end
 
                     # 
@@ -1323,5 +1355,86 @@ function get_foi(v::TuckerState, clustered_ham, q_spaces; nroots=1, nbody=1)
             end
         end
     end
+    prune_empty_fock_spaces!(foi)
     return foi
+#=}}}=#
+end
+
+"""
+    get_nbody_tucker_space(v::TuckerState, p_spaces, q_spaces; nroots=1, nbody=2)
+Get a vector dimensioned according to the n-body Tucker scheme
+- `v::TuckerState` = reference P-space vector
+- `p_spaces` = `Vector{ClusterSubspace}` denoting all the cluster P-spaces
+- `q_spaces` = `Vector{ClusterSubspace}` denoting all the cluster Q-spaces
+- `nbody`    = n-body order
+"""
+function get_nbody_tucker_space(v::TuckerState, p_spaces, q_spaces, na, nb; nroots=1, nbody=2)
+    clusters = v.clusters
+    println(" Prepare empty TuckerState spanning the n-body Tucker space with nbody = ", nbody)#={{{=#
+    ci_vector = deepcopy(v)
+    if nbody >= 1 
+        for ci in clusters
+            tmp_spaces = copy(p_spaces)
+            tmp_spaces[ci.idx] = q_spaces[ci.idx]
+            FermiCG.add!(ci_vector, FermiCG.TuckerState(clusters, tmp_spaces, na, nb))
+        end
+    end
+    if nbody >= 2 
+        for ci in clusters
+            for cj in clusters
+                ci.idx < cj.idx || continue
+                tmp_spaces = copy(p_spaces)
+                tmp_spaces[ci.idx] = q_spaces[ci.idx]
+                tmp_spaces[cj.idx] = q_spaces[cj.idx]
+                FermiCG.add!(ci_vector, FermiCG.TuckerState(clusters, tmp_spaces, na, na))
+            end
+        end
+    end
+    if nbody >= 3 
+        for ci in clusters
+            for cj in clusters
+                for ck in clusters
+                    ci.idx < cj.idx || continue
+                    cj.idx < ck.idx || continue
+                    tmp_spaces = copy(p_spaces)
+                    tmp_spaces[ci.idx] = q_spaces[ci.idx]
+                    tmp_spaces[cj.idx] = q_spaces[cj.idx]
+                    tmp_spaces[ck.idx] = q_spaces[ck.idx]
+                    FermiCG.add!(ci_vector, FermiCG.TuckerState(clusters, tmp_spaces, na, na))
+                end
+            end
+        end
+    end
+    if nbody >= 4 
+        for ci in clusters
+            for cj in clusters
+                for ck in clusters
+                    for cl in clusters
+                        ci.idx < cj.idx || continue
+                        cj.idx < ck.idx || continue
+                        ck.idx < cl.idx || continue
+                        tmp_spaces = copy(p_spaces)
+                        tmp_spaces[ci.idx] = q_spaces[ci.idx]
+                        tmp_spaces[cj.idx] = q_spaces[cj.idx]
+                        tmp_spaces[ck.idx] = q_spaces[ck.idx]
+                        tmp_spaces[cl.idx] = q_spaces[cl.idx]
+                        FermiCG.add!(ci_vector, FermiCG.TuckerState(clusters, tmp_spaces, na, nb))
+                    end
+                end
+            end
+        end
+    end
+    return ci_vector 
+#=}}}=#
+end
+
+
+function compress_blocks(ts::TuckerState; thresh=1e-7)
+    for (fock, tconfigs) in ts.data
+        display(fock)
+        for (tconfig, coeffs) in tconfigs
+            display(tconfig)
+            tucker_decompose(coeffs)
+        end
+    end
 end

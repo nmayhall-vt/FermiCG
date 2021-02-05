@@ -506,6 +506,8 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
 
                             vcurr = copy(reshape(vcurr,newshape...))
 
+                            #core,factors = tucker_decompose(vcurr)
+
                             clusteredterm = ClusteredTerm3B((oper1,oper2,oper3), [Tuple(fock1),Tuple(fock2),Tuple(fock3)], (ci, cj, ck), vcurr, Dict())
                             #display(clusteredterm)
                             focktrans = deepcopy(zero_fock)
