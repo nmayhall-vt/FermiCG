@@ -25,6 +25,7 @@ pages = [
             "Tucker" => "library/Tucker.md",
             "PyscfFunctions" => "library/PyscfFunctions.md",
             "StringCI" => "library/StringCI.md",
+            "Utils" => "library/Utils.md",
         ],
 ]
 

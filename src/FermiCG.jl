@@ -36,6 +36,8 @@ include("Clusters.jl")
 include("ClusteredStates.jl")
 include("ClusteredTerms.jl")
 include("Tucker.jl")
+include("Tucker_functions.jl")
+include("CompressedTucker.jl")
 include("CMFs.jl")
 include("pyscf/PyscfFunctions.jl");
 #

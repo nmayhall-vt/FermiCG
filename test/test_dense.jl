@@ -4,6 +4,7 @@ using Test
 using LinearAlgebra
 using Profile 
 using HDF5
+using Random
 
 using PyCall
 pydir = joinpath(dirname(pathof(FermiCG)), "python")
@@ -28,10 +29,22 @@ ENV["PYTHON"] = Sys.which("python")
         return atoms
     end
 
+    #
+    # Test basic Tucker stuff
+    Random.seed!(2);
     A = rand(4,6,3,3,5)
-    core, factors = FermiCG.tucker_decompose(A)
-    B = FermiCG.tucker_recompose(core, factors)
+    tuck = FermiCG.Tucker(A, thresh=20, verbose=1)
+    B = FermiCG.recompose(tuck)
+    println()
+    println(FermiCG.dims_large(tuck))
+    @test all(FermiCG.dims_small(tuck) .== [4, 1, 3, 3, 1])
+    @test all(FermiCG.dims_large(tuck) .== [4, 6, 3, 3, 5])
+     
+    A = rand(4,6,3,3,5)
+    tuck = FermiCG.Tucker(A, thresh=-1, verbose=1)
+    B = FermiCG.recompose(tuck)
     @test isapprox(abs.(A), abs.(B), atol=1e-12)
+
 
     if false 
         r = 1
@@ -73,12 +86,6 @@ ENV["PYTHON"] = Sys.which("python")
        
         rad = 3
         
-        atoms = generate_H_ring(8,rad)
-        clusters    = [(1:2),(3:4),(5:6),(7:8)]
-        init_fspace = [(1,1),(1,1),(1,1),(1,1)]
-        na = 4
-        nb = 4
-        
         atoms = generate_H_ring(12,rad)
         clusters    = [(1:2),(3:4),(5:6),(7:8),(9:10),(11:12)]
         init_fspace = [(1,1),(1,1),(1,1),(1,1),(1,1),(1,1)]
@@ -94,6 +101,12 @@ ENV["PYTHON"] = Sys.which("python")
         init_fspace = [(2,2),(2,2),(1,1)]
         na = 5
         nb = 5
+        atoms = generate_H_ring(8,rad)
+        clusters    = [(1:4),(5:6),(7:8)]
+        init_fspace = [(2,2),(1,1),(1,1)]
+        na = 4
+        nb = 4
+        
     end
 
     basis = "6-31g"
@@ -108,7 +121,7 @@ ENV["PYTHON"] = Sys.which("python")
     #e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints, na, nb, conv_tol=1e-10,max_cycle=100, nroots=2)
 	
     #run fci with pyscf
-    if true 
+    if false 
         pyscf = pyimport("pyscf")
         fci = pyimport("pyscf.fci")
         mp = pyimport("pyscf.mp")
@@ -198,6 +211,7 @@ ENV["PYTHON"] = Sys.which("python")
     println(" ================= Cluster Q Spaces ===================")
     display.(q_spaces)
 
+
     nroots = 1
     ci_vector = FermiCG.TuckerState(clusters, p_spaces, na, nb, nroots=nroots)
     ref_vector = deepcopy(ci_vector)
@@ -234,8 +248,13 @@ ENV["PYTHON"] = Sys.which("python")
         FermiCG.print_fock_occupations(ci_vector)
     end
 
-    FermiCG.compress_blocks(ci_vector)
-            
+    #FermiCG.compress_blocks(ci_vector)
+    println(length(ci_vector))
+    cts = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-5)
+    println(length(cts))
+
+    display(cts)
+    FermiCG.print_fock_occupations(cts)
 
 #end
 
