@@ -188,8 +188,8 @@ for step in 1:n_steps
 
 
     
-    p_spaces = Vector{FermiCG.TuckerSubspace}()
-    q_spaces = Vector{FermiCG.TuckerSubspace}()
+    p_spaces = Vector{FermiCG.ClusterSubspace}()
+    q_spaces = Vector{FermiCG.ClusterSubspace}()
    
     #ci_vector = FermiCG.TuckerState(clusters)
     #FermiCG.add_fockconfig!(ci_vector, [(1,1),(1,1),(1,1)])
@@ -201,7 +201,7 @@ for step in 1:n_steps
     
  
     for ci in clusters
-        tss = FermiCG.TuckerSubspace(ci)
+        tss = FermiCG.ClusterSubspace(ci)
         tss[(2,2)] = 1:1
         #tss[(2,1)] = 1:1
         #tss[(1,2)] = 1:1

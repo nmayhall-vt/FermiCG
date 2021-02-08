@@ -49,16 +49,16 @@ for the subspace.
     cluster::Cluster
     data::OrderedDict{Tuple{UInt8,UInt8}, UnitRange{Int}}
 """
-struct TuckerSubspace
+struct ClusterSubspace
     cluster::Cluster
     data::OrderedDict{Tuple{UInt8,UInt8}, UnitRange{Int}}
 end
-function TuckerSubspace(cluster::Cluster)
-    return TuckerSubspace(cluster,OrderedDict{Tuple{UInt8,UInt8}, UnitRange{Int}}())
+function ClusterSubspace(cluster::Cluster)
+    return ClusterSubspace(cluster,OrderedDict{Tuple{UInt8,UInt8}, UnitRange{Int}}())
 end
-Base.setindex!(tss::TuckerSubspace, i, j) = tss.data[j] = i
-Base.getindex(tss::TuckerSubspace, i) = return tss.data[i] 
-function Base.display(tss::TuckerSubspace)
+Base.setindex!(tss::ClusterSubspace, i, j) = tss.data[j] = i
+Base.getindex(tss::ClusterSubspace, i) = return tss.data[i] 
+function Base.display(tss::ClusterSubspace)
     @printf(" Subspace for Cluster: %4i : ", tss.cluster.idx)
     display(tss.cluster)
     for (fock,range) in tss.data
@@ -67,11 +67,11 @@ function Base.display(tss::TuckerSubspace)
 end
 
 """
-    get_ortho_compliment(tss::TuckerSubspace, cb::ClusterBasis)
+    get_ortho_compliment(tss::ClusterSubspace, cb::ClusterBasis)
 
-For a given `TuckerSubspace`, `tss`, return the subspace remaining
+For a given `ClusterSubspace`, `tss`, return the subspace remaining
 """
-function get_ortho_compliment(tss::TuckerSubspace, cb::ClusterBasis)
+function get_ortho_compliment(tss::ClusterSubspace, cb::ClusterBasis)
 #={{{=#
     data = OrderedDict{Tuple{UInt8,UInt8}, UnitRange{Int}}()
     for (fock,basis) in cb
@@ -90,7 +90,7 @@ function get_ortho_compliment(tss::TuckerSubspace, cb::ClusterBasis)
         end
     end
 
-    return TuckerSubspace(tss.cluster, data)
+    return ClusterSubspace(tss.cluster, data)
 #=}}}=#
 end
 
@@ -346,11 +346,11 @@ function orthogonalize!(ts::TuckerState)
 end
 
 """
-    TuckerState(clusters, tss::Vector{TuckerSubspace}, na, nb; nroots=1)
+    TuckerState(clusters, tss::Vector{ClusterSubspace}, na, nb; nroots=1)
 
 Constructor
 - `clusters::Vector{Cluster}`
-- `tss::Vector{TuckerSubspace}`
+- `tss::Vector{ClusterSubspace}`
 - `na::Int` Number of alpha
 - `nb::Int` Number of beta
 """

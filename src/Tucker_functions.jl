@@ -7,7 +7,7 @@ function form_sigma_block!(term::ClusteredTerm1B,
                             cluster_ops::Vector{ClusterOps},
                             fock_bra::FockConfig, bra::TuckerConfig, 
                             fock_ket::FockConfig, ket::TuckerConfig,
-                            bra_coeffs, ket_coeffs)
+                            bra_coeffs::Array, ket_coeffs::Array)
 #={{{=#
     #display(term)
     #println(bra, ket)
@@ -77,7 +77,7 @@ function form_sigma_block!(term::ClusteredTerm2B,
                             cluster_ops::Vector{ClusterOps},
                             fock_bra::FockConfig, bra::TuckerConfig, 
                             fock_ket::FockConfig, ket::TuckerConfig,
-                            bra_coeffs, ket_coeffs)
+                            bra_coeffs::Array, ket_coeffs::Array)
 #={{{=#
     #display(term)
     #println(bra, ket)
@@ -191,7 +191,7 @@ function form_sigma_block!(term::ClusteredTerm3B,
                             cluster_ops::Vector{ClusterOps},
                             fock_bra::FockConfig, bra::TuckerConfig, 
                             fock_ket::FockConfig, ket::TuckerConfig,
-                            bra_coeffs, ket_coeffs)
+                            bra_coeffs::Array, ket_coeffs::Array)
 #={{{=#
     #display(term)
     #println(bra, ket)
@@ -438,9 +438,9 @@ end
 
 
 """
-    build_sigma!(sigma_vector, ci_vector, cluster_ops, clustered_ham)
+    build_sigma!(sigma_vector::TuckerState, ci_vector::TuckerState, cluster_ops, clustered_ham)
 """
-function build_sigma!(sigma_vector, ci_vector, cluster_ops, clustered_ham)
+function build_sigma!(sigma_vector::TuckerState, ci_vector::TuckerState, cluster_ops, clustered_ham)
     #={{{=#
 
     for (fock_bra, configs_bra) in sigma_vector
@@ -456,7 +456,7 @@ function build_sigma!(sigma_vector, ci_vector, cluster_ops, clustered_ham)
 
                     for term in clustered_ham[fock_trans]
                     
-                        #term isa ClusteredTerm1B || continue
+                        term isa ClusteredTerm2B || continue
                        
                         FermiCG.form_sigma_block!(term, cluster_ops, fock_bra, config_bra, 
                                                   fock_ket, config_ket,
@@ -520,7 +520,7 @@ function get_map(ci_vector::TuckerState, cluster_ops, clustered_ham; shift = not
 end
 #=}}}=#
 
-function tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham; tol=1e-5)
+function tucker_ci_solve!(ci_vector::TuckerState, cluster_ops, clustered_ham; tol=1e-5)
 #={{{=#
     unfold!(ci_vector) 
     Hmap = get_map(ci_vector, cluster_ops, clustered_ham)

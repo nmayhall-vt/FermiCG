@@ -94,12 +94,6 @@ ENV["PYTHON"] = Sys.which("python")
         na = 6
         nb = 6
         
-        atoms = generate_H_ring(8,rad)
-        clusters    = [(1:4),(5:6),(7:8)]
-        init_fspace = [(2,2),(1,1),(1,1)]
-        na = 4
-        nb = 4
-        
         atoms = generate_H_ring(10,rad)
         clusters    = [(1:2),(3:4),(5:6),(7:8),(9:10)]
         init_fspace = [(1,1),(1,1),(1,1),(1,1),(1,1)]
@@ -107,6 +101,14 @@ ENV["PYTHON"] = Sys.which("python")
         init_fspace = [(2,2),(2,2),(1,1)]
         na = 5
         nb = 5
+        
+        atoms = generate_H_ring(8,rad)
+        clusters    = [(1:2),(3:4),(5:6),(7:8)]
+        init_fspace = [(1,1),(1,1),(1,1),(1,1)]
+        clusters    = [(1:4),(5:6),(7:8)]
+        init_fspace = [(2,2),(1,1),(1,1)]
+        na = 4
+        nb = 4
     end
 
     basis = "6-31g"
@@ -177,8 +179,8 @@ ENV["PYTHON"] = Sys.which("python")
 
 
     
-    p_spaces = Vector{FermiCG.TuckerSubspace}()
-    q_spaces = Vector{FermiCG.TuckerSubspace}()
+    p_spaces = Vector{FermiCG.ClusterSubspace}()
+    q_spaces = Vector{FermiCG.ClusterSubspace}()
    
     #ci_vector = FermiCG.TuckerState(clusters)
     #FermiCG.add_fockconfig!(ci_vector, [(1,1),(1,1),(1,1)])
@@ -190,7 +192,7 @@ ENV["PYTHON"] = Sys.which("python")
     
  
     for ci in clusters
-        tss = FermiCG.TuckerSubspace(ci)
+        tss = FermiCG.ClusterSubspace(ci)
         tss[init_fspace[ci.idx]] = 1:1
         #tss[(2,2)] = 1:1
         #tss[(2,1)] = 1:1
@@ -250,7 +252,7 @@ ENV["PYTHON"] = Sys.which("python")
 
     #FermiCG.compress_blocks(ci_vector)
     println(length(ci_vector))
-    cts = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-5)
+    cts = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-10)
     println(length(cts))
 
     display(cts)
@@ -259,6 +261,10 @@ ENV["PYTHON"] = Sys.which("python")
     println(" Norm of projected state: (nonorth) ", FermiCG.nonorth_dot(cts,cts))
     FermiCG.scale!(cts, 1.0/sqrt(FermiCG.dot(cts,cts)))
     println(" Norm of normalized state: ", FermiCG.dot(cts,cts))
+
+    #@time e_nb2, v_nb2 = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham)
+    #@printf(" E(CI):   Electronic %16.12f Total %16.12f\n", e_nb2[1], e_nb2[1]+ints.h0)
+    #FermiCG.print_fock_occupations(cts)
 
 #end
 

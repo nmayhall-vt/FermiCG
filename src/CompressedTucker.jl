@@ -5,6 +5,13 @@ using IterativeSolvers
 #using TensorDecompositions
 
 
+
+"""
+    core::Array{T, N}
+    factors::NTuple{N, Matrix{T}}
+
+Tucker factors are stored as Tall matrices
+"""
 struct Tucker{T, N} 
     core::Array{T, N}
     factors::NTuple{N, Matrix{T}}
@@ -20,7 +27,11 @@ recompose(t::Tucker{T,N}) where {T<:Number, N} = tucker_recompose(t.core, t.fact
 dims_large(t::Tucker{T,N}) where {T<:Number, N} = return [size(f,1) for f in t.factors]
 dims_small(t::Tucker{T,N}) where {T<:Number, N} = return [size(f,2) for f in t.factors]
 Base.length(t::Tucker) = return prod(dims_small(t))
-
+Base.size(t::Tucker) = return size(t.core) 
+function Base.permutedims(t::Tucker{T,N}, perm) where {T,N}
+    #t.core .= permutedims(t.core, perm)
+    return Tucker{T,N}(permutedims(t.core, perm), t.factors[perm])
+end
 
 function dot(t1::Tucker{T,N}, t2::Tucker{T,N}) where {T,N}
     overlaps = [] 
@@ -160,7 +171,7 @@ end
 """
     set_vector!(s::CompressedTuckerState)
 """
-function set_vector!(ts::CompressedTuckerState, v::Vector{T}) where T
+function set_vector!(ts::CompressedTuckerState, v)
 
     length(size(v)) == 1 || error(" Only takes vectors", size(v))
     nbasis = size(v)[1]
@@ -184,7 +195,7 @@ end
 function zero!(s::CompressedTuckerState)
     for (fock, tconfigs) in s
         for (tconfig, tcoeffs) in tconfigs
-            fill!(s[fock][config].core, 0.0)
+            fill!(s[fock][tconfig].core, 0.0)
         end
     end
 end
@@ -375,3 +386,326 @@ function scale!(ts::CompressedTuckerState, a)
     #=}}}=#
 end
 
+"""
+    get_map(ci_vector::CompressedTuckerState, cluster_ops, clustered_ham)
+
+Get LinearMap with takes a vector and returns action of H on that vector
+"""
+function get_map(ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; shift = nothing)
+    #={{{=#
+    iters = 0
+   
+    dim = length(ci_vector)
+    function mymatvec(v)
+        iters += 1
+        
+        nr = 0
+        if length(size(v)) == 1
+            nr = 1
+            v = reshape(v, length(v), nr)
+        elseif length(size(v)) == 2
+            nr = size(v)[2]
+        else
+            error(" is tensor not unfolded?")
+        end
+    
+      
+        set_vector!(ci_vector, v)
+        
+        #fold!(ci_vector)
+        sig = deepcopy(ci_vector)
+        zero!(sig)
+        build_sigma!(sig, ci_vector, cluster_ops, clustered_ham)
+
+        #unfold!(ci_vector)
+        
+        sig = get_vector(sig)
+
+        if shift != nothing
+            # this is how we do CEPA
+            sig += shift * get_vector(ci_vector)
+        end
+
+        return sig 
+    end
+    return LinearMap(mymatvec, dim, dim; issymmetric=true, ismutating=false, ishermitian=true)
+end
+#=}}}=#
+function tucker_ci_solve!(ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; tol=1e-5)
+#={{{=#
+    Hmap = get_map(ci_vector, cluster_ops, clustered_ham)
+
+    v0 = get_vector(ci_vector)
+    nr = size(v0)[2] 
+    
+    davidson = Davidson(Hmap,v0=v0,max_iter=80, max_ss_vecs=40, nroots=nr, tol=1e-5)
+    #Adiag = StringCI.compute_fock_diagonal(problem,mf.mo_energy, e_mf)
+    #FermiCG.solve(davidson)
+    @printf(" Now iterate: \n")
+    flush(stdout)
+    #@time FermiCG.iteration(davidson, Adiag=Adiag, iprint=2)
+    e,v = FermiCG.solve(davidson)
+    set_vector!(ci_vector,v)
+    return e,v
+end
+#=}}}=#
+
+
+
+
+"""
+    build_sigma!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham)
+"""
+function build_sigma!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham)
+    #={{{=#
+
+    for (fock_bra, configs_bra) in sigma_vector
+        for (fock_ket, configs_ket) in ci_vector
+            fock_trans = fock_bra - fock_ket
+
+            # check if transition is connected by H
+            haskey(clustered_ham, fock_trans) == true || continue
+
+            for (config_bra, coeff_bra) in configs_bra
+                for (config_ket, coeff_ket) in configs_ket
+                
+
+                    for term in clustered_ham[fock_trans]
+                    
+                        term isa ClusteredTerm2B || continue
+                       
+                        FermiCG.form_sigma_block!(term, cluster_ops, fock_bra, config_bra, 
+                                                  fock_ket, config_ket,
+                                                  coeff_bra, coeff_ket)
+
+
+                    end
+                end
+            end
+        end
+    end
+    return 
+    #=}}}=#
+end
+
+
+"""
+"""
+function form_sigma_block!(term::ClusteredTerm1B, 
+                            cluster_ops::Vector{ClusterOps},
+                            fock_bra::FockConfig, bra::TuckerConfig, 
+                            fock_ket::FockConfig, ket::TuckerConfig,
+                            bra_coeffs::Tucker{T,N}, ket_coeffs::Tucker{T,N}) where {T,N}
+#={{{=#
+    #display(term)
+    c1 = term.clusters[1]
+    length(fock_bra) == length(fock_ket) || throw(Exception)
+    length(bra) == length(ket) || throw(Exception)
+    n_clusters = length(bra)
+    # 
+    # make sure inactive clusters are diagonal
+    for ci in 1:n_clusters
+        ci != c1.idx || continue
+
+        fock_bra[ci] == fock_ket[ci] || throw(Exception)
+        bra[ci] == ket[ci] || return 0.0 
+    end
+
+    # 
+    # make sure active clusters are correct transitions 
+    fock_bra[c1.idx] == fock_ket[c1.idx] .+ term.delta[1] || throw(Exception)
+
+    op1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
+
+    #
+    # Get 1body operator and compress it using the cluster's Tucker factors
+    op = bra_coeffs.factors[c1.idx]' * (op1[bra[c1.idx],ket[c1.idx]] * ket_coeffs.factors[c1.idx])
+
+    # 
+    # form overlaps - needed when TuckerConfigs aren't the same because each does their own compression and has 
+    # distinct Tucker factors
+    overlaps = Vector{Array{T}}() 
+    indices = Vector{Vector{Int16}}()
+    state_indices = -collect(1:n_clusters)
+    s = 1.0 # this is the product of scalar overlaps that don't need tensor contractions
+    for ci in 1:n_clusters
+        ci != c1.idx || continue
+
+        # if overlap not just scalar, form and prepare for contraction
+        if size(bra_coeffs.factors[ci],2) > 1 || size(ket_coeffs.factors[ci],2) > 1
+            push!(overlaps, bra_coeffs.factors[ci]' * ket_coeffs.factors[ci])
+            push!(indices, [-ci, ci])
+            state_indices[ci] = ci
+        else
+            S = bra_coeffs.factors[ci]' * ket_coeffs.factors[ci]
+            length(S) == 1 || error(" huh?")
+            s *= S[1]
+        end
+    end
+
+
+    # 
+    # Let's try @ncon for dynamically determined contractions, which "hopefully" avoid transposes
+
+    # if the compressed operator becomes a scalar, treat it as such
+    if length(op) == 1
+        s *= op[1]
+    else
+        op_indices = [-c1.idx, c1.idx]
+        state_indices[c1.idx] = c1.idx
+        push!(overlaps, op)
+        push!(indices, op_indices)
+    end
+
+    push!(overlaps, ket_coeffs.core)
+    push!(indices, state_indices)
+    
+    length(overlaps) == length(indices) || error(" mismatch between operators and indices")
+    if length(overlaps) == 1
+        bra_coeffs.core .+= ket_coeffs.core .* s
+    else
+        #display.(("a", size.(overlaps), indices))
+        out = @ncon(overlaps, indices)
+        bra_coeffs.core .+= out .* s
+    end
+
+    return  
+#=}}}=#
+end
+
+"""
+"""
+function form_sigma_block!(term::ClusteredTerm2B, 
+                            cluster_ops::Vector{ClusterOps},
+                            fock_bra::FockConfig, bra::TuckerConfig, 
+                            fock_ket::FockConfig, ket::TuckerConfig,
+                            bra_coeffs::Tucker{T,N}, ket_coeffs::Tucker{T,N}) where {T,N}
+#={{{=#
+    #display(term)
+    #display.((fock_bra, fock_ket))
+    c1 = term.clusters[1]
+    c2 = term.clusters[2]
+    length(fock_bra) == length(fock_ket) || throw(Exception)
+    length(bra) == length(ket) || throw(Exception)
+    n_clusters = length(bra)
+    # 
+    # make sure inactive clusters are diagonal
+    for ci in 1:n_clusters
+        ci != c1.idx || continue
+        ci != c2.idx || continue
+
+        fock_bra[ci] == fock_ket[ci] || throw(Exception)
+        bra[ci] == ket[ci] || return 0.0 
+    end
+
+    # 
+    # make sure active clusters are correct transitions 
+    fock_bra[c1.idx] == fock_ket[c1.idx] .+ term.delta[1] || throw(Exception)
+    fock_bra[c2.idx] == fock_ket[c2.idx] .+ term.delta[2] || throw(Exception)
+    
+    # 
+    # determine sign from rearranging clusters if odd number of operators
+    state_sign = compute_terms_state_sign(term, fock_ket) 
+
+    #
+    # op[IK,JL] = <I|p'|J> h(pq) <K|q|L>
+    gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+
+    # todo: add in 2e integral tucker decomposition and compress gamma along 1st index first
+    
+    #
+    # Compress Gammas using the cluster's Tucker factors
+    # e.g., 
+    #   Gamma(pqr, I, J) Ul(I,k) Ur(J,l) = Gamma(pqr, k, l) where k and l are compressed indices
+    gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    Ul = bra_coeffs.factors[c1.idx]
+    Ur = ket_coeffs.factors[c1.idx]
+    @tensor begin
+        tmp[p,k,J] := Ul[I,k] * gamma1[p,I,J]
+        g1[p,k,l] := Ur[J,l] * tmp[p,k,J]
+    end
+    #g1 = @ncon([gamma1, U1, U2], [[-1,2,3], [2,-2], [3,-3]])
+    
+    gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+    Ul = bra_coeffs.factors[c2.idx]
+    Ur = ket_coeffs.factors[c2.idx]
+    @tensor begin
+        tmp[p,k,J] := Ul[I,k] * gamma2[p,I,J]
+        g2[p,k,l] := Ur[J,l] * tmp[p,k,J]
+    end
+    #g2 = @ncon([gamma2, U1, U2], [[-1,2,3], [2,-2], [3,-3]])
+    #display(("g1/2", size(g1), size(g2)))
+
+    # 
+    # Now contract into 2body term
+    #
+    # h(p,q) * g1(p,I,J) * g2(q,K,L) = op(J,L,I,K)
+    op = Array{Float64}[]
+#    cache_key = (fock_bra[c1.idx], fock_bra[c2.idx], fock_ket[c1.idx], fock_ket[c2.idx], bra[c1.idx], bra[c2.idx], ket[c1.idx], ket[c2.idx])
+#    if haskey(term.cache, cache_key)
+#        op = term.cache[cache_key]
+#    else
+#        @tensor begin
+#            op[q,J,I] := term.ints[p,q] * g1[p,I,J]
+#            op[J,L,I,K] := op[q,J,I] * g2[q,K,L]
+#        end
+#        term.cache[cache_key] = op
+#    end
+    @tensor begin
+        op[q,J,I] := term.ints[p,q] * g1[p,I,J]
+        op[J,L,I,K] := op[q,J,I] * g2[q,K,L]
+    end
+
+    # 
+    # form overlaps - needed when TuckerConfigs aren't the same because each does their own compression and has 
+    # distinct Tucker factors
+    overlaps = Vector{Array{T}}() 
+    indices = Vector{Vector{Int16}}()
+    state_indices = -collect(1:n_clusters)
+    s = state_sign # this is the product of scalar overlaps that don't need tensor contractions
+    for ci in 1:n_clusters
+        ci != c1.idx || continue
+        ci != c2.idx || continue
+
+        # if overlap not just scalar, form and prepare for contraction
+        if size(bra_coeffs.factors[ci],2) > 1 || size(ket_coeffs.factors[ci],2) > 1
+            push!(overlaps, bra_coeffs.factors[ci]' * ket_coeffs.factors[ci])
+            push!(indices, [-ci, ci])
+            state_indices[ci] = ci
+        else
+            S = bra_coeffs.factors[ci]' * ket_coeffs.factors[ci]
+            length(S) == 1 || error(" huh?")
+            s *= S[1]
+        end
+    end
+
+
+    # if the compressed operator becomes a scalar, treat it as such
+    if length(op) == 1
+        s *= op[1]
+    else
+        op_indices = [c1.idx, c2.idx, -c1.idx, -c2.idx]
+        state_indices[c1.idx] = c1.idx
+        state_indices[c2.idx] = c2.idx
+        push!(overlaps, op)
+        push!(indices, op_indices)
+    end
+
+    push!(overlaps, ket_coeffs.core)
+    push!(indices, state_indices)
+   
+    length(overlaps) == length(indices) || error(" mismatch between operators and indices")
+    if length(overlaps) == 1
+        # this means that all the overlaps and the operator is a scalar
+        bra_coeffs.core .+= ket_coeffs.core .* s 
+    else
+        #display.(("a", size(bra_coeffs), size(ket_coeffs), "sizes: ", size.(overlaps), indices))
+        #display.(("a", size(bra_coeffs), size(ket_coeffs), "sizes: ", overlaps, indices))
+        out = @ncon(overlaps, indices)
+        bra_coeffs.core .+= out .* s
+    end
+
+    return  
+#=}}}=#
+end
