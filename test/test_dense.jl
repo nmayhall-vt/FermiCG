@@ -94,14 +94,6 @@ ENV["PYTHON"] = Sys.which("python")
         na = 6
         nb = 6
         
-        atoms = generate_H_ring(10,rad)
-        clusters    = [(1:2),(3:4),(5:6),(7:8),(9:10)]
-        init_fspace = [(1,1),(1,1),(1,1),(1,1),(1,1)]
-        clusters    = [(1:4),(5:8),(9:10)]
-        init_fspace = [(2,2),(2,2),(1,1)]
-        na = 5
-        nb = 5
-        
         atoms = generate_H_ring(8,rad)
         clusters    = [(1:2),(3:4),(5:6),(7:8)]
         init_fspace = [(1,1),(1,1),(1,1),(1,1)]
@@ -109,6 +101,17 @@ ENV["PYTHON"] = Sys.which("python")
         init_fspace = [(2,2),(1,1),(1,1)]
         na = 4
         nb = 4
+        
+        atoms = generate_H_ring(10,rad)
+        clusters    = [(1:2),(3:4),(5:6),(7:8),(9:10)]
+        init_fspace = [(1,1),(1,1),(1,1),(1,1),(1,1)]
+        clusters    = [(1:4),(5:6),(7:8),(9:10)]
+        init_fspace = [(2,2),(1,1),(1,1),(1,1)]
+        clusters    = [(1:4),(5:8),(9:10)]
+        init_fspace = [(2,2),(2,2),(1,1)]
+        na = 5
+        nb = 5
+        
     end
 
     basis = "6-31g"
@@ -252,7 +255,7 @@ ENV["PYTHON"] = Sys.which("python")
 
     #FermiCG.compress_blocks(ci_vector)
     println(length(ci_vector))
-    cts = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-10)
+    cts = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-4)
     println(length(cts))
 
     display(cts)

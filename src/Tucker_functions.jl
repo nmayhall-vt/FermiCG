@@ -456,7 +456,7 @@ function build_sigma!(sigma_vector::TuckerState, ci_vector::TuckerState, cluster
 
                     for term in clustered_ham[fock_trans]
                     
-                        term isa ClusteredTerm2B || continue
+                        #term isa ClusteredTerm4B || continue
                        
                         FermiCG.form_sigma_block!(term, cluster_ops, fock_bra, config_bra, 
                                                   fock_ket, config_ket,
