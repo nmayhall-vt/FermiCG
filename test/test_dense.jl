@@ -220,13 +220,11 @@ ENV["PYTHON"] = Sys.which("python")
 
     nroots = 1
     ci_vector = FermiCG.TuckerState(clusters, p_spaces, q_spaces, na, nb)
-    #ci_vector = FermiCG.TuckerState(clusters, p_spaces, q_spacesna, nb, nroots=nroots)
     ref_vector = deepcopy(ci_vector)
 
     # for FOI space 
-    foi_space = FermiCG.define_foi_space(ref_vector, clustered_ham, nbody=4) 
-    #ci_vector = FermiCG.TuckerState(clusters, p_spaces, q_spaces, foi_space)
-    ci_vector = FermiCG.get_foi(ci_vector, clustered_ham, q_spaces, nbody=4) 
+    foi_space = FermiCG.define_foi_space(ref_vector, clustered_ham, nbody=2) 
+    ci_vector = FermiCG.TuckerState(clusters, p_spaces, q_spaces, foi_space)
   
     # for n-body Tucker
     #ci_vector = FermiCG.get_nbody_tucker_space(ci_vector, p_spaces, q_spaces, na, nb, nbody=4) 
@@ -235,11 +233,9 @@ ENV["PYTHON"] = Sys.which("python")
     #
     # initialize with eye
     FermiCG.set_vector!(ref_vector, Matrix(1.0I, length(ref_vector),nroots))
-    #FermiCG.set_vector!(ci_vector, Matrix(1.0I, length(ci_vector),nroots))
     FermiCG.add!(ci_vector, ref_vector)
     
-    #FermiCG.print_fock_occupations(ci_vector)
-    display(ci_vector)
+    FermiCG.print_fock_occupations(ci_vector)
         
 
     if true
@@ -260,22 +256,22 @@ ENV["PYTHON"] = Sys.which("python")
         FermiCG.print_fock_occupations(ci_vector)
     end
 
-    if false
-    #FermiCG.compress_blocks(ci_vector)
-    println(length(ci_vector))
-    cts = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-3)
-    println(length(cts))
+    if true 
+        #FermiCG.compress_blocks(ci_vector)
+        println(length(ci_vector))
+        cts = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-3)
+        println(length(cts))
 
-    display(cts)
-    FermiCG.print_fock_occupations(cts)
-    println(" Norm of projected state:           ", FermiCG.dot(cts,cts))
-    println(" Norm of projected state: (nonorth) ", FermiCG.nonorth_dot(cts,cts))
-    FermiCG.scale!(cts, 1.0/sqrt(FermiCG.dot(cts,cts)))
-    println(" Norm of normalized state: ", FermiCG.dot(cts,cts))
+        display(cts)
+        FermiCG.print_fock_occupations(cts)
+        println(" Norm of projected state:           ", FermiCG.dot(cts,cts))
+        println(" Norm of projected state: (nonorth) ", FermiCG.nonorth_dot(cts,cts))
+        FermiCG.scale!(cts, 1.0/sqrt(FermiCG.dot(cts,cts)))
+        println(" Norm of normalized state: ", FermiCG.dot(cts,cts))
 
-    @time e_nb2, v_nb2 = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham)
-    @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_nb2[1], e_nb2[1]+ints.h0)
-    FermiCG.print_fock_occupations(cts)
+        @time e_nb2, v_nb2 = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham)
+        @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_nb2[1], e_nb2[1]+ints.h0)
+        FermiCG.print_fock_occupations(cts)
     end
-#end
+    #end
 
