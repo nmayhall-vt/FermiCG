@@ -95,14 +95,6 @@ ENV["PYTHON"] = Sys.which("python")
         nb = 6
         
         
-        atoms = generate_H_ring(8,rad)
-        clusters    = [(1:2),(3:4),(5:6),(7:8)]
-        init_fspace = [(1,1),(1,1),(1,1),(1,1)]
-        clusters    = [(1:4),(5:6),(7:8)]
-        init_fspace = [(2,2),(1,1),(1,1)]
-        na = 4
-        nb = 4
-        
         atoms = generate_H_ring(10,rad)
         clusters    = [(1:2),(3:4),(5:6),(7:8),(9:10)]
         init_fspace = [(1,1),(1,1),(1,1),(1,1),(1,1)]
@@ -112,6 +104,15 @@ ENV["PYTHON"] = Sys.which("python")
         init_fspace = [(2,2),(2,2),(1,1)]
         na = 5
         nb = 5
+        
+        atoms = generate_H_ring(8,rad)
+        clusters    = [(1:2),(3:4),(5:6),(7:8)]
+        init_fspace = [(1,1),(1,1),(1,1),(1,1)]
+        clusters    = [(1:4),(5:6),(7:8)]
+        init_fspace = [(2,2),(1,1),(1,1)]
+        na = 4
+        nb = 4
+        
     end
 
     basis = "6-31g"
@@ -126,7 +127,7 @@ ENV["PYTHON"] = Sys.which("python")
     #e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints, na, nb, conv_tol=1e-10,max_cycle=100, nroots=2)
 	
     #run fci with pyscf
-    if true 
+    if false 
         pyscf = pyimport("pyscf")
         fci = pyimport("pyscf.fci")
         mp = pyimport("pyscf.mp")
@@ -218,13 +219,15 @@ ENV["PYTHON"] = Sys.which("python")
 
 
     nroots = 1
-    ci_vector = FermiCG.TuckerState(clusters, p_spaces, na, nb, nroots=nroots)
+    ci_vector = FermiCG.TuckerState(clusters, p_spaces, q_spaces, na, nb)
+    #ci_vector = FermiCG.TuckerState(clusters, p_spaces, q_spacesna, nb, nroots=nroots)
     ref_vector = deepcopy(ci_vector)
 
     # for FOI space 
+    foi_space = FermiCG.define_foi_space(ref_vector, clustered_ham, nbody=4) 
+    #ci_vector = FermiCG.TuckerState(clusters, p_spaces, q_spaces, foi_space)
     ci_vector = FermiCG.get_foi(ci_vector, clustered_ham, q_spaces, nbody=4) 
-    FermiCG.print_fock_occupations(ci_vector)
-    
+  
     # for n-body Tucker
     #ci_vector = FermiCG.get_nbody_tucker_space(ci_vector, p_spaces, q_spaces, na, nb, nbody=4) 
     #FermiCG.print_fock_occupations(ci_vector)
@@ -232,7 +235,11 @@ ENV["PYTHON"] = Sys.which("python")
     #
     # initialize with eye
     FermiCG.set_vector!(ref_vector, Matrix(1.0I, length(ref_vector),nroots))
-    FermiCG.set_vector!(ci_vector, Matrix(1.0I, length(ci_vector),nroots))
+    #FermiCG.set_vector!(ci_vector, Matrix(1.0I, length(ci_vector),nroots))
+    FermiCG.add!(ci_vector, ref_vector)
+    
+    #FermiCG.print_fock_occupations(ci_vector)
+    display(ci_vector)
         
 
     if true
@@ -253,6 +260,7 @@ ENV["PYTHON"] = Sys.which("python")
         FermiCG.print_fock_occupations(ci_vector)
     end
 
+    if false
     #FermiCG.compress_blocks(ci_vector)
     println(length(ci_vector))
     cts = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-3)
@@ -268,6 +276,6 @@ ENV["PYTHON"] = Sys.which("python")
     @time e_nb2, v_nb2 = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham)
     @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_nb2[1], e_nb2[1]+ints.h0)
     FermiCG.print_fock_occupations(cts)
-
+    end
 #end
 

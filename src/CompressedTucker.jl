@@ -48,56 +48,24 @@ function dot(t1::Tucker{T,N}, t2::Tucker{T,N}) where {T,N}
 end
 
 """
-    add!(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
-
-Add coeffs in `ts2` to `ts1` 
-
-Note: this assumes `t1` and `t2` have the same compression vectors
-"""
-function add!(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
-#={{{=#
-    for (fock,configs) in ts2
-        if haskey(ts1, fock)
-            for (config,coeffs) in configs 
-                if haskey(ts1[fock], config)
-                    ts1[fock][config].core .+= ts2[fock][config].core
-                else
-                    ts1[fock][config] = ts2[fock][config]
-                end
-            end
-        else
-            ts1[fock] = ts2[fock]
-        end
-    end
-#=}}}=#
-end
-
-"""
 Represents a state in an set of abitrary (yet low-rank) subspaces of a set of FockConfigs.
 e.g. v[FockConfig][TuckerConfig] => Tucker Decomposed Tensor
     
     clusters::Vector{Cluster}
     data::OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker}}
+    p_spaces::Vector{ClusterSubspace}
+    q_spaces::Vector{ClusterSubspace}
 """
 struct CompressedTuckerState <: AbstractState 
     clusters::Vector{Cluster}
     data::OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker}}
+    p_spaces::Vector{ClusterSubspace}
+    q_spaces::Vector{ClusterSubspace}
 end
 Base.haskey(ts::CompressedTuckerState, i) = return haskey(ts.data,i)
 Base.getindex(ts::CompressedTuckerState, i) = return ts.data[i]
 Base.setindex!(ts::CompressedTuckerState, i, j) = return ts.data[j] = i
 Base.iterate(ts::CompressedTuckerState, state=1) = iterate(ts.data, state)
-
-"""
-    CompressedTuckerState(clusters)
-
-Constructor
-- `clusters::Vector{Cluster}`
-"""
-function CompressedTuckerState(clusters)
-    return CompressedTuckerState(clusters,OrderedDict())
-end
-
 
 
 """
@@ -121,7 +89,7 @@ function CompressedTuckerState(ts::TuckerState; thresh=-1, max_number=nothing, v
 
     nroots == 1 || error(" Conversion to CompressedTuckerState can only have 1 root")
 
-    cts = CompressedTuckerState(ts.clusters)
+    data = OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker}}()
     for (fock, tconfigs) in ts.data
         for (tconfig, coeffs) in tconfigs
 
@@ -129,20 +97,44 @@ function CompressedTuckerState(ts::TuckerState; thresh=-1, max_number=nothing, v
             # Since TuckerState has extra dimension for state index, remove that
             tuck = Tucker(reshape(coeffs,size(coeffs)[1:end-1]), thresh=thresh, max_number=max_number, verbose=verbose) 
             if length(tuck) > 0
-                if haskey(cts.data, fock)
-                    cts[fock][tconfig] = tuck
+                if haskey(data, fock)
+                    data[fock][tconfig] = tuck
                 else
-                    add_fockconfig!(cts, fock)
-                    cts[fock][tconfig] = tuck
+                    data[fock] = OrderedDict(tconfig => tuck)
                 end
             end
         end
     end
-    return cts
+    return CompressedTuckerState(ts.clusters, data, ts.p_spaces, ts.q_spaces)
 end
 
 
 
+
+"""
+    add!(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
+
+Add coeffs in `ts2` to `ts1` 
+
+Note: this assumes `t1` and `t2` have the same compression vectors
+"""
+function add!(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
+#={{{=#
+    for (fock,configs) in ts2
+        if haskey(ts1, fock)
+            for (config,coeffs) in configs 
+                if haskey(ts1[fock], config)
+                    ts1[fock][config].core .+= ts2[fock][config].core
+                else
+                    ts1[fock][config] = ts2[fock][config]
+                end
+            end
+        else
+            ts1[fock] = ts2[fock]
+        end
+    end
+#=}}}=#
+end
 """
     add_fockconfig!(s::CompressedTuckerState, fock::FockConfig)
 """
@@ -1107,3 +1099,97 @@ function tucker_cepa_solve!(ref_vector::CompressedTuckerState, ci_vector::Compre
     #x, info = linsolve(Hmap,zeros(size(v0)))
     return ecorr+e0, x
 end#=}}}=#
+
+
+"""
+    define_foi_space(v::CompressedTuckerState, clustered_ham; nbody=2)
+Compute the first-order interacting space as defined by clustered_ham
+
+#Arguments
+- `v::CompressedTuckerState`: input state
+- `clustered_ham`: Hamiltonian
+- `nbody`: allows one to limit (max 4body) terms in the Hamiltonian considered
+
+#Returns
+- `foi::OrderedDict{FockConfig,Vector{TuckerConfig}}`
+
+"""
+function define_foi_space(cts::T, clustered_ham; nbody=2) where T<:Union{TuckerState, CompressedTuckerState}
+    println(" Define the FOI space for CompressedTuckerState. nbody = ", nbody)#={{{=#
+
+    foi_space = OrderedDict{FockConfig,Vector{TuckerConfig}}()
+
+    for (fock, tconfigs) in cts 
+            
+        for (fock_trans, terms) in clustered_ham
+
+            # 
+            # new fock sector configuration
+            new_fock = fock + fock_trans
+
+
+            # 
+            # check that each cluster doesn't have too many/few electrons
+            ok = true
+            for ci in cts.clusters
+                if new_fock[ci.idx][1] > length(ci) || new_fock[ci.idx][2] > length(ci)
+                    ok = false
+                end
+                if new_fock[ci.idx][1] < 0 || new_fock[ci.idx][2] < 0
+                    ok = false
+                end
+            end
+            ok == true || continue
+
+            
+
+            #
+            # find the cluster state index ranges (TuckerConfigs) reached by Hamiltonian
+            for (tconfig, coeffs) in tconfigs 
+                for term in terms
+                    new_tconfig = deepcopy(tconfig)
+
+                    length(term.clusters) <= nbody || continue
+            
+                    new_tconfigs = []
+                    tmp = [] # list of lists of index ranges, the cartesian product is the set needed
+                    #
+                    # for current term, expand index ranges for active clusters
+                    for cidx in 1:length(term.clusters)
+                        ci = term.clusters[cidx]
+                        new_tconfig[ci.idx] = cts.q_spaces[ci.idx][new_fock[ci.idx]]
+                        tmp2 = []
+                        if haskey(cts.p_spaces[ci.idx], new_fock[ci.idx])
+                            push!(tmp2, cts.p_spaces[ci.idx][new_fock[ci.idx]])
+                        end
+                        if haskey(cts.q_spaces[ci.idx], new_fock[ci.idx])
+                            push!(tmp2, cts.q_spaces[ci.idx][new_fock[ci.idx]])
+                        end
+                        push!(tmp, tmp2)
+                    end
+                    
+                    for prod in product(tmp...)
+                        new_tconfig = deepcopy(tconfig)
+                        for cidx in 1:length(term.clusters)
+                            ci = term.clusters[cidx]
+                            new_tconfig[ci.idx] = prod[cidx]
+                        end
+                        push!(new_tconfigs, new_tconfig)
+                    end
+                    
+                    if haskey(foi_space, new_fock)
+                        foi_space[new_fock] = unique((foi_space[new_fock]..., new_tconfigs...))
+                    else
+                        foi_space[new_fock] = new_tconfigs
+                    end
+                    
+                    
+                end
+            end
+        end
+    end
+    return foi_space
+#=}}}=#
+end
+
+

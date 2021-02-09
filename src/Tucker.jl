@@ -4,43 +4,6 @@ using BenchmarkTools
 #using KrylovKit
 using IterativeSolvers
 
-#"""
-#This type is used to characterize a given `TuckerBlock` for a given FockConfig
-#
-#    cluster::Cluster
-#    na::Int8
-#    nb::Int8
-#    start::UInt8
-#    stop::UInt8
-#"""
-#struct ClusterSubspace
-#    cluster::Cluster
-#    na::Int8
-#    nb::Int8
-#    start::UInt8
-#    stop::UInt8
-#    ClusterSubspace(cluster, na, nb, start, stop) = abs(stop-start+1) > dim_tot(cluster, na, nb) ? error("Range too large") : new(cluster, na, nb, start, stop)
-#end
-#function Base.display(css::ClusterSubspace)
-#    @printf("   Cluster: %3i range: %3i:%-3i ",css.cluster.idx, css.start, css.stop)
-#    println((css.na, css.nb))
-#end
-#Base.length(css::ClusterSubspace) = return css.stop - css.start + 1
-#
-#"""
-#Defines a list of subspaces across all clusters 
-#
-#    config::Vector{ClusterSubspace}
-#"""
-#struct TuckerBlock
-#    config::Vector{ClusterSubspace}
-#end
-#function Base.display(tb::TuckerBlock)
-#    println(" TuckerBlock: ")
-#    display.(tb.config)
-#end
-#Base.length(tb::TuckerBlock) = sum(length.(tb.config)) 
-
 
 """
 Defines a single cluster's subspace for Tucker. Each focksector is allowed to have a distinct cluster state range 
@@ -56,6 +19,7 @@ end
 function ClusterSubspace(cluster::Cluster)
     return ClusterSubspace(cluster,OrderedDict{Tuple{UInt8,UInt8}, UnitRange{Int}}())
 end
+Base.haskey(css::ClusterSubspace, i) = return haskey(css.data,i)
 Base.setindex!(tss::ClusterSubspace, i, j) = tss.data[j] = i
 Base.getindex(tss::ClusterSubspace, i) = return tss.data[i] 
 function Base.display(tss::ClusterSubspace)
@@ -98,6 +62,9 @@ end
 """
     config::Vector{UnitRange{Int}}
 """
+#struct TuckerConfig{T, N} <: SparseConfig where {T,N}
+#    config::NTuple{N,UnitRange{T}}
+#end
 struct TuckerConfig <: SparseConfig
     config::Vector{UnitRange{Int}}
 end
@@ -145,26 +112,117 @@ E.g., used in n-body Tucker
     
     clusters::Vector{Cluster}
     data::OrderedDict{FockConfig,OrderedDict{TuckerConfig,Array}}
+    p_spaces::Vector{ClusterSubspace}
+    q_spaces::Vector{ClusterSubspace}
 """
 struct TuckerState <: AbstractState 
     clusters::Vector{Cluster}
     data::OrderedDict{FockConfig,OrderedDict{TuckerConfig,Array}}
+    p_spaces::Vector{ClusterSubspace}
+    q_spaces::Vector{ClusterSubspace}
 end
 Base.haskey(ts::TuckerState, i) = return haskey(ts.data,i)
 Base.getindex(ts::TuckerState, i) = return ts.data[i]
 Base.setindex!(ts::TuckerState, i, j) = return ts.data[j] = i
 Base.iterate(ts::TuckerState, state=1) = iterate(ts.data, state)
 
+
 """
-    TuckerState(clusters)
+    TuckerState(clusters, p_spaces, q_spaces, foi; nroots=1)
 
 Constructor
 - `clusters::Vector{Cluster}`
+- `p_spaces::Vector{ClusterSubspace}`
+- `q_spaces::Vector{ClusterSubspace}`
+- `na::Int` Number of alpha
+- `nb::Int` Number of beta
 """
-function TuckerState(clusters)
-    return TuckerState(clusters,OrderedDict())
+function TuckerState(clusters::Vector{Cluster}, p_spaces::Vector{ClusterSubspace}, q_spaces::Vector{ClusterSubspace}, na, nb; nroots=1)
+   #={{{=#
+    length(p_spaces) == length(clusters) || error("# of clusters don't match # of subspaces")
+    length(p_spaces) == length(q_spaces) || error(" p_spaces/q_spaces don't have same length", length(p_space), length(q_space))
+    for ci in clusters
+        for fock in p_spaces[ci.idx].data
+            if haskey(q_spaces[ci.idx].data, fock)
+                all(collect(p_spaces[ci.idx][fock]) .!= collect(q_spaces[ci.idx][fock])) || error(" Not orthogonal")
+            end
+        end
+    end
+
+    #s = TuckerState(clusters)
+    data = OrderedDict{FockConfig,OrderedDict{TuckerConfig,Array}}()
+    ns = []
+    for cssi in p_spaces 
+        nsi = []
+        for (fock,range) in cssi.data
+            push!(nsi,fock)
+        end
+        push!(ns,nsi)
+    end
+
+    for newfock in product(ns...)
+        nacurr = 0
+        nbcurr = 0
+        for c in newfock
+            nacurr += c[1]
+            nbcurr += c[2]
+        end
+        if (nacurr == na) && (nbcurr == nb)
+
+            fockconfig = FockConfig(collect(newfock))
+
+            tuckconfig = TuckerConfig()
+            for ci in clusters
+                cssi = p_spaces[ci.idx]
+                push!(tuckconfig, cssi.data[newfock[ci.idx]])
+            end
+
+            haskey(data, fockconfig) == false || error(" here:", fockconfig)
+            data[fockconfig] = OrderedDict(tuckconfig => zeros((size(tuckconfig)...,nroots)))
+            #add_fockconfig!(data,fockconfig) 
+            #data[fockconfig][tuckconfig] = zeros((size(tuckconfig)...,nroots))  # todo - finish this
+        end
+    end
+    return TuckerState(clusters, data, p_spaces, q_spaces) 
+#=}}}=#
 end
 
+"""
+    TuckerState(clusters, p_spaces, q_spaces, foi; nroots=1)
+
+Constructor to build state directly from a definition of a first order interacting space (or more generic even i suppose)
+- `clusters::Vector{Cluster}`
+- `p_spaces::Vector{ClusterSubspace}`
+- `q_spaces::Vector{ClusterSubspace}`
+- `foi::OrderedDict{FockConfig,Vector{TuckerConfig}}` 
+- `nroots`
+"""
+function TuckerState(clusters::Vector{Cluster}, p_spaces::Vector{ClusterSubspace}, q_spaces::Vector{ClusterSubspace}, 
+        foi::OrderedDict{FockConfig,Vector{TuckerConfig}}; nroots=1)
+   #={{{=#
+    length(p_spaces) == length(clusters) || error("# of clusters don't match # of subspaces")
+    length(p_spaces) == length(q_spaces) || error(" p_spaces/q_spaces don't have same length", length(p_space), length(q_space))
+    for ci in clusters
+        for fock in p_spaces[ci.idx].data
+            if haskey(q_spaces[ci.idx].data, fock)
+                all(collect(p_spaces[ci.idx][fock]) .!= collect(q_spaces[ci.idx][fock])) || error(" Not orthogonal")
+            end
+        end
+    end
+
+    #s = TuckerState(clusters)
+    data = OrderedDict{FockConfig,OrderedDict{TuckerConfig,Array}}()
+    for (fock,tconfig_list) in foi
+        data2 = OrderedDict{TuckerConfig,Array}()
+        for tconfig in tconfig_list
+            data2[tconfig] = zeros((size(tconfig)...,nroots))
+        end
+
+        data[fock] = data2 
+    end
+    return TuckerState(clusters, data, p_spaces, q_spaces) 
+#=}}}=#
+end
 """
     +(ts1::FermiCG.TuckerState, ts2::FermiCG.TuckerState)
 """
@@ -345,54 +403,6 @@ function orthogonalize!(ts::TuckerState)
     #=}}}=#
 end
 
-"""
-    TuckerState(clusters, tss::Vector{ClusterSubspace}, na, nb; nroots=1)
-
-Constructor
-- `clusters::Vector{Cluster}`
-- `tss::Vector{ClusterSubspace}`
-- `na::Int` Number of alpha
-- `nb::Int` Number of beta
-"""
-function TuckerState(clusters, tss, na, nb; nroots=1)
-   #={{{=#
-    length(tss) == length(clusters) || error("# of clusters don't match # of subspaces")
-
-    s = TuckerState(clusters)
-    ns = []
-    for tssi in tss
-        nsi = []
-        for (fock,range) in tssi.data
-            push!(nsi,fock)
-        end
-        push!(ns,nsi)
-    end
-
-    for newfock in product(ns...)
-        nacurr = 0
-        nbcurr = 0
-        for c in newfock
-            nacurr += c[1]
-            nbcurr += c[2]
-        end
-        if (nacurr == na) && (nbcurr == nb)
-
-            fockconfig = FockConfig(collect(newfock))
-
-            tuckconfig = TuckerConfig()
-            for ci in clusters
-                tssi = tss[ci.idx]
-                push!(tuckconfig, tssi.data[newfock[ci.idx]])
-            end
-
-            haskey(s.data, fockconfig) == false || error(" here:", fockconfig)
-            add_fockconfig!(s,fockconfig) 
-            s[fockconfig][tuckconfig] = zeros((size(tuckconfig)...,nroots))  # todo - finish this
-        end
-    end
-    return s
-#=}}}=#
-end
 
 """
     add_fockconfig!(s::ClusteredState, fock::FockConfig)
@@ -643,7 +653,6 @@ function expand_each_fock_space!(s::TuckerState, bases::Vector{ClusterBasis}; nr
     end
 end
 # }}}
-
 
 
 
