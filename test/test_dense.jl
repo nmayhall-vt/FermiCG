@@ -94,6 +94,7 @@ ENV["PYTHON"] = Sys.which("python")
         na = 6
         nb = 6
         
+        
         atoms = generate_H_ring(8,rad)
         clusters    = [(1:2),(3:4),(5:6),(7:8)]
         init_fspace = [(1,1),(1,1),(1,1),(1,1)]
@@ -111,7 +112,6 @@ ENV["PYTHON"] = Sys.which("python")
         init_fspace = [(2,2),(2,2),(1,1)]
         na = 5
         nb = 5
-        
     end
 
     basis = "6-31g"
@@ -126,7 +126,7 @@ ENV["PYTHON"] = Sys.which("python")
     #e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints, na, nb, conv_tol=1e-10,max_cycle=100, nroots=2)
 	
     #run fci with pyscf
-    if false 
+    if true 
         pyscf = pyimport("pyscf")
         fci = pyimport("pyscf.fci")
         mp = pyimport("pyscf.mp")
@@ -255,7 +255,7 @@ ENV["PYTHON"] = Sys.which("python")
 
     #FermiCG.compress_blocks(ci_vector)
     println(length(ci_vector))
-    cts = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-4)
+    cts = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-3)
     println(length(cts))
 
     display(cts)
@@ -265,9 +265,9 @@ ENV["PYTHON"] = Sys.which("python")
     FermiCG.scale!(cts, 1.0/sqrt(FermiCG.dot(cts,cts)))
     println(" Norm of normalized state: ", FermiCG.dot(cts,cts))
 
-    #@time e_nb2, v_nb2 = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham)
-    #@printf(" E(CI):   Electronic %16.12f Total %16.12f\n", e_nb2[1], e_nb2[1]+ints.h0)
-    #FermiCG.print_fock_occupations(cts)
+    @time e_nb2, v_nb2 = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham)
+    @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_nb2[1], e_nb2[1]+ints.h0)
+    FermiCG.print_fock_occupations(cts)
 
 #end
 

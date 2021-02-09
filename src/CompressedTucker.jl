@@ -173,16 +173,16 @@ end
 """
 function set_vector!(ts::CompressedTuckerState, v)
 
-    length(size(v)) == 1 || error(" Only takes vectors", size(v))
+    #length(size(v)) == 1 || error(" Only takes vectors", size(v))
     nbasis = size(v)[1]
 
     idx = 1
     for (fock, tconfigs) in ts
         for (tconfig, tuck) in tconfigs
-            dims = size(tconfig)
+            dims = size(tuck)
             
             dim1 = prod(dims)
-            ts[fock][tconfig].core = reshape(v[idx:idx+dim1-1], size(tuck.core))
+            ts[fock][tconfig].core .= reshape(v[idx:idx+dim1-1], size(tuck.core))
             idx += dim1 
         end
     end
@@ -399,17 +399,6 @@ function get_map(ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; s
     function mymatvec(v)
         iters += 1
         
-        nr = 0
-        if length(size(v)) == 1
-            nr = 1
-            v = reshape(v, length(v), nr)
-        elseif length(size(v)) == 2
-            nr = size(v)[2]
-        else
-            error(" is tensor not unfolded?")
-        end
-    
-      
         set_vector!(ci_vector, v)
         
         #fold!(ci_vector)
