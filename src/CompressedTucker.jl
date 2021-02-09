@@ -33,6 +33,11 @@ function Base.permutedims(t::Tucker{T,N}, perm) where {T,N}
     return Tucker{T,N}(permutedims(t.core, perm), t.factors[perm])
 end
 
+"""
+    dot(t1::Tucker{T,N}, t2::Tucker{T,N}) where {T,N}
+
+Note: This doesn't assume `t1` and `t2` have the same compression vectors 
+"""
 function dot(t1::Tucker{T,N}, t2::Tucker{T,N}) where {T,N}
     overlaps = [] 
     all(dims_large(t1) .== dims_large(t2)) || error(" t1 and t2 don't have same dimensions")
@@ -40,6 +45,31 @@ function dot(t1::Tucker{T,N}, t2::Tucker{T,N}) where {T,N}
         push!(overlaps, t1.factors[f]' * t2.factors[f])
     end
     return sum(tucker_recompose(t1.core, overlaps) .* t2.core)
+end
+
+"""
+    add!(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
+
+Add coeffs in `ts2` to `ts1` 
+
+Note: this assumes `t1` and `t2` have the same compression vectors
+"""
+function add!(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
+#={{{=#
+    for (fock,configs) in ts2
+        if haskey(ts1, fock)
+            for (config,coeffs) in configs 
+                if haskey(ts1[fock], config)
+                    ts1[fock][config].core .+= ts2[fock][config].core
+                else
+                    ts1[fock][config] = ts2[fock][config]
+                end
+            end
+        else
+            ts1[fock] = ts2[fock]
+        end
+    end
+#=}}}=#
 end
 
 """
@@ -1002,3 +1032,78 @@ function form_sigma_block!(term::ClusteredTerm4B,
     return  
 #=}}}=#
 end
+
+
+
+"""
+0 = <x|H - E0|x'>v(x') + <x|H - E0|p>v(p) 
+0 = <x|H - E0|x'>v(x') + <x|H|p>v(p) 
+A(x,x')v(x') = -H(x,p)v(p)
+
+here, x is outside the reference space, and p is inside
+
+Ax=b
+
+works for one root at a time
+"""
+function tucker_cepa_solve!(ref_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; tol=1e-5)
+#={{{=#
+    sig = deepcopy(ref_vector) 
+    zero!(sig)
+    build_sigma!(sig, ref_vector, cluster_ops, clustered_ham)
+    e0 = dot(ref_vector, sig)
+    length(e0) == 1 || error("Only one state at a time please", e0)
+    e0 = e0[1]
+    @printf(" Reference Energy: %12.8f\n",e0)
+    
+
+    x_vector = deepcopy(ci_vector)
+    #
+    # now remove reference space from ci_vector
+    for (fock,configs) in ref_vector
+        if haskey(x_vector, fock)
+            for (config,coeffs) in configs
+                if haskey(x_vector[fock], config)
+                    delete!(x_vector[fock], config)
+                end
+            end
+        end
+    end
+
+    b = deepcopy(x_vector) 
+    zero!(b)
+    build_sigma!(b, ref_vector, cluster_ops, clustered_ham)
+    bv = -get_vector(b) 
+
+    function mymatvec(v)
+        set_vector!(x_vector, v)
+        sig = deepcopy(x_vector)
+        zero!(sig)
+        build_sigma!(sig, x_vector, cluster_ops, clustered_ham)
+        
+        sig_out = get_vector(sig)
+        sig_out .-= e0*get_vector(x_vector)
+        return sig_out
+    end
+    dim = length(x_vector)
+    Axx = LinearMap(mymatvec, dim, dim)
+    #Axx = LinearMap(mymatvec, dim, dim; issymmetric=true, ismutating=false, ishermitian=true)
+    
+    x, solver = cg!(get_vector(x_vector), Axx,bv,log=true)
+
+    set_vector!(x_vector, x)
+   
+    sig = deepcopy(ref_vector)
+    zero!(sig)
+    build_sigma!(sig,x_vector, cluster_ops, clustered_ham)
+    ecorr = dot(sig,ref_vector)
+    length(ecorr) == 1 || error(" Dimension Error", ecorr)
+    ecorr = ecorr[1]
+  
+    zero!(ci_vector)
+    add!(ci_vector, ref_vector)
+    add!(ci_vector, x_vector)
+
+    #x, info = linsolve(Hmap,zeros(size(v0)))
+    return ecorr+e0, x
+end#=}}}=#

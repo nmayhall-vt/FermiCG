@@ -552,7 +552,7 @@ Ax=b
 
 works for one root at a time
 """
-function tucker_cepa_solve!(ref_vector, ci_vector, cluster_ops, clustered_ham; tol=1e-5)
+function tucker_cepa_solve!(ref_vector::TuckerState, ci_vector::TuckerState, cluster_ops, clustered_ham; tol=1e-5)
 #={{{=#
     fold!(ref_vector) 
     fold!(ci_vector) 
