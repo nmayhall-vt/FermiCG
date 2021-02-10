@@ -45,15 +45,15 @@ ENV["PYTHON"] = Sys.which("python")
     B = FermiCG.recompose(tuck)
     @test isapprox(abs.(A), abs.(B), atol=1e-12)
 
-    A = rand(4,6,3,3,5)
-    B = rand(4,6,3,3,5)*.5
+    A = rand(4,6,3,3,5)*.1
+    B = rand(4,6,3,3,5)*.1
     C = A+B
 
     tuckA = FermiCG.Tucker(A, thresh=-1, verbose=1)
     tuckB = FermiCG.Tucker(B, thresh=-1, verbose=1)
     tuckC = FermiCG.Tucker(C, thresh=-1, verbose=1)
 
-    error()
+    #error()
 
     if false 
         r = 1
@@ -95,15 +95,6 @@ ENV["PYTHON"] = Sys.which("python")
        
         rad = 3
         
-        atoms = generate_H_ring(12,rad)
-        clusters    = [(1:2),(3:4),(5:6),(7:8),(9:10),(11:12)]
-        init_fspace = [(1,1),(1,1),(1,1),(1,1),(1,1),(1,1)]
-        clusters    = [(1:4),(5:8),(9:12)]
-        init_fspace = [(2,2),(2,2),(2,2)]
-        na = 6
-        nb = 6
-        
-        
         atoms = generate_H_ring(10,rad)
         clusters    = [(1:2),(3:4),(5:6),(7:8),(9:10)]
         init_fspace = [(1,1),(1,1),(1,1),(1,1),(1,1)]
@@ -121,6 +112,15 @@ ENV["PYTHON"] = Sys.which("python")
         init_fspace = [(2,2),(1,1),(1,1)]
         na = 4
         nb = 4
+        
+        atoms = generate_H_ring(12,rad)
+        clusters    = [(1:2),(3:4),(5:6),(7:8),(9:10),(11:12)]
+        init_fspace = [(1,1),(1,1),(1,1),(1,1),(1,1),(1,1)]
+        clusters    = [(1:4),(5:8),(9:12)]
+        init_fspace = [(2,2),(2,2),(2,2)]
+        na = 6
+        nb = 6
+        
         
     end
 
@@ -181,7 +181,7 @@ ENV["PYTHON"] = Sys.which("python")
 
     e_ref = e_cmf - ints.h0
 
-    max_roots = 40
+    max_roots = 20
     # build Hamiltonian, cluster_basis and cluster ops
     #display(Da)
     #cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=2, max_roots=max_roots)
@@ -231,9 +231,27 @@ ENV["PYTHON"] = Sys.which("python")
     FermiCG.set_vector!(ref_vector, Matrix(1.0I, length(ref_vector),nroots))
     FermiCG.add!(ci_vector, ref_vector)
     
-    FermiCG.print_fock_occupations(ci_vector)
-        
+    #FermiCG.print_fock_occupations(ci_vector)
 
+    cts_ref  = FermiCG.CompressedTuckerState(ref_vector, thresh=1e-3);
+    foi_space = FermiCG.define_foi_space(cts_ref, clustered_ham, nbody=2) 
+    cts_fois = FermiCG.expand_compressed_space(foi_space, cts_ref, cluster_ops, clustered_ham, thresh=1e-3);
+  
+    FermiCG.zero!(cts_fois)
+    display(cts_fois)
+    FermiCG.build_sigma!(cts_fois, cts_ref, cluster_ops, clustered_ham) 
+    FermiCG.print_fock_occupations(cts_fois)
+    display(cts_fois)
+    display(FermiCG.dot(cts_fois, cts_ref))
+
+
+    FermiCG.zero!(ci_vector)
+    FermiCG.build_sigma!(ci_vector, ref_vector, cluster_ops, clustered_ham) 
+    FermiCG.print_fock_occupations(ci_vector)
+    display(ci_vector)
+    display(FermiCG.dot(ci_vector, ref_vector))
+    
+    error()
     if true
         println(" Length of CI Vector: ", length(ci_vector))
         @time e_nb2, x_nb2 = FermiCG.tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham)
@@ -255,7 +273,7 @@ ENV["PYTHON"] = Sys.which("python")
     if true 
         #FermiCG.compress_blocks(ci_vector)
         println(length(ci_vector))
-        cts = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-3)
+        cts = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-4)
         println(length(cts))
 
         display(cts)

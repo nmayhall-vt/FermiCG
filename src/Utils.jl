@@ -17,8 +17,8 @@ function tucker_decompose(A::Array{T,N}; thresh=1e-7, max_number=nothing, verbos
         idx_r[i] = -2
         G = tensorcontract(A,idx_l,A,idx_r)
         #G = @ncon([A, A], [idx_l, idx_r])
-        F = eigen(G)
-        perm = sortperm(F.values, rev=true)
+        F = eigen((G .+ G') .* .5) # should be symmetric, but sometimes values get very small and numerical error builds up
+        perm = sortperm(real(F.values), rev=true)
         l = F.values[perm]
         v = F.vectors[:,perm]
 
@@ -69,3 +69,4 @@ function tucker_recompose(core, factors)
     end
     return A
 end
+

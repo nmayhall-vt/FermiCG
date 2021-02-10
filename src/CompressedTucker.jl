@@ -18,7 +18,7 @@ struct Tucker{T, N}
     #props::Dict{Symbol, Any}
 end
 
-Tucker{T,N}() where {T,N} = Tucker{T,N}(Array{T}(undef), NTuple{N, Matrix{T}}[]) 
+#Tucker{T,N}() where {T,N} = Tucker{T,N}(Array{T}(undef), NTuple{N, Matrix{T}}[]) 
 #Tucker{T,N}() where {T,N} = Tucker{T,N}(Array{Float64}[], NTuple{Int, Int}[]) 
 #Tucker(v; thresh=-1, max_number=nothing) = Tucker(tucker_decompose(v, thresh=thresh, max_number=max_number)..., Dict())
 function Tucker(A::Array{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
@@ -35,6 +35,23 @@ function Base.permutedims(t::Tucker{T,N}, perm) where {T,N}
     return Tucker{T,N}(permutedims(t.core, perm), t.factors[perm])
 end
 
+"""
+    compress(t::Tucker)
+
+Try to compress further 
+"""
+function compress(t::Tucker{T,N}; thresh=1e-7, max_number=nothing) where {T,N}
+
+    tt = Tucker(t.core, thresh=thresh, max_number=max_number)
+
+    new_factors = [zeros(1,1) for i in 1:N]
+
+    for i in 1:N
+        new_factors[i]  = t.factors[i] * tt.factors[i]
+    end
+
+    return Tucker(tt.core, NTuple{N}(new_factors)) 
+end
 """
     dot(t1::Tucker{T,N}, t2::Tucker{T,N}) where {T,N}
 
@@ -1225,7 +1242,6 @@ function expand_compressed_space(foi_space, cts::CompressedTuckerState, cluster_
 
                         length(new_tuck) > 0 || continue
 
-
                         if haskey(data, fock_bra)
                             if haskey(data[fock_bra], tconfig_bra)
                                 push!(data[fock_bra][tconfig_bra], new_tuck)
@@ -1240,84 +1256,78 @@ function expand_compressed_space(foi_space, cts::CompressedTuckerState, cluster_
             end
         end
     end
-    return data
-end
 
+    #   Two ways to proceed. 
+    #   1) Orthogonalize the tucker factors to get a larger subpace
+    #   2) Keep a list of Tucker objects that yeilds fewer variational parameters, 
+    #       but introduces non-orthogonality and extra terms inside a single TuckerConfig
+    #
+    #   Try 1) first
+    #
+    data2 = OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker}}()
+    for (fock,tconfigs) in data
+        #display(fock)
+        for (tconfig,tucks) in tconfigs
+            #display(tconfig)
 
+            # first, get orthogonal basis for each cluster
+            new_factors = []
+            for ci in cts.clusters
+                Ui = zeros(length(tconfig[ci.idx]), 0) 
+                for (ti,tuck) in enumerate(tucks)
+                    Ui = hcat(Ui,tuck.factors[ci.idx])
+                end
 
-function check_term(term::ClusteredTerm1B, 
-                            fock_bra::FockConfig, bra::TuckerConfig, 
-                            fock_ket::FockConfig, ket::TuckerConfig)
-    length(fock_bra) == length(fock_ket) || throw(Exception)
-    length(bra) == length(ket) || throw(Exception)
-    n_clusters = length(bra)
-    # 
-    # make sure inactive clusters are diagonal
-    for ci in 1:n_clusters
-        ci != term.clusters[1].idx || continue
+                F = svd(Ui)
 
-        fock_bra[ci] == fock_ket[ci] || return false 
-        bra[ci] == ket[ci] || return false
+                nkeep = 0
+                for si in F.S 
+                    if si > thresh
+                        nkeep += 1
+                    end
+                end
+                if max_number != nothing
+                    nkeep = min(nkeep, max_number)
+                end
+                Ui = Ui * F.V[:,1:nkeep]
+                push!(new_factors, Ui)
+            end
+
+            #
+            # now rotate all core tensors to this new basis
+       
+            dims = size.(new_factors,2)
+            
+            new_core = zeros(dims...)
+
+            for tuck in tucks
+                transforms = Matrix{Float64}[]
+                for ci in cts.clusters
+                    push!(transforms, new_factors[ci.idx]'*tuck.factors[ci.idx])
+                end
+               
+                new_core += recompose(Tucker(tuck.core, Tuple(transforms)))
+            end
+            new_tuck = Tucker(new_core, Tuple(new_factors))
+
+            #prod(dims_large(new_tuck)) == length(tconfig) || error(" Problem in dimension", prod(dims_large(new_tuck)) ," !=", length(tconfig))
+            #display(size(new_tuck))
+            new_tuck = compress(new_tuck, thresh=thresh, max_number=max_number)
+            #display(size(new_tuck))
+            if length(new_tuck) > 0
+                if haskey(data2, fock)
+                    data2[fock][tconfig] = new_tuck
+                else
+                    data2[fock] = OrderedDict(tconfig => new_tuck)
+                end
+            end
+        end
     end
-    return true
+
+    return CompressedTuckerState(cts.clusters, data2, cts.p_spaces, cts.q_spaces) 
 end
 
-function check_term(term::ClusteredTerm2B, 
-                            fock_bra::FockConfig, bra::TuckerConfig, 
-                            fock_ket::FockConfig, ket::TuckerConfig)
-    length(fock_bra) == length(fock_ket) || throw(Exception)
-    length(bra) == length(ket) || throw(Exception)
-    n_clusters = length(bra)
-    # 
-    # make sure inactive clusters are diagonal
-    for ci in 1:n_clusters
-        ci != term.clusters[1].idx || continue
-        ci != term.clusters[2].idx || continue
 
-        fock_bra[ci] == fock_ket[ci] || return false 
-        bra[ci] == ket[ci] || return false
-    end
-    return true
-end
-
-function check_term(term::ClusteredTerm3B, 
-                            fock_bra::FockConfig, bra::TuckerConfig, 
-                            fock_ket::FockConfig, ket::TuckerConfig)
-    length(fock_bra) == length(fock_ket) || throw(Exception)
-    length(bra) == length(ket) || throw(Exception)
-    n_clusters = length(bra)
-    # 
-    # make sure inactive clusters are diagonal
-    for ci in 1:n_clusters
-        ci != term.clusters[1].idx || continue
-        ci != term.clusters[2].idx || continue
-        ci != term.clusters[3].idx || continue
-
-        fock_bra[ci] == fock_ket[ci] || return false 
-        bra[ci] == ket[ci] || return false
-    end
-    return true
-end
-
-function check_term(term::ClusteredTerm4B, 
-                            fock_bra::FockConfig, bra::TuckerConfig, 
-                            fock_ket::FockConfig, ket::TuckerConfig)
-    length(fock_bra) == length(fock_ket) || throw(Exception)
-    length(bra) == length(ket) || throw(Exception)
-    n_clusters = length(bra)
-    # 
-    # make sure inactive clusters are diagonal
-    for ci in 1:n_clusters
-        ci != term.clusters[1].idx || continue
-        ci != term.clusters[2].idx || continue
-        ci != term.clusters[3].idx || continue
-        ci != term.clusters[4].idx || continue
-
-        fock_bra[ci] == fock_ket[ci] || return false 
-        bra[ci] == ket[ci] || return false
-    end
-    return true
-end
 
 """
 """
@@ -1436,15 +1446,18 @@ function form_sigma_block_expand(term::ClusteredTerm2B,
     bra_tuck = Tucker(bra_core, thresh=thresh, max_number=max_number)
     
     old_factors = deepcopy(ket_coeffs.factors)
+    new_factors = [bra_tuck.factors[i] for i in 1:N]
 
     for ci in 1:n_clusters
         ci != c1.idx || continue
         ci != c2.idx || continue
 
-        bra_tuck.factors[ci] .= old_factors[ci] * bra_tuck.factors[ci]
+        #bra_tuck.factors[ci] .= old_factors[ci] * bra_tuck.factors[ci]
+        new_factors[ci] = old_factors[ci] * bra_tuck.factors[ci]
+        #push!(new_factors, old_factors[ci] * bra_tuck.factors[ci])
 
     end
-    return bra_tuck 
+    return Tucker(bra_tuck.core, NTuple{N}(new_factors)) 
 #=}}}=#
 end
 

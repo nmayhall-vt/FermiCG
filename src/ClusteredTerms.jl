@@ -732,6 +732,82 @@ function unique!(clustered_ham::Dict{TransferConfig,Vector{ClusteredTerm}})
 end
 
 
+function check_term(term::ClusteredTerm1B, 
+                            fock_bra::FockConfig, bra::SparseConfig, 
+                            fock_ket::FockConfig, ket::SparseConfig)
+    length(fock_bra) == length(fock_ket) || throw(Exception)
+    length(bra) == length(ket) || throw(Exception)
+    n_clusters = length(bra)
+    # 
+    # make sure inactive clusters are diagonal
+    for ci in 1:n_clusters
+        ci != term.clusters[1].idx || continue
+
+        fock_bra[ci] == fock_ket[ci] || return false 
+        bra[ci] == ket[ci] || return false
+    end
+    return true
+end
+
+function check_term(term::ClusteredTerm2B, 
+                            fock_bra::FockConfig, bra::SparseConfig, 
+                            fock_ket::FockConfig, ket::SparseConfig)
+    length(fock_bra) == length(fock_ket) || throw(Exception)
+    length(bra) == length(ket) || throw(Exception)
+    n_clusters = length(bra)
+    # 
+    # make sure inactive clusters are diagonal
+    for ci in 1:n_clusters
+        ci != term.clusters[1].idx || continue
+        ci != term.clusters[2].idx || continue
+
+        fock_bra[ci] == fock_ket[ci] || return false 
+        bra[ci] == ket[ci] || return false
+    end
+    return true
+end
+
+function check_term(term::ClusteredTerm3B, 
+                            fock_bra::FockConfig, bra::SparseConfig, 
+                            fock_ket::FockConfig, ket::SparseConfig)
+    length(fock_bra) == length(fock_ket) || throw(Exception)
+    length(bra) == length(ket) || throw(Exception)
+    n_clusters = length(bra)
+    # 
+    # make sure inactive clusters are diagonal
+    for ci in 1:n_clusters
+        ci != term.clusters[1].idx || continue
+        ci != term.clusters[2].idx || continue
+        ci != term.clusters[3].idx || continue
+
+        fock_bra[ci] == fock_ket[ci] || return false 
+        bra[ci] == ket[ci] || return false
+    end
+    return true
+end
+
+function check_term(term::ClusteredTerm4B, 
+                            fock_bra::FockConfig, bra::SparseConfig, 
+                            fock_ket::FockConfig, ket::SparseConfig)
+    length(fock_bra) == length(fock_ket) || throw(Exception)
+    length(bra) == length(ket) || throw(Exception)
+    n_clusters = length(bra)
+    # 
+    # make sure inactive clusters are diagonal
+    for ci in 1:n_clusters
+        ci != term.clusters[1].idx || continue
+        ci != term.clusters[2].idx || continue
+        ci != term.clusters[3].idx || continue
+        ci != term.clusters[4].idx || continue
+
+        fock_bra[ci] == fock_ket[ci] || return false 
+        bra[ci] == ket[ci] || return false
+    end
+    return true
+end
+
+
+
 """
     contract_matrix_element(   term::ClusteredTerm1B, 
                                     cluster_ops::Vector{ClusterOps},
