@@ -185,28 +185,15 @@ ENV["PYTHON"] = Sys.which("python")
     
     p_spaces = Vector{FermiCG.ClusterSubspace}()
     q_spaces = Vector{FermiCG.ClusterSubspace}()
-   
-    #ci_vector = FermiCG.TuckerState(clusters)
-    #FermiCG.add_fockconfig!(ci_vector, [(1,1),(1,1),(1,1)])
-    #FermiCG.add_fockconfig!(ci_vector, [(2,1),(0,1),(1,1)])
-    #FermiCG.add_fockconfig!(ci_vector, [(0,1),(2,1),(1,1)])
-    #FermiCG.add_fockconfig!(ci_vector, [(2,1),(0,1),(1,1)])
-    
-    #FermiCG.expand_each_fock_space!(ci_vector, cluster_bases)
-    
- 
+  
+    # define p spaces
     for ci in clusters
         tss = FermiCG.ClusterSubspace(ci)
         tss[init_fspace[ci.idx]] = 1:1
-        #tss[(2,2)] = 1:1
-        #tss[(2,1)] = 1:1
-        #tss[(1,2)] = 1:1
-        #tss[(0,1)] = 1:1
-        #tss[(1,0)] = 1:1
         push!(p_spaces, tss)
     end
     
-    
+    # define q spaces
     for tssp in p_spaces 
         tss = FermiCG.get_ortho_compliment(tssp, cluster_bases[tssp.cluster.idx])
         push!(q_spaces, tss)
@@ -225,7 +212,7 @@ ENV["PYTHON"] = Sys.which("python")
     # for FOI space 
     foi_space = FermiCG.define_foi_space(ref_vector, clustered_ham, nbody=2) 
     ci_vector = FermiCG.TuckerState(clusters, p_spaces, q_spaces, foi_space)
-  
+    
     # for n-body Tucker
     #ci_vector = FermiCG.get_nbody_tucker_space(ci_vector, p_spaces, q_spaces, na, nb, nbody=4) 
     #FermiCG.print_fock_occupations(ci_vector)

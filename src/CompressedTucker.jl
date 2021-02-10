@@ -19,9 +19,9 @@ struct Tucker{T, N}
 end
 
 #Tucker(v; thresh=-1, max_number=nothing) = Tucker(tucker_decompose(v, thresh=thresh, max_number=max_number)..., Dict())
-function Tucker(A::Array; thresh=-1, max_number=nothing, verbose=0) 
+function Tucker(A::Array{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
     core,factors = tucker_decompose(A, thresh=thresh, max_number=max_number, verbose=verbose)
-    return Tucker(core, NTuple{length(factors)}(factors))
+    return Tucker{T,N}(core, NTuple{N}(factors))
 end
 recompose(t::Tucker{T,N}) where {T<:Number, N} = tucker_recompose(t.core, t.factors)
 dims_large(t::Tucker{T,N}) where {T<:Number, N} = return [size(f,1) for f in t.factors]
@@ -1192,4 +1192,146 @@ function define_foi_space(cts::T, clustered_ham; nbody=2) where T<:Union{TuckerS
 #=}}}=#
 end
 
+
+
+"""
+|psi> = sum_f,t c(f,t)|f,t>
+"""
+function expand_compressed_space(foi_space, cts::CompressedTuckerState, cluster_ops, clustered_ham;
+                                thresh=1e-7, max_number=nothing)
+
+    data = OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker}}()
+    for (fock_bra,tconfigs_bra) in foi_space
+        for (fock_ket,tconfigs_ket) in cts 
+            fock_trans = fock_bra - fock_ket
+            # check if transition is connected by H
+            haskey(clustered_ham, fock_trans) == true || continue
+            for tconfig_bra in tconfigs_bra
+                for (tconfig_ket, tuck_ket) in tconfigs_ket
+                    for term in clustered_ham[fock_trans]
+                        
+                        term isa ClusteredTerm2B || continue
+
+                        FermiCG.form_sigma_block_expand(term, cluster_ops, 
+                                                  fock_bra, tconfig_bra, 
+                                                  fock_ket, tconfig_ket, tuck_ket,
+                                                  thresh=thresh, max_number=max_number)
+                    end
+                end
+            end
+        end
+    end
+end
+
+"""
+"""
+function form_sigma_block_expand(term::ClusteredTerm2B, 
+                            cluster_ops::Vector{ClusterOps},
+                            fock_bra::FockConfig, bra::TuckerConfig, 
+                            fock_ket::FockConfig, ket::TuckerConfig,
+                            ket_coeffs::Tucker{T,N}; 
+                            thresh=1e-7, max_number=nothing) where {T,N}
+#={{{=#
+    #display(term)
+    #display.((fock_bra, fock_ket))
+    c1 = term.clusters[1]
+    c2 = term.clusters[2]
+    length(fock_bra) == length(fock_ket) || throw(Exception)
+    length(bra) == length(ket) || throw(Exception)
+    n_clusters = length(bra)
+    # 
+    # make sure inactive clusters are diagonal
+    for ci in 1:n_clusters
+        ci != c1.idx || continue
+        ci != c2.idx || continue
+
+        fock_bra[ci] == fock_ket[ci] || throw(Exception)
+        bra[ci] == ket[ci] || return 0.0 
+    end
+
+    # 
+    # make sure active clusters are correct transitions 
+    fock_bra[c1.idx] == fock_ket[c1.idx] .+ term.delta[1] || throw(Exception)
+    fock_bra[c2.idx] == fock_ket[c2.idx] .+ term.delta[2] || throw(Exception)
+    
+    # 
+    # determine sign from rearranging clusters if odd number of operators
+    state_sign = compute_terms_state_sign(term, fock_ket) 
+
+    #
+    # op[IK,JL] = <I|p'|J> h(pq) <K|q|L>
+    gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+
+    # todo: add in 2e integral tucker decomposition and compress gamma along 1st index first
+    
+    #
+    # Compress Gammas using the cluster's Tucker factors, but since we are expanding the compression space
+    # only compress the right hand side
+    # e.g., 
+    #   Gamma(pqr, I, J) Ur(J,l) = Gamma(pqr, I, l) where k and l are compressed indices
+    gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    Ur = ket_coeffs.factors[c1.idx]
+    @tensor begin
+        g1[p,I,l] := Ur[J,l] * gamma1[p,I,J]
+    end
+    
+    gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+    Ur = ket_coeffs.factors[c2.idx]
+    @tensor begin
+        g2[p,I,l] := Ur[J,l] * gamma2[p,I,J]
+    end
+
+    # 
+    # Now contract into 2body term
+    #
+    # h(p,q) * g1(p,I,J) * g2(q,K,L) = op(J,L,I,K)
+    op = Array{Float64}[]
+    @tensor begin
+        op[q,J,I] := term.ints[p,q] * g1[p,I,J]
+        op[J,L,I,K] := op[q,J,I] * g2[q,K,L]
+    end
+
+    # 
+    # form overlaps - needed when TuckerConfigs aren't the same because each does their own compression and has 
+    # distinct Tucker factors
+    tensors = Vector{Array{T}}() 
+    indices = Vector{Vector{Int16}}()
+    state_indices = -collect(1:n_clusters)
+    s = state_sign # this is the product of scalar overlaps that don't need tensor contractions
+
+    # if the compressed operator becomes a scalar, treat it as such
+    if length(op) == 1
+        s *= op[1]
+    else
+        op_indices = [c1.idx, c2.idx, -c1.idx, -c2.idx]
+        state_indices[c1.idx] = c1.idx
+        state_indices[c2.idx] = c2.idx
+        push!(tensors, op)
+        push!(indices, op_indices)
+    end
+
+    push!(tensors, ket_coeffs.core)
+    push!(indices, state_indices)
+   
+    length(tensors) == length(indices) || error(" mismatch between operators and indices")
+
+    bra_core = Array{T,N}(undef,(0,0,0))
+    if length(tensors) == 1
+        # this means that all the overlaps and the operator is a scalar
+        bra_core = ket_coeffs.core .* s 
+    else
+        #display.(("a", size(bra_coeffs), size(ket_coeffs), "sizes: ", size.(overlaps), indices))
+        #display.(("a", size(bra_coeffs), size(ket_coeffs), "sizes: ", overlaps, indices))
+        out = @ncon(tensors, indices)
+        bra_core = out .* s
+    end
+
+    new_factors = ket_coeffs.factors
+
+    bra_tuck = Tucker(bra_core, thresh=thresh, max_number=max_number)
+    display((size(bra_core),size(bra_tuck)))
+    return bra_tuck 
+#=}}}=#
+end
 
