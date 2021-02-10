@@ -2,7 +2,8 @@ using TensorOperations
 using Printf
 
 """
-Tucker Decomposition of dense tensor
+Tucker Decomposition of dense tensor: 
+A ~ X *(1) U1 *(2) U2 ....
 """
 function tucker_decompose(A::Array{T,N}; thresh=1e-7, max_number=nothing, verbose=1) where {T,N}
     factors = Vector{Matrix{T}}()

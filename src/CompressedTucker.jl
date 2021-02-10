@@ -18,6 +18,8 @@ struct Tucker{T, N}
     #props::Dict{Symbol, Any}
 end
 
+Tucker{T,N}() where {T,N} = Tucker{T,N}(Array{T}(undef), NTuple{N, Matrix{T}}[]) 
+#Tucker{T,N}() where {T,N} = Tucker{T,N}(Array{Float64}[], NTuple{Int, Int}[]) 
 #Tucker(v; thresh=-1, max_number=nothing) = Tucker(tucker_decompose(v, thresh=thresh, max_number=max_number)..., Dict())
 function Tucker(A::Array{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
     core,factors = tucker_decompose(A, thresh=thresh, max_number=max_number, verbose=verbose)
@@ -26,8 +28,8 @@ end
 recompose(t::Tucker{T,N}) where {T<:Number, N} = tucker_recompose(t.core, t.factors)
 dims_large(t::Tucker{T,N}) where {T<:Number, N} = return [size(f,1) for f in t.factors]
 dims_small(t::Tucker{T,N}) where {T<:Number, N} = return [size(f,2) for f in t.factors]
-Base.length(t::Tucker) = return prod(dims_small(t))
-Base.size(t::Tucker) = return size(t.core) 
+Base.length(t::Tucker) = prod(dims_small(t))
+Base.size(t::Tucker) = size(t.core) 
 function Base.permutedims(t::Tucker{T,N}, perm) where {T,N}
     #t.core .= permutedims(t.core, perm)
     return Tucker{T,N}(permutedims(t.core, perm), t.factors[perm])
@@ -1200,7 +1202,7 @@ end
 function expand_compressed_space(foi_space, cts::CompressedTuckerState, cluster_ops, clustered_ham;
                                 thresh=1e-7, max_number=nothing)
 
-    data = OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker}}()
+    data = OrderedDict{FockConfig,OrderedDict{TuckerConfig,Vector{Tucker}}}()
     for (fock_bra,tconfigs_bra) in foi_space
         for (fock_ket,tconfigs_ket) in cts 
             fock_trans = fock_bra - fock_ket
@@ -1212,15 +1214,109 @@ function expand_compressed_space(foi_space, cts::CompressedTuckerState, cluster_
                         
                         term isa ClusteredTerm2B || continue
 
-                        FermiCG.form_sigma_block_expand(term, cluster_ops, 
+                        check = FermiCG.check_term(term, fock_bra, tconfig_bra, fock_ket, tconfig_ket)
+
+                        check == true || continue
+
+                        new_tuck = FermiCG.form_sigma_block_expand(term, cluster_ops, 
                                                   fock_bra, tconfig_bra, 
                                                   fock_ket, tconfig_ket, tuck_ket,
                                                   thresh=thresh, max_number=max_number)
+
+                        length(new_tuck) > 0 || continue
+
+
+                        if haskey(data, fock_bra)
+                            if haskey(data[fock_bra], tconfig_bra)
+                                push!(data[fock_bra][tconfig_bra], new_tuck)
+                            else
+                                data[fock_bra][tconfig_bra] = [new_tuck]
+                            end
+                        else
+                            data[fock_bra] = OrderedDict(tconfig_bra => [new_tuck])
+                        end
                     end
                 end
             end
         end
     end
+    return data
+end
+
+
+
+function check_term(term::ClusteredTerm1B, 
+                            fock_bra::FockConfig, bra::TuckerConfig, 
+                            fock_ket::FockConfig, ket::TuckerConfig)
+    length(fock_bra) == length(fock_ket) || throw(Exception)
+    length(bra) == length(ket) || throw(Exception)
+    n_clusters = length(bra)
+    # 
+    # make sure inactive clusters are diagonal
+    for ci in 1:n_clusters
+        ci != term.clusters[1].idx || continue
+
+        fock_bra[ci] == fock_ket[ci] || return false 
+        bra[ci] == ket[ci] || return false
+    end
+    return true
+end
+
+function check_term(term::ClusteredTerm2B, 
+                            fock_bra::FockConfig, bra::TuckerConfig, 
+                            fock_ket::FockConfig, ket::TuckerConfig)
+    length(fock_bra) == length(fock_ket) || throw(Exception)
+    length(bra) == length(ket) || throw(Exception)
+    n_clusters = length(bra)
+    # 
+    # make sure inactive clusters are diagonal
+    for ci in 1:n_clusters
+        ci != term.clusters[1].idx || continue
+        ci != term.clusters[2].idx || continue
+
+        fock_bra[ci] == fock_ket[ci] || return false 
+        bra[ci] == ket[ci] || return false
+    end
+    return true
+end
+
+function check_term(term::ClusteredTerm3B, 
+                            fock_bra::FockConfig, bra::TuckerConfig, 
+                            fock_ket::FockConfig, ket::TuckerConfig)
+    length(fock_bra) == length(fock_ket) || throw(Exception)
+    length(bra) == length(ket) || throw(Exception)
+    n_clusters = length(bra)
+    # 
+    # make sure inactive clusters are diagonal
+    for ci in 1:n_clusters
+        ci != term.clusters[1].idx || continue
+        ci != term.clusters[2].idx || continue
+        ci != term.clusters[3].idx || continue
+
+        fock_bra[ci] == fock_ket[ci] || return false 
+        bra[ci] == ket[ci] || return false
+    end
+    return true
+end
+
+function check_term(term::ClusteredTerm4B, 
+                            fock_bra::FockConfig, bra::TuckerConfig, 
+                            fock_ket::FockConfig, ket::TuckerConfig)
+    length(fock_bra) == length(fock_ket) || throw(Exception)
+    length(bra) == length(ket) || throw(Exception)
+    n_clusters = length(bra)
+    # 
+    # make sure inactive clusters are diagonal
+    for ci in 1:n_clusters
+        ci != term.clusters[1].idx || continue
+        ci != term.clusters[2].idx || continue
+        ci != term.clusters[3].idx || continue
+        ci != term.clusters[4].idx || continue
+
+        fock_bra[ci] == fock_ket[ci] || return false 
+        bra[ci] == ket[ci] || return false
+    end
+    return true
 end
 
 """
@@ -1236,18 +1332,7 @@ function form_sigma_block_expand(term::ClusteredTerm2B,
     #display.((fock_bra, fock_ket))
     c1 = term.clusters[1]
     c2 = term.clusters[2]
-    length(fock_bra) == length(fock_ket) || throw(Exception)
-    length(bra) == length(ket) || throw(Exception)
     n_clusters = length(bra)
-    # 
-    # make sure inactive clusters are diagonal
-    for ci in 1:n_clusters
-        ci != c1.idx || continue
-        ci != c2.idx || continue
-
-        fock_bra[ci] == fock_ket[ci] || throw(Exception)
-        bra[ci] == ket[ci] || return 0.0 
-    end
 
     # 
     # make sure active clusters are correct transitions 
@@ -1327,10 +1412,38 @@ function form_sigma_block_expand(term::ClusteredTerm2B,
         bra_core = out .* s
     end
 
-    new_factors = ket_coeffs.factors
-
+    # first decompose the already partially decomposed core tensor
+    #
+    # Vket ~ Aket x U1 x U2 x ...
+    #
+    # then we modified the compressed coefficients in the ket, Aket
+    #
+    # to get Abra, which we then compress again. 
+    #
+    # The active cluster tucker factors become identity matrices
+    #
+    # Abra ~ Bbra x UU1 x UU2 x .... 
+    #
+    #
+    # e.g, V(IJK) = C(ijk) * U1(Ii) * U2(Jj) * U3(Kk)
+    # 
+    # then C get's modified and furhter compressed
+    #
+    # V(IJK) = C(abc) * U1(ia) * U2(jb) * U3(kc) * U1(Ii) * U2(Jj) * U3(Kk)
+    # V(IJK) = C(abc) * (U1(ia) * U1(Ii)) * (U2(jb) * U2(Jj)) * (U3(kc) * U3(Kk))
+    # V(IJK) = C(abc) * U1(Ia)  * U2(Jb) * U3(Kc) 
+    #
     bra_tuck = Tucker(bra_core, thresh=thresh, max_number=max_number)
-    display((size(bra_core),size(bra_tuck)))
+    
+    old_factors = deepcopy(ket_coeffs.factors)
+
+    for ci in 1:n_clusters
+        ci != c1.idx || continue
+        ci != c2.idx || continue
+
+        bra_tuck.factors[ci] .= old_factors[ci] * bra_tuck.factors[ci]
+
+    end
     return bra_tuck 
 #=}}}=#
 end

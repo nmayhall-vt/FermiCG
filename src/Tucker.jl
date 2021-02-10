@@ -74,7 +74,7 @@ end
 function TuckerConfig()
     return TuckerConfig([])
 end
-Base.size(tc::TuckerConfig) = length.(tc.config)
+Base.size(tc::TuckerConfig) = Tuple(length.(tc.config))
 Base.hash(a::TuckerConfig) = hash(a.config)
 Base.isequal(x::TuckerConfig, y::TuckerConfig) = all(isequal.(x.config, y.config))
 Base.push!(tc::TuckerConfig, range) = push!(tc.config,range)

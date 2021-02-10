@@ -45,6 +45,15 @@ ENV["PYTHON"] = Sys.which("python")
     B = FermiCG.recompose(tuck)
     @test isapprox(abs.(A), abs.(B), atol=1e-12)
 
+    A = rand(4,6,3,3,5)
+    B = rand(4,6,3,3,5)*.5
+    C = A+B
+
+    tuckA = FermiCG.Tucker(A, thresh=-1, verbose=1)
+    tuckB = FermiCG.Tucker(B, thresh=-1, verbose=1)
+    tuckC = FermiCG.Tucker(C, thresh=-1, verbose=1)
+
+    error()
 
     if false 
         r = 1
