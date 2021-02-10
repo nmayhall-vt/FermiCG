@@ -1229,7 +1229,14 @@ function expand_compressed_space(foi_space, cts::CompressedTuckerState, cluster_
                 for (tconfig_ket, tuck_ket) in tconfigs_ket
                     for term in clustered_ham[fock_trans]
                         
-                        term isa ClusteredTerm2B || continue
+                        term isa ClusteredTerm1B || continue
+                        #term isa ClusteredTerm2B || continue
+
+                        #ok = false
+                        #if term isa ClusteredTerm1B || term isa ClusteredTerm2B 
+                        #    ok = true
+                        #end
+                        #ok || continue
 
                         check = FermiCG.check_term(term, fock_bra, tconfig_bra, fock_ket, tconfig_ket)
 
@@ -1329,6 +1336,99 @@ end
 
 
 
+"""
+"""
+function form_sigma_block_expand(term::ClusteredTerm1B, 
+                            cluster_ops::Vector{ClusterOps},
+                            fock_bra::FockConfig, bra::TuckerConfig, 
+                            fock_ket::FockConfig, ket::TuckerConfig,
+                            ket_coeffs::Tucker{T,N}; 
+                            thresh=1e-7, max_number=nothing) where {T,N}
+#={{{=#
+    #display(term)
+    c1 = term.clusters[1]
+    n_clusters = length(bra)
+
+    # 
+    # make sure active clusters are correct transitions 
+    fock_bra[c1.idx] == fock_ket[c1.idx] .+ term.delta[1] || throw(Exception)
+    
+    # 
+    # determine sign from rearranging clusters if odd number of operators
+    state_sign = compute_terms_state_sign(term, fock_ket) 
+
+    #
+    # Get 1body operator and compress it using the cluster's Tucker factors, 
+    # but since we are expanding the compression space
+    # only compress the right hand side
+    op1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
+    op =  (op1[bra[c1.idx],ket[c1.idx]] * ket_coeffs.factors[c1.idx])
+
+    tensors = Vector{Array{T}}() 
+    indices = Vector{Vector{Int16}}()
+    state_indices = -collect(1:n_clusters)
+    s = 1.0 # this is the product of scalar overlaps that don't need tensor contractions
+
+    # if the compressed operator becomes a scalar, treat it as such
+    if length(op) == 1
+        s *= op[1]
+    else
+        op_indices = [-c1.idx, c1.idx]
+        state_indices[c1.idx] = c1.idx
+        push!(tensors, op)
+        push!(indices, op_indices)
+    end
+
+    push!(tensors, ket_coeffs.core)
+    push!(indices, state_indices)
+   
+    length(tensors) == length(indices) || error(" mismatch between operators and indices")
+
+    bra_core = Array{T,N}(undef,(0,0,0))
+    if length(tensors) == 1
+        bra_core = ket_coeffs.core .* s 
+    else
+        out = @ncon(tensors, indices)
+        bra_core = out .* s
+    end
+
+    # first decompose the already partially decomposed core tensor
+    #
+    # Vket ~ Aket x U1 x U2 x ...
+    #
+    # then we modified the compressed coefficients in the ket, Aket
+    #
+    # to get Abra, which we then compress again. 
+    #
+    # The active cluster tucker factors become identity matrices
+    #
+    # Abra ~ Bbra x UU1 x UU2 x .... 
+    #
+    #
+    # e.g, V(IJK) = C(ijk) * U1(Ii) * U2(Jj) * U3(Kk)
+    # 
+    # then C get's modified and furhter compressed
+    #
+    # V(IJK) = C(abc) * U1(ia) * U2(jb) * U3(kc) * U1(Ii) * U2(Jj) * U3(Kk)
+    # V(IJK) = C(abc) * (U1(ia) * U1(Ii)) * (U2(jb) * U2(Jj)) * (U3(kc) * U3(Kk))
+    # V(IJK) = C(abc) * U1(Ia)  * U2(Jb) * U3(Kc) 
+    #
+    bra_tuck = Tucker(bra_core, thresh=thresh, max_number=max_number)
+    
+    old_factors = deepcopy(ket_coeffs.factors)
+    new_factors = [bra_tuck.factors[i] for i in 1:N]
+
+    for ci in 1:n_clusters
+        ci != c1.idx || continue
+
+        #bra_tuck.factors[ci] .= old_factors[ci] * bra_tuck.factors[ci]
+        new_factors[ci] = old_factors[ci] * bra_tuck.factors[ci]
+        #push!(new_factors, old_factors[ci] * bra_tuck.factors[ci])
+
+    end
+    return Tucker(bra_tuck.core, NTuple{N}(new_factors)) 
+#=}}}=#
+end
 """
 """
 function form_sigma_block_expand(term::ClusteredTerm2B, 
