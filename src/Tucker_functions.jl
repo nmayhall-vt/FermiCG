@@ -438,9 +438,9 @@ end
 
 
 """
-    build_sigma!(sigma_vector::TuckerState, ci_vector::TuckerState, cluster_ops, clustered_ham)
+    build_sigma!(sigma_vector::TuckerState, ci_vector::TuckerState, cluster_ops, clustered_ham, nbody=4)
 """
-function build_sigma!(sigma_vector::TuckerState, ci_vector::TuckerState, cluster_ops, clustered_ham)
+function build_sigma!(sigma_vector::TuckerState, ci_vector::TuckerState, cluster_ops, clustered_ham; nbody=4)
     #={{{=#
 
     for (fock_bra, configs_bra) in sigma_vector
@@ -455,9 +455,9 @@ function build_sigma!(sigma_vector::TuckerState, ci_vector::TuckerState, cluster
                 
 
                     for term in clustered_ham[fock_trans]
-                    
-                        #term isa ClusteredTerm4B || continue
-                       
+                      
+                        length(term.clusters) <= nbody || continue
+
                         FermiCG.form_sigma_block!(term, cluster_ops, fock_bra, config_bra, 
                                                   fock_ket, config_ket,
                                                   coeff_bra, coeff_ket)

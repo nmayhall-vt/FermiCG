@@ -239,7 +239,7 @@ ENV["PYTHON"] = Sys.which("python")
     #FermiCG.print_fock_occupations(ci_vector)
 
     cts_ref  = FermiCG.CompressedTuckerState(ref_vector, thresh=-1);
-    cts_fois  = FermiCG.open_sigma(cts_ref, cluster_ops, clustered_ham, nbody=4, thresh=1e-3)
+    cts_fois  = FermiCG.open_sigma(cts_ref, cluster_ops, clustered_ham, nbody=2, thresh=1e-9)
 
     #foi_space = FermiCG.define_foi_space(cts_ref, clustered_ham, nbody=2) 
     #cts_fois = FermiCG.expand_compressed_space(foi_space, cts_ref, cluster_ops, clustered_ham, thresh=-1);
@@ -255,14 +255,14 @@ ENV["PYTHON"] = Sys.which("python")
     println()
 
     FermiCG.zero!(ci_vector)
-    FermiCG.build_sigma!(ci_vector, ref_vector, cluster_ops, clustered_ham) 
+    FermiCG.build_sigma!(ci_vector, ref_vector, cluster_ops, clustered_ham, nbody=2) 
     println(" this is ci_vector")
     #FermiCG.print_fock_occupations(ci_vector)
     display(ci_vector)
     display(FermiCG.dot(ci_vector, ref_vector))
     display(FermiCG.dot(ci_vector, ci_vector))
 
-
+    error()
     #cts_fois  = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-6);
    
     #display(cts_fois)
