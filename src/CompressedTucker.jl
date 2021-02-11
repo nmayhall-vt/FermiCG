@@ -661,6 +661,8 @@ function form_sigma_block!(term::ClusteredTerm2B,
     push!(indices, state_indices)
    
     length(overlaps) == length(indices) || error(" mismatch between operators and indices")
+    # 
+    # Use ncon 
     if length(overlaps) == 1
         # this means that all the overlaps and the operator is a scalar
         bra_coeffs.core .+= ket_coeffs.core .* s 
@@ -670,6 +672,17 @@ function form_sigma_block!(term::ClusteredTerm2B,
         out = @ncon(overlaps, indices)
         bra_coeffs.core .+= out .* s
     end
+
+    # 
+    # Use blas with transposes
+
+    indices = collect(1:n_clusters)
+    indices[c1.idx] = 0
+    indices[c2.idx] = 0
+    perm,_ = bubble_sort(indices)
+    ket_coeffs2 = permutedims(ket_coeffs.core, perm)
+    bra_coeffs2 = permutedims(bra_coeffs.core, perm)
+
 
     return  
 #=}}}=#

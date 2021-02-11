@@ -5,6 +5,7 @@ using LinearAlgebra
 using Profile 
 using HDF5
 using Random
+using StatProfilerHTML
 
 using PyCall
 pydir = joinpath(dirname(pathof(FermiCG)), "python")
@@ -34,6 +35,9 @@ ENV["PYTHON"] = Sys.which("python")
     Random.seed!(2);
     A = rand(4,6,3,3,5)
     tuck = FermiCG.Tucker(A, thresh=20, verbose=1)
+    
+    display(size(tuck.core))
+    display(size.(tuck.factors))
     B = FermiCG.recompose(tuck)
     println()
     println(FermiCG.dims_large(tuck))
@@ -59,6 +63,38 @@ ENV["PYTHON"] = Sys.which("python")
     # test Tucker addition
     test = tuckA + tuckB
     @test isapprox(FermiCG.dot(tuckC,tuckC), FermiCG.dot(test,test), atol=1e-12)
+
+
+    #
+    # Now test basis transformation
+    A = rand(4,6,3,3,5)*.1
+    
+    trans1 = Dict{Int,Matrix{Float64}}() 
+    trans1[2] = rand(6,5)
+    trans1[4] = rand(3,2)
+
+    trans2 = []
+    for i = 1:5
+        if haskey(trans1, i)
+            push!(trans2, trans1[i])
+        else
+            push!(trans2, Matrix(1.0I,size(A,i),size(A,i)))
+        end
+    end
+
+    display((length(A), size(A)))
+    
+    A1 = FermiCG.transform_basis(A, trans1)
+    display((length(A1), size(A1)))
+    
+    A2 = FermiCG.transform_basis(A, trans2)
+    display((length(A1), size(A2)))
+    
+    #A2 = FermiCG.tucker_recompose(A, trans2)
+    #display((length(A2), size(A2)))
+    
+    
+    @test isapprox(A1, A2, atol=1e-12)
 
     if false 
         r = 1
@@ -283,6 +319,18 @@ ENV["PYTHON"] = Sys.which("python")
         println(e_cepa)
         FermiCG.print_fock_occupations(ci_vector)
     end
+    
+    function do_work(cts, cluster_ops, clustered_ham; nbody=3, thresh=1e-3)
+        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh)
+        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh)
+        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh)
+        FermiCG.normalize!(cts)
+        display(length(cts))
+        e_cts, v_cts = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham)
+        @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_cts[1], e_cts[1]+ints.h0)
+        display(cts)
+
+    end
 
     if true 
         cts = cts_fois
@@ -293,44 +341,7 @@ ENV["PYTHON"] = Sys.which("python")
         @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_cts[1], e_cts[1]+ints.h0)
         display(cts)
         
-        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=3, thresh=1e-2)
-        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=3, thresh=1e-2)
-        FermiCG.normalize!(cts)
-        display(length(cts))
-        @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham)
-        @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_cts[1], e_cts[1]+ints.h0)
-        display(cts)
-        
-        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=3, thresh=1e-2)
-        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=3, thresh=1e-2)
-        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=3, thresh=1e-2)
-        FermiCG.normalize!(cts)
-        display(length(cts))
-        @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham)
-        @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_cts[1], e_cts[1]+ints.h0)
-        display(cts)
-        
-        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=3, thresh=1e-2)
-        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=3, thresh=1e-2)
-        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=3, thresh=1e-2)
-        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=3, thresh=1e-2)
-        FermiCG.normalize!(cts)
-        display(length(cts))
-        @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham)
-        @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_cts[1], e_cts[1]+ints.h0)
-        display(cts)
-        
-  
-#        # do it again
-#        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=2, thresh=1e-3)
-#        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=2, thresh=1e-3)
-#        FermiCG.scale!(cts, 1.0/sqrt(FermiCG.dot(cts,cts)))
-#        display(cts)
-#
-#        @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham)
-#        @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_cts[1], e_cts[1]+ints.h0)
-#        display(cts)
-
+        @time do_work(cts, cluster_ops, clustered_ham, nbody=3, thresh=1e-3)
     end
     #end
 

@@ -109,12 +109,15 @@ end
 Note: This doesn't assume `t1` and `t2` have the same compression vectors 
 """
 function dot(t1::Tucker{T,N}, t2::Tucker{T,N}) where {T,N}
-    overlaps = [] 
+    #overlaps = []
+    overlaps = Dict{Int,Matrix{T}}()
     all(dims_large(t1) .== dims_large(t2)) || error(" t1 and t2 don't have same dimensions")
     for f in 1:N
-        push!(overlaps, t1.factors[f]' * t2.factors[f])
+        #push!(overlaps, t1.factors[f]' * t2.factors[f])
+        overlaps[f] = t1.factors[f]' * t2.factors[f]
     end
-    return sum(tucker_recompose(t1.core, overlaps) .* t2.core)
+    return sum(transform_basis(t1.core, overlaps) .* t2.core)
+    #return sum(tucker_recompose(t1.core, overlaps) .* t2.core)
 end
 
 
@@ -157,33 +160,91 @@ function tucker_decompose(A::Array{T,N}; thresh=1e-7, max_number=nothing, verbos
 
         push!(factors, v[:,1:nkeep])
     end
-    core = copy(A)
-    for i in 1:ndims(A)
-        dims1 = size(core)
-        core = reshape(core, dims1[1], prod(dims1[2:end]))
-        core = factors[i]' * core
-        
-        dimi = size(factors[i])[2]
-        core = reshape(core, dimi, dims1[2:end]...)
-        core = permutedims(core, [collect(2:ndims(core))..., 1])
-    end
-    return core, factors
+    return transform_basis(A,factors), factors
 end
 
 """
+    tucker_recompose(core, factors)
+
 Recompose Tucker Decomposition 
 """
-function tucker_recompose(core, factors)
-    A = copy(core)
-    for i in 1:ndims(A)
-        dims1 = size(A)
-        A = reshape(A, dims1[1], prod(dims1[2:end]))
-        A = factors[i] * A
-        
-        dimi = size(factors[i])[1]
-        A = reshape(A, dimi, dims1[2:end]...)
-        A = permutedims(A, [collect(2:ndims(A))..., 1])
-    end
-    return A
-end
+tucker_recompose(core, factors) = transform_basis(core, factors, trans=true)
 
+"""
+"""
+function transform_basis(v::Array{T,N}, transform_list::Dict{Int,Matrix{T}}; trans=false) where {T,N}
+  #={{{=#
+    #
+    #   e.g., 
+    #   v(i,j,k,l) U(iI) U(jJ) U(lL) = V(I,J,k,L)
+    #
+    #   vv(i,jkl) = reshape(vv(i,j,k,l))
+    #
+    #   vv(jkl,I) = v(i,jkl)' * U(i,I)
+    #   vv(j,klI) = reshape(vv(jkl,I))
+    #
+    #   vv(klI,J) = v(j,klI)' * U(j,J)
+    #   vv(k,lIJ) = reshape(vv(klI,J))
+    #
+    #   vv(lIJ,k) = v(k,lIJ)' 
+    #   vv(l,IJK) = reshape(vv(lIJ,k))
+    #
+    #   vv(IJk,L) = v(l,IJk)' * U(l,L) 
+    #   vv(I,JKL) = reshape(vv(IJK,L))
+    vv = deepcopy(v)
+    dims = [size(vv)...]
+            
+    vv = reshape(vv,dims[1],prod(dims[2:end]))
+    
+    for i in 1:N
+        if haskey(transform_list, i)
+    
+
+            if trans
+                vv = vv' * transform_list[i]'
+            else
+                vv = vv' * transform_list[i]
+            end
+           
+            dims[1] = size(transform_list[i])[2]
+            dims = circshift(dims, -1) 
+            vv = reshape(vv,dims[1],prod(dims[2:end]))
+        else
+            vv = vv' 
+            dims = circshift(dims, -1) 
+            vv = reshape(vv,dims[1],prod(dims[2:end]))
+        end
+    end
+
+    return reshape(vv,dims...)
+end
+#=}}}=#
+
+"""
+"""
+function transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}; trans=false) where {T,N}
+  #={{{=#
+    vv = deepcopy(v)
+    dims = [size(vv)...]
+            
+    vv = reshape(vv,dims[1],prod(dims[2:end]))
+    
+    for i in 1:N
+
+        if trans
+            vv = vv' * transforms[i]'
+            dims[1] = size(transforms[i])[1]
+        else
+            vv = vv' * transforms[i]
+            dims[1] = size(transforms[i])[2]
+        end
+
+        dims = circshift(dims, -1) 
+        vv = reshape(vv,dims[1],prod(dims[2:end]))
+    end
+
+    return reshape(vv,dims...)
+end
+#=}}}=#
+
+transform_basis(v::Array{T,N}, transforms; trans=false) where {T,N} = transform_basis(v, NTuple{N, Matrix{T}}(transforms), trans=trans)
