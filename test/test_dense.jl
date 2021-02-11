@@ -49,11 +49,16 @@ ENV["PYTHON"] = Sys.which("python")
     B = rand(4,6,3,3,5)*.1
     C = A+B
 
-    tuckA = FermiCG.Tucker(A, thresh=-1, verbose=1)
-    tuckB = FermiCG.Tucker(B, thresh=-1, verbose=1)
-    tuckC = FermiCG.Tucker(C, thresh=-1, verbose=1)
+    #tuckA = FermiCG.Tucker(A, thresh=-1, verbose=1, max_number=2)
+    #tuckB = FermiCG.Tucker(B, thresh=-1, verbose=1, max_number=2)
+    #tuckC = FermiCG.Tucker(C, thresh=-1, verbose=1, max_number=2)
+    tuckA = FermiCG.Tucker(A, thresh=-1, verbose=0)
+    tuckB = FermiCG.Tucker(B, thresh=-1, verbose=0)
+    tuckC = FermiCG.Tucker(C, thresh=-1, verbose=0)
 
-    #error()
+    # test Tucker addition
+    test = tuckA + tuckB
+    @test isapprox(FermiCG.dot(tuckC,tuckC), FermiCG.dot(test,test), atol=1e-12)
 
     if false 
         r = 1
@@ -233,7 +238,12 @@ ENV["PYTHON"] = Sys.which("python")
     
     #FermiCG.print_fock_occupations(ci_vector)
 
-    cts_ref  = FermiCG.CompressedTuckerState(ref_vector, thresh=1e-3);
+    cts_ref  = FermiCG.CompressedTuckerState(ref_vector, thresh=-1);
+    cts_foi  = FermiCG.open_sigma(cts_ref, cluster_ops, clustered_ham, thresh=1e-5)
+
+
+    display(FermiCG.dot(cts_foi,cts_ref))
+
     foi_space = FermiCG.define_foi_space(cts_ref, clustered_ham, nbody=1) 
     cts_fois = FermiCG.expand_compressed_space(foi_space, cts_ref, cluster_ops, clustered_ham, thresh=-1);
   

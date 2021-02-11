@@ -6,65 +6,6 @@ using IterativeSolvers
 
 
 
-"""
-    core::Array{T, N}
-    factors::NTuple{N, Matrix{T}}
-
-Tucker factors are stored as Tall matrices
-"""
-struct Tucker{T, N} 
-    core::Array{T, N}
-    factors::NTuple{N, Matrix{T}}
-    #props::Dict{Symbol, Any}
-end
-
-#Tucker{T,N}() where {T,N} = Tucker{T,N}(Array{T}(undef), NTuple{N, Matrix{T}}[]) 
-#Tucker{T,N}() where {T,N} = Tucker{T,N}(Array{Float64}[], NTuple{Int, Int}[]) 
-#Tucker(v; thresh=-1, max_number=nothing) = Tucker(tucker_decompose(v, thresh=thresh, max_number=max_number)..., Dict())
-function Tucker(A::Array{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
-    core,factors = tucker_decompose(A, thresh=thresh, max_number=max_number, verbose=verbose)
-    return Tucker{T,N}(core, NTuple{N}(factors))
-end
-recompose(t::Tucker{T,N}) where {T<:Number, N} = tucker_recompose(t.core, t.factors)
-dims_large(t::Tucker{T,N}) where {T<:Number, N} = return [size(f,1) for f in t.factors]
-dims_small(t::Tucker{T,N}) where {T<:Number, N} = return [size(f,2) for f in t.factors]
-Base.length(t::Tucker) = prod(dims_small(t))
-Base.size(t::Tucker) = size(t.core) 
-function Base.permutedims(t::Tucker{T,N}, perm) where {T,N}
-    #t.core .= permutedims(t.core, perm)
-    return Tucker{T,N}(permutedims(t.core, perm), t.factors[perm])
-end
-
-"""
-    compress(t::Tucker)
-
-Try to compress further 
-"""
-function compress(t::Tucker{T,N}; thresh=1e-7, max_number=nothing) where {T,N}
-
-    tt = Tucker(t.core, thresh=thresh, max_number=max_number)
-
-    new_factors = [zeros(1,1) for i in 1:N]
-
-    for i in 1:N
-        new_factors[i]  = t.factors[i] * tt.factors[i]
-    end
-
-    return Tucker(tt.core, NTuple{N}(new_factors)) 
-end
-"""
-    dot(t1::Tucker{T,N}, t2::Tucker{T,N}) where {T,N}
-
-Note: This doesn't assume `t1` and `t2` have the same compression vectors 
-"""
-function dot(t1::Tucker{T,N}, t2::Tucker{T,N}) where {T,N}
-    overlaps = [] 
-    all(dims_large(t1) .== dims_large(t2)) || error(" t1 and t2 don't have same dimensions")
-    for f in 1:N
-        push!(overlaps, t1.factors[f]' * t2.factors[f])
-    end
-    return sum(tucker_recompose(t1.core, overlaps) .* t2.core)
-end
 
 """
 Represents a state in an set of abitrary (yet low-rank) subspaces of a set of FockConfigs.
@@ -75,9 +16,9 @@ e.g. v[FockConfig][TuckerConfig] => Tucker Decomposed Tensor
     p_spaces::Vector{ClusterSubspace}
     q_spaces::Vector{ClusterSubspace}
 """
-struct CompressedTuckerState <: AbstractState 
+struct CompressedTuckerState{T,N} <: AbstractState 
     clusters::Vector{Cluster}
-    data::OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker}}
+    data::OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker{T,N}}}
     p_spaces::Vector{ClusterSubspace}
     q_spaces::Vector{ClusterSubspace}
 end
@@ -95,6 +36,10 @@ Constructor
 - ts::TuckerState`
 """
 function CompressedTuckerState(ts::TuckerState; thresh=-1, max_number=nothing, verbose=0)
+
+    # make all AbstractState subtypes parametric
+    T = Float64
+    N = length(ts.clusters)
     nroots = nothing 
     for (fock,configs) in ts
         for (config,coeffs) in configs
@@ -108,7 +53,7 @@ function CompressedTuckerState(ts::TuckerState; thresh=-1, max_number=nothing, v
 
     nroots == 1 || error(" Conversion to CompressedTuckerState can only have 1 root")
 
-    data = OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker}}()
+    data = OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker{T,N}}}()
     for (fock, tconfigs) in ts.data
         for (tconfig, coeffs) in tconfigs
 
@@ -157,8 +102,8 @@ end
 """
     add_fockconfig!(s::CompressedTuckerState, fock::FockConfig)
 """
-function add_fockconfig!(s::CompressedTuckerState, fock::FockConfig) 
-    s.data[fock] = OrderedDict{TuckerConfig, Tucker}()
+function add_fockconfig!(s::CompressedTuckerState{T,N}, fock::FockConfig) where {T,N}
+    s.data[fock] = OrderedDict{TuckerConfig, Tucker{T,N}}()
 end
 
 """
@@ -333,44 +278,6 @@ function print_fock_occupations(s::CompressedTuckerState; thresh=1e-3)
 #=}}}=#
 end
 
-
-#"""
-#    unfold!(ts::CompressedTuckerState)
-#"""
-#function unfold!(cts::CompressedTuckerState)
-##={{{=#
-#    for (fock,tconfigs) in cts.data
-#        for (tconfig,tuck) in tconfigs 
-#          
-#            if length(size(tuck.core)) == length(cts.clusters)
-#                display((size(tuck.core), size(reshape(tuck.core, (prod(size(tconfig)))))))
-#                cts[fock][tconfig].core = copy(reshape(tuck.core, (prod(size(tconfig)))))
-#            else
-#                display((length(size(tuck.core)), length(cts.clusters)))
-#                @warn("we are already unfolded, what you doing?")
-#            end
-#
-#        end
-#    end
-##=}}}=#
-#end
-#"""
-#    fold!(ts::CompressedTuckerState)
-#"""
-#function fold!(cts::CompressedTuckerState)
-##={{{=#
-#    for (fock,tconfigs) in cts.data
-#        for (tconfig,tuck) in tconfigs 
-#            try
-#                length(size(tuck.core)) == 1 || throw(DimensionMismatch)
-#                cts[fock][tconfig].core = reshape(tuck.core, (size(tconfig)...))
-#            catch DimensionMismatch
-#                @warn("we are already folded, what you doing?")
-#            end
-#        end
-#    end
-##=}}}=#
-#end
 
 """
     dot(ts1::FermiCG.CompressedTuckerState, ts2::FermiCG.CompressedTuckerState)
@@ -1121,6 +1028,144 @@ end#=}}}=#
 
 
 """
+    open_sigma(cts::CompressedTuckerState{T,N}, cluster_ops, clustered_ham; nbody=2) where {T,N}
+Apply the Hamiltonian to `v` expanding into the uncompressed space. 
+This is done only partially, where each term is recompressed after being computed. 
+Lots of overhead probably from compression, but never completely uncompresses.
+
+
+#Arguments
+- `cts::CompressedTuckerState`: input state
+- `cluster_ops`: 
+- `clustered_ham`: Hamiltonian
+- `nbody`: allows one to limit (max 4body) terms in the Hamiltonian considered
+
+#Returns
+- `foi::CompressedTuckerState`
+
+"""
+function open_sigma(ket_cts::CompressedTuckerState{T,N}, cluster_ops, clustered_ham; thresh=1e-7, max_number=nothing, nbody=2) where {T,N}
+    println(" Define the FOI space for CompressedTuckerState. nbody = ", nbody)#={{{=#
+
+    #
+    # Initialize data for our output sigma, which we will convert to a 
+    sig_cts = CompressedTuckerState(ket_cts.clusters, 
+                                    OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker{T,N}}}(), 
+                                    ket_cts.p_spaces, 
+                                    ket_cts.q_spaces)
+
+    for (ket_fock, ket_tconfigs) in ket_cts 
+        for (fock_trans, terms) in clustered_ham
+
+            # 
+            # new fock sector configuration
+            sig_fock = ket_fock + fock_trans
+
+            # 
+            # check that each cluster doesn't have too many/few electrons
+            ok = true
+            for ci in ket_cts.clusters
+                if sig_fock[ci.idx][1] > length(ci) || sig_fock[ci.idx][2] > length(ci)
+                    ok = false
+                end
+                if sig_fock[ci.idx][1] < 0 || sig_fock[ci.idx][2] < 0
+                    ok = false
+                end
+            end
+            ok == true || continue
+
+            for (ket_tconfig, ket_tuck) in ket_tconfigs 
+                for term in terms
+                    
+                    #
+                    # only proceed if current term acts on no more than our requested max number of clusters
+                    length(term.clusters) <= nbody || continue
+
+                    #
+                    # find the sig TuckerConfigs reached by applying current Hamiltonian term to ket_tconfig.
+                    #
+                    # For example:
+                    #
+                    #   [(p'q), I, I, (r's), I ] * |P,Q,P,Q,P>  --> |X, Q, P, X, P>  where X = {P,Q}
+                    #
+                    #   This this term, will couple to 4 distinct tucker blocks (assuming each of the active clusters
+                    #   have both non-zero P and Q spaces within the current fock sector, "sig_fock".
+                    #
+                    # We will loop over all these destination TuckerConfig's by creating the cartesian product of their 
+                    # available spaces, this list of which we will keep in "available".
+                    #
+            
+                    available = [] # list of lists of index ranges, the cartesian product is the set needed
+                    #
+                    # for current term, expand index ranges for active clusters
+                    for ci in term.clusters
+                        tmp = []
+                        if haskey(ket_cts.p_spaces[ci.idx], sig_fock[ci.idx])
+                            push!(tmp, ket_cts.p_spaces[ci.idx][sig_fock[ci.idx]])
+                        end
+                        if haskey(ket_cts.q_spaces[ci.idx], sig_fock[ci.idx])
+                            push!(tmp, ket_cts.q_spaces[ci.idx][sig_fock[ci.idx]])
+                        end
+                        push!(available, tmp)
+                    end
+                   
+    
+                    #
+                    # Now loop over cartesian product of available subspaces (those in X above) and
+                    # create the target TuckerConfig and then evaluate the associated terms
+                    for prod in product(available...)
+                        sig_tconfig = deepcopy(ket_tconfig)
+                        for cidx in 1:length(term.clusters)
+                            ci = term.clusters[cidx]
+                            sig_tconfig[ci.idx] = prod[cidx]
+                        end
+
+                        # 
+                        # the `term` has now coupled our ket TuckerConfig, to a sig TuckerConfig
+                        # let's compute the matrix element block, then compress, then add it to any existing compressed
+                        # coefficient tensor for that sig TuckerConfig. 
+                        #
+                        # Both the Compression and addition takes a fair amount of work.
+                        
+
+                        FermiCG.check_term(term, sig_fock, sig_tconfig, ket_fock, ket_tconfig) || continue
+                        
+                        sig_tuck = FermiCG.form_sigma_block_expand(term, cluster_ops, 
+                                                                    sig_fock, sig_tconfig, 
+                                                                    ket_fock, ket_tconfig, ket_tuck,
+                                                                    thresh=thresh, max_number=max_number)
+                       
+                        length(sig_tuck) > 0 || continue
+
+
+                        if haskey(sig_cts, sig_fock)
+                            if haskey(sig_cts[sig_fock], sig_tconfig)
+                                #
+                                # In this case, our sigma vector already has a compressed coefficient tensor.
+                                # Consequently, we need to add these two together
+                                sig_cts[sig_fock][sig_tconfig] = add([sig_tuck, sig_cts[sig_fock][sig_tconfig]])
+                                sig_cts[sig_fock][sig_tconfig] = compress(sig_cts[sig_fock][sig_tconfig], 
+                                                                          thresh=thresh,
+                                                                          max_number=max_number)
+                            else
+                                sig_cts[sig_fock][sig_tconfig] = sig_tuck
+                            end
+                        else
+                            sig_cts[sig_fock] = OrderedDict(sig_tconfig => sig_tuck)
+                        end
+
+                    end
+                    
+                end
+            end
+        end
+    end
+    return sig_cts 
+#=}}}=#
+end
+
+
+"""
     define_foi_space(v::CompressedTuckerState, clustered_ham; nbody=2)
 Compute the first-order interacting space as defined by clustered_ham
 
@@ -1214,12 +1259,15 @@ end
 
 
 """
-|psi> = sum_f,t c(f,t)|f,t>
-"""
-function expand_compressed_space(foi_space, cts::CompressedTuckerState, cluster_ops, clustered_ham;
-                                thresh=1e-7, max_number=nothing)
+    expand_compressed_space(foi_space, cts::CompressedTuckerState{T,N}, cluster_ops, clustered_ham;
+                                    thresh=1e-7, max_number=nothing) where {T,N}
 
-    data = OrderedDict{FockConfig,OrderedDict{TuckerConfig,Vector{Tucker}}}()
+Apply the Hamiltonian to cts, generating a `CompressedTuckerState` without ever fully uncompressing
+"""
+function expand_compressed_space(foi_space, cts::CompressedTuckerState{T,N}, cluster_ops, clustered_ham;
+                                    thresh=1e-7, max_number=nothing) where {T,N}
+
+    data = OrderedDict{FockConfig,OrderedDict{TuckerConfig,Vector{Tucker{T,N}}}}()
     for (fock_bra,tconfigs_bra) in foi_space
         for (fock_ket,tconfigs_ket) in cts 
             fock_trans = fock_bra - fock_ket
@@ -1271,56 +1319,17 @@ function expand_compressed_space(foi_space, cts::CompressedTuckerState, cluster_
     #
     #   Try 1) first
     #
-    data2 = OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker}}()
+    data2 = OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker{T,N}}}()
     for (fock,tconfigs) in data
         #display(fock)
         for (tconfig,tucks) in tconfigs
             #display(tconfig)
-
-            # first, get orthogonal basis for each cluster
-            new_factors = []
-            for ci in cts.clusters
-                Ui = zeros(length(tconfig[ci.idx]), 0) 
-                for (ti,tuck) in enumerate(tucks)
-                    Ui = hcat(Ui,tuck.factors[ci.idx])
-                end
-
-                F = svd(Ui)
-
-                nkeep = 0
-                for si in F.S 
-                    if si > thresh
-                        nkeep += 1
-                    end
-                end
-                if max_number != nothing
-                    nkeep = min(nkeep, max_number)
-                end
-                Ui = Ui * F.V[:,1:nkeep]
-                push!(new_factors, Ui)
-            end
-
-            #
-            # now rotate all core tensors to this new basis
-       
-            dims = size.(new_factors,2)
-            
-            new_core = zeros(dims...)
-
-            for tuck in tucks
-                transforms = Matrix{Float64}[]
-                for ci in cts.clusters
-                    push!(transforms, new_factors[ci.idx]'*tuck.factors[ci.idx])
-                end
-               
-                new_core += recompose(Tucker(tuck.core, Tuple(transforms)))
-            end
-            new_tuck = Tucker(new_core, Tuple(new_factors))
-
-            #prod(dims_large(new_tuck)) == length(tconfig) || error(" Problem in dimension", prod(dims_large(new_tuck)) ," !=", length(tconfig))
-            #display(size(new_tuck))
-            new_tuck = compress(new_tuck, thresh=thresh, max_number=max_number)
-            #display(size(new_tuck))
+          
+            display(typeof(tucks))
+            new_tuck = add(tucks)
+            display(size(new_tuck))
+            new_tuck = compress(new_tuck)
+            display(size(new_tuck))
             if length(new_tuck) > 0
                 if haskey(data2, fock)
                     data2[fock][tconfig] = new_tuck
@@ -1328,6 +1337,7 @@ function expand_compressed_space(foi_space, cts::CompressedTuckerState, cluster_
                     data2[fock] = OrderedDict(tconfig => new_tuck)
                 end
             end
+
         end
     end
 

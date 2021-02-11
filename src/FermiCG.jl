@@ -29,6 +29,7 @@ using IterTools
 # Local Imports
 #
 include("Utils.jl")
+include("Tensors.jl")
 include("StringCI/StringCI.jl");
 include("Solvers.jl");
 include("Hamiltonians.jl");
