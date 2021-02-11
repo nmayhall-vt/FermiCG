@@ -239,7 +239,7 @@ ENV["PYTHON"] = Sys.which("python")
     #FermiCG.print_fock_occupations(ci_vector)
 
     cts_ref  = FermiCG.CompressedTuckerState(ref_vector, thresh=-1);
-    cts_fois  = FermiCG.open_sigma(cts_ref, cluster_ops, clustered_ham, nbody=2, thresh=-1)
+    cts_fois  = FermiCG.open_sigma(cts_ref, cluster_ops, clustered_ham, nbody=4, thresh=1e-3)
 
     #foi_space = FermiCG.define_foi_space(cts_ref, clustered_ham, nbody=2) 
     #cts_fois = FermiCG.expand_compressed_space(foi_space, cts_ref, cluster_ops, clustered_ham, thresh=-1);
@@ -249,7 +249,7 @@ ENV["PYTHON"] = Sys.which("python")
     #FermiCG.print_fock_occupations(cts_fois)
     println(" this is cts_fois")
     display(cts_fois)
-    display(FermiCG.dot(cts_fois, cts_ref))
+    display(FermiCG.nonorth_dot(cts_fois, cts_ref))
     display(FermiCG.dot(cts_fois, cts_fois))
 
     println()
@@ -261,9 +261,13 @@ ENV["PYTHON"] = Sys.which("python")
     display(ci_vector)
     display(FermiCG.dot(ci_vector, ref_vector))
     display(FermiCG.dot(ci_vector, ci_vector))
-    
-    error()
-    if true
+
+
+    #cts_fois  = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-6);
+   
+    #display(cts_fois)
+    if false 
+        FermiCG.scale!(ci_vector, 1.0/sqrt(FermiCG.dot(ci_vector, ci_vector)[1]))
         println(" Length of CI Vector: ", length(ci_vector))
         @time e_nb2, x_nb2 = FermiCG.tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham)
         @printf(" E(CI):   Electronic %16.12f Total %16.12f\n", e_nb2[1], e_nb2[1]+ints.h0)
@@ -282,21 +286,42 @@ ENV["PYTHON"] = Sys.which("python")
     end
 
     if true 
-        #FermiCG.compress_blocks(ci_vector)
-        println(length(ci_vector))
-        cts = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-4)
-        println(length(cts))
-
-        display(cts)
-        FermiCG.print_fock_occupations(cts)
-        println(" Norm of projected state:           ", FermiCG.dot(cts,cts))
-        println(" Norm of projected state: (nonorth) ", FermiCG.nonorth_dot(cts,cts))
+        cts = cts_fois
         FermiCG.scale!(cts, 1.0/sqrt(FermiCG.dot(cts,cts)))
-        println(" Norm of normalized state: ", FermiCG.dot(cts,cts))
 
-        @time e_nb2, v_nb2 = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham)
-        @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_nb2[1], e_nb2[1]+ints.h0)
-        FermiCG.print_fock_occupations(cts)
+        display(length(cts))
+        @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham)
+        @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_cts[1], e_cts[1]+ints.h0)
+        display(cts)
+        
+        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=2, thresh=1e-4)
+        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=2, thresh=1e-4)
+        FermiCG.normalize!(cts)
+        display(length(cts))
+        @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham)
+        @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_cts[1], e_cts[1]+ints.h0)
+        display(cts)
+        
+        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=2, thresh=1e-4)
+        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=2, thresh=1e-4)
+        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=2, thresh=1e-4)
+        FermiCG.normalize!(cts)
+        display(length(cts))
+        @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham)
+        @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_cts[1], e_cts[1]+ints.h0)
+        display(cts)
+        
+  
+#        # do it again
+#        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=2, thresh=1e-3)
+#        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=2, thresh=1e-3)
+#        FermiCG.scale!(cts, 1.0/sqrt(FermiCG.dot(cts,cts)))
+#        display(cts)
+#
+#        @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham)
+#        @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_cts[1], e_cts[1]+ints.h0)
+#        display(cts)
+
     end
     #end
 

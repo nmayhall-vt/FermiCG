@@ -243,10 +243,10 @@ function LinearAlgebra.norm(s::ClusteredState)
 end
 
 """
-    normalize!(s::ClusteredState)
+    normalize!(s::AbstractState)
 """
-function normalize!(s::ClusteredState)
-    scale!(s,1/norm(s)) 
+function normalize!(s::AbstractState)
+    scale!(s,1/sqrt(dot(s,s))) 
 end
 
 """

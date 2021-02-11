@@ -26,6 +26,7 @@ Base.haskey(ts::CompressedTuckerState, i) = return haskey(ts.data,i)
 Base.getindex(ts::CompressedTuckerState, i) = return ts.data[i]
 Base.setindex!(ts::CompressedTuckerState, i, j) = return ts.data[j] = i
 Base.iterate(ts::CompressedTuckerState, state=1) = iterate(ts.data, state)
+normalize!(ts::CompressedTuckerState) = scale!(ts, 1/sqrt(dot(ts,ts)))
 
 
 """
@@ -119,11 +120,11 @@ function Base.length(s::CompressedTuckerState)
     return l
 end
 """
-    prune_empty_fock_spaces!(s::TuckerState)
+    prune_empty_fock_spaces!(s::AbstractState)
         
 remove fock_spaces that don't have any configurations 
 """
-function prune_empty_fock_spaces!(s::CompressedTuckerState)
+function prune_empty_fock_spaces!(s::AbstractState)
     focklist = keys(s.data)
     for fock in focklist 
         if length(s.data[fock]) == 0
@@ -131,6 +132,31 @@ function prune_empty_fock_spaces!(s::CompressedTuckerState)
         end
     end
     focklist = keys(s.data)
+    for (fock,tconfigs) in s.data
+        for (tconfig,coeff) in tconfigs
+        end
+    end
+end
+"""
+    prune_empty_TuckerConfigs!(s::T) where T<:Union{TuckerState, CompressedTuckerState}
+        
+remove fock_spaces that don't have any configurations 
+"""
+function prune_empty_TuckerConfigs!(s::T) where T<:Union{TuckerState, CompressedTuckerState}
+    focklist = keys(s.data)
+    for fock in focklist 
+        tconflist = keys(s.data[fock])
+        for tconf in tconflist
+            if length(s.data[fock][tconf]) == 0
+                delete!(s.data[fock], tconf)
+            end
+        end
+    end
+    for (fock,tconfigs) in s.data
+        for (tconfig,coeff) in tconfigs
+        end
+    end
+    prune_empty_fock_spaces!(s)
 end
 
 
@@ -300,6 +326,8 @@ function dot(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
 #=}}}=#
 end
 
+
+
 """
     nonorth_dot(ts1::FermiCG.CompressedTuckerState, ts2::FermiCG.CompressedTuckerState)
 
@@ -324,7 +352,7 @@ end
 
 Scale `ts` by a constant
 """
-function scale!(ts::CompressedTuckerState, a)
+function scale!(ts::CompressedTuckerState, a::T) where T<:Number
     #={{{=#
     for (fock,configs) in ts
         for (config,tuck) in configs 
@@ -1140,10 +1168,11 @@ function open_sigma(ket_cts::CompressedTuckerState{T,N}, cluster_ops, clustered_
                                 #
                                 # In this case, our sigma vector already has a compressed coefficient tensor.
                                 # Consequently, we need to add these two together
-                                sig_cts[sig_fock][sig_tconfig] = add([sig_tuck, sig_cts[sig_fock][sig_tconfig]])
-                                sig_cts[sig_fock][sig_tconfig] = compress(sig_cts[sig_fock][sig_tconfig], 
-                                                                          thresh=thresh,
-                                                                          max_number=max_number)
+                                
+                                sig_tuck = add([sig_tuck, sig_cts[sig_fock][sig_tconfig]])
+                                sig_tuck = compress(sig_tuck, thresh=thresh, max_number=max_number)
+                                sig_cts[sig_fock][sig_tconfig] = sig_tuck
+
                             else
                                 sig_cts[sig_fock][sig_tconfig] = sig_tuck
                             end
@@ -1157,6 +1186,7 @@ function open_sigma(ket_cts::CompressedTuckerState{T,N}, cluster_ops, clustered_
             end
         end
     end
+    prune_empty_TuckerConfigs!(sig_cts)
     return sig_cts 
 #=}}}=#
 end

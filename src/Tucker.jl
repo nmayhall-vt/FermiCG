@@ -313,6 +313,21 @@ function dot(ts1::TuckerState, ts2::TuckerState)
 #=}}}=#
 end
 
+"""
+    scale!(ts::FermiCG.TuckerState, a)
+
+Scale `ts` by a constant `a`
+"""
+function scale!(ts::TuckerState, a)
+    #={{{=#
+    for (fock,configs) in ts
+        for (config,tuck) in configs 
+            ts[fock][config] .*= a 
+        end
+    end
+    #=}}}=#
+end
+
 
 """
     unfold!(ts::TuckerState)
