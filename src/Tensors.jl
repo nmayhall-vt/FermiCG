@@ -191,6 +191,10 @@ function transform_basis(v::Array{T,N}, transform_list::Dict{Int,Matrix{T}}; tra
     #
     #   vv(IJk,L) = v(l,IJk)' * U(l,L) 
     #   vv(I,JKL) = reshape(vv(IJK,L))
+  
+    length(transform_list) > 0 || return v
+    #display(("v:",size(v)))
+    #display(("t:",[(i,size(j)) for (i,j) in transform_list]))
     vv = deepcopy(v)
     dims = [size(vv)...]
             
@@ -202,11 +206,12 @@ function transform_basis(v::Array{T,N}, transform_list::Dict{Int,Matrix{T}}; tra
 
             if trans
                 vv = vv' * transform_list[i]'
+                dims[1] = size(transform_list[i])[1]
             else
                 vv = vv' * transform_list[i]
+                dims[1] = size(transform_list[i])[2]
             end
            
-            dims[1] = size(transform_list[i])[2]
             dims = circshift(dims, -1) 
             vv = reshape(vv,dims[1],prod(dims[2:end]))
         else

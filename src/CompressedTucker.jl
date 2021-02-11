@@ -622,67 +622,138 @@ function form_sigma_block!(term::ClusteredTerm2B,
         op[J,L,I,K] := op[q,J,I] * g2[q,K,L]
     end
 
-    # 
-    # form overlaps - needed when TuckerConfigs aren't the same because each does their own compression and has 
-    # distinct Tucker factors
-    overlaps = Vector{Array{T}}() 
-    indices = Vector{Vector{Int16}}()
-    state_indices = -collect(1:n_clusters)
-    s = state_sign # this is the product of scalar overlaps that don't need tensor contractions
-    for ci in 1:n_clusters
-        ci != c1.idx || continue
-        ci != c2.idx || continue
+    use_ncon = true 
+    if use_ncon
+        # 
+        # form overlaps - needed when TuckerConfigs aren't the same because each does their own compression and has 
+        # distinct Tucker factors
+        overlaps = Vector{Array{T}}() 
+        indices = Vector{Vector{Int16}}()
+        state_indices = -collect(1:n_clusters)
+        s = state_sign # this is the product of scalar overlaps that don't need tensor contractions
+        for ci in 1:n_clusters
+            ci != c1.idx || continue
+            ci != c2.idx || continue
 
-        # if overlap not just scalar, form and prepare for contraction
-        if size(bra_coeffs.factors[ci],2) > 1 || size(ket_coeffs.factors[ci],2) > 1
-            push!(overlaps, bra_coeffs.factors[ci]' * ket_coeffs.factors[ci])
-            push!(indices, [-ci, ci])
-            state_indices[ci] = ci
-        else
-            S = bra_coeffs.factors[ci]' * ket_coeffs.factors[ci]
-            length(S) == 1 || error(" huh?")
-            s *= S[1]
+            # if overlap not just scalar, form and prepare for contraction
+            if size(bra_coeffs.factors[ci],2) > 1 || size(ket_coeffs.factors[ci],2) > 1
+                push!(overlaps, bra_coeffs.factors[ci]' * ket_coeffs.factors[ci])
+                push!(indices, [-ci, ci])
+                state_indices[ci] = ci
+            else
+                S = bra_coeffs.factors[ci]' * ket_coeffs.factors[ci]
+                length(S) == 1 || error(" huh?")
+                s *= S[1]
+            end
         end
-    end
 
 
-    # if the compressed operator becomes a scalar, treat it as such
-    if length(op) == 1
-        s *= op[1]
+        # if the compressed operator becomes a scalar, treat it as such
+        if length(op) == 1
+            s *= op[1]
+        else
+            op_indices = [c1.idx, c2.idx, -c1.idx, -c2.idx]
+            state_indices[c1.idx] = c1.idx
+            state_indices[c2.idx] = c2.idx
+            push!(overlaps, op)
+            push!(indices, op_indices)
+        end
+
+        push!(overlaps, ket_coeffs.core)
+        push!(indices, state_indices)
+
+        length(overlaps) == length(indices) || error(" mismatch between operators and indices")
+        # 
+        # Use ncon 
+        if length(overlaps) == 1
+            # this means that all the overlaps and the operator is a scalar
+            bra_coeffs.core .+= ket_coeffs.core .* s 
+        else
+            #display.(("a", size(bra_coeffs), size(ket_coeffs), "sizes: ", size.(overlaps), indices))
+            #display.(("a", size(bra_coeffs), size(ket_coeffs), "sizes: ", overlaps, indices))
+            out = @ncon(overlaps, indices)
+            bra_coeffs.core .+= out .* s
+        end
+    
     else
-        op_indices = [c1.idx, c2.idx, -c1.idx, -c2.idx]
-        state_indices[c1.idx] = c1.idx
-        state_indices[c2.idx] = c2.idx
-        push!(overlaps, op)
-        push!(indices, op_indices)
+        # 
+        # Use blas with transposes
+
+        # 
+        # form overlaps - needed when TuckerConfigs aren't the same because each does their own compression and has 
+        # distinct Tucker factors
+        overlaps = Dict{Int,Matrix{T}}()
+        s = state_sign # this is the product of scalar overlaps that don't need tensor contractions
+        for ci in 1:n_clusters
+            ci != c1.idx || continue
+            ci != c2.idx || continue
+
+            S = bra_coeffs.factors[ci]' * ket_coeffs.factors[ci]
+            
+            # if overlap not just scalar, form and prepare for contraction
+            if length(S) == 1
+                s *= S[1]
+            else
+                overlaps[ci] = S
+            end
+        end
+
+        
+        indices = collect(1:n_clusters)
+        indices[c1.idx] = 0
+        indices[c2.idx] = 0
+        perm,_ = bubble_sort(indices)
+
+        bra_coeffs2 = copy(bra_coeffs.core)
+        ket_coeffs2 = copy(ket_coeffs.core)
+        
+        #
+        # multiply by overlaps first if the bra side is smaller,
+        # otherwise multiply by Hamiltonian term first
+        if length(bra_coeffs2) < length(ket_coeffs2)
+            #ket_coeffs2 = transform_basis(ket_coeffs2, overlaps, trans=true)
+        end
+            ket_coeffs2 = transform_basis(ket_coeffs2, overlaps, trans=true)
+      
+        #
+        # Transpose to get contig data for blas (explicit copy?)
+        ket_coeffs2 = permutedims(ket_coeffs2, perm)
+        bra_coeffs2 = permutedims(bra_coeffs2, perm)
+
+        #
+        # Reshape for matrix multiply, shouldn't do any copies, right?
+        dim1 = size(ket_coeffs2)
+        ket_coeffs2 = reshape(ket_coeffs2, dim1[1]*dim1[2], prod(dim1[3:end]))
+        dim2 = size(bra_coeffs2)
+        bra_coeffs2 = reshape(bra_coeffs2, dim2[1]*dim2[2], prod(dim2[3:end]))
+
+        # 
+        # Reshape Hamiltonian term operator
+        op = reshape(op, prod(size(op)[1:2]), prod(size(op)[3:4]))
+
+        #display(term)
+        ##display(overlaps)
+        #display((size(bra_coeffs2), size(bra_coeffs.core)))
+        #display(size(op'))
+        #display((size(ket_coeffs2), size(ket_coeffs.core)))
+        bra_coeffs2 .+= s .* (op' * ket_coeffs2)
+
+        ket_coeffs2 = reshape(ket_coeffs2, dim1)
+        bra_coeffs2 = reshape(bra_coeffs2, dim2)
+
+        # now untranspose
+        perm,_ = bubble_sort(perm)
+        ket_coeffs2 = permutedims(ket_coeffs2,perm)
+        bra_coeffs2 = permutedims(bra_coeffs2,perm)
+
+        #
+        # multiply by overlaps now if the bra side is larger,
+        if length(bra_coeffs2) >= length(ket_coeffs2)
+            #ket_coeffs2 = transform_basis(ket_coeffs2, overlaps, trans=true)
+        end
+
+        bra_coeffs.core .= bra_coeffs2
     end
-
-    push!(overlaps, ket_coeffs.core)
-    push!(indices, state_indices)
-   
-    length(overlaps) == length(indices) || error(" mismatch between operators and indices")
-    # 
-    # Use ncon 
-    if length(overlaps) == 1
-        # this means that all the overlaps and the operator is a scalar
-        bra_coeffs.core .+= ket_coeffs.core .* s 
-    else
-        #display.(("a", size(bra_coeffs), size(ket_coeffs), "sizes: ", size.(overlaps), indices))
-        #display.(("a", size(bra_coeffs), size(ket_coeffs), "sizes: ", overlaps, indices))
-        out = @ncon(overlaps, indices)
-        bra_coeffs.core .+= out .* s
-    end
-
-    # 
-    # Use blas with transposes
-
-    indices = collect(1:n_clusters)
-    indices[c1.idx] = 0
-    indices[c2.idx] = 0
-    perm,_ = bubble_sort(indices)
-    ket_coeffs2 = permutedims(ket_coeffs.core, perm)
-    bra_coeffs2 = permutedims(bra_coeffs.core, perm)
-
 
     return  
 #=}}}=#
