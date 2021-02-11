@@ -26,7 +26,7 @@ Base.haskey(ts::CompressedTuckerState, i) = return haskey(ts.data,i)
 Base.getindex(ts::CompressedTuckerState, i) = return ts.data[i]
 Base.setindex!(ts::CompressedTuckerState, i, j) = return ts.data[j] = i
 Base.iterate(ts::CompressedTuckerState, state=1) = iterate(ts.data, state)
-normalize!(ts::CompressedTuckerState) = scale!(ts, 1/sqrt(dot(ts,ts)))
+normalize!(ts::CompressedTuckerState) = scale!(ts, 1/sqrt(orth_dot(ts,ts)))
 
 
 """
@@ -312,7 +312,7 @@ Dot product between `ts2` and `ts1`
 
 Warning: this assumes both `ts1` and `ts2` have the same tucker factors for each `TuckerConfig`
 """
-function dot(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
+function orth_dot(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
 #={{{=#
     overlap = 0.0  
     for (fock,configs) in ts2

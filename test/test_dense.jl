@@ -154,7 +154,7 @@ ENV["PYTHON"] = Sys.which("python")
         e_fci, ci = cisolver.kernel(ints.h1, ints.h2, norb , nelec, ecore=0, nroots = 1, verbose=100)
         e_fci = min(e_fci...)
         @printf(" FCI Energy: %12.8f\n", e_fci)
-        
+        error() 
     end
    
     # localize orbitals
@@ -239,7 +239,7 @@ ENV["PYTHON"] = Sys.which("python")
     #FermiCG.print_fock_occupations(ci_vector)
 
     cts_ref  = FermiCG.CompressedTuckerState(ref_vector, thresh=-1);
-    cts_fois  = FermiCG.open_sigma(cts_ref, cluster_ops, clustered_ham, nbody=2, thresh=1e-9)
+    cts_fois  = FermiCG.open_sigma(cts_ref, cluster_ops, clustered_ham, nbody=3, thresh=1e-2)
 
     #foi_space = FermiCG.define_foi_space(cts_ref, clustered_ham, nbody=2) 
     #cts_fois = FermiCG.expand_compressed_space(foi_space, cts_ref, cluster_ops, clustered_ham, thresh=-1);
@@ -250,7 +250,7 @@ ENV["PYTHON"] = Sys.which("python")
     println(" this is cts_fois")
     display(cts_fois)
     display(FermiCG.nonorth_dot(cts_fois, cts_ref))
-    display(FermiCG.dot(cts_fois, cts_fois))
+    display(FermiCG.orth_dot(cts_fois, cts_fois))
 
     println()
 
@@ -262,7 +262,6 @@ ENV["PYTHON"] = Sys.which("python")
     display(FermiCG.dot(ci_vector, ref_vector))
     display(FermiCG.dot(ci_vector, ci_vector))
 
-    error()
     #cts_fois  = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-6);
    
     #display(cts_fois)
@@ -287,24 +286,34 @@ ENV["PYTHON"] = Sys.which("python")
 
     if true 
         cts = cts_fois
-        FermiCG.scale!(cts, 1.0/sqrt(FermiCG.dot(cts,cts)))
 
-        display(length(cts))
-        @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham)
-        @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_cts[1], e_cts[1]+ints.h0)
-        display(cts)
-        
-        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=2, thresh=1e-4)
-        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=2, thresh=1e-4)
         FermiCG.normalize!(cts)
         display(length(cts))
         @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham)
         @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_cts[1], e_cts[1]+ints.h0)
         display(cts)
         
-        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=2, thresh=1e-4)
-        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=2, thresh=1e-4)
-        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=2, thresh=1e-4)
+        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=3, thresh=1e-2)
+        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=3, thresh=1e-2)
+        FermiCG.normalize!(cts)
+        display(length(cts))
+        @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham)
+        @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_cts[1], e_cts[1]+ints.h0)
+        display(cts)
+        
+        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=3, thresh=1e-2)
+        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=3, thresh=1e-2)
+        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=3, thresh=1e-2)
+        FermiCG.normalize!(cts)
+        display(length(cts))
+        @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham)
+        @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_cts[1], e_cts[1]+ints.h0)
+        display(cts)
+        
+        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=3, thresh=1e-2)
+        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=3, thresh=1e-2)
+        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=3, thresh=1e-2)
+        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=3, thresh=1e-2)
         FermiCG.normalize!(cts)
         display(length(cts))
         @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham)
