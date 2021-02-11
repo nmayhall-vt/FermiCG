@@ -1045,14 +1045,11 @@ Lots of overhead probably from compression, but never completely uncompresses.
 
 """
 function open_sigma(ket_cts::CompressedTuckerState{T,N}, cluster_ops, clustered_ham; thresh=1e-7, max_number=nothing, nbody=2) where {T,N}
-    println(" Define the FOI space for CompressedTuckerState. nbody = ", nbody)#={{{=#
-
+    println(" Define the FOI space for CompressedTuckerState. nbody = ", nbody)
+#={{{=#
     #
     # Initialize data for our output sigma, which we will convert to a 
-    sig_cts = CompressedTuckerState(ket_cts.clusters, 
-                                    OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker{T,N}}}(), 
-                                    ket_cts.p_spaces, 
-                                    ket_cts.q_spaces)
+    sig_cts = CompressedTuckerState(ket_cts.clusters, OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker{T,N}} }(),  ket_cts.p_spaces, ket_cts.q_spaces)
 
     for (ket_fock, ket_tconfigs) in ket_cts 
         for (fock_trans, terms) in clustered_ham
@@ -1094,7 +1091,7 @@ function open_sigma(ket_cts::CompressedTuckerState{T,N}, cluster_ops, clustered_
                     # We will loop over all these destination TuckerConfig's by creating the cartesian product of their 
                     # available spaces, this list of which we will keep in "available".
                     #
-            
+           
                     available = [] # list of lists of index ranges, the cartesian product is the set needed
                     #
                     # for current term, expand index ranges for active clusters
@@ -1129,7 +1126,7 @@ function open_sigma(ket_cts::CompressedTuckerState{T,N}, cluster_ops, clustered_
                         
 
                         FermiCG.check_term(term, sig_fock, sig_tconfig, ket_fock, ket_tconfig) || continue
-                        
+                    
                         sig_tuck = FermiCG.form_sigma_block_expand(term, cluster_ops, 
                                                                     sig_fock, sig_tconfig, 
                                                                     ket_fock, ket_tconfig, ket_tuck,
@@ -1257,7 +1254,7 @@ function define_foi_space(cts::T, clustered_ham; nbody=2) where T<:Union{TuckerS
 end
 
 
-
+#={{{=#
 """
     expand_compressed_space(foi_space, cts::CompressedTuckerState{T,N}, cluster_ops, clustered_ham;
                                     thresh=1e-7, max_number=nothing) where {T,N}
@@ -1267,7 +1264,7 @@ Apply the Hamiltonian to cts, generating a `CompressedTuckerState` without ever 
 function expand_compressed_space(foi_space, cts::CompressedTuckerState{T,N}, cluster_ops, clustered_ham;
                                     thresh=1e-7, max_number=nothing) where {T,N}
 
-    data = OrderedDict{FockConfig,OrderedDict{TuckerConfig,Vector{Tucker{T,N}}}}()
+    data = OrderedDict{FockConfig,OrderedDict{TuckerConfig,Vector{Tucker{T,N}} } }()
     for (fock_bra,tconfigs_bra) in foi_space
         for (fock_ket,tconfigs_ket) in cts 
             fock_trans = fock_bra - fock_ket
@@ -1319,7 +1316,7 @@ function expand_compressed_space(foi_space, cts::CompressedTuckerState{T,N}, clu
     #
     #   Try 1) first
     #
-    data2 = OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker{T,N}}}()
+    data2 = OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker{T,N}} }()
     for (fock,tconfigs) in data
         #display(fock)
         for (tconfig,tucks) in tconfigs
@@ -1343,7 +1340,7 @@ function expand_compressed_space(foi_space, cts::CompressedTuckerState{T,N}, clu
 
     return CompressedTuckerState(cts.clusters, data2, cts.p_spaces, cts.q_spaces) 
 end
-
+#=}}}=#
 
 
 """
@@ -1439,6 +1436,7 @@ function form_sigma_block_expand(term::ClusteredTerm1B,
     return Tucker(bra_tuck.core, NTuple{N}(new_factors)) 
 #=}}}=#
 end
+
 """
 """
 function form_sigma_block_expand(term::ClusteredTerm2B, 
@@ -1565,6 +1563,127 @@ function form_sigma_block_expand(term::ClusteredTerm2B,
         #bra_tuck.factors[ci] .= old_factors[ci] * bra_tuck.factors[ci]
         new_factors[ci] = old_factors[ci] * bra_tuck.factors[ci]
         #push!(new_factors, old_factors[ci] * bra_tuck.factors[ci])
+
+    end
+    return Tucker(bra_tuck.core, NTuple{N}(new_factors)) 
+#=}}}=#
+end
+
+"""
+"""
+function form_sigma_block_expand(term::ClusteredTerm3B, 
+                            cluster_ops::Vector{ClusterOps},
+                            fock_bra::FockConfig, bra::TuckerConfig, 
+                            fock_ket::FockConfig, ket::TuckerConfig,
+                            ket_coeffs::Tucker{T,N}; 
+                            thresh=1e-7, max_number=nothing) where {T,N}
+#={{{=#
+    #display(term)
+    #display.((fock_bra, fock_ket))
+    c1 = term.clusters[1]
+    c2 = term.clusters[2]
+    c3 = term.clusters[3]
+    n_clusters = length(bra)
+
+    # 
+    # make sure active clusters are correct transitions 
+    fock_bra[c1.idx] == fock_ket[c1.idx] .+ term.delta[1] || throw(Exception)
+    fock_bra[c2.idx] == fock_ket[c2.idx] .+ term.delta[2] || throw(Exception)
+    fock_bra[c3.idx] == fock_ket[c3.idx] .+ term.delta[3] || throw(Exception)
+    
+    # 
+    # determine sign from rearranging clusters if odd number of operators
+    state_sign = compute_terms_state_sign(term, fock_ket) 
+
+    #
+    # op[IK,JL] = <I|p'|J> h(pq) <K|q|L>
+    gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+    gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,bra[c3.idx],ket[c3.idx]]
+
+    # todo: add in 2e integral tucker decomposition and compress gamma along 1st index first
+    
+    #
+    # Compress Gammas using the cluster's Tucker factors, but since we are expanding the compression space
+    # only compress the right hand side
+    # e.g., 
+    #   Gamma(pqr, I, J) Ur(J,l) = Gamma(pqr, I, l) where k and l are compressed indices
+    gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    Ur = ket_coeffs.factors[c1.idx]
+    @tensor begin
+        g1[p,I,l] := Ur[J,l] * gamma1[p,I,J]
+    end
+    
+    gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+    Ur = ket_coeffs.factors[c2.idx]
+    @tensor begin
+        g2[p,I,l] := Ur[J,l] * gamma2[p,I,J]
+    end
+    
+    gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,bra[c3.idx],ket[c3.idx]]
+    Ur = ket_coeffs.factors[c3.idx]
+    @tensor begin
+        g3[p,I,l] := Ur[J,l] * gamma3[p,I,J]
+    end
+
+    # 
+    # Now contract into 3body term
+    #
+    # h(p,q) * g1(p,I,J) * g2(q,K,L) = op(J,L,I,K)
+    op = Array{Float64}[]
+    @tensor begin
+        op[q,r,I,J] := term.ints[p,q,r] * g1[p,I,J]
+        op[r,I,J,K,L] := op[q,r,I,J] * g2[q,K,L]  
+        op[J,L,N,I,K,M] := op[r,I,J,K,L] * g3[r,M,N]  
+    end
+
+    # 
+    # form overlaps - needed when TuckerConfigs aren't the same because each does their own compression and has 
+    # distinct Tucker factors
+    tensors = Vector{Array{T}}() 
+    indices = Vector{Vector{Int16}}()
+    state_indices = -collect(1:n_clusters)
+    s = state_sign # this is the product of scalar overlaps that don't need tensor contractions
+
+    # if the compressed operator becomes a scalar, treat it as such
+    if length(op) == 1
+        s *= op[1]
+    else
+        op_indices = [c1.idx, c2.idx, c3.idx, -c1.idx, -c2.idx, -c3.idx]
+        state_indices[c1.idx] = c1.idx
+        state_indices[c2.idx] = c2.idx
+        state_indices[c3.idx] = c3.idx
+        push!(tensors, op)
+        push!(indices, op_indices)
+    end
+
+    push!(tensors, ket_coeffs.core)
+    push!(indices, state_indices)
+   
+    length(tensors) == length(indices) || error(" mismatch between operators and indices")
+
+    bra_core = Array{T,N}(undef,(0,0,0))
+    if length(tensors) == 1
+        # this means that all the overlaps and the operator is a scalar
+        bra_core = ket_coeffs.core .* s 
+    else
+        #display.(("a", size(bra_coeffs), size(ket_coeffs), "sizes: ", size.(overlaps), indices))
+        #display.(("a", size(bra_coeffs), size(ket_coeffs), "sizes: ", overlaps, indices))
+        out = @ncon(tensors, indices)
+        bra_core = out .* s
+    end
+
+    bra_tuck = Tucker(bra_core, thresh=thresh, max_number=max_number)
+    
+    old_factors = deepcopy(ket_coeffs.factors)
+    new_factors = [bra_tuck.factors[i] for i in 1:N]
+
+    for ci in 1:n_clusters
+        ci != c1.idx || continue
+        ci != c2.idx || continue
+        ci != c3.idx || continue
+
+        new_factors[ci] = old_factors[ci] * bra_tuck.factors[ci]
 
     end
     return Tucker(bra_tuck.core, NTuple{N}(new_factors)) 
