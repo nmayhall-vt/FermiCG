@@ -622,7 +622,7 @@ function form_sigma_block!(term::ClusteredTerm2B,
         op[J,L,I,K] := op[q,J,I] * g2[q,K,L]
     end
 
-    use_ncon = true 
+    use_ncon = false 
     if use_ncon
         # 
         # form overlaps - needed when TuckerConfigs aren't the same because each does their own compression and has 

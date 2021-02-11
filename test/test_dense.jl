@@ -326,7 +326,7 @@ ENV["PYTHON"] = Sys.which("python")
         cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh)
         FermiCG.normalize!(cts)
         display(length(cts))
-        e_cts, v_cts = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham)
+        @profilehtml e_cts, v_cts = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham)
         @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_cts[1], e_cts[1]+ints.h0)
         display(cts)
 
