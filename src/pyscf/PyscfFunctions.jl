@@ -14,6 +14,7 @@ and return a PYSCF mean field object
 """
 function pyscf_do_scf(molecule::Molecule, conv_tol=1e-10)
     pyscf = pyimport("pyscf")
+    pyscf.lib.num_threads(1)
     pymol = make_pyscf_mole(molecule)
 
     println(pymol.basis)
@@ -44,6 +45,7 @@ Create a `pyscf.gto.Mole()` object
 """
 function make_pyscf_mole(molecule::Molecule)
     pyscf = pyimport("pyscf")
+    pyscf.lib.num_threads(1)
     pymol = pyscf.gto.Mole()
     pymol.basis = molecule.basis
     geomstr = ""
@@ -69,6 +71,7 @@ Write MO coeffs `C` to a molden file for visualizing
 """
 function pyscf_write_molden(molecule::Molecule, C; filename="orbitals.molden")
     pyscf = pyimport("pyscf")
+    pyscf.lib.num_threads(1)
     molden = pyimport("pyscf.molden")
     pymol = make_pyscf_mole(molecule)
     molden.from_mo(pymol, filename, C)
@@ -105,6 +108,7 @@ returns a 2D matrix
 function pyscf_build_1e(mol::Molecule)
 
     pyscf = pyimport("pyscf")
+    pyscf.lib.num_threads(1)
     # 
     # get pyscf molecule type
     pymol = FermiCG.make_pyscf_mole(mol)
@@ -128,6 +132,7 @@ returns a 4D tensor
 function pyscf_build_eri(mol::Molecule, c1::Matrix, c2::Matrix, c3::Matrix, c4::Matrix)
 
     pyscf = pyimport("pyscf")
+    pyscf.lib.num_threads(1)
     # 
     # get pyscf molecule type
     pymol = FermiCG.make_pyscf_mole(mol)
@@ -159,6 +164,7 @@ returns an `InCoreInts` type
 function pyscf_build_ints(mol::Molecule, c_act, d1_embed)
 
 	pyscf = pyimport("pyscf")
+    pyscf.lib.num_threads(1)
 
 	nact = size(c_act)[2]
 	#mycas = pyscf.mcscf.CASSCF(mf, length(active), 0)
@@ -228,6 +234,7 @@ Use PySCF to compute Full CI
 function pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1, verbose=1)
 	# println(" Use PYSCF to compute FCI")
 	pyscf = pyimport("pyscf")
+    pyscf.lib.num_threads(1)
 	fci = pyimport("pyscf.fci")
 	cisolver = pyscf.fci.direct_spin1.FCI()
 	cisolver.max_cycle = max_cycle
@@ -279,6 +286,7 @@ function localize(C::Array{Float64,2},method::String, mf)
     mf is a pyscf scf object
     """
     pyscf = pyimport("pyscf")
+    pyscf.lib.num_threads(1)
     pyscflo = pyimport("pyscf.lo")
     if lowercase(method) == "lowdin"
         Cl = mf.mol.intor("int1e_ovlp_sph")
