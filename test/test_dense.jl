@@ -146,6 +146,19 @@ ENV["PYTHON"] = Sys.which("python")
         na = 5
         nb = 5
         
+        
+        atoms = generate_H_ring(12,rad)
+        clusters    = [(1:4),(5:8),(9:10),(11:12)]
+        init_fspace = [(2,2),(2,2),(1,1),(1,1)]
+        clusters    = [(1:2),(3:4),(5:6),(7:8),(9:10),(11:12)]
+        init_fspace = [(1,1),(1,1),(1,1),(1,1),(1,1),(1,1)]
+        clusters    = [(1:4),(5:8),(9:12)]
+        init_fspace = [(2,2),(2,2),(2,2)]
+        clusters    = [(1:6),(7:12)]
+        init_fspace = [(3,3),(3,3)]
+        na = 6
+        nb = 6
+        
         atoms = generate_H_ring(8,rad)
         clusters    = [(1:2),(3:4),(5:6),(7:8)]
         init_fspace = [(1,1),(1,1),(1,1),(1,1)]
@@ -153,15 +166,6 @@ ENV["PYTHON"] = Sys.which("python")
         init_fspace = [(2,2),(1,1),(1,1)]
         na = 4
         nb = 4
-        
-        atoms = generate_H_ring(12,rad)
-        clusters    = [(1:2),(3:4),(5:6),(7:8),(9:10),(11:12)]
-        init_fspace = [(1,1),(1,1),(1,1),(1,1),(1,1),(1,1)]
-        clusters    = [(1:4),(5:8),(9:12)]
-        init_fspace = [(2,2),(2,2),(2,2)]
-        na = 6
-        nb = 6
-        
         
     end
 
@@ -222,7 +226,7 @@ ENV["PYTHON"] = Sys.which("python")
 
     e_ref = e_cmf - ints.h0
 
-    max_roots = 20
+    max_roots = 100
     # build Hamiltonian, cluster_basis and cluster ops
     #display(Da)
     #cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=2, max_roots=max_roots)
@@ -277,6 +281,8 @@ ENV["PYTHON"] = Sys.which("python")
     cts_ref  = FermiCG.CompressedTuckerState(ref_vector, thresh=-1);
     cts_fois  = FermiCG.open_sigma(cts_ref, cluster_ops, clustered_ham, nbody=3, thresh=1e-2)
 
+
+
     #foi_space = FermiCG.define_foi_space(cts_ref, clustered_ham, nbody=2) 
     #cts_fois = FermiCG.expand_compressed_space(foi_space, cts_ref, cluster_ops, clustered_ham, thresh=-1);
   
@@ -307,6 +313,14 @@ ENV["PYTHON"] = Sys.which("python")
         @time e_nb2, x_nb2 = FermiCG.tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham)
         @printf(" E(CI):   Electronic %16.12f Total %16.12f\n", e_nb2[1], e_nb2[1]+ints.h0)
         FermiCG.print_fock_occupations(ci_vector)
+
+        println(" Now compress and resolve")
+        cts = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-3)
+        FermiCG.normalize!(cts)
+        display(length(cts))
+        @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham, tol=1e-3)
+        @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_cts[1], e_cts[1]+ints.h0)
+        FermiCG.print_fock_occupations(cts)
     end
     
     if false 
@@ -320,28 +334,49 @@ ENV["PYTHON"] = Sys.which("python")
         FermiCG.print_fock_occupations(ci_vector)
     end
     
-    function do_work(cts, cluster_ops, clustered_ham; nbody=3, thresh=1e-3)
-        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh)
-        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh)
-        cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh)
-        FermiCG.normalize!(cts)
-        display(length(cts))
-        @profilehtml e_cts, v_cts = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham)
-        @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_cts[1], e_cts[1]+ints.h0)
-        display(cts)
-
+    function do_work(cts, cluster_ops, clustered_ham; nbody=3, thresh=1e-3, nfoi=3, n_iter=3)
+        for iter in 1:n_iter
+            for n in 1:nfoi
+                cts  = FermiCG.open_sigma(cts, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh)
+            end
+            FermiCG.normalize!(cts)
+            display(length(cts))
+            @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham, tol=1e-3)
+            @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_cts[1], e_cts[1]+ints.h0)
+        end
     end
 
-    if true 
-        cts = cts_fois
-
+    if true    
+        cts  = FermiCG.open_sigma(cts_ref, cluster_ops, clustered_ham, nbody=4, thresh=1e-4)
         FermiCG.normalize!(cts)
         display(length(cts))
-        @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham)
+        @time FermiCG.hylleraas_compressed_mp2!(cts, cluster_ops, clustered_ham, tol=1e-6, thresh=1e-6)
+    end
+    
+    if false 
+        cts = cts_fois
+
+            
+        @time e_ref, v_ref = FermiCG.tucker_ci_solve!(cts_ref, cluster_ops, clustered_ham, tol=1e-12)
+        tmp = deepcopy(cts_ref)
+        FermiCG.scale!(tmp, -e_ref[1])
+
+        cts_sig  = FermiCG.open_sigma(cts_ref, cluster_ops, clustered_ham, nbody=4, thresh=1e-4)
+        @printf(" Should be E0  : %12.8f\n", FermiCG.nonorth_dot(cts_sig, cts_ref))
+        FermiCG.nonorth_add!(cts_sig, tmp) 
+        @printf(" Should be zero: %12.8f\n", FermiCG.nonorth_dot(cts_sig, cts_ref))
+        display(cts_sig)
+        display(FermiCG.nonorth_dot(cts_sig, cts_ref))
+
+        cts = cts_sig
+        FermiCG.normalize!(cts)
+        display(length(cts))
+        @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham, tol=1e-3)
         @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_cts[1], e_cts[1]+ints.h0)
         display(cts)
         
-        @time do_work(cts, cluster_ops, clustered_ham, nbody=3, thresh=1e-3)
+        #@time do_work(cts, cluster_ops, clustered_ham, nbody=4, thresh=1e-2, nfoi=3, n_iter=10)
+        #display(cts)
     end
     #end
 
