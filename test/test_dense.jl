@@ -359,26 +359,38 @@ ENV["PYTHON"] = Sys.which("python")
         display(length(cts))
         @time FermiCG.hylleraas_compressed_mp2!(cts, cluster_ops, clustered_ham, tol=1e-6, thresh=1e-6)
     end
-    
-    if true    
-        @time e_ref, v_ref = FermiCG.tucker_ci_solve!(cts_ref, cluster_ops, clustered_ham, tol=1e-6)
-        
-        cts_pt1  = FermiCG.build_compressed_1st_order_state(e_ref[1], cts_ref, cluster_ops, clustered_ham, nbody=4, thresh=1e-7)
+   
+
+    function iterate_pt2!(cts_ref, cluster_ops, clustered_ham; nbody=4, thresh=1e-7,  tol=1e-5)
+
+        println(" --------------------------------------------------------------------")
+        println(" Iterate PT-Var")
+        println(" --------------------------------------------------------------------")
+        cts_pt1  = FermiCG.build_compressed_1st_order_state(cts_ref, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh)
         println(" norm of 1st order wavefunction: ", FermiCG.nonorth_dot(cts_pt1, cts_pt1))
         display(FermiCG.nonorth_dot(cts_pt1, cts_ref))
-        display(length(cts_pt1))
+        @printf(" Length of PT vector %5i\n", length(cts_pt1))
         sig = deepcopy(cts_pt1)
         FermiCG.zero!(sig)
         FermiCG.build_sigma!(sig, cts_ref, cluster_ops, clustered_ham)
-        println(" norm of Hax order wavefunction: ", FermiCG.nonorth_dot(sig,sig))
         e_2 = FermiCG.nonorth_dot(cts_pt1, sig)
         @printf(" E(PT2) tot  = %12.8f = %12.8f\n", e_ref[1]-e_2, e_ref[1]-e_2 + ints.h0 )
         @printf(" E(PT2) corr = %12.8f\n", e_2)
-        
-        sig = deepcopy(cts_ref)
-        FermiCG.zero!(sig)
-        FermiCG.build_sigma!(sig, cts_ref, cluster_ops, clustered_ham)
-        display(FermiCG.nonorth_dot(cts_ref, sig))
+
+
+        FermiCG.nonorth_add!(cts_ref,cts_pt1)
+        FermiCG.normalize!(cts_ref)
+        @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts_ref, cluster_ops, clustered_ham, tol=tol)
+        @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_cts[1], e_cts[1]+ints.h0)
+        FermiCG.print_fock_occupations(cts_ref)
+    end
+    
+    if true    
+        @time e_ref, v_ref = FermiCG.tucker_ci_solve!(cts_ref, cluster_ops, clustered_ham, tol=1e-6)
+   
+        for i in 1:4
+            iterate_pt2!(cts_ref, cluster_ops, clustered_ham, nbody=4, thresh=1e-6)
+        end
     end
     
     if false 

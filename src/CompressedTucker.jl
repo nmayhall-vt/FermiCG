@@ -2195,13 +2195,12 @@ end#=}}}=#
 
 
 """
-    build_compressed_1st_order_state(e_ref,cts::CompressedTuckerState{T,N}, cluster_ops, clustered_ham; thresh=1e-7, max_number=nothing, nbody=2) where {T,N}
+    build_compressed_1st_order_state(cts::CompressedTuckerState{T,N}, cluster_ops, clustered_ham; thresh=1e-7, max_number=nothing, nbody=2) where {T,N}
 Apply the Hamiltonian to `v` expanding into the uncompressed space.
 This is done only partially, where each term is recompressed after being computed.
 Lots of overhead probably from compression, but never completely uncompresses.
 
 #Arguments
-- `e_ref`: Reference energy
 - `cts::CompressedTuckerState`: input state
 - `cluster_ops`:
 - `clustered_ham`: Hamiltonian
@@ -2213,7 +2212,7 @@ Lots of overhead probably from compression, but never completely uncompresses.
 - `v1::CompressedTuckerState`
 
 """
-function build_compressed_1st_order_state(e_ref, ket_cts::CompressedTuckerState{T,N}, cluster_ops, clustered_ham; thresh=1e-7, max_number=nothing, nbody=2) where {T,N}
+function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, cluster_ops, clustered_ham; thresh=1e-7, max_number=nothing, nbody=2) where {T,N}
     println(" Compute the 1st order wavefunction for CompressedTuckerState. nbody = ", nbody)
 #={{{=#
     #
@@ -2253,14 +2252,14 @@ function build_compressed_1st_order_state(e_ref, ket_cts::CompressedTuckerState{
         end
     end
 
-    for (ket_fock, ket_tconfigs) in ket_cts
-        for (ket_tconfig, ket_tuck) in ket_tconfigs
-            for i in 1:N
-                h = H0[i][ket_fock[i]][ket_tconfig[i],ket_tconfig[i]]
-                h = H0[i][ket_fock[i]]
-            end
-        end
-    end
+#    for (ket_fock, ket_tconfigs) in ket_cts
+#        for (ket_tconfig, ket_tuck) in ket_tconfigs
+#            for i in 1:N
+#                h = H0[i][ket_fock[i]][ket_tconfig[i],ket_tconfig[i]]
+#                h = H0[i][ket_fock[i]]
+#            end
+#        end
+#    end
 
     for (ket_fock, ket_tconfigs) in ket_cts
         for (fock_trans, terms) in clustered_ham
@@ -2351,11 +2350,6 @@ function build_compressed_1st_order_state(e_ref, ket_cts::CompressedTuckerState{
 
                         if haskey(ket_cts, sig_fock)
                             if haskey(ket_cts[sig_fock], sig_tconfig)
-                                # REMOVE
-                                display(sig_fock)
-                                display(sig_tconfig)
-                                display(resolvs)
-                                continue
 
                                 ket_tuck_A = ket_cts[sig_fock][sig_tconfig]
 
