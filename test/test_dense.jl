@@ -96,7 +96,7 @@ ENV["PYTHON"] = Sys.which("python")
     
     @test isapprox(A1, A2, atol=1e-12)
 
-    if true 
+    if false 
         r = 1
         push!(atoms,Atom(1,"H",[0,0,0*r]))
         push!(atoms,Atom(2,"H",[0,0,1*r]))
@@ -150,19 +150,6 @@ ENV["PYTHON"] = Sys.which("python")
         na = 5
         nb = 5
         
-        
-        atoms = generate_H_ring(12,rad)
-        clusters    = [(1:4),(5:8),(9:10),(11:12)]
-        init_fspace = [(2,2),(2,2),(1,1),(1,1)]
-        clusters    = [(1:2),(3:4),(5:6),(7:8),(9:10),(11:12)]
-        init_fspace = [(1,1),(1,1),(1,1),(1,1),(1,1),(1,1)]
-        clusters    = [(1:4),(5:8),(9:12)]
-        init_fspace = [(2,2),(2,2),(2,2)]
-        clusters    = [(1:6),(7:12)]
-        init_fspace = [(3,3),(3,3)]
-        na = 6
-        nb = 6
-        
         atoms = generate_H_ring(8,rad)
         clusters    = [(1:2),(3:4),(5:6),(7:8)]
         init_fspace = [(1,1),(1,1),(1,1),(1,1)]
@@ -170,6 +157,19 @@ ENV["PYTHON"] = Sys.which("python")
         init_fspace = [(2,2),(1,1),(1,1)]
         na = 4
         nb = 4
+        
+        
+        atoms = generate_H_ring(12,rad)
+        clusters    = [(1:4),(5:8),(9:10),(11:12)]
+        init_fspace = [(2,2),(2,2),(1,1),(1,1)]
+        clusters    = [(1:2),(3:4),(5:6),(7:8),(9:10),(11:12)]
+        init_fspace = [(1,1),(1,1),(1,1),(1,1),(1,1),(1,1)]
+        clusters    = [(1:6),(7:12)]
+        init_fspace = [(3,3),(3,3)]
+        clusters    = [(1:4),(5:8),(9:12)]
+        init_fspace = [(2,2),(2,2),(2,2)]
+        na = 6
+        nb = 6
         
     end
 
@@ -224,7 +224,7 @@ ENV["PYTHON"] = Sys.which("python")
     #ints = FermiCG.orbital_rotation(ints,U)
     
     e_cmf, U, Da, Db  = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, 
-                                       max_iter_oo=0, verbose=0, gconv=1e-6, method="bfgs")
+                                       max_iter_oo=40, verbose=0, gconv=1e-6, method="bfgs")
     FermiCG.pyscf_write_molden(mol,Cl*U,filename="cmf.molden")
     ints = FermiCG.orbital_rotation(ints,U)
 
@@ -234,7 +234,7 @@ ENV["PYTHON"] = Sys.which("python")
     # build Hamiltonian, cluster_basis and cluster ops
     #display(Da)
     #cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=2, max_roots=max_roots)
-    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=1, max_roots=max_roots, 
+    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=0, max_roots=max_roots, 
                                                        init_fspace=init_fspace, rdm1a=Da, rdm1b=Db)
     clustered_ham = FermiCG.extract_ClusteredTerms(ints, clusters)
     cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
@@ -311,7 +311,7 @@ ENV["PYTHON"] = Sys.which("python")
     #cts_fois  = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-6);
    
     #display(cts_fois)
-    if false 
+    if false  
         FermiCG.scale!(ci_vector, 1.0/sqrt(FermiCG.dot(ci_vector, ci_vector)[1]))
         println(" Length of CI Vector: ", length(ci_vector))
         @time e_nb2, x_nb2 = FermiCG.tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham)
@@ -380,16 +380,23 @@ ENV["PYTHON"] = Sys.which("python")
 
         FermiCG.nonorth_add!(cts_ref,cts_pt1)
         FermiCG.normalize!(cts_ref)
+        FermiCG.compress!(cts_ref, thresh=thresh)
+        FermiCG.normalize!(cts_ref)
         @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts_ref, cluster_ops, clustered_ham, tol=tol)
+        dim1 = length(cts_ref)
+        FermiCG.compress!(cts_ref, thresh=thresh)
+        FermiCG.normalize!(cts_ref)
+        dim2 = length(cts_ref)
+        println(" Dimension of reference state reduced from ", dim1, " to ", dim2)
         @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_cts[1], e_cts[1]+ints.h0)
         FermiCG.print_fock_occupations(cts_ref)
     end
     
     if true    
-        @time e_ref, v_ref = FermiCG.tucker_ci_solve!(cts_ref, cluster_ops, clustered_ham, tol=1e-6)
+        @time e_ref, v_ref = FermiCG.tucker_ci_solve!(cts_ref, cluster_ops, clustered_ham, tol=1e-5)
    
         for i in 1:4
-            iterate_pt2!(cts_ref, cluster_ops, clustered_ham, nbody=4, thresh=1e-6)
+            iterate_pt2!(cts_ref, cluster_ops, clustered_ham, nbody=4, thresh=1e-7)
         end
     end
     

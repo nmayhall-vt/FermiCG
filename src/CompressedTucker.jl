@@ -73,7 +73,22 @@ function CompressedTuckerState(ts::TuckerState; thresh=-1, max_number=nothing, v
     return CompressedTuckerState(ts.clusters, data, ts.p_spaces, ts.q_spaces)
 end
 
+"""
+    compress!(ts::CompressedTuckerState; thresh=-1, max_number=nothing)
 
+- `ts::TuckerState`
+- `thresh`: threshold for compression
+- `max_number`: only keep certain number of vectors per TuckerConfig
+"""
+function compress!(ts::CompressedTuckerState; thresh=-1, max_number=nothing, verbose=0)
+
+    for (fock, tconfigs) in ts.data
+        for (tconfig, coeffs) in tconfigs
+            ts.data[fock][tconfig] = compress(ts.data[fock][tconfig], thresh=thresh, max_number=max_number)
+        end
+    end
+    prune_empty_TuckerConfigs!(ts)
+end
 
 
 """
