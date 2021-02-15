@@ -307,7 +307,7 @@ ENV["PYTHON"] = Sys.which("python")
     #cts_fois  = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-6);
    
     #display(cts_fois)
-    if false 
+    if true 
         FermiCG.scale!(ci_vector, 1.0/sqrt(FermiCG.dot(ci_vector, ci_vector)[1]))
         println(" Length of CI Vector: ", length(ci_vector))
         @time e_nb2, x_nb2 = FermiCG.tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham)
@@ -346,11 +346,25 @@ ENV["PYTHON"] = Sys.which("python")
         end
     end
 
-    if true    
+    if false 
+
+        #
+        #
         cts  = FermiCG.open_sigma(cts_ref, cluster_ops, clustered_ham, nbody=4, thresh=1e-4)
         FermiCG.normalize!(cts)
         display(length(cts))
         @time FermiCG.hylleraas_compressed_mp2!(cts, cluster_ops, clustered_ham, tol=1e-6, thresh=1e-6)
+    end
+    
+    if true    
+        @time e_ref, v_ref = FermiCG.tucker_ci_solve!(cts_ref, cluster_ops, clustered_ham, tol=1e-6)
+        
+        cts_pt1  = FermiCG.build_compressed_1st_order_state(e_ref[1], cts_ref, cluster_ops, clustered_ham, nbody=4, thresh=1e-4)
+        sig = deepcopy(cts_pt1)
+        FermiCG.zero!(sig)
+        FermiCG.build_sigma!(sig, cts_ref, cluster_ops, clustered_ham)
+        e_2 = FermiCG.nonorth_dot(cts, sig)
+        println(" E(PT2) = %12.8f\n", e_ref[1]-e_2)
     end
     
     if false 
