@@ -96,16 +96,16 @@ ENV["PYTHON"] = Sys.which("python")
     
     @test isapprox(A1, A2, atol=1e-12)
 
-    if false 
+    if true 
         r = 1
         push!(atoms,Atom(1,"H",[0,0,0*r]))
         push!(atoms,Atom(2,"H",[0,0,1*r]))
-        push!(atoms,Atom(3,"H",[0,1,2*r]))
-        push!(atoms,Atom(4,"H",[0,1,3*r]))
-        push!(atoms,Atom(5,"H",[0,2,4*r]))
-        push!(atoms,Atom(6,"H",[0,2,5*r]))
-        push!(atoms,Atom(7,"H",[0,3,6*r]))
-        push!(atoms,Atom(8,"H",[0,3,7*r]))
+        push!(atoms,Atom(3,"H",[0,10,2*r]))
+        push!(atoms,Atom(4,"H",[0,10,3*r]))
+        push!(atoms,Atom(5,"H",[0,20,4*r]))
+        push!(atoms,Atom(6,"H",[0,20,5*r]))
+        push!(atoms,Atom(7,"H",[0,30,6*r]))
+        push!(atoms,Atom(8,"H",[0,30,7*r]))
         #push!(atoms,Atom(9,"H",[0,0,8*r]))
         #push!(atoms,Atom(10,"H",[0,0,9*r]))
         #push!(atoms,Atom(11,"H",[0,0,10*r]))
@@ -118,6 +118,10 @@ ENV["PYTHON"] = Sys.which("python")
         nb = 6
         clusters    = [(1:2),(3:4),(5:6),(7:8)]
         init_fspace = [(1,1),(1,1),(1,1),(1,1)]
+        na = 4
+        nb = 4
+        clusters    = [(1:4),(5:8)]
+        init_fspace = [(2,2),(2,2)]
         na = 4
         nb = 4
     elseif false 
@@ -220,7 +224,7 @@ ENV["PYTHON"] = Sys.which("python")
     #ints = FermiCG.orbital_rotation(ints,U)
     
     e_cmf, U, Da, Db  = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, 
-                                       max_iter_oo=40, verbose=0, gconv=1e-6, method="bfgs")
+                                       max_iter_oo=0, verbose=0, gconv=1e-6, method="bfgs")
     FermiCG.pyscf_write_molden(mol,Cl*U,filename="cmf.molden")
     ints = FermiCG.orbital_rotation(ints,U)
 
@@ -230,7 +234,7 @@ ENV["PYTHON"] = Sys.which("python")
     # build Hamiltonian, cluster_basis and cluster ops
     #display(Da)
     #cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=2, max_roots=max_roots)
-    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=0, max_roots=max_roots, 
+    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=1, max_roots=max_roots, 
                                                        init_fspace=init_fspace, rdm1a=Da, rdm1b=Db)
     clustered_ham = FermiCG.extract_ClusteredTerms(ints, clusters)
     cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
@@ -307,7 +311,7 @@ ENV["PYTHON"] = Sys.which("python")
     #cts_fois  = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-6);
    
     #display(cts_fois)
-    if true 
+    if false 
         FermiCG.scale!(ci_vector, 1.0/sqrt(FermiCG.dot(ci_vector, ci_vector)[1]))
         println(" Length of CI Vector: ", length(ci_vector))
         @time e_nb2, x_nb2 = FermiCG.tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham)
@@ -315,10 +319,10 @@ ENV["PYTHON"] = Sys.which("python")
         FermiCG.print_fock_occupations(ci_vector)
 
         println(" Now compress and resolve")
-        cts = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-3)
+        cts = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-5)
         FermiCG.normalize!(cts)
         display(length(cts))
-        @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham, tol=1e-3)
+        @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham, tol=1e-5)
         @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_cts[1], e_cts[1]+ints.h0)
         FermiCG.print_fock_occupations(cts)
     end
@@ -359,12 +363,21 @@ ENV["PYTHON"] = Sys.which("python")
     if true    
         @time e_ref, v_ref = FermiCG.tucker_ci_solve!(cts_ref, cluster_ops, clustered_ham, tol=1e-6)
         
-        cts_pt1  = FermiCG.build_compressed_1st_order_state(e_ref[1], cts_ref, cluster_ops, clustered_ham, nbody=4, thresh=1e-4)
+        cts_pt1  = FermiCG.build_compressed_1st_order_state(e_ref[1], cts_ref, cluster_ops, clustered_ham, nbody=4, thresh=-1e-4)
+        println(" norm of 1st order wavefunction: ", FermiCG.nonorth_dot(cts_pt1, cts_pt1))
+        display(FermiCG.nonorth_dot(cts_pt1, cts_ref))
+        display(length(cts_pt1))
         sig = deepcopy(cts_pt1)
         FermiCG.zero!(sig)
         FermiCG.build_sigma!(sig, cts_ref, cluster_ops, clustered_ham)
         e_2 = FermiCG.nonorth_dot(cts, sig)
-        println(" E(PT2) = %12.8f\n", e_ref[1]-e_2)
+        @printf(" E(PT2) tot  = %12.8f = %12.8f\n", e_ref[1]-e_2, e_ref[1]-e_2 + ints.h0 )
+        @printf(" E(PT2) corr = %12.8f\n", e_2)
+        
+        sig = deepcopy(cts_ref)
+        FermiCG.zero!(sig)
+        FermiCG.build_sigma!(sig, cts_ref, cluster_ops, clustered_ham)
+        display(FermiCG.nonorth_dot(cts_ref, sig))
     end
     
     if false 

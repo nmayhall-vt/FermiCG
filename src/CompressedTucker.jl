@@ -2237,6 +2237,7 @@ function build_compressed_1st_order_state(e_ref, ket_cts::CompressedTuckerState{
 
         build_sigma!(tmp, ket_cts, cluster_ops, clustered_ham; nbody=1)
         e0 = orth_dot(tmp,ket_cts)
+        @printf(" Norm E0: %12.8f\n", orth_dot(ket_cts,ket_cts))
         @printf(" E0: %12.8f\n", e0)
 
         for ci in ket_cts.clusters
@@ -2252,6 +2253,14 @@ function build_compressed_1st_order_state(e_ref, ket_cts::CompressedTuckerState{
         end
     end
 
+    for (ket_fock, ket_tconfigs) in ket_cts
+        for (ket_tconfig, ket_tuck) in ket_tconfigs
+            for i in 1:N
+                h = H0[i][ket_fock[i]][ket_tconfig[i],ket_tconfig[i]]
+                h = H0[i][ket_fock[i]]
+            end
+        end
+    end
 
     for (ket_fock, ket_tconfigs) in ket_cts
         for (fock_trans, terms) in clustered_ham
@@ -2342,6 +2351,12 @@ function build_compressed_1st_order_state(e_ref, ket_cts::CompressedTuckerState{
 
                         if haskey(ket_cts, sig_fock)
                             if haskey(ket_cts[sig_fock], sig_tconfig)
+                                # REMOVE
+                                display(sig_fock)
+                                display(sig_tconfig)
+                                display(resolvs)
+                                continue
+
                                 ket_tuck_A = ket_cts[sig_fock][sig_tconfig]
 
                                 for i in 1:N
