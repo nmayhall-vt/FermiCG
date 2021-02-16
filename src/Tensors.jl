@@ -147,11 +147,11 @@ function tucker_decompose(A::Array{T,N}; thresh=1e-7, max_number=nothing, verbos
             @printf(" index dimension: %6i\n", size(A)[i])
         end
         for li in l
-            if verbose > 0
-                @printf(" Singular value = %12.8f\n", li)
-            end
             if abs(li) > thresh
                 nkeep += 1
+                if verbose > 0
+                    @printf(" Eigenvalue = %12.8f\n", li)
+                end
             end
         end
         if max_number != nothing

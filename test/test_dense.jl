@@ -13,7 +13,7 @@ pushfirst!(PyVector(pyimport("sys")."path"), pydir)
 ENV["PYTHON"] = Sys.which("python")
 
 #@testset "Clusters" begin
-
+function run()
     atoms = []
     clusters = []
     na = 0
@@ -100,12 +100,12 @@ ENV["PYTHON"] = Sys.which("python")
         r = 1
         push!(atoms,Atom(1,"H",[0,0,0*r]))
         push!(atoms,Atom(2,"H",[0,0,1*r]))
-        push!(atoms,Atom(3,"H",[0,1,2*r]))
-        push!(atoms,Atom(4,"H",[0,1,3*r]))
-        push!(atoms,Atom(5,"H",[0,2,4*r]))
-        push!(atoms,Atom(6,"H",[0,2,5*r]))
-        push!(atoms,Atom(7,"H",[0,3,6*r]))
-        push!(atoms,Atom(8,"H",[0,3,7*r]))
+        push!(atoms,Atom(3,"H",[0,.1,2*r]))
+        push!(atoms,Atom(4,"H",[0,.1,3*r]))
+        push!(atoms,Atom(5,"H",[0,.2,4*r]))
+        push!(atoms,Atom(6,"H",[0,.2,5*r]))
+        push!(atoms,Atom(7,"H",[0,.3,6*r]))
+        push!(atoms,Atom(8,"H",[0,.3,7*r]))
         #push!(atoms,Atom(9,"H",[0,0,8*r]))
         #push!(atoms,Atom(10,"H",[0,0,9*r]))
         #push!(atoms,Atom(11,"H",[0,0,10*r]))
@@ -150,14 +150,6 @@ ENV["PYTHON"] = Sys.which("python")
         na = 5
         nb = 5
         
-        atoms = generate_H_ring(8,rad)
-        clusters    = [(1:2),(3:4),(5:6),(7:8)]
-        init_fspace = [(1,1),(1,1),(1,1),(1,1)]
-        clusters    = [(1:4),(5:6),(7:8)]
-        init_fspace = [(2,2),(1,1),(1,1)]
-        na = 4
-        nb = 4
-        
         
         atoms = generate_H_ring(12,rad)
         clusters    = [(1:4),(5:8),(9:10),(11:12)]
@@ -171,6 +163,16 @@ ENV["PYTHON"] = Sys.which("python")
         na = 6
         nb = 6
         
+        
+        atoms = generate_H_ring(8,rad)
+        clusters    = [(1:2),(3:4),(5:6),(7:8)]
+        init_fspace = [(1,1),(1,1),(1,1),(1,1)]
+        clusters    = [(1:4),(5:6),(7:8)]
+        init_fspace = [(2,2),(1,1),(1,1)]
+        clusters    = [(1:4),(5:8)]
+        init_fspace = [(2,2),(2,2)]
+        na = 4
+        nb = 4
     end
 
     basis = "6-31g"
@@ -198,7 +200,6 @@ ENV["PYTHON"] = Sys.which("python")
         e_fci, ci = cisolver.kernel(ints.h1, ints.h2, norb , nelec, ecore=0, nroots = 1, verbose=100)
         e_fci = min(e_fci...)
         @printf(" FCI Energy: %12.8f\n", e_fci)
-        error() 
     end
    
     # localize orbitals
@@ -327,6 +328,27 @@ ENV["PYTHON"] = Sys.which("python")
         FermiCG.print_fock_occupations(cts)
     end
     
+    if true    
+        @time e_ref, v_ref = FermiCG.tucker_ci_solve!(cts_ref, cluster_ops, clustered_ham, tol=1e-5)
+        
+        e_var = 0.0
+        e_pt2 = 0.0
+        for i in 1:4
+            e_var, e_pt2, cts_var = FermiCG.iterate_pt2!(cts_ref, cluster_ops, clustered_ham, nbody=4, thresh=1e-9, tol=1e-3)
+            @printf(" E(Ref)      = %12.8f = %12.8f\n", e_ref[1], e_ref[1] + ints.h0 )
+            @printf(" E(PT2) tot  = %12.8f = %12.8f\n", e_ref[1]+e_pt2, e_ref[1]+e_pt2 + ints.h0 )
+            @printf(" E(var) tot  = %12.8f = %12.8f\n", e_var[1], e_var[1] + ints.h0 )
+       
+            if abs(e_ref[1] - e_var[1]) < 1e-12
+                println("*Converged")
+                break
+            end
+            cts_ref = cts_var
+            e_ref = e_var
+        end
+        return cts_ref
+    end
+    
     if false 
         e_ref = FermiCG.tucker_ci_solve!(ref_vector, cluster_ops, clustered_ham)
         println(" Reference State:" )
@@ -361,44 +383,6 @@ ENV["PYTHON"] = Sys.which("python")
     end
    
 
-    function iterate_pt2!(cts_ref, cluster_ops, clustered_ham; nbody=4, thresh=1e-7,  tol=1e-5)
-
-        println(" --------------------------------------------------------------------")
-        println(" Iterate PT-Var")
-        println(" --------------------------------------------------------------------")
-        cts_pt1  = FermiCG.build_compressed_1st_order_state(cts_ref, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh)
-        println(" norm of 1st order wavefunction: ", FermiCG.nonorth_dot(cts_pt1, cts_pt1))
-        display(FermiCG.nonorth_dot(cts_pt1, cts_ref))
-        @printf(" Length of PT vector %5i\n", length(cts_pt1))
-        sig = deepcopy(cts_pt1)
-        FermiCG.zero!(sig)
-        FermiCG.build_sigma!(sig, cts_ref, cluster_ops, clustered_ham)
-        e_2 = FermiCG.nonorth_dot(cts_pt1, sig)
-        @printf(" E(PT2) tot  = %12.8f = %12.8f\n", e_ref[1]-e_2, e_ref[1]-e_2 + ints.h0 )
-        @printf(" E(PT2) corr = %12.8f\n", e_2)
-
-
-        FermiCG.nonorth_add!(cts_ref,cts_pt1)
-        FermiCG.normalize!(cts_ref)
-        FermiCG.compress!(cts_ref, thresh=thresh)
-        FermiCG.normalize!(cts_ref)
-        @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts_ref, cluster_ops, clustered_ham, tol=tol)
-        dim1 = length(cts_ref)
-        FermiCG.compress!(cts_ref, thresh=thresh)
-        FermiCG.normalize!(cts_ref)
-        dim2 = length(cts_ref)
-        println(" Dimension of reference state reduced from ", dim1, " to ", dim2)
-        @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_cts[1], e_cts[1]+ints.h0)
-        FermiCG.print_fock_occupations(cts_ref)
-    end
-    
-    if true    
-        @time e_ref, v_ref = FermiCG.tucker_ci_solve!(cts_ref, cluster_ops, clustered_ham, tol=1e-5)
-   
-        for i in 1:4
-            iterate_pt2!(cts_ref, cluster_ops, clustered_ham, nbody=4, thresh=1e-7)
-        end
-    end
     
     if false 
         cts = cts_fois
@@ -426,4 +410,6 @@ ENV["PYTHON"] = Sys.which("python")
         #display(cts)
     end
     #end
+end
 
+run()

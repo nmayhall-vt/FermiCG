@@ -370,18 +370,21 @@ end
 
 
 """
-    nonorth_dot(ts1::FermiCG.CompressedTuckerState, ts2::FermiCG.CompressedTuckerState)
+    nonorth_dot(ts1::FermiCG.CompressedTuckerState, ts2::FermiCG.CompressedTuckerState; verbose=0)
 
 Dot product between 1ts2` and `ts1` where each have their own Tucker factors
 """
-function nonorth_dot(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
+function nonorth_dot(ts1::CompressedTuckerState, ts2::CompressedTuckerState; verbose=0)
 #={{{=#
     overlap = 0.0
     for (fock,configs) in ts2
         haskey(ts1, fock) || continue
+        verbose == 0 || display(fock)
         for (config,coeffs) in configs
             haskey(ts1[fock], config) || continue
+            verbose == 0 || display(config)
             overlap += dot(ts1[fock][config] , ts2[fock][config])
+            verbose == 0 || display(dot(ts1[fock][config] , ts2[fock][config]))
         end
     end
     return overlap
@@ -2227,7 +2230,7 @@ Lots of overhead probably from compression, but never completely uncompresses.
 - `v1::CompressedTuckerState`
 
 """
-function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, cluster_ops, clustered_ham; thresh=1e-7, max_number=nothing, nbody=2) where {T,N}
+function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, cluster_ops, clustered_ham; thresh=1e-7, max_number=nothing, nbody=4) where {T,N}
     println(" Compute the 1st order wavefunction for CompressedTuckerState. nbody = ", nbody)
 #={{{=#
     #
@@ -2259,14 +2262,14 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
             tmp2 = Dict{NTuple{2,Int}, Matrix{T}}()
             for (fock, mat) in cluster_ops[ci.idx]["H"]
                 fock[1] == fock[2] || error(" H shouldn't mix fock spaces?")
-                tmp[fock[1]] = mat - e0 * Matrix(1.0* I, size(mat)...)
+                tmp[fock[1]] = e0 * Matrix(1.0* I, size(mat)...) - mat
                 tmp2[fock[1]] = inv(tmp[fock[1]])
             end
             push!(H0, tmp)
             push!(H0inv, tmp2)
         end
     end
-
+ 
 #    for (ket_fock, ket_tconfigs) in ket_cts
 #        for (ket_tconfig, ket_tuck) in ket_tconfigs
 #            for i in 1:N
@@ -2296,12 +2299,12 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
             end
             ok == true || continue
 
-            for (ket_tconfig, ket_tuck) in ket_tconfigs
-                for term in terms
+            for term in terms
 
-                    #
-                    # only proceed if current term acts on no more than our requested max number of clusters
-                    length(term.clusters) <= nbody || continue
+                #
+                # only proceed if current term acts on no more than our requested max number of clusters
+                length(term.clusters) <= nbody || continue
+                for (ket_tconfig, ket_tuck) in ket_tconfigs
 
                     #
                     # find the sig TuckerConfigs reached by applying current Hamiltonian term to ket_tconfig.
@@ -2352,6 +2355,13 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
 
                         check_term(term, sig_fock, sig_tconfig, ket_fock, ket_tconfig) || continue
 
+
+                        sig_tuck = form_sigma_block_expand(term, cluster_ops,
+                                                                sig_fock, sig_tconfig,
+                                                                ket_fock, ket_tconfig, ket_tuck,
+                                                                thresh=thresh, max_number=max_number)
+                        
+
                         #
                         # check if new TuckerConfig exists in our reference space. If it does, we need to project it out
 
@@ -2362,41 +2372,60 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
                         #   X(Fx - <0|F|0>)^-1 X H|0>
 
                         resolvs = [H0inv[i][sig_fock[i]][sig_tconfig[i],sig_tconfig[i]] for i in 1:N]
-
+        
+                        projectors = []
                         if haskey(ket_cts, sig_fock)
                             if haskey(ket_cts[sig_fock], sig_tconfig)
 
+                                #continue
                                 ket_tuck_A = ket_cts[sig_fock][sig_tconfig]
 
+                                # subtract off the projection of sig_tuck in the A space
+                               
+                                sig_tuck_A = deepcopy(sig_tuck)
                                 for i in 1:N
-                                    p = I - ket_tuck_A.factors[i] * ket_tuck_A.factors[i]'
+                                
+                                    p = ket_tuck_A.factors[i] * ket_tuck_A.factors[i]'
+                                    sig_tuck_A.factors[i] .= p * sig_tuck.factors[i]
+                                   
                                     vA = ket_tuck_A.factors[i]
-                                    resolvs[i] = resolvs[i] - vA * (vA' * (resolvs[i] * vA)) * vA'
+                                    #r = vA * inv( vA' * H0[i] * vA - I*e0) * vA'
+                                    #resolvs[i] = resolvs[i] - r
+                                    #resolvs[i] = resolvs[i] - vA * (vA' * (resolvs[i] * vA)) * vA'
+                                    #resolvs[i] .= resolvs[i] - p * resolvs[i] - p * resolvs[i] + p * resolvs[i] * p'
                                 end
+   
+                                #sig_tuck_A = compress(sig_tuck_A, thresh=-1)
+                                #sig_tuck_A = Tucker(recompose(sig_tuck_A), thresh=thresh)
+                                sig_tuck_A.core .*= -1.0
+                                sig_tuck = add([sig_tuck, sig_tuck_A])
                             end
                         end
-
-                        sig_tuck = form_sigma_block_expand(term, cluster_ops,
-                                                                sig_fock, sig_tconfig,
-                                                                ket_fock, ket_tconfig, ket_tuck,
-                                                                thresh=thresh, max_number=max_number)
+                        #sig_tuck = compress(sig_tuck, thresh=thresh, max_number=max_number)
                         
                         #
                         # Now multiply with resolvent
                         #
                         #   X(R1(II') + R2(JJ') + ...)X * v(i,j,k,...) * U1(I,i) * U2(J,j) * ....
-    
+   
                         new_core = zeros(size(sig_tuck.core)...)
-                        for i in 1:N
-                            inds = []
-                            push!(inds,[-i,i])
-                            push!(inds,[-j for j in 1:N])
-                            inds[2][i] = i
-                            r = sig_tuck.factors[i]' * resolvs[i] * sig_tuck.factors[i] 
-                            new_core .+= ncon([r, sig_tuck.core], inds)
-                        end
-                        sig_tuck.core .= new_core
-
+#                        sig_tuck_new = deepcopy(sig_tuck)
+#                        sig_tuck_new.core .= 0.0
+#                        for i in 1:N
+#                            sig_tuck_i = deepcopy(sig_tuck)
+#                            sig_tuck_i.factors[i] .= resolvs[i] * sig_tuck_i.factors[i]
+#                            sig_tuck_new = add([sig_tuck_new, sig_tuck_i])
+#                        end
+#                        for i in 1:N
+#                            inds = []
+#                            push!(inds,[i,-i])
+#                            push!(inds,[-j for j in 1:N])
+#                            inds[2][i] = i
+#                            r = sig_tuck.factors[i]' * resolvs[i] * sig_tuck.factors[i] 
+#                            new_core .+= ncon([r, sig_tuck.core], inds)
+#                        end
+#                        sig_tuck.core .= new_core
+    
                         sig_tuck = compress(sig_tuck, thresh=thresh, max_number=max_number)
 
                         length(sig_tuck) > 0 || continue
@@ -2428,4 +2457,40 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
     prune_empty_TuckerConfigs!(sig_cts)
     return sig_cts
 #=}}}=#
+end
+    
+function iterate_pt2!(cts_ref, cluster_ops, clustered_ham; nbody=4, thresh=1e-7,  tol=1e-6)
+
+    println(" --------------------------------------------------------------------")
+    println(" Iterate PT-Var")
+    println(" --------------------------------------------------------------------")
+    cts_pt1  = FermiCG.build_compressed_1st_order_state(cts_ref, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh)
+    #cts_pt1  = FermiCG.open_sigma(cts_ref, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh)
+    compress!(cts_pt1, thresh=thresh)
+    println(" norm of 1st order wavefunction: ", FermiCG.nonorth_dot(cts_pt1, cts_pt1))
+    println(" Overlap between <1|0>: ", FermiCG.nonorth_dot(cts_pt1, cts_ref, verbose=0))
+    @printf(" Length of PT vector %5i\n", length(cts_pt1))
+    sig = deepcopy(cts_pt1)
+    FermiCG.zero!(sig)
+    FermiCG.build_sigma!(sig, cts_ref, cluster_ops, clustered_ham)
+    e_2 = FermiCG.nonorth_dot(cts_pt1, sig)
+    #@printf(" E(Ref)      = %12.8f = %12.8f\n", e_ref[1], e_ref[1] + e_core )
+    #@printf(" E(PT2) tot  = %12.8f = %12.8f\n", e_ref[1]-e_2, e_ref[1]-e_2 + e_core )
+    @printf(" E(PT2) corr = %12.8f\n", e_2)
+
+
+    FermiCG.nonorth_add!(cts_ref,cts_pt1)
+    FermiCG.compress!(cts_ref, thresh=thresh)
+    FermiCG.normalize!(cts_ref)
+    println(" Now solve in compressed space: Dim = ", length(cts_ref))
+    @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts_ref, cluster_ops, clustered_ham, tol=tol)
+    dim1 = length(cts_ref)
+    FermiCG.compress!(cts_ref, thresh=thresh)
+    FermiCG.normalize!(cts_ref)
+    dim2 = length(cts_ref)
+    println(" Dimension of reference state reduced from ", dim1, " to ", dim2)
+    @printf(" E(cCI):  Electronic %16.12f\n", e_cts[1])
+    FermiCG.print_fock_occupations(cts_ref)
+    
+    return e_cts, e_2, cts_ref
 end
