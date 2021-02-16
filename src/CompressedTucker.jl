@@ -30,6 +30,31 @@ normalize!(ts::CompressedTuckerState) = scale!(ts, 1/sqrt(orth_dot(ts,ts)))
 
 
 """
+    TuckerState(ts::CompressedTuckerState)
+
+Convert a `CompressedTuckerState` to a `TuckerState`
+Constructor
+- ts::CompressedTuckerState`
+"""
+function TuckerState(ts::CompressedTuckerState{T,N}) where {T,N}
+
+
+    ts2 = TuckerState(ts.clusters,
+                      OrderedDict{FockConfig,OrderedDict{TuckerConfig,Array{T,N}}}(),
+                      ts.p_spaces,
+                      ts.q_spaces)
+
+    for (fock, tconfigs) in ts.data
+        add_fockconfig!(ts2, fock)
+        for (tconfig, tuck) in tconfigs
+
+            ts2[fock][tconfig] = recompose(tuck)
+            ts2[fock][tconfig] = reshape(ts2[fock][tconfig],  size(ts2[fock][tconfig])..., 1)
+        end
+    end
+    return ts2 
+end
+"""
     CompressedTuckerState(ts::TuckerState; thresh=-1, max_number=nothing, verbose=0)
 
 Convert a `TuckerState` to a `CompressedTuckerState`
@@ -74,20 +99,28 @@ function CompressedTuckerState(ts::TuckerState; thresh=-1, max_number=nothing, v
 end
 
 """
-    compress!(ts::CompressedTuckerState; thresh=-1, max_number=nothing)
+    compress(ts::CompressedTuckerState; thresh=-1, max_number=nothing)
 
 - `ts::TuckerState`
 - `thresh`: threshold for compression
 - `max_number`: only keep certain number of vectors per TuckerConfig
 """
-function compress!(ts::CompressedTuckerState; thresh=-1, max_number=nothing, verbose=0)
-
+function compress(ts::CompressedTuckerState{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
+    d = OrderedDict{FockConfig, OrderedDict{TuckerConfig, Tucker{T,N}}}() 
     for (fock, tconfigs) in ts.data
         for (tconfig, coeffs) in tconfigs
-            ts.data[fock][tconfig] = compress(ts.data[fock][tconfig], thresh=thresh, max_number=max_number)
+            tmp = compress(ts.data[fock][tconfig], thresh=thresh, max_number=max_number)
+            if length(tmp) == 0
+                continue
+            end
+            if haskey(d, fock)
+                d[fock][tconfig] = tmp
+            else
+                d[fock] = OrderedDict(tconfig => tmp)
+            end
         end
     end
-    prune_empty_TuckerConfigs!(ts)
+    return CompressedTuckerState(ts.clusters, d, ts.p_spaces, ts.q_spaces)
 end
 
 
@@ -2237,6 +2270,7 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
     # Initialize data for our output sigma, which we will convert to a
     sig_cts = CompressedTuckerState(ket_cts.clusters, OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker{T,N}} }(),  ket_cts.p_spaces, ket_cts.q_spaces)
 
+    data = OrderedDict{FockConfig, OrderedDict{TuckerConfig, Vector{Tucker{T,N}}}}()
     #
     # Build zeroth-order hamiltonian
     H0 = Vector{Dict{NTuple{2,Int}, Matrix{T}} }()
@@ -2362,71 +2396,90 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
                                                                 thresh=thresh, max_number=max_number)
                         
 
-                        #
-                        # check if new TuckerConfig exists in our reference space. If it does, we need to project it out
-
-                        # if we have a new TuckerConfig, then it's firmly in the FOIS and we can just pass in the inverted (H0-E)
-                        # matrices
-                        # if we already have some compressed version of the new TuckerConfig, then we need to project it out
-                        #
-                        #   X(Fx - <0|F|0>)^-1 X H|0>
-
-                        resolvs = [H0inv[i][sig_fock[i]][sig_tconfig[i],sig_tconfig[i]] for i in 1:N]
-        
-                        projectors = []
-                        if haskey(ket_cts, sig_fock)
-                            if haskey(ket_cts[sig_fock], sig_tconfig)
-
-                                #continue
-                                ket_tuck_A = ket_cts[sig_fock][sig_tconfig]
-
-                                # subtract off the projection of sig_tuck in the A space
-                               
-                                sig_tuck_A = deepcopy(sig_tuck)
-                                for i in 1:N
-                                
-                                    p = ket_tuck_A.factors[i] * ket_tuck_A.factors[i]'
-                                    sig_tuck_A.factors[i] .= p * sig_tuck.factors[i]
-                                   
-                                    vA = ket_tuck_A.factors[i]
-                                    #r = vA * inv( vA' * H0[i] * vA - I*e0) * vA'
-                                    #resolvs[i] = resolvs[i] - r
-                                    #resolvs[i] = resolvs[i] - vA * (vA' * (resolvs[i] * vA)) * vA'
-                                    #resolvs[i] .= resolvs[i] - p * resolvs[i] - p * resolvs[i] + p * resolvs[i] * p'
-                                end
-   
-                                #sig_tuck_A = compress(sig_tuck_A, thresh=-1)
-                                #sig_tuck_A = Tucker(recompose(sig_tuck_A), thresh=thresh)
-                                sig_tuck_A.core .*= -1.0
-                                sig_tuck = add([sig_tuck, sig_tuck_A])
-                            end
-                        end
-                        #sig_tuck = compress(sig_tuck, thresh=thresh, max_number=max_number)
-                        
-                        #
-                        # Now multiply with resolvent
-                        #
-                        #   X(R1(II') + R2(JJ') + ...)X * v(i,j,k,...) * U1(I,i) * U2(J,j) * ....
-   
-                        new_core = zeros(size(sig_tuck.core)...)
-#                        sig_tuck_new = deepcopy(sig_tuck)
-#                        sig_tuck_new.core .= 0.0
+#                        #
+#                        # check if new TuckerConfig exists in our reference space. If it does, we need to project it out
+#
+#                        # if we have a new TuckerConfig, then it's firmly in the FOIS and we can just pass in the inverted (H0-E)
+#                        # matrices
+#                        # if we already have some compressed version of the new TuckerConfig, then we need to project it out
+#                        #
+#                        #   X(Fx - <0|F|0>)^-1 X H|0>
+#
+#                        resolvs = [H0inv[i][sig_fock[i]][sig_tconfig[i],sig_tconfig[i]] for i in 1:N]
+#        
+##                        projectors = []
+##                        if haskey(ket_cts, sig_fock)
+##                            if haskey(ket_cts[sig_fock], sig_tconfig)
+##
+##                                #continue
+##                                ket_tuck_A = ket_cts[sig_fock][sig_tconfig]
+##
+##                                # subtract off the projection of sig_tuck in the A space
+##                               
+##                                sig_tuck_A = deepcopy(sig_tuck)
+##                                for i in 1:N
+##                                
+##                                    p = ket_tuck_A.factors[i] * ket_tuck_A.factors[i]'
+##                                    sig_tuck_A.factors[i] .= p * sig_tuck.factors[i]
+##                                   
+##                                    vA = ket_tuck_A.factors[i]
+##                                    #r = vA * inv( vA' * H0[i] * vA - I*e0) * vA'
+##                                    #resolvs[i] = resolvs[i] - r
+##                                    #resolvs[i] = resolvs[i] - vA * (vA' * (resolvs[i] * vA)) * vA'
+##                                    #resolvs[i] .= resolvs[i] - p * resolvs[i] - p * resolvs[i] + p * resolvs[i] * p'
+##                                end
+##   
+##                                #sig_tuck_A = compress(sig_tuck_A, thresh=-1)
+##                                #sig_tuck_A = Tucker(recompose(sig_tuck_A), thresh=thresh)
+##                                sig_tuck_A.core .*= -1.0
+##                                sig_tuck = add([sig_tuck, sig_tuck_A])
+##                            end
+##                        end
+#                        #sig_tuck = compress(sig_tuck, thresh=thresh, max_number=max_number)
+#                        
+#                        #
+#                        # Now multiply with resolvent
+#                        #
+#                        #   X(R1(II') + R2(JJ') + ...)X * v(i,j,k,...) * U1(I,i) * U2(J,j) * ....
+#   
+##                        sig_tuck_new = deepcopy(sig_tuck)
+##                        sig_tuck_new.core .= 0.0
+##                        for i in 1:N
+##                            sig_tuck_i = deepcopy(sig_tuck)
+##                            sig_tuck_i.factors[i] .= resolvs[i] * sig_tuck_i.factors[i]
+##                            sig_tuck_new = add([sig_tuck_new, sig_tuck_i])
+##                        end
+#                        new_core = zeros(size(sig_tuck.core)...)
 #                        for i in 1:N
-#                            sig_tuck_i = deepcopy(sig_tuck)
-#                            sig_tuck_i.factors[i] .= resolvs[i] * sig_tuck_i.factors[i]
-#                            sig_tuck_new = add([sig_tuck_new, sig_tuck_i])
+#                            inds = []
+#                            push!(inds,[i,-i])
+#                            push!(inds,[-j for j in 1:N])
+#                            inds[2][i] = i
+#                            r = sig_tuck.factors[i]' * resolvs[i] * sig_tuck.factors[i] 
+#                            new_core .+= ncon([r, sig_tuck.core], inds)
 #                        end
-                        for i in 1:N
-                            inds = []
-                            push!(inds,[i,-i])
-                            push!(inds,[-j for j in 1:N])
-                            inds[2][i] = i
-                            r = sig_tuck.factors[i]' * resolvs[i] * sig_tuck.factors[i] 
-                            new_core .+= ncon([r, sig_tuck.core], inds)
-                        end
-                        sig_tuck.core .= new_core
+#                        sig_tuck.core .= new_core
+#                        
+#                        # 
+#                        # project out A space
+#                        if haskey(ket_cts, sig_fock)
+#                            if haskey(ket_cts[sig_fock], sig_tconfig)
+#                                ket_tuck_A = ket_cts[sig_fock][sig_tconfig]
+#                                
+#                                ovlp = nonorth_dot(sig_tuck, ket_tuck_A) / nonorth_dot(ket_tuck_A, ket_tuck_A)
+#                                #abs(ovlp) < 1e-3 || println("a",ovlp)
+#                                tmp = scale(ket_tuck_A, -1.0 * ovlp)
+#                                #abs(ovlp) < 1e-3 || println("b",nonorth_dot(sig_tuck,sig_tuck), " ", nonorth_dot(tmp,tmp))
+#                                sig_tuck = nonorth_add(sig_tuck, tmp, thresh=-1)
+#                                #sig_tuck = nonorth_add(sig_tuck, scale(sig_tuck, -1 * nonorth_dot(sig_tuck, ket_tuck_A))) 
+#                                
+#                                ovlp2 = nonorth_dot(sig_tuck, ket_tuck_A)
+#                                #abs(ovlp) < 1e-3 || println("c",ovlp2)
+#                                #abs(ovlp) < 1e-3 || println("d",nonorth_dot(sig_tuck,sig_tuck), " ", nonorth_dot(tmp,tmp))
+#                            end
+#                        end
     
-                        sig_tuck = compress(sig_tuck, thresh=thresh, max_number=max_number)
+                        sig_tuck = compress(sig_tuck, thresh=1e-16, max_number=max_number)
 
                         length(sig_tuck) > 0 || continue
 
@@ -2437,15 +2490,18 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
                                 # In this case, our sigma vector already has a compressed coefficient tensor.
                                 # Consequently, we need to add these two together
 
-                                sig_tuck = add([sig_tuck, sig_cts[sig_fock][sig_tconfig]])
-                                sig_tuck = compress(sig_tuck, thresh=thresh, max_number=max_number)
-                                sig_cts[sig_fock][sig_tconfig] = sig_tuck
+                                push!(data[sig_fock][sig_tconfig], sig_tuck)
+                                #sig_tuck = add([sig_tuck, sig_cts[sig_fock][sig_tconfig]])
+                                ##sig_tuck = compress(sig_tuck, thresh=thresh, max_number=max_number)
+                                #sig_cts[sig_fock][sig_tconfig] = sig_tuck
 
                             else
-                                sig_cts[sig_fock][sig_tconfig] = sig_tuck
+                                data[sig_fock][sig_tconfig] = [sig_tuck]
+                                #sig_cts[sig_fock][sig_tconfig] = sig_tuck
                             end
                         else
-                            sig_cts[sig_fock] = OrderedDict(sig_tconfig => sig_tuck)
+                            #sig_cts[sig_fock] = OrderedDict(sig_tconfig => sig_tuck)
+                            data[sig_fock] = OrderedDict(sig_tconfig => [sig_tuck])
                         end
 
                     end
@@ -2454,20 +2510,92 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
             end
         end
     end
+
+    for (fock,tconfigs) in data
+        add_fockconfig!(sig_cts, fock)
+        for (tconfig, tuck) in tconfigs
+            sig_cts[fock][tconfig] = compress(nonorth_add(tuck), thresh=thresh)
+        end
+    end
+
+    # 
+    # project out A space
+    for (fock,tconfigs) in sig_cts 
+        for (tconfig, tuck) in tconfigs
+            if haskey(ket_cts, fock)
+                if haskey(ket_cts[fock], tconfig)
+                    ket_tuck_A = ket_cts[fock][tconfig]
+
+                    ovlp = nonorth_dot(tuck, ket_tuck_A) / nonorth_dot(ket_tuck_A, ket_tuck_A)
+                    tmp = scale(ket_tuck_A, -1.0 * ovlp)
+                    sig_cts[fock][tconfig] = nonorth_add(tuck, tmp, thresh=1e-16)
+                end
+            end
+        end
+    end
+   
+    
+    # 
+    # apply resolvent 
+    for (fock,tconfigs) in sig_cts 
+        for (tconfig, tuck) in tconfigs
+            resolvs = [H0inv[i][fock[i]][tconfig[i],tconfig[i]] for i in 1:N]
+            new_core = zeros(size(tuck.core)...)
+            for i in 1:N
+                inds = []
+                push!(inds,[i,-i])
+                push!(inds,[-j for j in 1:N])
+                inds[2][i] = i
+                r = tuck.factors[i]' * resolvs[i] * tuck.factors[i] 
+                new_core .+= ncon([r, tuck.core], inds)
+            end
+            #sig_cts[fock][tconfig].core .= new_core
+        end
+    end
+
+    # 
+    # project out A space
+    for (fock,tconfigs) in sig_cts 
+        for (tconfig, tuck) in tconfigs
+            if haskey(ket_cts, fock)
+                if haskey(ket_cts[fock], tconfig)
+                    ket_tuck_A = ket_cts[fock][tconfig]
+
+                    ovlp = nonorth_dot(tuck, ket_tuck_A) / nonorth_dot(ket_tuck_A, ket_tuck_A)
+                    tmp = scale(ket_tuck_A, -1.0 * ovlp)
+                    sig_cts[fock][tconfig] = nonorth_add(tuck, tmp, thresh=1e-16)
+                end
+            end
+        end
+    end
+
+    # now combine Tuckers, project out reference space and multiply by resolvents
     prune_empty_TuckerConfigs!(sig_cts)
     return sig_cts
 #=}}}=#
 end
     
 function iterate_pt2!(cts_ref, cluster_ops, clustered_ham; nbody=4, thresh=1e-7,  tol=1e-6)
-
+#={{{=#
     println(" --------------------------------------------------------------------")
     println(" Iterate PT-Var")
     println(" --------------------------------------------------------------------")
-    cts_pt1  = FermiCG.build_compressed_1st_order_state(cts_ref, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh)
-    #cts_pt1  = FermiCG.open_sigma(cts_ref, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh)
+    println(" Compute first order wavefunction. Reference space dim = ", length(cts_ref))
+    cts_pt1  = build_compressed_1st_order_state(cts_ref, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh)
+    
+#    sig  = open_sigma(cts_ref, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh)
+#    sig0 = deepcopy(cts_ref)
+#    ref_sig = build_sigma!(sig0, cts_ref, cluster_ops, clustered_ham)
+#    e_ref = orth_dot(sig0, sig0)
+#    tmp = deepcopy(cts_ref)
+#    scale!(tmp, -e_ref)
+#    res = nonorth_add(sig, tmp)
+#    
+#    cts_pt1 = nonorth_add(res, cts_ref)
+#    compress!(cts_pt1, thresh=thresh)
+
     #compress!(cts_pt1, thresh=thresh)
-    println(" norm of 1st order wavefunction: ", FermiCG.nonorth_dot(cts_pt1, cts_pt1))
+    #println(" norm of 1st order wavefunction: ", FermiCG.nonorth_dot(cts_pt1, cts_pt1))
     println(" Overlap between <1|0>: ", FermiCG.nonorth_dot(cts_pt1, cts_ref, verbose=0))
     @printf(" Length of PT vector %5i\n", length(cts_pt1))
     sig = deepcopy(cts_pt1)
@@ -2480,17 +2608,19 @@ function iterate_pt2!(cts_ref, cluster_ops, clustered_ham; nbody=4, thresh=1e-7,
 
 
     FermiCG.nonorth_add!(cts_ref,cts_pt1)
-    FermiCG.compress!(cts_ref, thresh=thresh)
+    cts_ref = FermiCG.compress(cts_ref, thresh=thresh)
     FermiCG.normalize!(cts_ref)
-    println(" Now solve in compressed space: Dim = ", length(cts_ref))
+    println(" Now solve in compressed space: Dim = ", length(cts_ref), " ", nonorth_dot(cts_ref, cts_ref))
     @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts_ref, cluster_ops, clustered_ham, tol=tol)
+
     dim1 = length(cts_ref)
-    FermiCG.compress!(cts_ref, thresh=thresh)
+    cts_ref = FermiCG.compress(cts_ref, thresh=thresh)
     FermiCG.normalize!(cts_ref)
     dim2 = length(cts_ref)
     println(" Dimension of reference state reduced from ", dim1, " to ", dim2)
     @printf(" E(cCI):  Electronic %16.12f\n", e_cts[1])
-    FermiCG.print_fock_occupations(cts_ref)
+    #FermiCG.print_fock_occupations(cts_ref)
+    FermiCG.display(cts_ref)
     
     return e_cts, e_2, cts_ref
-end
+end#=}}}=#

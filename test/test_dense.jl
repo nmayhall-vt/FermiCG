@@ -96,7 +96,7 @@ function run()
     
     @test isapprox(A1, A2, atol=1e-12)
 
-    if false 
+    if true 
         r = 1
         push!(atoms,Atom(1,"H",[0,0,0*r]))
         push!(atoms,Atom(2,"H",[0,0,1*r]))
@@ -310,9 +310,10 @@ function run()
     display(FermiCG.dot(ci_vector, ci_vector))
 
     #cts_fois  = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-6);
-   
+  
+    cts = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-5)
     #display(cts_fois)
-    if false  
+    if true  
         FermiCG.scale!(ci_vector, 1.0/sqrt(FermiCG.dot(ci_vector, ci_vector)[1]))
         println(" Length of CI Vector: ", length(ci_vector))
         @time e_nb2, x_nb2 = FermiCG.tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham)
@@ -321,24 +322,28 @@ function run()
 
         println(" Now compress and resolve")
         cts = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-5)
+        #FermiCG.compress!(cts,thresh=1e-5)
         FermiCG.normalize!(cts)
         display(length(cts))
         @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham, tol=1e-5)
         @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_cts[1], e_cts[1]+ints.h0)
-        FermiCG.print_fock_occupations(cts)
+        FermiCG.display(cts)
+        #FermiCG.print_fock_occupations(cts)
     end
     
     if true    
         @time e_ref, v_ref = FermiCG.tucker_ci_solve!(cts_ref, cluster_ops, clustered_ham, tol=1e-5)
-        
+       
+        cts_var = deepcopy(cts_ref)
         e_var = 0.0
         e_pt2 = 0.0
         for i in 1:4
-            e_var, e_pt2, cts_var = FermiCG.iterate_pt2!(cts_ref, cluster_ops, clustered_ham, nbody=4, thresh=1e-9, tol=1e-3)
+            e_var, e_pt2, cts_var = FermiCG.iterate_pt2!(cts_var, cluster_ops, clustered_ham, nbody=4, thresh=-1e-5, tol=1e-4)
             @printf(" E(Ref)      = %12.8f = %12.8f\n", e_ref[1], e_ref[1] + ints.h0 )
             @printf(" E(PT2) tot  = %12.8f = %12.8f\n", e_ref[1]+e_pt2, e_ref[1]+e_pt2 + ints.h0 )
             @printf(" E(var) tot  = %12.8f = %12.8f\n", e_var[1], e_var[1] + ints.h0 )
-       
+      
+            println(" Overlap with target: ", FermiCG.nonorth_dot(cts,cts_var))
             if abs(e_ref[1] - e_var[1]) < 1e-12
                 println("*Converged")
                 break
@@ -346,7 +351,7 @@ function run()
             cts_ref = cts_var
             e_ref = e_var
         end
-        return cts_ref
+        return cts_var
     end
     
     if false 

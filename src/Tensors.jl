@@ -83,7 +83,19 @@ function add(tucks::Vector{Tucker{T,N}}; thresh=1e-10, max_number=nothing) where
     return Tucker{T,N}(new_core, Tuple(new_factors))
 
 end
-Base.:(+)(t1::Tucker{T,N}, t2::Tucker{T,N}) where {T,N} = add([t1, t2])
+Base.:(+)(t1::Tucker, t2::Tucker) = add([t1, t2])
+nonorth_add(tl::Vector{Tucker{T,N}}; thresh=1e-7) where {T,N}= add(tl, thresh=thresh)
+nonorth_add(t1::Tucker, t2::Tucker; thresh=1e-7) = add([t1,t2], thresh=thresh)
+nonorth_dot(t1, t2) = dot(t1,t2)
+function scale(t1::Tucker, a)
+    t2core = t1.core .* a
+    return Tucker(t2core, t1.factors)
+end
+function scale!(t1::Tucker, a)
+    t1.core .*= a
+    return 
+end
+
 
 """
     compress(t::Tucker)
@@ -101,6 +113,7 @@ function compress(t::Tucker{T,N}; thresh=1e-7, max_number=nothing) where {T,N}
     end
 
     return Tucker(tt.core, NTuple{N}(new_factors)) 
+#    return Tucker(recompose(t), thresh=thresh, max_number=max_number)
 end
 
 """
@@ -119,7 +132,6 @@ function dot(t1::Tucker{T,N}, t2::Tucker{T,N}) where {T,N}
     return sum(transform_basis(t1.core, overlaps) .* t2.core)
     #return sum(tucker_recompose(t1.core, overlaps) .* t2.core)
 end
-
 
 """
 Tucker Decomposition of dense tensor: 
