@@ -2416,15 +2416,15 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
 #                            sig_tuck_i.factors[i] .= resolvs[i] * sig_tuck_i.factors[i]
 #                            sig_tuck_new = add([sig_tuck_new, sig_tuck_i])
 #                        end
-#                        for i in 1:N
-#                            inds = []
-#                            push!(inds,[i,-i])
-#                            push!(inds,[-j for j in 1:N])
-#                            inds[2][i] = i
-#                            r = sig_tuck.factors[i]' * resolvs[i] * sig_tuck.factors[i] 
-#                            new_core .+= ncon([r, sig_tuck.core], inds)
-#                        end
-#                        sig_tuck.core .= new_core
+                        for i in 1:N
+                            inds = []
+                            push!(inds,[i,-i])
+                            push!(inds,[-j for j in 1:N])
+                            inds[2][i] = i
+                            r = sig_tuck.factors[i]' * resolvs[i] * sig_tuck.factors[i] 
+                            new_core .+= ncon([r, sig_tuck.core], inds)
+                        end
+                        sig_tuck.core .= new_core
     
                         sig_tuck = compress(sig_tuck, thresh=thresh, max_number=max_number)
 
@@ -2466,7 +2466,7 @@ function iterate_pt2!(cts_ref, cluster_ops, clustered_ham; nbody=4, thresh=1e-7,
     println(" --------------------------------------------------------------------")
     cts_pt1  = FermiCG.build_compressed_1st_order_state(cts_ref, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh)
     #cts_pt1  = FermiCG.open_sigma(cts_ref, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh)
-    compress!(cts_pt1, thresh=thresh)
+    #compress!(cts_pt1, thresh=thresh)
     println(" norm of 1st order wavefunction: ", FermiCG.nonorth_dot(cts_pt1, cts_pt1))
     println(" Overlap between <1|0>: ", FermiCG.nonorth_dot(cts_pt1, cts_ref, verbose=0))
     @printf(" Length of PT vector %5i\n", length(cts_pt1))
