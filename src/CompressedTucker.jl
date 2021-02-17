@@ -2270,7 +2270,7 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
     # Initialize data for our output sigma, which we will convert to a
     sig_cts = CompressedTuckerState(ket_cts.clusters, OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker{T,N}} }(),  ket_cts.p_spaces, ket_cts.q_spaces)
 
-    data = OrderedDict{FockConfig, OrderedDict{TuckerConfig, Vector{Tucker{T,N}}}}()
+    data = OrderedDict{FockConfig, OrderedDict{TuckerConfig, Vector{Tucker{T,N}} } }()
     #
     # Build zeroth-order hamiltonian
     H0 = Vector{Dict{NTuple{2,Int}, Matrix{T}} }()
@@ -2286,7 +2286,7 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
         tmp = deepcopy(ket_cts)
         zero!(tmp)
 
-        build_sigma!(tmp, ket_cts, cluster_ops, clustered_ham; nbody=1)
+        build_sigma!(tmp, ket_cts, cluster_ops, clustered_ham; nbody=2)
         e0 = orth_dot(tmp,ket_cts)
         @printf(" Norm E0: %12.8f\n", orth_dot(ket_cts,ket_cts))
         @printf(" E0: %12.8f\n", e0)
@@ -2394,7 +2394,19 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
                                                                 sig_fock, sig_tconfig,
                                                                 ket_fock, ket_tconfig, ket_tuck,
                                                                 thresh=thresh, max_number=max_number)
-                        
+                        if sig_fock == ket_fock
+                            display(sig_tconfig)
+                            display(size(sig_tuck))
+                            display(sig_tuck.core)
+                        end
+
+
+
+                        #if length(term.clusters) == 1
+                        #    sig_tuck.core .= 0.0
+                        #end
+                       
+                        #sig_tuck = compress(sig_tuck, thresh=thresh)
 
 #                        #
 #                        # check if new TuckerConfig exists in our reference space. If it does, we need to project it out
@@ -2479,7 +2491,7 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
 #                            end
 #                        end
     
-                        sig_tuck = compress(sig_tuck, thresh=1e-16, max_number=max_number)
+                        #sig_tuck = compress(sig_tuck, thresh=1e-16, max_number=max_number)
 
                         length(sig_tuck) > 0 || continue
 
@@ -2513,8 +2525,13 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
 
     for (fock,tconfigs) in data
         add_fockconfig!(sig_cts, fock)
+        display(fock)
         for (tconfig, tuck) in tconfigs
-            sig_cts[fock][tconfig] = compress(nonorth_add(tuck), thresh=thresh)
+            display(tconfig)
+            display(length(tuck))
+            
+            sig_cts[fock][tconfig] = nonorth_add(tuck)
+            #sig_cts[fock][tconfig] = compress(nonorth_add(tuck), thresh=thresh)
         end
     end
 
@@ -2550,6 +2567,7 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
                 new_core .+= ncon([r, tuck.core], inds)
             end
             #sig_cts[fock][tconfig].core .= new_core
+            #sig_cts[fock][tconfig] = compress(sig_cts[fock][tconfig], thresh=thresh) 
         end
     end
 
@@ -2570,7 +2588,7 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
     end
 
     # now combine Tuckers, project out reference space and multiply by resolvents
-    prune_empty_TuckerConfigs!(sig_cts)
+    #prune_empty_TuckerConfigs!(sig_cts)
     return sig_cts
 #=}}}=#
 end
@@ -2608,16 +2626,16 @@ function iterate_pt2!(cts_ref, cluster_ops, clustered_ham; nbody=4, thresh=1e-7,
 
 
     FermiCG.nonorth_add!(cts_ref,cts_pt1)
-    cts_ref = FermiCG.compress(cts_ref, thresh=thresh)
+    #cts_ref = FermiCG.compress(cts_ref, thresh=thresh)
     FermiCG.normalize!(cts_ref)
-    println(" Now solve in compressed space: Dim = ", length(cts_ref), " ", nonorth_dot(cts_ref, cts_ref))
+    println(" Now solve in compressed space: Dim = ", length(cts_ref))
     @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts_ref, cluster_ops, clustered_ham, tol=tol)
 
     dim1 = length(cts_ref)
     cts_ref = FermiCG.compress(cts_ref, thresh=thresh)
     FermiCG.normalize!(cts_ref)
     dim2 = length(cts_ref)
-    println(" Dimension of reference state reduced from ", dim1, " to ", dim2)
+    @printf(" Dimension of reference state reduced from %5i to %5i. Thresh = %8.1e\n", dim1, dim2, thresh)
     @printf(" E(cCI):  Electronic %16.12f\n", e_cts[1])
     #FermiCG.print_fock_occupations(cts_ref)
     FermiCG.display(cts_ref)

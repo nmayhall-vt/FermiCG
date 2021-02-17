@@ -272,10 +272,6 @@ function run()
     foi_space = FermiCG.define_foi_space(ref_vector, clustered_ham, nbody=2) 
     ci_vector = FermiCG.TuckerState(clusters, p_spaces, q_spaces, foi_space)
     
-    # for n-body Tucker
-    #ci_vector = FermiCG.get_nbody_tucker_space(ci_vector, p_spaces, q_spaces, na, nb, nbody=4) 
-    #FermiCG.print_fock_occupations(ci_vector)
-    
     #
     # initialize with eye
     FermiCG.set_vector!(ref_vector, Matrix(1.0I, length(ref_vector),nroots))
@@ -284,36 +280,10 @@ function run()
     #FermiCG.print_fock_occupations(ci_vector)
 
     cts_ref  = FermiCG.CompressedTuckerState(ref_vector, thresh=-1);
-    cts_fois  = FermiCG.open_sigma(cts_ref, cluster_ops, clustered_ham, nbody=3, thresh=1e-2)
-
-
-
-    #foi_space = FermiCG.define_foi_space(cts_ref, clustered_ham, nbody=2) 
-    #cts_fois = FermiCG.expand_compressed_space(foi_space, cts_ref, cluster_ops, clustered_ham, thresh=-1);
-  
-    #FermiCG.zero!(cts_fois)
-    #FermiCG.build_sigma!(cts_fois, cts_ref, cluster_ops, clustered_ham) 
-    #FermiCG.print_fock_occupations(cts_fois)
-    println(" this is cts_fois")
-    display(cts_fois)
-    display(FermiCG.nonorth_dot(cts_fois, cts_ref))
-    display(FermiCG.orth_dot(cts_fois, cts_fois))
-
-    println()
-
-    FermiCG.zero!(ci_vector)
-    FermiCG.build_sigma!(ci_vector, ref_vector, cluster_ops, clustered_ham, nbody=2) 
-    println(" this is ci_vector")
-    #FermiCG.print_fock_occupations(ci_vector)
-    display(ci_vector)
-    display(FermiCG.dot(ci_vector, ref_vector))
-    display(FermiCG.dot(ci_vector, ci_vector))
-
-    #cts_fois  = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-6);
   
     cts = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-5)
     #display(cts_fois)
-    if true  
+    if false  
         FermiCG.scale!(ci_vector, 1.0/sqrt(FermiCG.dot(ci_vector, ci_vector)[1]))
         println(" Length of CI Vector: ", length(ci_vector))
         @time e_nb2, x_nb2 = FermiCG.tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham)
@@ -337,14 +307,15 @@ function run()
         cts_var = deepcopy(cts_ref)
         e_var = 0.0
         e_pt2 = 0.0
-        for i in 1:4
-            e_var, e_pt2, cts_var = FermiCG.iterate_pt2!(cts_var, cluster_ops, clustered_ham, nbody=4, thresh=-1e-5, tol=1e-4)
+        #display(abs.(cluster_ops[1]["H"][((2,2),(2,2))]) - abs.(cluster_ops[2]["H"][((2,2),(2,2))]))
+        
+        for i in 1:20
+            e_var, e_pt2, cts_var = FermiCG.iterate_pt2!(cts_var, cluster_ops, clustered_ham, nbody=1, thresh=-1e-10, tol=1e-5)
             @printf(" E(Ref)      = %12.8f = %12.8f\n", e_ref[1], e_ref[1] + ints.h0 )
             @printf(" E(PT2) tot  = %12.8f = %12.8f\n", e_ref[1]+e_pt2, e_ref[1]+e_pt2 + ints.h0 )
             @printf(" E(var) tot  = %12.8f = %12.8f\n", e_var[1], e_var[1] + ints.h0 )
       
-            println(" Overlap with target: ", FermiCG.nonorth_dot(cts,cts_var))
-            if abs(e_ref[1] - e_var[1]) < 1e-12
+            if abs(e_ref[1] - e_var[1]) < 1e-8
                 println("*Converged")
                 break
             end
