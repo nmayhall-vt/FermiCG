@@ -1792,9 +1792,13 @@ function form_sigma_block_expand(term::ClusteredTerm1B,
     op1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
     op =  (op1[bra[c1.idx],ket[c1.idx]] * ket_coeffs.factors[c1.idx])
 
-    println("Nick:")
-    display(term)
-    display(size(op))
+#    println("Nick:")
+#    display(term)
+#    display(fock_bra)
+#    display(fock_ket)
+#    display(bra)
+#    display(ket)
+#    display(size(op))
     tensors = Vector{Array{T}}()
     indices = Vector{Vector{Int16}}()
     state_indices = -collect(1:n_clusters)
@@ -1847,6 +1851,8 @@ function form_sigma_block_expand(term::ClusteredTerm1B,
 
     new_factors = [ket_coeffs.factors[i] for i in 1:N]
     new_factors[c1.idx] = Matrix(1.0I, size(bra_core,c1.idx), size(bra_core,c1.idx))
+#    println(" Output:")
+#    display.(size.(new_factors))
     return Tucker(bra_core, NTuple{N}(new_factors))
     
 #    bra_tuck = Tucker(bra_core, thresh=thresh, max_number=max_number)
@@ -2338,7 +2344,6 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
 
             for term in terms
 
-                display(term)
                 #
                 # only proceed if current term acts on no more than our requested max number of clusters
                 length(term.clusters) <= nbody || continue
@@ -2398,11 +2403,15 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
                                                                 sig_fock, sig_tconfig,
                                                                 ket_fock, ket_tconfig, ket_tuck,
                                                                 thresh=thresh, max_number=max_number)
-                        if sig_fock == ket_fock
-                            display(sig_tconfig)
-                            display(size(sig_tuck))
-                            display(sig_tuck.core)
-                        end
+#                        if sig_fock == ket_fock
+#                            println(" wtf")
+#                            display(sig_tconfig)
+#                            display(ket_tconfig)
+#                            display(size(sig_tuck))
+#                            display(dims_large(sig_tuck))
+#                            display(dims_small(sig_tuck))
+#                            println()
+#                        end
 
 
 
@@ -2410,7 +2419,7 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
                         #    sig_tuck.core .= 0.0
                         #end
                        
-                        #sig_tuck = compress(sig_tuck, thresh=thresh)
+                        sig_tuck = compress(sig_tuck, thresh=thresh)
 
     
                         #sig_tuck = compress(sig_tuck, thresh=1e-16, max_number=max_number)
@@ -2418,12 +2427,12 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
                         length(sig_tuck) > 0 || continue
 
 
-                        if haskey(sig_cts, sig_fock)
-                            if haskey(sig_cts[sig_fock], sig_tconfig)
+                        if haskey(data, sig_fock)
+                            if haskey(data[sig_fock], sig_tconfig)
                                 #
                                 # In this case, our sigma vector already has a compressed coefficient tensor.
                                 # Consequently, we need to add these two together
-
+                                
                                 push!(data[sig_fock][sig_tconfig], sig_tuck)
                                 #sig_tuck = add([sig_tuck, sig_cts[sig_fock][sig_tconfig]])
                                 ##sig_tuck = compress(sig_tuck, thresh=thresh, max_number=max_number)
@@ -2446,13 +2455,17 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
     end
 
     for (fock,tconfigs) in data
-        add_fockconfig!(sig_cts, fock)
-        display(fock)
+        #display(fock)
         for (tconfig, tuck) in tconfigs
-            display(tconfig)
-            display(length(tuck))
+            #display(tconfig)
+            #display(length(tuck))
             
-            sig_cts[fock][tconfig] = nonorth_add(tuck)
+            #sig_cts[fock][tconfig] = nonorth_add(tuck)
+            if haskey(sig_cts, fock) == false
+                sig_cts[fock] = OrderedDict(tconfig => nonorth_add(tuck))
+            else
+                sig_cts[fock][tconfig] = nonorth_add(tuck)
+            end
             #sig_cts[fock][tconfig] = compress(nonorth_add(tuck), thresh=thresh)
         end
     end
@@ -2534,7 +2547,7 @@ function iterate_pt2!(cts_ref, cluster_ops, clustered_ham; nbody=4, thresh=1e-7,
 #    cts_pt1 = nonorth_add(res, cts_ref)
 #    compress!(cts_pt1, thresh=thresh)
 
-    #compress!(cts_pt1, thresh=thresh)
+    cts_pt1 = compress(cts_pt1, thresh=thresh)
     #println(" norm of 1st order wavefunction: ", FermiCG.nonorth_dot(cts_pt1, cts_pt1))
     println(" Overlap between <1|0>: ", FermiCG.nonorth_dot(cts_pt1, cts_ref, verbose=0))
     @printf(" Length of PT vector %5i\n", length(cts_pt1))
