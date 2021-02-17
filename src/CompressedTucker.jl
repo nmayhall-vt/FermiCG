@@ -2272,7 +2272,7 @@ Lots of overhead probably from compression, but never completely uncompresses.
 - `v1::CompressedTuckerState`
 
 """
-function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, cluster_ops, clustered_ham; thresh=1e-7, max_number=nothing, nbody=4) where {T,N}
+function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, cluster_ops, clustered_ham; thresh=1e-7, max_number=nothing, nbody=4, do_pt=true) where {T,N}
     println(" Compute the 1st order wavefunction for CompressedTuckerState. nbody = ", nbody)
 #={{{=#
     #
@@ -2419,7 +2419,7 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
                         #    sig_tuck.core .= 0.0
                         #end
                        
-                        sig_tuck = compress(sig_tuck, thresh=thresh)
+                        #sig_tuck = compress(sig_tuck, thresh=thresh)
 
     
                         #sig_tuck = compress(sig_tuck, thresh=1e-16, max_number=max_number)
@@ -2486,55 +2486,57 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
         end
     end
    
-    
-    # 
-    # apply resolvent 
-    for (fock,tconfigs) in sig_cts 
-        for (tconfig, tuck) in tconfigs
-            resolvs = [H0inv[i][fock[i]][tconfig[i],tconfig[i]] for i in 1:N]
-            new_core = zeros(size(tuck.core)...)
-            for i in 1:N
-                inds = []
-                push!(inds,[i,-i])
-                push!(inds,[-j for j in 1:N])
-                inds[2][i] = i
-                r = tuck.factors[i]' * resolvs[i] * tuck.factors[i] 
-                new_core .+= ncon([r, tuck.core], inds)
+   
+    if do_pt
+        # 
+        # apply resolvent 
+        for (fock,tconfigs) in sig_cts 
+            for (tconfig, tuck) in tconfigs
+                resolvs = [H0inv[i][fock[i]][tconfig[i],tconfig[i]] for i in 1:N]
+                new_core = zeros(size(tuck.core)...)
+                for i in 1:N
+                    inds = []
+                    push!(inds,[i,-i])
+                    push!(inds,[-j for j in 1:N])
+                    inds[2][i] = i
+                    r = tuck.factors[i]' * resolvs[i] * tuck.factors[i] 
+                    new_core .+= ncon([r, tuck.core], inds)
+                end
+                sig_cts[fock][tconfig].core .= new_core
+                #sig_cts[fock][tconfig] = compress(sig_cts[fock][tconfig], thresh=thresh) 
             end
-            #sig_cts[fock][tconfig].core .= new_core
-            #sig_cts[fock][tconfig] = compress(sig_cts[fock][tconfig], thresh=thresh) 
         end
-    end
 
-    # 
-    # project out A space
-    for (fock,tconfigs) in sig_cts 
-        for (tconfig, tuck) in tconfigs
-            if haskey(ket_cts, fock)
-                if haskey(ket_cts[fock], tconfig)
-                    ket_tuck_A = ket_cts[fock][tconfig]
+        # 
+        # project out A space
+        for (fock,tconfigs) in sig_cts 
+            for (tconfig, tuck) in tconfigs
+                if haskey(ket_cts, fock)
+                    if haskey(ket_cts[fock], tconfig)
+                        ket_tuck_A = ket_cts[fock][tconfig]
 
-                    ovlp = nonorth_dot(tuck, ket_tuck_A) / nonorth_dot(ket_tuck_A, ket_tuck_A)
-                    tmp = scale(ket_tuck_A, -1.0 * ovlp)
-                    sig_cts[fock][tconfig] = nonorth_add(tuck, tmp, thresh=1e-16)
+                        ovlp = nonorth_dot(tuck, ket_tuck_A) / nonorth_dot(ket_tuck_A, ket_tuck_A)
+                        tmp = scale(ket_tuck_A, -1.0 * ovlp)
+                        sig_cts[fock][tconfig] = nonorth_add(tuck, tmp, thresh=1e-16)
+                    end
                 end
             end
         end
-    end
 
+    end
     # now combine Tuckers, project out reference space and multiply by resolvents
     #prune_empty_TuckerConfigs!(sig_cts)
     return sig_cts
 #=}}}=#
 end
     
-function iterate_pt2!(cts_ref, cluster_ops, clustered_ham; nbody=4, thresh=1e-7,  tol=1e-6)
+function iterate_pt2!(cts_ref, cluster_ops, clustered_ham; nbody=4, thresh=1e-7,  tol=1e-6, do_pt=true, ratio=10)
 #={{{=#
     println(" --------------------------------------------------------------------")
     println(" Iterate PT-Var")
     println(" --------------------------------------------------------------------")
     println(" Compute first order wavefunction. Reference space dim = ", length(cts_ref))
-    cts_pt1  = build_compressed_1st_order_state(cts_ref, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh)
+    cts_pt1  = build_compressed_1st_order_state(cts_ref, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh, do_pt=do_pt)
     
 #    sig  = open_sigma(cts_ref, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh)
 #    sig0 = deepcopy(cts_ref)
@@ -2567,7 +2569,7 @@ function iterate_pt2!(cts_ref, cluster_ops, clustered_ham; nbody=4, thresh=1e-7,
     @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts_ref, cluster_ops, clustered_ham, tol=tol)
 
     dim1 = length(cts_ref)
-    cts_ref = FermiCG.compress(cts_ref, thresh=thresh)
+    cts_ref = FermiCG.compress(cts_ref, thresh=thresh*ratio)
     FermiCG.normalize!(cts_ref)
     dim2 = length(cts_ref)
     @printf(" Dimension of reference state reduced from %5i to %5i. Thresh = %8.1e\n", dim1, dim2, thresh)
