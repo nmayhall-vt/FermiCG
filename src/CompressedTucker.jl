@@ -1792,6 +1792,9 @@ function form_sigma_block_expand(term::ClusteredTerm1B,
     op1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
     op =  (op1[bra[c1.idx],ket[c1.idx]] * ket_coeffs.factors[c1.idx])
 
+    println("Nick:")
+    display(term)
+    display(size(op))
     tensors = Vector{Array{T}}()
     indices = Vector{Vector{Int16}}()
     state_indices = -collect(1:n_clusters)
@@ -1799,7 +1802,6 @@ function form_sigma_block_expand(term::ClusteredTerm1B,
 
     # if the compressed operator becomes a scalar, treat it as such
     if length(op) == 1
-        println("yes")
         s *= op[1]
     else
         op_indices = [-c1.idx, c1.idx]
@@ -2287,7 +2289,7 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
         tmp = deepcopy(ket_cts)
         zero!(tmp)
 
-        build_sigma!(tmp, ket_cts, cluster_ops, clustered_ham; nbody=2)
+        build_sigma!(tmp, ket_cts, cluster_ops, clustered_ham; nbody=1)
         e0 = orth_dot(tmp,ket_cts)
         @printf(" Norm E0: %12.8f\n", orth_dot(ket_cts,ket_cts))
         @printf(" E0: %12.8f\n", e0)
@@ -2336,6 +2338,7 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
 
             for term in terms
 
+                display(term)
                 #
                 # only proceed if current term acts on no more than our requested max number of clusters
                 length(term.clusters) <= nbody || continue
