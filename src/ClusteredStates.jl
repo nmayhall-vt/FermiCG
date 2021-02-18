@@ -18,13 +18,20 @@ end
 struct TransferConfig <: SparseConfig
     config::Vector{Tuple{Int8,Int8}}
 end
+"""
+"""
+struct OperatorConfig{T} <: SparseConfig where T<:SparseConfig
+    config::Tuple{FockConfig, FockConfig, T, T}
+end
 Base.hash(a::TransferConfig) = hash(a.config)
 Base.hash(a::ClusterConfig) = hash(a.config)
 Base.hash(a::FockConfig) = hash(a.config)
+Base.hash(a::OperatorConfig) = hash(hash.(a.config))
 
 Base.isequal(x::FockConfig, y::FockConfig) = all([all(isequal.(x[i],y[i])) for i in 1:length(x.config)])
 Base.isequal(x::TransferConfig, y::TransferConfig) = all([all(isequal.(x[i],y[i])) for i in 1:length(x.config)])
 Base.isequal(x::ClusterConfig, y::ClusterConfig) = all(isequal.(x.config, y.config))
+Base.isequal(x::OperatorConfig, y::OperatorConfig) = all(isequal.(x.config, y.config))
 
 Base.:(==)(x::FockConfig, y::FockConfig) = all([all(x[i].==y[i]) for i in 1:length(x.config)])
 Base.:(==)(x::TransferConfig, y::TransferConfig) = all([all(x[i].==y[i]) for i in 1:length(x.config)])

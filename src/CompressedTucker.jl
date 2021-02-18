@@ -444,7 +444,7 @@ end
 
 Get LinearMap with takes a vector and returns action of H on that vector
 """
-function get_map(ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; shift = nothing)
+function get_map(ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; shift = nothing, cache=false)
     #={{{=#
     iters = 0
 
@@ -457,7 +457,7 @@ function get_map(ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; s
         #fold!(ci_vector)
         sig = deepcopy(ci_vector)
         zero!(sig)
-        build_sigma!(sig, ci_vector, cluster_ops, clustered_ham)
+        build_sigma!(sig, ci_vector, cluster_ops, clustered_ham, cache=cache)
 
         #unfold!(ci_vector)
 
@@ -473,12 +473,21 @@ function get_map(ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; s
     return LinearMap(mymatvec, dim, dim; issymmetric=true, ismutating=false, ishermitian=true)
 end
 #=}}}=#
+
 function tucker_ci_solve!(ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; tol=1e-5)
 #={{{=#
-    Hmap = get_map(ci_vector, cluster_ops, clustered_ham)
+    
+    #flush term cache
+    println(" Memory used by cache: ", mem_used_by_cache(clustered_ham))
+    println(" Now flushing:")
+    flush_cache(clustered_ham)
+    println(" Memory used by cache: ", mem_used_by_cache(clustered_ham))
+    
+    Hmap = get_map(ci_vector, cluster_ops, clustered_ham, cache=true)
 
     v0 = get_vector(ci_vector)
     nr = size(v0)[2]
+   
 
     davidson = Davidson(Hmap,v0=v0,max_iter=80, max_ss_vecs=40, nroots=nr, tol=tol)
     #Adiag = StringCI.compute_fock_diagonal(problem,mf.mo_energy, e_mf)
@@ -488,6 +497,10 @@ function tucker_ci_solve!(ci_vector::CompressedTuckerState, cluster_ops, cluster
     #@time FermiCG.iteration(davidson, Adiag=Adiag, iprint=2)
     e,v = FermiCG.solve(davidson)
     set_vector!(ci_vector,v)
+
+    ##flush term cache
+    #flush_cache(clustered_ham)
+
     return e,v
 end
 #=}}}=#
@@ -498,7 +511,7 @@ end
 """
     build_sigma!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham)
 """
-function build_sigma!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; nbody=4)
+function build_sigma!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; nbody=4, cache=false)
     #={{{=#
 
     for (fock_bra, configs_bra) in sigma_vector
@@ -518,7 +531,8 @@ function build_sigma!(sigma_vector::CompressedTuckerState, ci_vector::Compressed
 
                         FermiCG.form_sigma_block!(term, cluster_ops, fock_bra, config_bra,
                                                   fock_ket, config_ket,
-                                                  coeff_bra, coeff_ket)
+                                                  coeff_bra, coeff_ket,
+                                                  cache=cache)
 
 
                     end
@@ -537,7 +551,8 @@ function form_sigma_block!(term::ClusteredTerm1B,
                             cluster_ops::Vector{ClusterOps},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
-                            bra_coeffs::Tucker{T,N}, ket_coeffs::Tucker{T,N}) where {T,N}
+                            bra_coeffs::Tucker{T,N}, ket_coeffs::Tucker{T,N};
+                            cache=false ) where {T,N}
 #={{{=#
     #display(term)
     c1 = term.clusters[1]
@@ -557,11 +572,21 @@ function form_sigma_block!(term::ClusteredTerm1B,
     # make sure active clusters are correct transitions
     fock_bra[c1.idx] == fock_ket[c1.idx] .+ term.delta[1] || throw(Exception)
 
-    op1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
+    op = Array{Float64}[]
+    cache_key = (fock_bra, fock_ket, bra, ket)
+    #cache_key = (fock_bra[c1.idx], fock_ket[c1.idx], bra[c1.idx], ket[c1.idx])
+    if cache && haskey(term.cache, cache_key)
+        op = term.cache[cache_key]
+    else
+        op1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
 
-    #
-    # Get 1body operator and compress it using the cluster's Tucker factors
-    op = bra_coeffs.factors[c1.idx]' * (op1[bra[c1.idx],ket[c1.idx]] * ket_coeffs.factors[c1.idx])
+        #
+        # Get 1body operator and compress it using the cluster's Tucker factors
+        op = bra_coeffs.factors[c1.idx]' * (op1[bra[c1.idx],ket[c1.idx]] * ket_coeffs.factors[c1.idx])
+        if cache
+            term.cache[cache_key] = op
+        end
+    end
 
     use_ncon = false
     if use_ncon
@@ -689,13 +714,47 @@ function form_sigma_block!(term::ClusteredTerm1B,
 #=}}}=#
 end
 
+function _compress_local_operator(gamma, Ul::Matrix{T}, Ur::Matrix{T}) where T
+# this is way slower than @tensor
+#={{{=#
+    # gamma has 3 indices (orbital indices, cluster indices (left), cluster indices (right)
+
+    #
+    # out(i,jp) = gamma(p,I,J) Ul(I,i)
+    out = Ul' * reshape(permutedims(gamma, [2,3,1]), size(gamma,2), size(gamma,3)*size(gamma,1))
+
+    #
+    # out(j,pi) = out(J,pi) Ur(J,j)
+    out = Ur' * reshape(out', size(gamma,3), size(gamma,1)*size(Ul,2)) 
+    
+    # out(j,pi) -> out(p,i,j)
+    return reshape(out', size(gamma,1), size(Ul,2), size(Ur,2))
+
+
+#    # out(i,pJ) = gamma(I,pJ) U(I,i)
+#    out = Ul' * unfold(gamma, 2) 
+#    # out(ip,J) 
+#    out = reshape(out, size(out,1) * size(gamma,1), size(gamma,3))
+#    
+#    # out(ip,j) = gamma(ip,J) U(J,j)
+#    out = out * Ur
+#    # out(i,p,j) 
+#    out = reshape(out, size(Ul,2), size(gamma,1), size(Ur,2))
+#
+#    # out(p,i,j)
+#    return permutedims(out, [2,1,3])
+end
+#=}}}=#
+
+
 """
 """
 function form_sigma_block!(term::ClusteredTerm2B,
                             cluster_ops::Vector{ClusterOps},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
-                            bra_coeffs::Tucker{T,N}, ket_coeffs::Tucker{T,N}) where {T,N}
+                            bra_coeffs::Tucker{T,N}, ket_coeffs::Tucker{T,N};
+                            cache=false) where {T,N}
 #={{{=#
     #display(term)
     #display.((fock_bra, fock_ket))
@@ -723,54 +782,59 @@ function form_sigma_block!(term::ClusteredTerm2B,
     # determine sign from rearranging clusters if odd number of operators
     state_sign = compute_terms_state_sign(term, fock_ket)
 
-    #
-    # op[IK,JL] = <I|p'|J> h(pq) <K|q|L>
-    gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
-    gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
-
     # todo: add in 2e integral tucker decomposition and compress gamma along 1st index first
-
-    #
-    # Compress Gammas using the cluster's Tucker factors
-    # e.g.,
-    #   Gamma(pqr, I, J) Ul(I,k) Ur(J,l) = Gamma(pqr, k, l) where k and l are compressed indices
-    gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
-    Ul = bra_coeffs.factors[c1.idx]
-    Ur = ket_coeffs.factors[c1.idx]
-    @tensor begin
-        tmp[p,k,J] := Ul[I,k] * gamma1[p,I,J]
-        g1[p,k,l] := Ur[J,l] * tmp[p,k,J]
-    end
-    #g1 = @ncon([gamma1, U1, U2], [[-1,2,3], [2,-2], [3,-3]])
-
-    gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
-    Ul = bra_coeffs.factors[c2.idx]
-    Ur = ket_coeffs.factors[c2.idx]
-    @tensor begin
-        tmp[p,k,J] := Ul[I,k] * gamma2[p,I,J]
-        g2[p,k,l] := Ur[J,l] * tmp[p,k,J]
-    end
-    #g2 = @ncon([gamma2, U1, U2], [[-1,2,3], [2,-2], [3,-3]])
-    #display(("g1/2", size(g1), size(g2)))
-
     #
     # Now contract into 2body term
     #
     # h(p,q) * g1(p,I,J) * g2(q,K,L) = op(J,L,I,K)
     op = Array{Float64}[]
-#    cache_key = (fock_bra[c1.idx], fock_bra[c2.idx], fock_ket[c1.idx], fock_ket[c2.idx], bra[c1.idx], bra[c2.idx], ket[c1.idx], ket[c2.idx])
-#    if haskey(term.cache, cache_key)
-#        op = term.cache[cache_key]
-#    else
-#        @tensor begin
-#            op[q,J,I] := term.ints[p,q] * g1[p,I,J]
-#            op[J,L,I,K] := op[q,J,I] * g2[q,K,L]
+    cache_key = OperatorConfig((fock_bra, fock_ket, bra, ket))
+    if cache && haskey(term.cache, cache_key)
+        op = term.cache[cache_key]
+    else
+#        println("*build cache")
+#        display(cache_key[1])
+#        display(cache_key[2])
+#        display(cache_key[3])
+#        display(cache_key[4])
+#        println(" already have:")
+#        for k in keys(term.cache)
+#            display(k[1])
+#            display(k[2])
+#            display(k[3])
+#            display(k[4])
 #        end
-#        term.cache[cache_key] = op
-#    end
-    @tensor begin
-        op[q,J,I] := term.ints[p,q] * g1[p,I,J]
-        op[J,L,I,K] := op[q,J,I] * g2[q,K,L]
+        #
+        # Compress Gammas using the cluster's Tucker factors
+        # e.g.,
+        #   Gamma(pqr, I, J) Ul(I,k) Ur(J,l) = Gamma(pqr, k, l) where k and l are compressed indices
+        @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+        Ul = bra_coeffs.factors[c1.idx]
+        Ur = ket_coeffs.factors[c1.idx]
+        @tensor begin
+            tmp[p,k,J] := Ul[I,k] * gamma1[p,I,J]
+            g1[p,k,l] := Ur[J,l] * tmp[p,k,J]
+        end
+        #g1 = _compress_local_operator(gamma1, Ul, Ur)
+        #g1 = @ncon([gamma1, U1, U2], [[-1,2,3], [2,-2], [3,-3]])
+
+        @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+        Ul = bra_coeffs.factors[c2.idx]
+        Ur = ket_coeffs.factors[c2.idx]
+        @tensor begin
+            tmp[p,k,J] := Ul[I,k] * gamma2[p,I,J]
+            g2[p,k,l] := Ur[J,l] * tmp[p,k,J]
+        end
+        #g2 = @ncon([gamma2, U1, U2], [[-1,2,3], [2,-2], [3,-3]])
+        #display(("g1/2", size(g1), size(g2)))
+
+        @tensor begin
+            op[q,J,I] := term.ints[p,q] * g1[p,I,J]
+            op[J,L,I,K] := op[q,J,I] * g2[q,K,L]
+        end
+        if cache
+            term.cache[cache_key] = op
+        end
     end
 
     use_ncon = false
@@ -952,7 +1016,7 @@ function form_sigma_block!(term::ClusteredTerm3B,
     # Compress Gammas using the cluster's Tucker factors
     # e.g.,
     #   Gamma(pqr, I, J) Ul(I,k) Ur(J,l) = Gamma(pqr, k, l) where k and l are compressed indices
-    gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
     Ul = bra_coeffs.factors[c1.idx]
     Ur = ket_coeffs.factors[c1.idx]
     @tensor begin
@@ -960,7 +1024,7 @@ function form_sigma_block!(term::ClusteredTerm3B,
         g1[p,k,l] := Ur[J,l] * tmp[p,k,J]
     end
 
-    gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+    @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
     Ul = bra_coeffs.factors[c2.idx]
     Ur = ket_coeffs.factors[c2.idx]
     @tensor begin
@@ -969,7 +1033,7 @@ function form_sigma_block!(term::ClusteredTerm3B,
     end
     #display(("g1/2", size(g1), size(g2)))
 
-    gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,bra[c3.idx],ket[c3.idx]]
+    @views gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,bra[c3.idx],ket[c3.idx]]
     Ul = bra_coeffs.factors[c3.idx]
     Ur = ket_coeffs.factors[c3.idx]
     @tensor begin
@@ -1177,7 +1241,7 @@ function form_sigma_block!(term::ClusteredTerm4B,
     # Compress Gammas using the cluster's Tucker factors
     # e.g.,
     #   Gamma(pqr, I, J) Ul(I,k) Ur(J,l) = Gamma(pqr, k, l) where k and l are compressed indices
-    gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
     Ul = bra_coeffs.factors[c1.idx]
     Ur = ket_coeffs.factors[c1.idx]
     @tensor begin
@@ -1185,7 +1249,7 @@ function form_sigma_block!(term::ClusteredTerm4B,
         g1[p,k,l] := Ur[J,l] * tmp[p,k,J]
     end
 
-    gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+    @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
     Ul = bra_coeffs.factors[c2.idx]
     Ur = ket_coeffs.factors[c2.idx]
     @tensor begin
@@ -1194,7 +1258,7 @@ function form_sigma_block!(term::ClusteredTerm4B,
     end
     #display(("g1/2", size(g1), size(g2)))
 
-    gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,bra[c3.idx],ket[c3.idx]]
+    @views gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,bra[c3.idx],ket[c3.idx]]
     Ul = bra_coeffs.factors[c3.idx]
     Ur = ket_coeffs.factors[c3.idx]
     @tensor begin
@@ -1202,7 +1266,7 @@ function form_sigma_block!(term::ClusteredTerm4B,
         g3[p,k,l] := Ur[J,l] * tmp[p,k,J]
     end
 
-    gamma4 = cluster_ops[c4.idx][term.ops[4]][(fock_bra[c4.idx],fock_ket[c4.idx])][:,bra[c4.idx],ket[c4.idx]]
+    @views gamma4 = cluster_ops[c4.idx][term.ops[4]][(fock_bra[c4.idx],fock_ket[c4.idx])][:,bra[c4.idx],ket[c4.idx]]
     Ul = bra_coeffs.factors[c4.idx]
     Ur = ket_coeffs.factors[c4.idx]
     @tensor begin
@@ -1898,8 +1962,6 @@ function form_sigma_block_expand(term::ClusteredTerm2B,
 
     #
     # op[IK,JL] = <I|p'|J> h(pq) <K|q|L>
-    gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
-    gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
 
     # todo: add in 2e integral tucker decomposition and compress gamma along 1st index first
 
@@ -1908,13 +1970,13 @@ function form_sigma_block_expand(term::ClusteredTerm2B,
     # only compress the right hand side
     # e.g.,
     #   Gamma(pqr, I, J) Ur(J,l) = Gamma(pqr, I, l) where k and l are compressed indices
-    gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
     Ur = ket_coeffs.factors[c1.idx]
     @tensor begin
         g1[p,I,l] := Ur[J,l] * gamma1[p,I,J]
     end
 
-    gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+    @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
     Ur = ket_coeffs.factors[c2.idx]
     @tensor begin
         g2[p,I,l] := Ur[J,l] * gamma2[p,I,J]
@@ -2038,10 +2100,6 @@ function form_sigma_block_expand(term::ClusteredTerm3B,
 
     #
     # op[IK,JL] = <I|p'|J> h(pq) <K|q|L>
-    gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
-    gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
-    gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,bra[c3.idx],ket[c3.idx]]
-
     # todo: add in 2e integral tucker decomposition and compress gamma along 1st index first
 
     #
@@ -2049,19 +2107,19 @@ function form_sigma_block_expand(term::ClusteredTerm3B,
     # only compress the right hand side
     # e.g.,
     #   Gamma(pqr, I, J) Ur(J,l) = Gamma(pqr, I, l) where k and l are compressed indices
-    gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
     Ur = ket_coeffs.factors[c1.idx]
     @tensor begin
         g1[p,I,l] := Ur[J,l] * gamma1[p,I,J]
     end
 
-    gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+    @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
     Ur = ket_coeffs.factors[c2.idx]
     @tensor begin
         g2[p,I,l] := Ur[J,l] * gamma2[p,I,J]
     end
 
-    gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,bra[c3.idx],ket[c3.idx]]
+    @views gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,bra[c3.idx],ket[c3.idx]]
     Ur = ket_coeffs.factors[c3.idx]
     @tensor begin
         g3[p,I,l] := Ur[J,l] * gamma3[p,I,J]
@@ -2530,7 +2588,7 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
 #=}}}=#
 end
     
-function iterate_pt2!(cts_ref, cluster_ops, clustered_ham; nbody=4, thresh=1e-7,  tol=1e-6, do_pt=true, ratio=10)
+function iterate_pt2!(cts_ref, cluster_ops, clustered_ham; nbody=4, thresh=1e-7,  tol=1e-6, do_pt=true, ratio=100)
 #={{{=#
     println(" --------------------------------------------------------------------")
     println(" Iterate PT-Var")
@@ -2549,17 +2607,20 @@ function iterate_pt2!(cts_ref, cluster_ops, clustered_ham; nbody=4, thresh=1e-7,
 #    cts_pt1 = nonorth_add(res, cts_ref)
 #    compress!(cts_pt1, thresh=thresh)
 
+    
+    norm1 = FermiCG.orth_dot(cts_pt1, cts_pt1)
     cts_pt1 = compress(cts_pt1, thresh=thresh)
-    #println(" norm of 1st order wavefunction: ", FermiCG.nonorth_dot(cts_pt1, cts_pt1))
-    println(" Overlap between <1|0>: ", FermiCG.nonorth_dot(cts_pt1, cts_ref, verbose=0))
-    @printf(" Length of PT vector %5i\n", length(cts_pt1))
+    norm2 = FermiCG.orth_dot(cts_pt1, cts_pt1)
+    @printf(" Norm of 1st order wavefunction: %8.1e → %8.1e\n", norm1, norm2)
+    @printf(" Overlap between <1|0>:          %8.1e", FermiCG.nonorth_dot(cts_pt1, cts_ref, verbose=0))
+    @printf(" Length of PT vector:            %8i\n", length(cts_pt1))
     sig = deepcopy(cts_pt1)
     FermiCG.zero!(sig)
     FermiCG.build_sigma!(sig, cts_ref, cluster_ops, clustered_ham)
     e_2 = FermiCG.nonorth_dot(cts_pt1, sig)
     #@printf(" E(Ref)      = %12.8f = %12.8f\n", e_ref[1], e_ref[1] + e_core )
     #@printf(" E(PT2) tot  = %12.8f = %12.8f\n", e_ref[1]-e_2, e_ref[1]-e_2 + e_core )
-    @printf(" E(PT2) corr = %12.8f\n", e_2)
+    @printf(" E(PT2) corr =                  %12.8f\n", e_2)
 
 
     FermiCG.nonorth_add!(cts_ref,cts_pt1)

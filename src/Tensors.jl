@@ -265,3 +265,12 @@ end
 #=}}}=#
 
 transform_basis(v::Array{T,N}, transforms; trans=false) where {T,N} = transform_basis(v, NTuple{N, Matrix{T}}(transforms), trans=trans)
+
+
+function unfold(A::AbstractArray{T,N}, i::Integer) where {T,N}
+    # https://github.com/Jutho/TensorOperations.jl/issues/13
+    B = permutedims(A,vcat(i,setdiff(1:N,i)))
+    d = size(B,1)
+    return reshape(B,(d,div(length(B),d)))
+end
+

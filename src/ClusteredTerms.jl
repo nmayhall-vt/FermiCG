@@ -1,4 +1,7 @@
 using Combinatorics
+
+
+
 """
 	ops::Vector{String}
 	delta::Vector{Int}
@@ -77,6 +80,37 @@ function Base.display(t::ClusteredTerm4B)
     println(t.ops)
 end
 
+   
+#######################################################################################################333
+"""    
+    trans::Dict{TransferConfig,Vector{ClusteredTerm}}
+"""
+struct ClusteredOperator
+    trans::Dict{TransferConfig,Vector{ClusteredTerm}}
+end
+ClusteredOperator() = ClusteredOperator(Dict{TransferConfig,Vector{ClusteredTerm}}())
+function flush_cache(clustered_ham::ClusteredOperator)
+    for (ftrans, terms) in clustered_ham.trans
+        for term in terms
+            for cached in keys(term.cache)
+                delete!(term.cache, cached)
+            end
+            #display(term.cache)
+        end
+    end
+end
+flush_cache(h::Dict{TransferConfig,Vector{ClusteredTerm}}) = flush_cache(ClusteredOperator(h)) 
+mem_used_by_cache(h::Dict{TransferConfig,Vector{ClusteredTerm}}) = mem_used_by_cache(ClusteredOperator(h)) 
+Base.convert(::Type{ClusteredOperator}, input::Dict{TransferConfig,Vector{ClusteredTerm}}) = ClusteredOperator(input)
+function mem_used_by_cache(h::ClusteredOperator)
+    mem = 0.0
+    for (ftrans, terms) in h.trans
+        for term in terms
+            mem += sizeof(term.cache)
+        end
+    end
+    return mem
+end
 
 function bubble_sort(inp)
     #={{{=#
@@ -805,7 +839,6 @@ function check_term(term::ClusteredTerm4B,
     end
     return true
 end
-
 
 
 """
