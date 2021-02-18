@@ -98,18 +98,19 @@ function run()
 
     if false 
         r = 1
-        push!(atoms,Atom(1,"H",[0,0,0*r]))
-        push!(atoms,Atom(2,"H",[0,0,1*r]))
-        push!(atoms,Atom(3,"H",[0,.1,2*r]))
-        push!(atoms,Atom(4,"H",[0,.1,3*r]))
-        push!(atoms,Atom(5,"H",[0,.2,4*r]))
-        push!(atoms,Atom(6,"H",[0,.2,5*r]))
-        push!(atoms,Atom(7,"H",[0,.3,6*r]))
-        push!(atoms,Atom(8,"H",[0,.3,7*r]))
-        #push!(atoms,Atom(9,"H",[0,0,8*r]))
-        #push!(atoms,Atom(10,"H",[0,0,9*r]))
-        #push!(atoms,Atom(11,"H",[0,0,10*r]))
-        #push!(atoms,Atom(12,"H",[0,0,11*r]))
+        a = 0
+        push!(atoms,Atom(1,"H", [0,.0*a,0*r]))
+        push!(atoms,Atom(2,"H", [0,.0*a,1*r]))
+        push!(atoms,Atom(3,"H", [0,.1*a,2*r]))
+        push!(atoms,Atom(4,"H", [0,.1*a,3*r]))
+        push!(atoms,Atom(5,"H", [0,.2*a,4*r]))
+        push!(atoms,Atom(6,"H", [0,.2*a,5*r]))
+        push!(atoms,Atom(7,"H", [0,.3*a,6*r]))
+        push!(atoms,Atom(8,"H", [0,.3*a,7*r]))
+        push!(atoms,Atom(9,"H", [0,.4*a,8*r]))
+        push!(atoms,Atom(10,"H",[0,.4*a,9*r]))
+        push!(atoms,Atom(11,"H",[0,.5*a,10*r]))
+        push!(atoms,Atom(12,"H",[0,.5*a,11*r]))
     
 
         clusters    = [(1:2),(3:4),(5:6),(7:8),(9:10),(11:12)]
@@ -120,10 +121,10 @@ function run()
         init_fspace = [(1,1),(1,1),(1,1),(1,1)]
         na = 4
         nb = 4
-        clusters    = [(1:4),(5:8)]
-        init_fspace = [(2,2),(2,2)]
-        na = 4
-        nb = 4
+        clusters    = [(1:6),(7:12)]
+        init_fspace = [(3,3),(3,3)]
+        na = 6
+        nb = 6
     elseif false 
         push!(atoms,Atom(1,"H",[-1.30,0,0.00]))
         push!(atoms,Atom(2,"H",[-1.30,0,1.00]))
@@ -162,10 +163,10 @@ function run()
         
         
         atoms = generate_H_ring(12,rad)
-        clusters    = [(1:4),(5:8),(9:10),(11:12)]
-        init_fspace = [(2,2),(2,2),(1,1),(1,1)]
         clusters    = [(1:2),(3:4),(5:6),(7:8),(9:10),(11:12)]
         init_fspace = [(1,1),(1,1),(1,1),(1,1),(1,1),(1,1)]
+        clusters    = [(1:4),(5:8),(9:10),(11:12)]
+        init_fspace = [(2,2),(2,2),(1,1),(1,1)]
         clusters    = [(1:4),(5:8),(9:12)]
         init_fspace = [(2,2),(2,2),(2,2)]
         clusters    = [(1:6),(7:12)]
