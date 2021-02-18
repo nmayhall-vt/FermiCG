@@ -1821,7 +1821,7 @@ function form_sigma_block_expand(term::ClusteredTerm1B,
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             ket_coeffs::Tucker{T,N};
-                            thresh=1e-7, max_number=nothing) where {T,N}
+                            thresh=1e-7, max_number=nothing, screen=1e-8) where {T,N}
 #={{{=#
     #display(term)
     c1 = term.clusters[1]
@@ -1873,8 +1873,8 @@ function form_sigma_block_expand(term::ClusteredTerm1B,
     if length(tensors) == 1
         bra_core = ket_coeffs.core .* s
     else
-        out = @ncon(tensors, indices)
-        bra_core = out .* s
+        bra_core = @ncon(tensors, indices)
+        bra_core .= bra_core .* s
     end
 
     # first decompose the already partially decomposed core tensor
@@ -1929,7 +1929,7 @@ function form_sigma_block_expand(term::ClusteredTerm2B,
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             ket_coeffs::Tucker{T,N};
-                            thresh=1e-7, max_number=nothing) where {T,N}
+                            thresh=1e-7, max_number=nothing, screen=1e-8) where {T,N}
 #={{{=#
     #display(term)
     #display.((fock_bra, fock_ket))
@@ -1966,6 +1966,47 @@ function form_sigma_block_expand(term::ClusteredTerm2B,
     Ur = ket_coeffs.factors[c2.idx]
     @tensor begin
         g2[p,I,l] := Ur[J,l] * gamma2[p,I,J]
+    end
+
+    #
+    # Decompose the local operators. Since gamma[p,I,l] has indices (small, large, small),
+    # we only need at most p*l number of new vectors for the index we are searching over
+    
+    new_factor1 = Matrix(1.0I, size(g1,2), size(g1,2))
+    new_factor2 = Matrix(1.0I, size(g2,2), size(g2,2))
+
+    do_screening = false 
+    if do_screening 
+        screen = 1e-4
+        
+   
+        D = permutedims(g1, [2,1,3])
+        F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+        nkeep = 0
+        for si in F.S
+            if si > screen
+                nkeep += 1
+            end
+        end
+        new_factor1 = F.U[:,1:nkeep]
+        g1 = Diagonal(F.S[1:nkeep]) * F.Vt[1:nkeep,:] 
+        g1 = reshape(g1, size(g1,1), size(D,2), size(D,3))
+        g1 = permutedims(g1, [2,1,3])
+
+
+        D = permutedims(g2, [2,1,3])
+        F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+        nkeep = 0
+        for si in F.S
+            if si > screen
+                nkeep += 1
+            end
+        end
+        new_factor2 = F.U[:,1:nkeep]
+        g2 = Diagonal(F.S[1:nkeep]) * F.Vt[1:nkeep,:] 
+        g2 = reshape(g2, size(g2,1), size(D,2), size(D,3))
+        g2 = permutedims(g2, [2,1,3])
+
     end
 
     #
@@ -2009,8 +2050,8 @@ function form_sigma_block_expand(term::ClusteredTerm2B,
     else
         #display.(("a", size(bra_coeffs), size(ket_coeffs), "sizes: ", size.(overlaps), indices))
         #display.(("a", size(bra_coeffs), size(ket_coeffs), "sizes: ", overlaps, indices))
-        out = @ncon(tensors, indices)
-        bra_core = out .* s
+        bra_core = @ncon(tensors, indices)
+        bra_core .= bra_core .* s
     end
 
     # first decompose the already partially decomposed core tensor
@@ -2036,8 +2077,10 @@ function form_sigma_block_expand(term::ClusteredTerm2B,
     #
     
     new_factors = [ket_coeffs.factors[i] for i in 1:N]
-    new_factors[c1.idx] = Matrix(1.0I, size(bra_core,c1.idx), size(bra_core,c1.idx))
-    new_factors[c2.idx] = Matrix(1.0I, size(bra_core,c2.idx), size(bra_core,c2.idx))
+    #new_factors[c1.idx] = Matrix(1.0I, size(bra_core,c1.idx), size(bra_core,c1.idx))
+    #new_factors[c2.idx] = Matrix(1.0I, size(bra_core,c2.idx), size(bra_core,c2.idx))
+    new_factors[c1.idx] = new_factor1
+    new_factors[c2.idx] = new_factor2 
     return Tucker(bra_core, NTuple{N}(new_factors))
 
 #    bra_tuck = Tucker(bra_core, thresh=thresh, max_number=max_number)
@@ -2065,7 +2108,7 @@ function form_sigma_block_expand(term::ClusteredTerm3B,
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             ket_coeffs::Tucker{T,N};
-                            thresh=1e-7, max_number=nothing) where {T,N}
+                            thresh=1e-7, max_number=nothing, screen=1e-8) where {T,N}
 #={{{=#
     #display(term)
     #display.((fock_bra, fock_ket))
@@ -2112,13 +2155,74 @@ function form_sigma_block_expand(term::ClusteredTerm3B,
     end
 
     #
+    # Decompose the local operators. Since gamma[p,I,l] has indices (small, large, small),
+    # we only need at most p*l number of new vectors for the index we are searching over
+    
+    new_factor1 = Matrix(1.0I, size(g1,2), size(g1,2))
+    new_factor2 = Matrix(1.0I, size(g2,2), size(g2,2))
+    new_factor3 = Matrix(1.0I, size(g3,2), size(g3,2))
+
+    do_screening = true 
+    if do_screening 
+        screen = 1e-4
+        
+   
+        D = permutedims(g1, [2,1,3])
+        F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+        nkeep = 0
+        for si in F.S
+            if si > screen
+                nkeep += 1
+            end
+        end
+        new_factor1 = F.U[:,1:nkeep]
+        g1 = Diagonal(F.S[1:nkeep]) * F.Vt[1:nkeep,:] 
+        g1 = reshape(g1, size(g1,1), size(D,2), size(D,3))
+        g1 = permutedims(g1, [2,1,3])
+
+
+        D = permutedims(g2, [2,1,3])
+        F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+        nkeep = 0
+        for si in F.S
+            if si > screen
+                nkeep += 1
+            end
+        end
+        new_factor2 = F.U[:,1:nkeep]
+        g2 = Diagonal(F.S[1:nkeep]) * F.Vt[1:nkeep,:] 
+        g2 = reshape(g2, size(g2,1), size(D,2), size(D,3))
+        g2 = permutedims(g2, [2,1,3])
+
+
+        D = permutedims(g3, [2,1,3])
+        F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+        nkeep = 0
+        for si in F.S
+            if si > screen
+                nkeep += 1
+            end
+        end
+        # 
+        # for now, let's just keep the full space, then maybe later start threshing
+        new_factor3 = F.U[:,1:nkeep]
+        g3 = Diagonal(F.S[1:nkeep]) * F.Vt[1:nkeep,:] 
+        g3 = reshape(g3, size(g3,1), size(D,2), size(D,3))
+        g3 = permutedims(g3, [2,1,3])
+    end
+    
+    #
     # Now contract into 3body term
     #
     # h(p,q) * g1(p,I,J) * g2(q,K,L) = op(J,L,I,K)
     op = Array{Float64}[]
     @tensor begin
         op[q,r,I,J] := term.ints[p,q,r] * g1[p,I,J]
+    end
+    @tensor begin
         op[r,I,J,K,L] := op[q,r,I,J] * g2[q,K,L]
+    end
+    @tensor begin
         op[J,L,N,I,K,M] := op[r,I,J,K,L] * g3[r,M,N]
     end
 
@@ -2154,30 +2258,19 @@ function form_sigma_block_expand(term::ClusteredTerm3B,
     else
         #display.(("a", size(bra_coeffs), size(ket_coeffs), "sizes: ", size.(overlaps), indices))
         #display.(("a", size(bra_coeffs), size(ket_coeffs), "sizes: ", overlaps, indices))
-        out = @ncon(tensors, indices)
-        bra_core = out .* s
+        bra_core = @ncon(tensors, indices)
+        bra_core .= bra_core .* s
     end
 
     new_factors = [ket_coeffs.factors[i] for i in 1:N]
-    new_factors[c1.idx] = Matrix(1.0I, size(bra_core,c1.idx), size(bra_core,c1.idx))
-    new_factors[c2.idx] = Matrix(1.0I, size(bra_core,c2.idx), size(bra_core,c2.idx))
-    new_factors[c3.idx] = Matrix(1.0I, size(bra_core,c3.idx), size(bra_core,c3.idx))
+    #new_factors[c1.idx] = Matrix(1.0I, size(bra_core,c1.idx), size(bra_core,c1.idx))
+    #new_factors[c2.idx] = Matrix(1.0I, size(bra_core,c2.idx), size(bra_core,c2.idx))
+    #new_factors[c3.idx] = Matrix(1.0I, size(bra_core,c3.idx), size(bra_core,c3.idx))
+    new_factors[c1.idx] = new_factor1
+    new_factors[c2.idx] = new_factor2 
+    new_factors[c3.idx] = new_factor3 
     return Tucker(bra_core, NTuple{N}(new_factors))
     
-#    bra_tuck = Tucker(bra_core, thresh=thresh, max_number=max_number)
-#
-#    old_factors = deepcopy(ket_coeffs.factors)
-#    new_factors = [bra_tuck.factors[i] for i in 1:N]
-#
-#    for ci in 1:n_clusters
-#        ci != c1.idx || continue
-#        ci != c2.idx || continue
-#        ci != c3.idx || continue
-#
-#        new_factors[ci] = old_factors[ci] * bra_tuck.factors[ci]
-#
-#    end
-#    return Tucker(bra_tuck.core, NTuple{N}(new_factors))
 #=}}}=#
 end
 
@@ -2189,7 +2282,7 @@ function form_sigma_block_expand(term::ClusteredTerm4B,
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             ket_coeffs::Tucker{T,N};
-                            thresh=1e-7, max_number=nothing) where {T,N}
+                            thresh=1e-7, max_number=nothing, screen=1e-8) where {T,N}
 #={{{=#
     #display(term)
     #display.((fock_bra, fock_ket))
@@ -2242,6 +2335,75 @@ function form_sigma_block_expand(term::ClusteredTerm4B,
     @tensor begin
         g4[p,I,l] := Ur[J,l] * gamma4[p,I,J]
     end
+    
+    #
+    # Decompose the local operators. Since gamma[p,I,l] has indices (small, large, small),
+    # we only need at most p*l number of new vectors for the index we are searching over
+    
+    new_factor1 = Matrix(1.0I, size(g1,2), size(g1,2))
+    new_factor2 = Matrix(1.0I, size(g2,2), size(g2,2))
+    new_factor3 = Matrix(1.0I, size(g3,2), size(g3,2))
+    new_factor4 = Matrix(1.0I, size(g4,2), size(g4,2))
+
+    do_screening = true 
+    if do_screening 
+        
+   
+        D = permutedims(g1, [2,1,3])
+        F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+        nkeep = 0
+        for si in F.S
+            if si > screen
+                nkeep += 1
+            end
+        end
+        new_factor1 = F.U[:,1:nkeep]
+        g1 = Diagonal(F.S[1:nkeep]) * F.Vt[1:nkeep,:] 
+        g1 = reshape(g1, size(g1,1), size(D,2), size(D,3))
+        g1 = permutedims(g1, [2,1,3])
+
+
+        D = permutedims(g2, [2,1,3])
+        F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+        nkeep = 0
+        for si in F.S
+            if si > screen
+                nkeep += 1
+            end
+        end
+        new_factor2 = F.U[:,1:nkeep]
+        g2 = Diagonal(F.S[1:nkeep]) * F.Vt[1:nkeep,:] 
+        g2 = reshape(g2, size(g2,1), size(D,2), size(D,3))
+        g2 = permutedims(g2, [2,1,3])
+
+
+        D = permutedims(g3, [2,1,3])
+        F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+        nkeep = 0
+        for si in F.S
+            if si > screen
+                nkeep += 1
+            end
+        end
+        new_factor3 = F.U[:,1:nkeep]
+        g3 = Diagonal(F.S[1:nkeep]) * F.Vt[1:nkeep,:] 
+        g3 = reshape(g3, size(g3,1), size(D,2), size(D,3))
+        g3 = permutedims(g3, [2,1,3])
+
+
+        D = permutedims(g4, [2,1,3])
+        F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+        nkeep = 0
+        for si in F.S
+            if si > screen
+                nkeep += 1
+            end
+        end
+        new_factor4 = F.U[:,1:nkeep]
+        g4 = Diagonal(F.S[1:nkeep]) * F.Vt[1:nkeep,:] 
+        g4 = reshape(g4, size(g4,1), size(D,2), size(D,3))
+        g4 = permutedims(g4, [2,1,3])
+    end
 
     #
     # Now contract into 4body term
@@ -2288,15 +2450,15 @@ function form_sigma_block_expand(term::ClusteredTerm4B,
     else
         #display.(("a", size(bra_coeffs), size(ket_coeffs), "sizes: ", size.(overlaps), indices))
         #display.(("a", size(bra_coeffs), size(ket_coeffs), "sizes: ", overlaps, indices))
-        out = @ncon(tensors, indices)
-        bra_core = out .* s
+        bra_core = @ncon(tensors, indices)
+        bra_core .= bra_core .* s
     end
 
     new_factors = [ket_coeffs.factors[i] for i in 1:N]
-    new_factors[c1.idx] = Matrix(1.0I, size(bra_core,c1.idx), size(bra_core,c1.idx))
-    new_factors[c2.idx] = Matrix(1.0I, size(bra_core,c2.idx), size(bra_core,c2.idx))
-    new_factors[c3.idx] = Matrix(1.0I, size(bra_core,c3.idx), size(bra_core,c3.idx))
-    new_factors[c4.idx] = Matrix(1.0I, size(bra_core,c4.idx), size(bra_core,c4.idx))
+    new_factors[c1.idx] = new_factor1
+    new_factors[c2.idx] = new_factor2 
+    new_factors[c3.idx] = new_factor3 
+    new_factors[c4.idx] = new_factor4 
     return Tucker(bra_core, NTuple{N}(new_factors))
     
 #=}}}=#
@@ -2471,7 +2633,7 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
             for (fock, mat) in cluster_ops[ci.idx]["H"]
                 fock[1] == fock[2] || error(" H shouldn't mix fock spaces?")
                 tmp[fock[1]] = e0 * Matrix(1.0* I, size(mat)...) - mat
-                tmp2[fock[1]] = inv(tmp[fock[1]])
+                tmp2[fock[1]] = pinv(tmp[fock[1]])
             end
             push!(H0, tmp)
             push!(H0inv, tmp2)
@@ -2626,10 +2788,10 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
             #display(length(tuck))
             
             #sig_cts[fock][tconfig] = nonorth_add(tuck)
-            if haskey(sig_cts, fock) == false
-                sig_cts[fock] = OrderedDict(tconfig => nonorth_add(tuck))
-            else
+            if haskey(sig_cts, fock)
                 sig_cts[fock][tconfig] = nonorth_add(tuck)
+            else
+                sig_cts[fock] = OrderedDict(tconfig => nonorth_add(tuck))
             end
             #sig_cts[fock][tconfig] = compress(nonorth_add(tuck), thresh=thresh)
         end
@@ -2701,7 +2863,7 @@ function iterate_pt2!(cts_ref, cluster_ops, clustered_ham; nbody=4, thresh=1e-7,
     println(" Iterate PT-Var")
     println(" --------------------------------------------------------------------")
     println(" Compute first order wavefunction. Reference space dim = ", length(cts_ref))
-    cts_pt1  = build_compressed_1st_order_state(cts_ref, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh, do_pt=do_pt)
+    @time cts_pt1  = build_compressed_1st_order_state(cts_ref, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh, do_pt=do_pt)
     
 #    sig  = open_sigma(cts_ref, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh)
 #    sig0 = deepcopy(cts_ref)
