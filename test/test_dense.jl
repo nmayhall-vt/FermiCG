@@ -162,6 +162,17 @@ function run()
         nb = 5
         
         
+        atoms = generate_H_ring(8,rad)
+        clusters    = [(1:2),(3:4),(5:6),(7:8)]
+        init_fspace = [(1,1),(1,1),(1,1),(1,1)]
+        clusters    = [(1:4),(5:6),(7:8)]
+        init_fspace = [(2,2),(1,1),(1,1)]
+        clusters    = [(1:4),(5:8)]
+        init_fspace = [(2,2),(2,2)]
+        na = 4
+        nb = 4
+        
+        
         atoms = generate_H_ring(12,rad)
         clusters    = [(1:2),(3:4),(5:6),(7:8),(9:10),(11:12)]
         init_fspace = [(1,1),(1,1),(1,1),(1,1),(1,1),(1,1)]
@@ -173,17 +184,6 @@ function run()
         init_fspace = [(3,3),(3,3)]
         na = 6
         nb = 6
-        
-        
-        atoms = generate_H_ring(8,rad)
-        clusters    = [(1:2),(3:4),(5:6),(7:8)]
-        init_fspace = [(1,1),(1,1),(1,1),(1,1)]
-        clusters    = [(1:4),(5:6),(7:8)]
-        init_fspace = [(2,2),(1,1),(1,1)]
-        clusters    = [(1:4),(5:8)]
-        init_fspace = [(2,2),(2,2)]
-        na = 4
-        nb = 4
         
     end
 
@@ -320,22 +320,23 @@ function run()
         e_var = 0.0
         e_pt2 = 0.0
         #display(abs.(cluster_ops[1]["H"][((2,2),(2,2))]) - abs.(cluster_ops[2]["H"][((2,2),(2,2))]))
-        
-        for i in 1:40
-            #@profilehtml e_var, e_pt2, cts_var = FermiCG.iterate_pt2!(cts_var, cluster_ops, clustered_ham, nbody=4, thresh=1e-7, tol=1e-5, do_pt=true)
-            @time e_var, e_pt2, cts_var = FermiCG.iterate_pt2!(cts_var, cluster_ops, clustered_ham, nbody=4, thresh=1e-7, tol=1e-5, do_pt=true, method="cepa")
-            @printf(" E(Ref)      = %12.8f = %12.8f\n", e_ref[1], e_ref[1] + ints.h0 )
-            @printf(" E(PT2) tot  = %12.8f = %12.8f\n", e_ref[1]+e_pt2, e_ref[1]+e_pt2 + ints.h0 )
-            @printf(" E(var) tot  = %12.8f = %12.8f\n", e_var[1], e_var[1] + ints.h0 )
-      
-            if abs(e_ref[1] - e_var[1]) < 1e-8
-                println("*Converged")
-                break
-            end
-            cts_ref = cts_var
-            e_ref = e_var
-        end
-        return cts_var
+       
+        @time e_var, v_var = FermiCG.solve_for_compressed_space(cts_ref, cluster_ops, clustered_ham, nbody=4, thresh_var=1e-5, thresh_foi=1e-7, tol=1e-5)
+#        for i in 1:10
+#            #@profilehtml e_var, e_pt2, cts_var = FermiCG.iterate_pt2!(cts_var, cluster_ops, clustered_ham, nbody=4, thresh=1e-7, tol=1e-5, do_pt=true)
+#            @time e_var, e_pt2, cts_var = FermiCG.iterate_pt2!(cts_var, cluster_ops, clustered_ham, nbody=4, thresh=1e-7, tol=1e-5, do_pt=true, method="ci", ratio=1e3)
+#            @printf(" E(Ref)      = %12.8f = %12.8f\n", e_ref[1], e_ref[1] + ints.h0 )
+#            @printf(" E(PT2) tot  = %12.8f = %12.8f\n", e_ref[1]+e_pt2, e_ref[1]+e_pt2 + ints.h0 )
+#            @printf(" E(var) tot  = %12.8f = %12.8f\n", e_var[1], e_var[1] + ints.h0 )
+#      
+#            if abs(e_ref[1] - e_var[1]) < 1e-8
+#                println("*Converged")
+#                break
+#            end
+#            cts_ref = cts_var
+#            e_ref = e_var
+#        end
+#        return cts_var
     end
     
     if false 

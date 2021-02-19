@@ -478,10 +478,7 @@ function tucker_ci_solve!(ci_vector::CompressedTuckerState, cluster_ops, cluster
 #={{{=#
     
     #flush term cache
-    println(" Memory used by cache: ", mem_used_by_cache(clustered_ham))
-    println(" Now flushing:")
     flush_cache(clustered_ham)
-    println(" Memory used by cache: ", mem_used_by_cache(clustered_ham))
     
     Hmap = get_map(ci_vector, cluster_ops, clustered_ham, cache=true)
 
@@ -492,11 +489,12 @@ function tucker_ci_solve!(ci_vector::CompressedTuckerState, cluster_ops, cluster
     davidson = Davidson(Hmap,v0=v0,max_iter=80, max_ss_vecs=40, nroots=nr, tol=tol)
     #Adiag = StringCI.compute_fock_diagonal(problem,mf.mo_energy, e_mf)
     #FermiCG.solve(davidson)
-    @printf(" Now iterate: \n")
     flush(stdout)
     #@time FermiCG.iteration(davidson, Adiag=Adiag, iprint=2)
     e,v = FermiCG.solve(davidson)
     set_vector!(ci_vector,v)
+    
+    println(" Memory used by cache: ", mem_used_by_cache(clustered_ham))
 
     ##flush term cache
     #flush_cache(clustered_ham)
@@ -3016,3 +3014,101 @@ function iterate_pt2!(cts_ref, cluster_ops, clustered_ham; nbody=4, thresh=1e-7,
     
     return e_cts, e_2, cts_ref
 end#=}}}=#
+    
+    
+    
+    
+"""
+    solve_for_compressed_space(ref_vector::CompressedTuckerState, cluster_ops, clustered_ham;
+        max_iter    = 20,
+        nbody       = 4,
+        thresh_foi  = 1e-7,
+        thresh_ref  = 1e-4,
+        tol         = 1e-6)
+"""
+function solve_for_compressed_space(ref_vec::CompressedTuckerState, cluster_ops, clustered_ham;
+        max_iter    = 20,
+        nbody       = 4,
+        thresh_foi  = 1e-7,
+        thresh_var  = 1e-4,
+        tol         = 1e-6)
+      
+    e_last = 0.0
+    for iter in 1:max_iter
+        println(" --------------------------------------------------------------------")
+        println(" Iterate PT-Var:       Iteration #: ",iter)
+        println(" --------------------------------------------------------------------")
+        
+        # 
+        # Solve variationally in reference space
+        println()
+        @printf(" Solve zeroth-order problem. Dimension = %10i\n", length(ref_vec))
+        @time e0, v_ref = tucker_ci_solve!(ref_vec, cluster_ops, clustered_ham, tol=tol)
+        if iter == 1
+            e_last = e0
+        end
+   
+        #
+        # Get First order wavefunction
+        println()
+        println(" Compute first order wavefunction. Reference space dim = ", length(ref_vec))
+        @time pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+
+        # 
+        # Compress FOIS
+        norm1 = orth_dot(pt1_vec, pt1_vec)
+        dim1 = length(pt1_vec)
+        pt1_vec = compress(pt1_vec, thresh=thresh_foi)
+        norm2 = orth_dot(pt1_vec, pt1_vec)
+        dim2 = length(pt1_vec)
+        @printf(" FOIS Compressed from:     %8i → %8i (thresh = %8.1e)\n", dim1, dim2, thresh_foi)
+        @printf(" Norm of |1>:              %12.8f \n", norm2)
+        @printf(" Overlap between <1|0>:    %8.1e\n", nonorth_dot(pt1_vec, ref_vec, verbose=0))
+
+        #
+        # Compute PT2 Energy
+        sig = deepcopy(pt1_vec)
+        zero!(sig)
+        build_sigma!(sig, ref_vec, cluster_ops, clustered_ham)
+        e_2 = nonorth_dot(pt1_vec, sig)
+        @printf(" E(PT2) corr =                  %12.8f\n", e_2)
+
+        # 
+        # Solve variationally in compressed FOIS 
+        # CI
+        println()
+        var_vec = deepcopy(ref_vec)
+        nonorth_add!(var_vec, pt1_vec)
+        normalize!(var_vec)
+        @printf(" Solve in compressed FOIS. Dimension =   %10i\n", length(var_vec))
+        @time e_var, v_var = tucker_ci_solve!(var_vec, cluster_ops, clustered_ham, tol=tol)
+
+        #
+        # Compress Variational Wavefunction
+        dim1 = length(var_vec)
+        norm1 = orth_dot(var_vec, var_vec)
+        var_vec = compress(var_vec, thresh=thresh_var)
+        normalize!(var_vec)
+        dim2 = length(var_vec)
+        norm2 = orth_dot(var_vec, var_vec)
+        @printf(" Compressed CI state from: %8i → %8i (thresh = %8.1e)\n", dim1, dim2, thresh_var)
+        @printf(" Norm of compressed state: %12.8f \n", norm2)
+
+        ref_vec = var_vec
+
+        @printf(" E(Ref)      = %12.8f\n", e0[1])
+        @printf(" E(PT2) tot  = %12.8f\n", e0[1]+e_2)
+        @printf(" E(var) tot  = %12.8f\n", e_var[1])
+
+        if abs(e_last[1] - e_var[1]) < 1e-8
+            println("*Converged")
+            return e_var, var_vec
+            break
+        end
+        e_last = e_var
+            
+    end
+    println(" Not converged")
+    return e_var, var_vec
+end
+    
