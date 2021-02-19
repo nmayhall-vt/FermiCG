@@ -161,16 +161,6 @@ function run()
         na = 5
         nb = 5
         
-        atoms = generate_H_ring(8,rad)
-        clusters    = [(1:2),(3:4),(5:6),(7:8)]
-        init_fspace = [(1,1),(1,1),(1,1),(1,1)]
-        clusters    = [(1:4),(5:6),(7:8)]
-        init_fspace = [(2,2),(1,1),(1,1)]
-        clusters    = [(1:4),(5:8)]
-        init_fspace = [(2,2),(2,2)]
-        na = 4
-        nb = 4
-        
         
         atoms = generate_H_ring(12,rad)
         clusters    = [(1:2),(3:4),(5:6),(7:8),(9:10),(11:12)]
@@ -184,6 +174,16 @@ function run()
         na = 6
         nb = 6
         
+        
+        atoms = generate_H_ring(8,rad)
+        clusters    = [(1:2),(3:4),(5:6),(7:8)]
+        init_fspace = [(1,1),(1,1),(1,1),(1,1)]
+        clusters    = [(1:4),(5:6),(7:8)]
+        init_fspace = [(2,2),(1,1),(1,1)]
+        clusters    = [(1:4),(5:8)]
+        init_fspace = [(2,2),(2,2)]
+        na = 4
+        nb = 4
         
     end
 
@@ -199,7 +199,7 @@ function run()
     #e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints, na, nb, conv_tol=1e-10,max_cycle=100, nroots=2)
 	
     #run fci with pyscf
-    if false 
+    if true 
         pyscf = pyimport("pyscf")
         fci = pyimport("pyscf.fci")
         mp = pyimport("pyscf.mp")
@@ -321,9 +321,9 @@ function run()
         e_pt2 = 0.0
         #display(abs.(cluster_ops[1]["H"][((2,2),(2,2))]) - abs.(cluster_ops[2]["H"][((2,2),(2,2))]))
         
-        for i in 1:20
+        for i in 1:40
             #@profilehtml e_var, e_pt2, cts_var = FermiCG.iterate_pt2!(cts_var, cluster_ops, clustered_ham, nbody=4, thresh=1e-7, tol=1e-5, do_pt=true)
-            @time e_var, e_pt2, cts_var = FermiCG.iterate_pt2!(cts_var, cluster_ops, clustered_ham, nbody=4, thresh=1e-7, tol=1e-5, do_pt=true)
+            @time e_var, e_pt2, cts_var = FermiCG.iterate_pt2!(cts_var, cluster_ops, clustered_ham, nbody=4, thresh=1e-7, tol=1e-5, do_pt=true, method="ci")
             @printf(" E(Ref)      = %12.8f = %12.8f\n", e_ref[1], e_ref[1] + ints.h0 )
             @printf(" E(PT2) tot  = %12.8f = %12.8f\n", e_ref[1]+e_pt2, e_ref[1]+e_pt2 + ints.h0 )
             @printf(" E(var) tot  = %12.8f = %12.8f\n", e_var[1], e_var[1] + ints.h0 )

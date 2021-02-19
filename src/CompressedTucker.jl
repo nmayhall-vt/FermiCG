@@ -125,13 +125,13 @@ end
 
 
 """
-    add!(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
+    orth_add!(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
 
 Add coeffs in `ts2` to `ts1`
 
 Note: this assumes `t1` and `t2` have the same compression vectors
 """
-function add!(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
+function orth_add!(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
 #={{{=#
     for (fock,configs) in ts2
         if haskey(ts1, fock)
@@ -1431,66 +1431,131 @@ Ax=b
 
 works for one root at a time
 """
-function tucker_cepa_solve!(ref_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; tol=1e-5)
+function tucker_cepa_solve!(ref_vector::CompressedTuckerState, cepa_vector::CompressedTuckerState, cluster_ops, clustered_ham; tol=1e-5, cache=true)
 #={{{=#
     sig = deepcopy(ref_vector)
     zero!(sig)
     build_sigma!(sig, ref_vector, cluster_ops, clustered_ham)
-    e0 = dot(ref_vector, sig)
+    e0 = nonorth_dot(ref_vector, sig)
     length(e0) == 1 || error("Only one state at a time please", e0)
     e0 = e0[1]
     @printf(" Reference Energy: %12.8f\n",e0)
 
 
-    x_vector = deepcopy(ci_vector)
+    x_vector = deepcopy(cepa_vector)
+    a_vector = deepcopy(ref_vector)
+
+#    #
+#    # Project out reference space
+#    for (fock,tconfigs) in x_vector 
+#        for (tconfig, tuck) in tconfigs
+#            if haskey(ref_vector, fock)
+#                if haskey(ref_vector[fock], tconfig)
+#                    ref_tuck = ref_vector[fock][tconfig]
+#
+#                    ovlp = nonorth_dot(tuck, ref_tuck) / nonorth_dot(ref_tuck, ref_tuck)
+#                    tmp = scale(ref_tuck, -1.0 * ovlp)
+#                    x_vector[fock][tconfig] = nonorth_add(tuck, tmp, thresh=1e-16)
+#                end
+#            end
+#        end
+#    end
+    @printf(" Overlap between <1|0>:          %8.1e\n", nonorth_dot(x_vector, ref_vector, verbose=0))
+
+    b = deepcopy(x_vector)
+    zero!(b)
+    build_sigma!(b, ref_vector, cluster_ops, clustered_ham, cache=false)
+    bv = -get_vector(b)
+
+    
     #
-    # now remove reference space from ci_vector
-    for (fock,configs) in ref_vector
-        if haskey(x_vector, fock)
-            for (config,coeffs) in configs
-                if haskey(x_vector[fock], config)
-                    delete!(x_vector[fock], config)
+    # Get Overlap <X|A>C(A)
+    Sx = deepcopy(x_vector)
+    zero!(Sx)
+    for (fock,tconfigs) in Sx 
+        for (tconfig, tuck) in tconfigs
+            if haskey(ref_vector, fock)
+                if haskey(ref_vector[fock], tconfig)
+                    ref_tuck = ref_vector[fock][tconfig]
+                    # Cr(i,j,k...) Ur(Ii) Ur(Jj) ...
+                    # Ux(Ii') Ux(Jj') ...
+                    #
+                    # Cr(i,j,k...) S(ii') S(jj')...
+                    overlaps = []
+                    for i in 1:length(Sx.clusters)
+                        push!(overlaps, ref_tuck.factors[i]' * tuck.factors[i])
+                    end
+                    Sx[fock][tconfig].core .= transform_basis(ref_tuck.core, overlaps)
                 end
             end
         end
     end
 
-    b = deepcopy(x_vector)
-    zero!(b)
-    build_sigma!(b, ref_vector, cluster_ops, clustered_ham)
-    bv = -get_vector(b)
+    bv .= bv .+ get_vector(Sx)*e0
+
+    @printf(" Norm of Sx overlap: %12.8f\n", orth_dot(Sx,Sx))
 
     function mymatvec(v)
         set_vector!(x_vector, v)
+        #@printf(" Overlap between <1|0>:          %8.1e\n", nonorth_dot(x_vector, ref_vector, verbose=0))
         sig = deepcopy(x_vector)
         zero!(sig)
-        build_sigma!(sig, x_vector, cluster_ops, clustered_ham)
+        build_sigma!(sig, x_vector, cluster_ops, clustered_ham, cache=false)
 
-        sig_out = get_vector(sig)
-        sig_out .-= e0*get_vector(x_vector)
-        return sig_out
+        #sig_out = get_vector(sig)
+        #sig_out .-= e0*get_vector(x_vector)
+#        #
+#        # Project out reference space
+#        for (fock,tconfigs) in sig 
+#            for (tconfig, tuck) in tconfigs
+#                if haskey(ref_vector, fock)
+#                    if haskey(ref_vector[fock], tconfig)
+#                        ref_tuck = ref_vector[fock][tconfig]
+#
+#                        ovlp = nonorth_dot(tuck, ref_tuck) / nonorth_dot(ref_tuck, ref_tuck)
+#                        tmp = scale(ref_tuck, -1.0 * ovlp)
+#                        sig[fock][tconfig] = nonorth_add(tuck, tmp, thresh=1e-16)
+#                    end
+#                end
+#            end
+#        end
+        tmp = deepcopy(x_vector)
+        scale!(tmp, -e0)
+        orth_add!(sig, tmp)
+        return get_vector(sig)
     end
     dim = length(x_vector)
     Axx = LinearMap(mymatvec, dim, dim)
     #Axx = LinearMap(mymatvec, dim, dim; issymmetric=true, ismutating=false, ishermitian=true)
 
+    #flush term cache
+    println(" Now flushing:")
+    flush_cache(clustered_ham)
+    
     x, solver = cg!(get_vector(x_vector), Axx,bv,log=true)
+    
+    #flush term cache
+    println(" Now flushing:")
+    flush_cache(clustered_ham)
 
     set_vector!(x_vector, x)
+
+
+    SxC = orth_dot(Sx,x_vector)
+    @printf(" <A|X>C(X) = %12.8f\n", SxC)
 
     sig = deepcopy(ref_vector)
     zero!(sig)
     build_sigma!(sig,x_vector, cluster_ops, clustered_ham)
-    ecorr = dot(sig,ref_vector)
+    ecorr = nonorth_dot(sig,ref_vector)
+    @printf(" Cepa: %12.8f\n", ecorr)
     length(ecorr) == 1 || error(" Dimension Error", ecorr)
     ecorr = ecorr[1]
 
-    zero!(ci_vector)
-    add!(ci_vector, ref_vector)
-    add!(ci_vector, x_vector)
+    @printf(" E(CEPA) = %12.8f\n", (e0 + ecorr)/(1+SxC))
 
     #x, info = linsolve(Hmap,zeros(size(v0)))
-    return ecorr+e0, x
+    return (ecorr+e0)/(1+SxC), x
 end#=}}}=#
 
 
@@ -2857,7 +2922,7 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
 #=}}}=#
 end
     
-function iterate_pt2!(cts_ref, cluster_ops, clustered_ham; nbody=4, thresh=1e-7,  tol=1e-6, do_pt=true, ratio=100)
+function iterate_pt2!(cts_ref, cluster_ops, clustered_ham; nbody=4, thresh=1e-7,  tol=1e-6, do_pt=true, ratio=100, method="ci")
 #={{{=#
     println(" --------------------------------------------------------------------")
     println(" Iterate PT-Var")
@@ -2877,35 +2942,55 @@ function iterate_pt2!(cts_ref, cluster_ops, clustered_ham; nbody=4, thresh=1e-7,
 #    compress!(cts_pt1, thresh=thresh)
 
     
-    norm1 = FermiCG.orth_dot(cts_pt1, cts_pt1)
+    norm1 = orth_dot(cts_pt1, cts_pt1)
     cts_pt1 = compress(cts_pt1, thresh=thresh)
-    norm2 = FermiCG.orth_dot(cts_pt1, cts_pt1)
+    norm2 = orth_dot(cts_pt1, cts_pt1)
     @printf(" Norm of 1st order wavefunction: %8.1e → %8.1e\n", norm1, norm2)
-    @printf(" Overlap between <1|0>:          %8.1e", FermiCG.nonorth_dot(cts_pt1, cts_ref, verbose=0))
+    @printf(" Overlap between <1|0>:          %8.1e\n", nonorth_dot(cts_pt1, cts_ref, verbose=0))
     @printf(" Length of PT vector:            %8i\n", length(cts_pt1))
+  
+
     sig = deepcopy(cts_pt1)
-    FermiCG.zero!(sig)
-    FermiCG.build_sigma!(sig, cts_ref, cluster_ops, clustered_ham)
-    e_2 = FermiCG.nonorth_dot(cts_pt1, sig)
+    zero!(sig)
+    build_sigma!(sig, cts_ref, cluster_ops, clustered_ham)
+    e_2 = nonorth_dot(cts_pt1, sig)
     #@printf(" E(Ref)      = %12.8f = %12.8f\n", e_ref[1], e_ref[1] + e_core )
     #@printf(" E(PT2) tot  = %12.8f = %12.8f\n", e_ref[1]-e_2, e_ref[1]-e_2 + e_core )
     @printf(" E(PT2) corr =                  %12.8f\n", e_2)
 
+    if method == "ci"
+        # CI
+        nonorth_add!(cts_ref,cts_pt1)
+        #cts_ref = compress(cts_ref, thresh=thresh)
+        normalize!(cts_ref)
+        println(" Now solve in compressed space: Dim = ", length(cts_ref))
+        @time e_cts, v_cts = tucker_ci_solve!(cts_ref, cluster_ops, clustered_ham, tol=tol)
 
-    FermiCG.nonorth_add!(cts_ref,cts_pt1)
-    #cts_ref = FermiCG.compress(cts_ref, thresh=thresh)
-    FermiCG.normalize!(cts_ref)
-    println(" Now solve in compressed space: Dim = ", length(cts_ref))
-    @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts_ref, cluster_ops, clustered_ham, tol=tol)
+    elseif method == "cepa"
+        # CEPA
+        cepa_x = deepcopy(cts_pt1)
+        zero!(cepa_x)
+        println(" Do CEPA: Dim = ", length(cepa_x))
+        @time e_cepa, x_cepa = tucker_cepa_solve!(cts_ref, cepa_x, cluster_ops, clustered_ham, tol=tol)
+
+        @printf(" E(cepa) corr =                 %12.8f\n", e_cepa)
+        @printf(" X(cepa) norm =                 %12.8f\n", sqrt(x_cepa[:,1]' * x_cepa[:,1]))
+        set_vector!(cepa_x, x_cepa)
+        nonorth_add!(cts_ref,cepa_x)
+        #normalize!(cts_ref)
+        e_cts = e_cepa
+        display(cts_ref, thresh=-1)
+    end
+
 
     dim1 = length(cts_ref)
-    cts_ref = FermiCG.compress(cts_ref, thresh=thresh*ratio)
-    FermiCG.normalize!(cts_ref)
+    cts_ref = compress(cts_ref, thresh=thresh*ratio)
+    normalize!(cts_ref)
     dim2 = length(cts_ref)
     @printf(" Dimension of reference state reduced from %5i to %5i. Thresh = %8.1e\n", dim1, dim2, thresh)
     @printf(" E(cCI):  Electronic %16.12f\n", e_cts[1])
-    #FermiCG.print_fock_occupations(cts_ref)
-    FermiCG.display(cts_ref)
+    #print_fock_occupations(cts_ref)
+    display(cts_ref)
     
     return e_cts, e_2, cts_ref
 end#=}}}=#
