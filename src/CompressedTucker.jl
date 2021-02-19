@@ -1421,15 +1421,37 @@ end
 
 
 """
-0 = <x|H - E0|x'>v(x') + <x|H - E0|p>v(p)
-0 = <x|H - E0|x'>v(x') + <x|H|p>v(p)
-A(x,x')v(x') = -H(x,p)v(p)
+    tucker_cepa_solve!(ref_vector::CompressedTuckerState, cepa_vector::CompressedTuckerState, cluster_ops, clustered_ham; tol=1e-5, cache=true)
 
-here, x is outside the reference space, and p is inside
+# Arguments
+- `ref_vector`: Input reference state. 
+- `cepa_vector`: CompressedTuckerState which defines the configurational space defining {X}. This 
+should be the first-order interacting space (or some compressed version of it).
+- `cluster_ops`
+- `clustered_ham`
+- `tol`: haven't yet set this up (NYI)
+- `cache`: Should we cache the compressed H operators? Speeds up drastically, but uses lots of memory
+
+Compute compressed CEPA.
+Since there can be non-zero overlap with a multireference state, we need to generalize.
+
+HC = SCe
+
+|Haa + Hax| |1 | = |I   + Sax| |1 | E
+|Hxa + Hxx| |Cx|   |Sxa + I  | |Cx|
+
+Haa + Hax*Cx = (1 + Sax*Cx)E
+Hxa + HxxCx = SxaE + CxE
+
+The idea for CEPA is to approximate E in the amplitude equation.
+CEPA(0): E = Eref
+
+(Hxx-Eref)*Cx = Sxa*Eref - Hxa
 
 Ax=b
 
-works for one root at a time
+After solving, the Energy can be obtained as:
+E = (Eref + Hax*Cx) / (1 + Sax*Cx)
 """
 function tucker_cepa_solve!(ref_vector::CompressedTuckerState, cepa_vector::CompressedTuckerState, cluster_ops, clustered_ham; tol=1e-5, cache=true)
 #={{{=#
