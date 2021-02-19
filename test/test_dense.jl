@@ -13,7 +13,7 @@ pushfirst!(PyVector(pyimport("sys")."path"), pydir)
 ENV["PYTHON"] = Sys.which("python")
 
 #@testset "Clusters" begin
-function run()
+#function run()
     atoms = []
     clusters = []
     na = 0
@@ -199,7 +199,7 @@ function run()
     #e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints, na, nb, conv_tol=1e-10,max_cycle=100, nroots=2)
 	
     #run fci with pyscf
-    if true 
+    if false 
         pyscf = pyimport("pyscf")
         fci = pyimport("pyscf.fci")
         mp = pyimport("pyscf.mp")
@@ -298,7 +298,7 @@ function run()
     if false  
         FermiCG.scale!(ci_vector, 1.0/sqrt(FermiCG.dot(ci_vector, ci_vector)[1]))
         println(" Length of CI Vector: ", length(ci_vector))
-        @time e_nb2, x_nb2 = FermiCG.tucker_ci_solve!(ci_vector, cluster_ops, clustered_ham)
+        @time e_nb2, ci_vector = FermiCG.tucker_ci_solve(ci_vector, cluster_ops, clustered_ham)
         @printf(" E(CI):   Electronic %16.12f Total %16.12f\n", e_nb2[1], e_nb2[1]+ints.h0)
         FermiCG.print_fock_occupations(ci_vector)
 
@@ -307,21 +307,21 @@ function run()
         #FermiCG.compress!(cts,thresh=1e-5)
         FermiCG.normalize!(cts)
         display(length(cts))
-        @time e_cts, v_cts = FermiCG.tucker_ci_solve!(cts, cluster_ops, clustered_ham, tol=1e-5)
+        @time e_cts, cts = FermiCG.tucker_ci_solve(cts, cluster_ops, clustered_ham, tol=1e-5)
         @printf(" E(cCI):  Electronic %16.12f Total %16.12f\n", e_cts[1], e_cts[1]+ints.h0)
         FermiCG.display(cts)
         #FermiCG.print_fock_occupations(cts)
     end
     
     if true    
-        @time e_ref, v_ref = FermiCG.tucker_ci_solve!(cts_ref, cluster_ops, clustered_ham, tol=1e-5)
+        @time e_ref, cts_ref = FermiCG.tucker_ci_solve(cts_ref, cluster_ops, clustered_ham, tol=1e-5)
        
         cts_var = deepcopy(cts_ref)
         e_var = 0.0
         e_pt2 = 0.0
         #display(abs.(cluster_ops[1]["H"][((2,2),(2,2))]) - abs.(cluster_ops[2]["H"][((2,2),(2,2))]))
        
-        @time e_var, v_var = FermiCG.solve_for_compressed_space(cts_ref, cluster_ops, clustered_ham, nbody=4, thresh_var=1e-5, thresh_foi=1e-7, tol=1e-5)
+        @time e_var, v_var = FermiCG.solve_for_compressed_space(cts_ref, cluster_ops, clustered_ham, nbody=4, thresh_var=1e-4, thresh_foi=1e-6, tol_ci=1e-5, tol_tucker=1e-5)
 #        for i in 1:10
 #            #@profilehtml e_var, e_pt2, cts_var = FermiCG.iterate_pt2!(cts_var, cluster_ops, clustered_ham, nbody=4, thresh=1e-7, tol=1e-5, do_pt=true)
 #            @time e_var, e_pt2, cts_var = FermiCG.iterate_pt2!(cts_var, cluster_ops, clustered_ham, nbody=4, thresh=1e-7, tol=1e-5, do_pt=true, method="ci", ratio=1e3)
@@ -340,7 +340,7 @@ function run()
     end
     
     if false 
-        e_ref = FermiCG.tucker_ci_solve!(ref_vector, cluster_ops, clustered_ham)
+        e_ref, ref_vector = FermiCG.tucker_ci_solve(ref_vector, cluster_ops, clustered_ham)
         println(" Reference State:" )
         FermiCG.print_fock_occupations(ref_vector)
 
@@ -400,6 +400,6 @@ function run()
         #display(cts)
     end
     #end
-end
+#end
 
-run()
+#run()
