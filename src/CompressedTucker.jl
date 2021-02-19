@@ -2999,9 +2999,9 @@ function iterate_pt2!(cts_ref, cluster_ops, clustered_ham; nbody=4, thresh=1e-7,
         @printf(" X(cepa) norm =                 %12.8f\n", sqrt(x_cepa[:,1]' * x_cepa[:,1]))
         set_vector!(cepa_x, x_cepa)
         nonorth_add!(cts_ref,cepa_x)
-        #normalize!(cts_ref)
+        normalize!(cts_ref)
         e_cts = e_cepa
-        display(cts_ref, thresh=-1)
+        display(cts_ref)
     end
 
 
