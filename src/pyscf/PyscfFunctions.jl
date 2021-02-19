@@ -12,7 +12,7 @@ ENV["PYTHON"] = Sys.which("python")
 Use PySCF to compute Hartree-Fock for a given molecule and basis set
 and return a PYSCF mean field object
 """
-function pyscf_do_scf(molecule::Molecule, conv_tol=1e-10)
+function pyscf_do_scf(molecule::Molecule; conv_tol=1e-10, verbose=0)
     pyscf = pyimport("pyscf")
     pyscf.lib.num_threads(1)
     pymol = make_pyscf_mole(molecule)
@@ -20,7 +20,7 @@ function pyscf_do_scf(molecule::Molecule, conv_tol=1e-10)
     println(pymol.basis)
     #pymol.max_memory = 1000 # MB
     #pymol.symmetry = true
-    mf = pyscf.scf.RHF(pymol).run(conv_tol=conv_tol)
+    mf = pyscf.scf.RHF(pymol).run(conv_tol=conv_tol, verbose=verbose)
     enu = mf.energy_nuc()
     println("MO Energies")
     display(mf.mo_energy)
@@ -173,8 +173,17 @@ function pyscf_build_ints(mol::Molecule, c_act, d1_embed)
     pymol = FermiCG.make_pyscf_mole(mol)
 
 	h0 = pyscf.gto.mole.energy_nuc(pymol)
-	h = c_act' * pyscf.scf.hf.get_hcore(pymol) * c_act
-	j, k = pyscf.scf.hf.get_jk(pymol, d1_embed, hermi=1)
+	h  = pyscf.scf.hf.get_hcore(pymol)
+    j, k = pyscf.scf.hf.get_jk(pymol, d1_embed, hermi=1)
+	
+    # get core energy
+    #h0 = tr(d1_embed * ( h + .5*j - .5*k))
+    #mf = pyscf.scf.RHF(pymol)
+    #h0 = pyscf.scf.hf.energy_elec(mf, d1_embed)[1]
+    h0 += tr(d1_embed * ( h + .5*j - .25*k))
+
+    # now rotate to MO basis
+    h = c_act' * h * c_act
 	j = c_act' * j * c_act;
 	k = c_act' * k * c_act;
 	h2 = pyscf.ao2mo.kernel(pymol, c_act, aosym="s4",compact=false)
