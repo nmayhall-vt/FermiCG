@@ -49,7 +49,6 @@ for (li,line) in enumerate(split(rstrip(lstrip(molecule)), "\n"))
     push!(atoms, Atom(li, l[1], parse.(Float64,l[2:4])))
 end
 
-
 cas_nel = 18
 cas_norb = 18
 
@@ -62,10 +61,12 @@ nb = sum([i[2] for i in init_fspace])
 basis = "sto-3g"
 mol     = Molecule(0,1,atoms,basis)
 
+tot_na = (18*6 + 12) ÷ 2
+tot_nb = (18*6 + 12) ÷ 2
+tot_n_elec = tot_na + tot_nb
 
 #np = pyimport("numpy")
 #C = np.load("test/c18.orbs.npy")
-display(size(C))
 # get integrals
 mf = FermiCG.pyscf_do_scf(mol, verbose=2)
 C = mf.mo_coeff
@@ -99,10 +100,20 @@ ints = FermiCG.pyscf_build_ints(mol, C[:,act_space], 2.0*Cocc*Cocc');
 #h2e_cas = ao2mo.kernel(mol, Cact, aosym="s4",compact=false).reshape(4 * ((cas_norb), ))
 
 Cl = FermiCG.localize(Cact, "boys", mf)
+# 
+# use fiedler vector to reorder orbitals
+h,j,k = FermiCG.pyscf_get_jk(mol, C[:,1:tot_na] * C[:,1:tot_na]')
+Cl = FermiCG.fiedler_sort(Cl,k)
+
 FermiCG.pyscf_write_molden(mol, Cl, filename="boys.molden")
 FermiCG.pyscf_write_molden(mol, Cocc, filename="occ.molden")
 
-
+n_core = 18
+core_space = inactive_space[1:n_core]
+sig_space = inactive_space[n_core+1:end]
+Csig = FermiCG.localize(C[:,sig_space], "boys", mf)
+Csig = FermiCG.fiedler_sort(Csig,(h+j-.5*k))
+FermiCG.pyscf_write_molden(mol, Csig, filename="sig.molden")
 
 S = FermiCG.get_ovlp(mf)
 U =  Cact' * S * Cl
@@ -111,3 +122,7 @@ flush(stdout)
 ints = FermiCG.orbital_rotation(ints,U)
 println(" done.")
 flush(stdout)
+
+
+
+

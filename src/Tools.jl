@@ -25,11 +25,3 @@ function build_nchk_table(N)
 	return binom_coeff
 end
 
-
-"""
-replace this with table lookup
-"""
-function get_nchk(n,k)
-    return calc_nchk(n,k)
-end
-

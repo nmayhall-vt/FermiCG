@@ -151,6 +151,30 @@ end
 
 
 """
+	pyscf_get_jk(mol, density)
+
+Build exchange matrix in AO basis
+
+# Arguments
+- `mol`: PySCF Molecule object
+- `density`: 1rdm density matrix for 
+
+"""
+function pyscf_get_jk(mol::Molecule, density)
+	pyscf = pyimport("pyscf")
+    pyscf.lib.num_threads(1)
+
+    # 
+    # get pyscf molecule type
+    pymol = FermiCG.make_pyscf_mole(mol)
+
+	h0 = pyscf.gto.mole.energy_nuc(pymol)
+	h  = pyscf.scf.hf.get_hcore(pymol)
+    j, k = pyscf.scf.hf.get_jk(pymol, density, hermi=1)
+    return h, j, k
+end 
+
+"""
 	pyscf_build_ints(mol, c_act, d1_embed)
 
 build 1 and 2 electron integrals using a pyscf SCF object
@@ -317,3 +341,4 @@ Get overlap matrix from pyscf using mean-field object
 function get_ovlp(mf)
 		return mf.mol.intor("int1e_ovlp_sph")
 end
+
