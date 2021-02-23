@@ -72,11 +72,11 @@ function Base.display(t::ClusteredTerm2B)
     println(t.ops)
 end
 function Base.display(t::ClusteredTerm3B)
-    @printf( " 2B: %2i %2i %2i    :", t.clusters[1].idx, t.clusters[2].idx, t.clusters[3].idx)
+    @printf( " 3B: %2i %2i %2i    :", t.clusters[1].idx, t.clusters[2].idx, t.clusters[3].idx)
     println(t.ops)
 end
 function Base.display(t::ClusteredTerm4B)
-    @printf( " 2B: %2i %2i %2i %2i :", t.clusters[1].idx, t.clusters[2].idx, t.clusters[3].idx, t.clusters[4].idx)
+    @printf( " 4B: %2i %2i %2i %2i :", t.clusters[1].idx, t.clusters[2].idx, t.clusters[3].idx, t.clusters[4].idx)
     println(t.ops)
 end
 

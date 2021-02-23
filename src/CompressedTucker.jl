@@ -3022,8 +3022,8 @@ end
 function solve_for_compressed_space(ref_vec::CompressedTuckerState, cluster_ops, clustered_ham;
         max_iter    = 20,
         nbody       = 4,
-        thresh_foi  = 1e-6,
         thresh_var  = 1e-4,
+        thresh_foi  = 1e-6,
         tol_ci      = 1e-5,
         tol_tucker  = 1e-6)
       #={{{=#
@@ -3052,6 +3052,14 @@ function solve_for_compressed_space(ref_vec::CompressedTuckerState, cluster_ops,
         println(" Compute first order wavefunction. Reference space dim = ", length(ref_vec))
         @time pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
 
+        #
+        # Compute PT2 Energy
+        sig = deepcopy(pt1_vec)
+        zero!(sig)
+        build_sigma!(sig, ref_vec, cluster_ops, clustered_ham)
+        e_2 = nonorth_dot(pt1_vec, sig)
+        @printf(" E(PT2) corr =                  %12.8f\n", e_2)
+
         # 
         # Compress FOIS
         norm1 = orth_dot(pt1_vec, pt1_vec)
@@ -3062,14 +3070,6 @@ function solve_for_compressed_space(ref_vec::CompressedTuckerState, cluster_ops,
         @printf(" FOIS Compressed from:     %8i → %8i (thresh = %8.1e)\n", dim1, dim2, thresh_foi)
         @printf(" Norm of |1>:              %12.8f \n", norm2)
         @printf(" Overlap between <1|0>:    %8.1e\n", nonorth_dot(pt1_vec, ref_vec, verbose=0))
-
-        #
-        # Compute PT2 Energy
-        sig = deepcopy(pt1_vec)
-        zero!(sig)
-        build_sigma!(sig, ref_vec, cluster_ops, clustered_ham)
-        e_2 = nonorth_dot(pt1_vec, sig)
-        @printf(" E(PT2) corr =                  %12.8f\n", e_2)
 
         # 
         # Solve variationally in compressed FOIS 

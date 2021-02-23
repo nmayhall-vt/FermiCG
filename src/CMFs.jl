@@ -544,10 +544,10 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess;
     function callback(k)
         iter += 1
         if (g_curr < gconv) 
-            @printf("*ooCMF Iter: %4i Elec= %16.12f Total= %16.12f G= %12.2e\n", iter, e_curr, e_curr-ints.h0, g_curr)
+            @printf("*ooCMF Iter: %4i Total= %16.12f Active= %16.12f G= %12.2e\n", iter, e_curr, e_curr-ints.h0, g_curr)
             return true 
         else
-            @printf(" ooCMF Iter: %4i Elec= %16.12f Total= %16.12f G= %12.2e\n", iter, e_curr, e_curr-ints.h0, g_curr)
+            @printf(" ooCMF Iter: %4i Total= %16.12f Active= %16.12f G= %12.2e\n", iter, e_curr, e_curr-ints.h0, g_curr)
             return false 
         end
     end
