@@ -734,3 +734,40 @@ function tdm_ABa(cb::ClusterBasis, spin_case; verbose=0)
 end
 
 
+
+function add_cmf_operators!(ops::Vector{ClusterOps}, bases::Vector{ClusterBasis}, ints, Da, Db; verbose=1)
+    
+    n_clusters = length(bases)
+    for ci_idx in 1:n_clusters
+        cb = bases[ci_idx]
+        ci = cb.cluster
+        verbose == 0 || println()
+        verbose == 0 || display(ci)
+        norbs = length(cb.cluster)
+        
+        ints_i = form_casci_ints(ints, ci, Da, Db)
+
+
+        dicti = Dict{Tuple,Array}()
+        
+        #
+        # loop over fock-space transitions
+        verbose == 0 || display(cb.cluster)
+        for (fock,basis) in cb
+            focktrans = (fock,fock)
+            problem = StringCI.FCIProblem(norbs, fock[1], fock[2])
+            verbose == 0 || display(problem)
+            Hmap = StringCI.get_map(ints_i, problem)
+
+            dicti[focktrans] = cb[fock]' * Matrix((Hmap * cb[fock]))
+
+            if verbose > 0
+                for e in 1:size(cb[fock],2)
+                    @printf(" %4i %12.8f\n", e, dicti[focktrans][e,e])
+                end
+            end
+        end
+        ops[ci.idx]["Hcmf"] = dicti
+    end
+    return 
+end

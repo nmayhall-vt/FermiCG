@@ -467,6 +467,7 @@ function get_map(ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; s
             # this is how we do CEPA
             sig += shift * get_vector(ci_vector)
         end
+        flush(stdout)
 
         return sig
     end
@@ -2668,7 +2669,12 @@ Lots of overhead probably from compression, but never completely uncompresses.
 - `v1::CompressedTuckerState`
 
 """
-function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, cluster_ops, clustered_ham; thresh=1e-7, max_number=nothing, nbody=4, do_pt=true) where {T,N}
+function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, cluster_ops, clustered_ham; 
+        H0_string="H", 
+        thresh=1e-7, 
+        max_number=nothing, 
+        nbody=4, 
+        do_pt=false) where {T,N}
     println(" Compute the 1st order wavefunction for CompressedTuckerState. nbody = ", nbody)
 #={{{=#
     #
@@ -2682,32 +2688,31 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
     H0inv = Vector{Dict{NTuple{2,Int}, Matrix{T}} }()
     e0 = 0.0
 
-    use_cmf = false
-    if use_cmf
-        error("NYI")
-    else
-        #
-        # get <0|H0|0>
-        tmp = deepcopy(ket_cts)
-        zero!(tmp)
+    #
+    # get <0|H0|0>
+    tmp = deepcopy(ket_cts)
+    zero!(tmp)
 
-        build_sigma!(tmp, ket_cts, cluster_ops, clustered_ham; nbody=1)
-        e0 = orth_dot(tmp,ket_cts)
-        @printf(" Norm E0: %12.8f\n", orth_dot(ket_cts,ket_cts))
-        @printf(" E0: %12.8f\n", e0)
+    build_sigma!(tmp, ket_cts, cluster_ops, clustered_ham; nbody=1)
+    e0 = orth_dot(tmp,ket_cts)
+    @printf(" Norm |0>: %12.8f\n", orth_dot(ket_cts,ket_cts))
+    @printf(" <0|H0|0>: %12.8f\n", e0)
 
-        for ci in ket_cts.clusters
-            tmp = Dict{NTuple{2,Int}, Matrix{T}}()
-            tmp2 = Dict{NTuple{2,Int}, Matrix{T}}()
-            for (fock, mat) in cluster_ops[ci.idx]["H"]
-                fock[1] == fock[2] || error(" H shouldn't mix fock spaces?")
-                tmp[fock[1]] = e0 * Matrix(1.0* I, size(mat)...) - mat
-                tmp2[fock[1]] = pinv(tmp[fock[1]])
-            end
-            push!(H0, tmp)
-            push!(H0inv, tmp2)
+    for ci in ket_cts.clusters
+        #display(ci)
+        tmp = Dict{NTuple{2,Int}, Matrix{T}}()
+        tmp2 = Dict{NTuple{2,Int}, Matrix{T}}()
+        for (fock, mat) in cluster_ops[ci.idx][H0_string]
+        #display(fock)
+            fock[1] == fock[2] || error(" H shouldn't mix fock spaces?")
+            tmp[fock[1]] = e0/3.0 * Matrix(1.0* I, size(mat)...) - mat
+            #display(mat')
+            tmp2[fock[1]] = pinv(tmp[fock[1]])
         end
+        push!(H0, tmp)
+        push!(H0inv, tmp2)
     end
+
  
 #    for (ket_fock, ket_tconfigs) in ket_cts
 #        for (ket_tconfig, ket_tuck) in ket_tconfigs
@@ -2815,7 +2820,7 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
                         #    sig_tuck.core .= 0.0
                         #end
                        
-                        #sig_tuck = compress(sig_tuck, thresh=thresh)
+                        sig_tuck = compress(sig_tuck, thresh=thresh)
 
     
                         #sig_tuck = compress(sig_tuck, thresh=1e-16, max_number=max_number)
@@ -2858,7 +2863,8 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
             
             #sig_cts[fock][tconfig] = nonorth_add(tuck)
             if haskey(sig_cts, fock)
-                sig_cts[fock][tconfig] = nonorth_add(tuck)
+                sig_cts[fock][tconfig] = compress(nonorth_add(tuck), thresh=thresh)
+                #sig_cts[fock][tconfig] = nonorth_add(tuck)
             else
                 sig_cts[fock] = OrderedDict(tconfig => nonorth_add(tuck))
             end
@@ -2888,14 +2894,16 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
         # apply resolvent 
         for (fock,tconfigs) in sig_cts 
             for (tconfig, tuck) in tconfigs
-                resolvs = [H0inv[i][fock[i]][tconfig[i],tconfig[i]] for i in 1:N]
+                resolvs = [H0[i][fock[i]][tconfig[i],tconfig[i]] for i in 1:N]
+                #resolvs = [H0inv[i][fock[i]][tconfig[i],tconfig[i]] for i in 1:N]
                 new_core = zeros(size(tuck.core)...)
                 for i in 1:N
                     inds = []
                     push!(inds,[i,-i])
                     push!(inds,[-j for j in 1:N])
                     inds[2][i] = i
-                    r = tuck.factors[i]' * resolvs[i] * tuck.factors[i] 
+                    r = inv(tuck.factors[i]' * resolvs[i] * tuck.factors[i])
+                    #r = tuck.factors[i]' * resolvs[i] * tuck.factors[i] 
                     new_core .+= ncon([r, tuck.core], inds)
                 end
                 sig_cts[fock][tconfig].core .= new_core
@@ -2925,86 +2933,13 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
     return sig_cts
 #=}}}=#
 end
-#    
-#function iterate_pt2!(cts_ref, cluster_ops, clustered_ham; nbody=4, thresh=1e-7,  tol=1e-6, do_pt=true, ratio=100, method="ci")
-##={{{=#
-#    println(" --------------------------------------------------------------------")
-#    println(" Iterate PT-Var")
-#    println(" --------------------------------------------------------------------")
-#    println(" Compute first order wavefunction. Reference space dim = ", length(cts_ref))
-#    @time cts_pt1  = build_compressed_1st_order_state(cts_ref, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh, do_pt=do_pt)
-#    
-##    sig  = open_sigma(cts_ref, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh)
-##    sig0 = deepcopy(cts_ref)
-##    ref_sig = build_sigma!(sig0, cts_ref, cluster_ops, clustered_ham)
-##    e_ref = orth_dot(sig0, sig0)
-##    tmp = deepcopy(cts_ref)
-##    scale!(tmp, -e_ref)
-##    res = nonorth_add(sig, tmp)
-##    
-##    cts_pt1 = nonorth_add(res, cts_ref)
-##    compress!(cts_pt1, thresh=thresh)
-#
-#    
-#    norm1 = orth_dot(cts_pt1, cts_pt1)
-#    cts_pt1 = compress(cts_pt1, thresh=thresh)
-#    norm2 = orth_dot(cts_pt1, cts_pt1)
-#    @printf(" Norm of 1st order wavefunction: %8.1e → %8.1e\n", norm1, norm2)
-#    @printf(" Overlap between <1|0>:          %8.1e\n", nonorth_dot(cts_pt1, cts_ref, verbose=0))
-#    @printf(" Length of PT vector:            %8i\n", length(cts_pt1))
-#  
-#
-#    sig = deepcopy(cts_pt1)
-#    zero!(sig)
-#    build_sigma!(sig, cts_ref, cluster_ops, clustered_ham)
-#    e_2 = nonorth_dot(cts_pt1, sig)
-#    #@printf(" E(Ref)      = %12.8f = %12.8f\n", e_ref[1], e_ref[1] + e_core )
-#    #@printf(" E(PT2) tot  = %12.8f = %12.8f\n", e_ref[1]-e_2, e_ref[1]-e_2 + e_core )
-#    @printf(" E(PT2) corr =                  %12.8f\n", e_2)
-#
-#    if method == "ci"
-#        # CI
-#        nonorth_add!(cts_ref,cts_pt1)
-#        #cts_ref = compress(cts_ref, thresh=thresh)
-#        normalize!(cts_ref)
-#        println(" Now solve in compressed space: Dim = ", length(cts_ref))
-#        @time e_cts, v_cts = tucker_ci_solve!(cts_ref, cluster_ops, clustered_ham, tol=tol)
-#
-#    elseif method == "cepa"
-#        # CEPA
-#        cepa_x = deepcopy(cts_pt1)
-#        zero!(cepa_x)
-#        println(" Do CEPA: Dim = ", length(cepa_x))
-#        @time e_cepa, x_cepa = tucker_cepa_solve!(cts_ref, cepa_x, cluster_ops, clustered_ham, tol=tol)
-#
-#        @printf(" E(cepa) corr =                 %12.8f\n", e_cepa)
-#        @printf(" X(cepa) norm =                 %12.8f\n", sqrt(x_cepa[:,1]' * x_cepa[:,1]))
-#        set_vector!(cepa_x, x_cepa)
-#        nonorth_add!(cts_ref,cepa_x)
-#        normalize!(cts_ref)
-#        e_cts = e_cepa
-#        display(cts_ref)
-#    end
-#
-#
-#    dim1 = length(cts_ref)
-#    cts_ref = compress(cts_ref, thresh=thresh*ratio)
-#    normalize!(cts_ref)
-#    dim2 = length(cts_ref)
-#    @printf(" Dimension of reference state reduced from %5i to %5i. Thresh = %8.1e\n", dim1, dim2, thresh)
-#    @printf(" E(cCI):  Electronic %16.12f\n", e_cts[1])
-#    #print_fock_occupations(cts_ref)
-#    display(cts_ref)
-#    
-#    return e_cts, e_2, cts_ref
-#end#=}}}=#
-    
     
     
     
 """
     solve_for_compressed_space(ref_vector::CompressedTuckerState, cluster_ops, clustered_ham;
         max_iter    = 20,
+        H0          = "cmf",
         nbody       = 4,
         thresh_foi  = 1e-6,
         thresh_var  = 1e-4,
@@ -3022,26 +2957,40 @@ end
 function solve_for_compressed_space(ref_vec::CompressedTuckerState, cluster_ops, clustered_ham;
         max_iter    = 20,
         nbody       = 4,
+        H0          = "cmf",
         thresh_var  = 1e-4,
         thresh_foi  = 1e-6,
         tol_ci      = 1e-5,
+        do_pt       = false,
         tol_tucker  = 1e-6)
       #={{{=#
     e_last = 0.0
+    e_var  = 0.0
     for iter in 1:max_iter
         println(" --------------------------------------------------------------------")
         println(" Iterate PT-Var:       Iteration #: ",iter)
         println(" --------------------------------------------------------------------")
+
+        #
+        # Compress Variational Wavefunction
+        dim1 = length(ref_vec)
+        norm1 = orth_dot(ref_vec, ref_vec)
+        ref_vec = compress(ref_vec, thresh=thresh_var)
+        normalize!(ref_vec)
+        dim2 = length(ref_vec)
+        norm2 = orth_dot(ref_vec, ref_vec)
+        @printf(" Compressed Ref state from: %8i → %8i (thresh = %8.1e)\n", dim1, dim2, thresh_var)
+        @printf(" Norm of compressed state: %12.8f \n", norm2)
         
-#        # 
-#        # Solve variationally in reference space
-#        println()
-#        @printf(" Solve zeroth-order problem. Dimension = %10i\n", length(ref_vec))
-#        @time e0, v_ref = tucker_ci_solve!(ref_vec, cluster_ops, clustered_ham, tol=tol_ci)
-        sig = deepcopy(ref_vec)
-        zero!(sig)
-        build_sigma!(sig, ref_vec, cluster_ops, clustered_ham)
-        e0 = orth_dot(ref_vec, sig)
+        # 
+        # Solve variationally in reference space
+        println()
+        @printf(" Solve zeroth-order problem. Dimension = %10i\n", length(ref_vec))
+        @time e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, tol=tol_ci)
+#       sig = deepcopy(ref_vec)
+#       zero!(sig)
+#       build_sigma!(sig, ref_vec, cluster_ops, clustered_ham)
+#       e0 = orth_dot(ref_vec, sig)
         if iter == 1
             e_last = e0
         end
@@ -3050,15 +2999,22 @@ function solve_for_compressed_space(ref_vec::CompressedTuckerState, cluster_ops,
         # Get First order wavefunction
         println()
         println(" Compute first order wavefunction. Reference space dim = ", length(ref_vec))
-        @time pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+        hstr = "Hcmf"
+        if H0 == "H"
+            hstr = "H"
+        end
+        @time pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, 
+                                                          nbody=nbody, thresh=thresh_foi, H0_string=hstr)
 
-        #
-        # Compute PT2 Energy
-        sig = deepcopy(pt1_vec)
-        zero!(sig)
-        build_sigma!(sig, ref_vec, cluster_ops, clustered_ham)
-        e_2 = nonorth_dot(pt1_vec, sig)
-        @printf(" E(PT2) corr =                  %12.8f\n", e_2)
+        if do_pt
+            #
+            # Compute PT2 Energy
+            sig = deepcopy(ref_vec)
+            zero!(sig)
+            @time build_sigma!(sig, pt1_vec, cluster_ops, clustered_ham)
+            e_2 = nonorth_dot(ref_vec, sig)
+            @printf(" E(PT2) corr =                  %12.8f\n", e_2)
+        end
 
         # 
         # Compress FOIS
@@ -3081,21 +3037,21 @@ function solve_for_compressed_space(ref_vec::CompressedTuckerState, cluster_ops,
         @printf(" Solve in compressed FOIS. Dimension =   %10i\n", length(var_vec))
         @time e_var, var_vec = tucker_ci_solve(var_vec, cluster_ops, clustered_ham, tol=tol_ci)
 
-        #
-        # Compress Variational Wavefunction
-        dim1 = length(var_vec)
-        norm1 = orth_dot(var_vec, var_vec)
-        var_vec = compress(var_vec, thresh=thresh_var)
-        normalize!(var_vec)
-        dim2 = length(var_vec)
-        norm2 = orth_dot(var_vec, var_vec)
-        @printf(" Compressed CI state from: %8i → %8i (thresh = %8.1e)\n", dim1, dim2, thresh_var)
-        @printf(" Norm of compressed state: %12.8f \n", norm2)
+#        #
+#        # Compress Variational Wavefunction
+#        dim1 = length(var_vec)
+#        norm1 = orth_dot(var_vec, var_vec)
+#        var_vec = compress(var_vec, thresh=thresh_var)
+#        normalize!(var_vec)
+#        dim2 = length(var_vec)
+#        norm2 = orth_dot(var_vec, var_vec)
+#        @printf(" Compressed CI state from: %8i → %8i (thresh = %8.1e)\n", dim1, dim2, thresh_var)
+#        @printf(" Norm of compressed state: %12.8f \n", norm2)
 
         ref_vec = var_vec
 
         @printf(" E(Ref)      = %12.8f\n", e0[1])
-        @printf(" E(PT2) tot  = %12.8f\n", e0[1]+e_2)
+        do_pt == false || @printf(" E(PT2) tot  = %12.8f\n", e0[1]+e_2)
         @printf(" E(var) tot  = %12.8f\n", e_var[1])
 
         if abs(e_last[1] - e_var[1]) < tol_tucker 
