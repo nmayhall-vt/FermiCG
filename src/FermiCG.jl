@@ -34,6 +34,7 @@ include("StringCI/StringCI.jl");
 include("Solvers.jl");
 include("Hamiltonians.jl");
 include("Clusters.jl")
+include("FockSparseStates.jl")
 include("ClusteredStates.jl")
 include("ClusteredTerms.jl")
 include("Tucker.jl")
