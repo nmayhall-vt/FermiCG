@@ -546,6 +546,96 @@ end
 
 """
 """
+function contract_term(term::ClusteredTerm1B,
+                            cluster_ops::Vector{ClusterOps},
+                            fock_bra::FockConfig, bra::TuckerConfig,
+                            fock_ket::FockConfig, ket::TuckerConfig,
+                            bra_coeffs::Tucker{T,N}, ket_coeffs::Tucker{T,N};
+                            cache=false ) where {T,N}
+#={{{=#
+    #display(term)
+    c1 = term.clusters[1]
+
+    n_clusters = length(term.clusters)
+    op = Array{Float64}[]
+    cache_key = (fock_bra, fock_ket, bra, ket)
+    #cache_key = (fock_bra[c1.idx], fock_ket[c1.idx], bra[c1.idx], ket[c1.idx])
+    if cache && haskey(term.cache, cache_key)
+        op = term.cache[cache_key]
+    else
+        op1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
+
+        #
+        # Get 1body operator and compress it using the cluster's Tucker factors
+        op = bra_coeffs.factors[c1.idx]' * (op1[bra[c1.idx],ket[c1.idx]] * ket_coeffs.factors[c1.idx])
+        if cache
+            term.cache[cache_key] = op
+        end
+    end
+
+    #
+    # Use blas with transposes
+
+    #
+    # form overlaps - needed when TuckerConfigs aren't the same because each does their own compression and has
+    # distinct Tucker factors
+    overlaps = Dict{Int,Matrix{T}}()
+    s = 1.0 # this is the product of scalar overlaps that don't need tensor contractions
+    for ci in 1:n_clusters
+        ci != c1.idx || continue
+
+        S = bra_coeffs.factors[ci]' * ket_coeffs.factors[ci]
+
+        # if overlap not just scalar, form and prepare for contraction
+        # if it is a scalar, then just update the sign with the value
+        if length(S) == 1
+            s *= S[1]
+        else
+            overlaps[ci] = S
+        end
+    end
+
+
+    indices = collect(1:n_clusters)
+    indices[c1.idx] = 0
+    perm,_ = bubble_sort(indices)
+
+    bra_coeffs2 = copy(bra_coeffs.core)
+    ket_coeffs2 = copy(ket_coeffs.core)
+
+    #
+    # multiply by overlaps first if the bra side is smaller,
+    # otherwise multiply by Hamiltonian term first
+    if length(bra_coeffs2) < length(ket_coeffs2)
+        #ket_coeffs2 = transform_basis(ket_coeffs2, overlaps, trans=true)
+    end
+    ket_coeffs2 = transform_basis(ket_coeffs2, overlaps, trans=true)
+
+    #
+    # Transpose to get contig data for blas (explicit copy?)
+    ket_coeffs2 = permutedims(ket_coeffs2, perm)
+    bra_coeffs2 = permutedims(bra_coeffs2, perm)
+
+    #
+    # Reshape for matrix multiply, shouldn't do any copies, right?
+    dim1 = size(ket_coeffs2)
+    ket_coeffs2 = reshape(ket_coeffs2, dim1[1], prod(dim1[2:end]))
+    dim2 = size(bra_coeffs2)
+    bra_coeffs2 = reshape(bra_coeffs2, dim2[1], prod(dim2[2:end]))
+
+    #
+    # Reshape Hamiltonian term operator
+    # ... not needed for 1b term
+
+    #
+    # Multiply
+    
+    return s * dot(vec(bra_coeffs), vec(op * ket_coeffs2))
+#=}}}=#
+end
+
+"""
+"""
 function form_sigma_block!(term::ClusteredTerm1B,
                             cluster_ops::Vector{ClusterOps},
                             fock_bra::FockConfig, bra::TuckerConfig,
@@ -1662,7 +1752,7 @@ function open_sigma(ket_cts::CompressedTuckerState{T,N}, cluster_ops, clustered_
                         # Both the Compression and addition takes a fair amount of work.
 
 
-                        FermiCG.check_term(term, sig_fock, sig_tconfig, ket_fock, ket_tconfig) || continue
+                        check_term(term, sig_fock, sig_tconfig, ket_fock, ket_tconfig) || continue
 
                         sig_tuck = FermiCG.form_sigma_block_expand(term, cluster_ops,
                                                                     sig_fock, sig_tconfig,
@@ -2674,6 +2764,7 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
         thresh=1e-7, 
         max_number=nothing, 
         nbody=4, 
+        laplace_point = nothing, 
         do_pt=false) where {T,N}
     println(" Compute the 1st order wavefunction for CompressedTuckerState. nbody = ", nbody)
 #={{{=#
@@ -2688,6 +2779,7 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
     H0inv = Vector{Dict{NTuple{2,Int}, Matrix{T}} }()
     e0 = 0.0
 
+    expH0 = Vector{Dict{NTuple{2,Int}, Matrix{T}} }()
     #
     # get <0|H0|0>
     tmp = deepcopy(ket_cts)
@@ -2698,7 +2790,14 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
     @printf(" Norm |0>: %12.8f\n", orth_dot(ket_cts,ket_cts))
     @printf(" <0|H0|0>: %12.8f\n", e0)
 
+    zero_trans = TransferConfig([(0,0) for i in 1:length(ket_cts.clusters)])
     for ci in ket_cts.clusters
+        
+        hi = Dict{TransferConfig,Vector{ClusteredTerm}}()
+        hi[zero_trans] = [ClusteredTerm1B((H0_string,), ((0,0),), (ci,), zeros(1,1),Dict())]
+       
+        ei = expectation_value(ket_cts, cluster_ops, hi)
+        display(ei)
         #display(ci)
         tmp = Dict{NTuple{2,Int}, Matrix{T}}()
         tmp2 = Dict{NTuple{2,Int}, Matrix{T}}()
@@ -3121,4 +3220,38 @@ function do_fois_cepa(ref::CompressedTuckerState, cluster_ops, clustered_ham;
     nonorth_add!(x_cepa, ref_vec)
     normalize!(x_cepa)
     return e_cepa, x_cepa
+end
+
+
+function expectation_value(vec::CompressedTuckerState{T,N}, cluster_ops, clustered_ham) where {T,N}
+    eval = 0.0
+    for (fock_ket, tconfigs_ket) in vec
+        for (fock_trans, terms) in clustered_ham
+            fock_bra = fock_ket + fock_trans
+
+            if haskey(vec, fock_bra)
+
+                tconfigs_bra = vec[fock_bra]
+
+                for term in terms
+                    for (tconfig_bra, tuck_bra) in tconfigs_bra
+                        for (tconfig_ket, tuck_ket) in tconfigs_ket
+                        
+                            check_term(term, fock_bra, tconfig_bra, fock_ket, tconfig_ket) || continue
+    
+                            eval += contract_term(term, cluster_ops,
+                                                  fock_bra, tconfig_bra,
+                                                  fock_ket, tconfig_ket, 
+                                                  tuck_bra, tuck_ket)
+
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+
+    return eval
+
 end
