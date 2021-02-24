@@ -477,13 +477,15 @@ end
 
 function tucker_ci_solve(ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; tol=1e-5)
 #={{{=#
-    
+  
+    vec = deepcopy(ci_vector)
+    normalize!(vec)
     #flush term cache
     flush_cache(clustered_ham)
     
-    Hmap = get_map(ci_vector, cluster_ops, clustered_ham, cache=true)
+    Hmap = get_map(vec, cluster_ops, clustered_ham, cache=true)
 
-    v0 = get_vector(ci_vector)
+    v0 = get_vector(vec)
     nr = size(v0)[2]
    
 
@@ -493,14 +495,14 @@ function tucker_ci_solve(ci_vector::CompressedTuckerState, cluster_ops, clustere
     flush(stdout)
     #@time FermiCG.iteration(davidson, Adiag=Adiag, iprint=2)
     e,v = FermiCG.solve(davidson)
-    set_vector!(ci_vector,v)
+    set_vector!(vec,v)
     
     println(" Memory used by cache: ", mem_used_by_cache(clustered_ham))
 
     ##flush term cache
     #flush_cache(clustered_ham)
 
-    return e,ci_vector
+    return e,vec
 end
 #=}}}=#
 
@@ -2544,42 +2546,43 @@ In the compressed basis, our H0 is not diagonal,
 so we solve for the |1> iteratively
 
 (H0 - E0) |1> = - X * H1|0>
-              = - X * H|0> + Q*H0|0>
+              = - X * H|0> + X*H0|0>
               = - H|0> + |0><0|H|0> + H0|0> - |0><0|H0|0>
               = - H|0> + |0>E_ref + H0|0> - |0>E0
               = - H|0> +  H0|0> + |0>(E_ref - E0)
+              = b
 
 E0 = <0|H0|0>
 E_ref = <0|H|0>
 
 """
-function hylleraas_compressed_mp2!(ref::CompressedTuckerState, cluster_ops, clustered_ham; tol=1e-6, thresh=1e-4, nbody=4)
+function hylleraas_compressed_mp2(sig::CompressedTuckerState, ref::CompressedTuckerState,
+            cluster_ops, clustered_ham; tol=1e-6, nbody=4, max_iter=40, verbose=1, do_pt = true)
 #={{{=#
-    @time e_ref, v_ref = FermiCG.tucker_ci_solve(ref, cluster_ops, clustered_ham, tol=tol)
-    e_ref = e_ref[1]
-    @printf(" Reference Energy: %12.8f\n",e_ref)
+    
+#
+    # (H0 - E0) |1> = X H |0>
 
-    #
-    # get |sig> = H|0>
-    sig  = FermiCG.open_sigma(ref, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh)
+    e2 = 0.0
 
     #
     # get |sig0> = H0|0>
     #
     # todo: currently only working for 1body hamiltonian, replace with CMF hamiltonias
     #
-    sig0  = FermiCG.open_sigma(ref, cluster_ops, clustered_ham, nbody=1, thresh=thresh)
-    e0 = nonorth_dot(ref,sig0)
-    @printf(" E0              : %12.8f\n",e0)
-    scale!(sig, -1)
-
-    #
-    # now apply Q projection
-    tmp = deepcopy(ref)
-    FermiCG.scale!(tmp, (e_ref - e0))
-
-    nonorth_add!(sig, sig0)
-    nonorth_add!(sig, tmp)
+    sig0 = deepcopy(ref)
+    zero!(sig0)
+    FermiCG.build_sigma!(sig0, ref, cluster_ops, clustered_ham, nbody=1)
+    e0 = orth_dot(ref,sig0)
+    @printf(" <0|sig>  : %12.8f\n",nonorth_dot(ref,sig))
+    @printf(" <0|H0|0>  : %12.8f\n",e0)
+#
+#    tmp = deepcopy(sig)
+#    FermiCG.scale!(tmp, -e0)
+#
+#    nonorth_add!(sig, sig0)
+#    nonorth_add!(sig, tmp)
+    
     b = get_vector(sig)
 
     #
@@ -2589,18 +2592,18 @@ function hylleraas_compressed_mp2!(ref::CompressedTuckerState, cluster_ops, clus
     #
     #  solve with CG
 
-    function mymatvec(v)
+    function mymatvec(x)
 
         xr = deepcopy(sig)
         xl = deepcopy(sig)
-        set_vector!(xr,v)
-
+        set_vector!(xr,x)
+        zero!(xl)
         build_sigma!(xl, xr, cluster_ops, clustered_ham, nbody=1)
 
         # subtract off -E0|1>
         #
         scale!(xr,-e0)
-        nonorth_add!(xl,xr)
+        orth_add!(xl,xr)
 
         return get_vector(xl)
     end
@@ -2609,43 +2612,40 @@ function hylleraas_compressed_mp2!(ref::CompressedTuckerState, cluster_ops, clus
     Axx = LinearMap(mymatvec, dim, dim)
 
 
-    function mymatvec_debug(v)
-
-        xr = deepcopy(ref)
-        xl = deepcopy(ref)
-        set_vector!(xr,v)
-
-        build_sigma!(xl, xr, cluster_ops, clustered_ham, nbody=1)
-
-        # subtract off -E0|1>
-        #
-        scale!(xr,-e0)
-        nonorth_add!(xl,xr)
-
-        return get_vector(xl)
-    end
-    Bxx = LinearMap(mymatvec_debug, length(ref), length(ref))
-
-    display(get_vector(ref))
-    println(" this should be zero:")
-    display(dot(get_vector(ref) , Matrix(Bxx * get_vector(ref))))
-
     x_vector = zeros(dim)
-    x, solver = cg!(x_vector,Axx,b,log=true)
+    x, solver = cg!(x_vector, Axx, b)
+    #x, solver = cg!(x_vector, Axx, b, log=true, maxiter=max_iter, verbose=verbose, abstol=tol)
 
     psi1 = deepcopy(sig)
     set_vector!(psi1,x_vector)
+   
+    if do_pt
+        #
+        # Compute PT2 Energy 
+        tmp = deepcopy(ref)
+        zero!(tmp)
+        @time build_sigma!(tmp, ref, cluster_ops, clustered_ham)
+        e_ref = nonorth_dot(ref, tmp)
+        zero!(tmp)
 
-    tmp = deepcopy(psi1)
-    zero!(tmp)
-    build_sigma!(tmp, ref, cluster_ops, clustered_ham, nbody=4)
-    display(nonorth_dot(psi1, tmp))
+        @time build_sigma!(tmp, psi1, cluster_ops, clustered_ham)
+        
+        # 
+        # project out the overlap 
+        # E2 = <0|HX|1> = <0|H|1> - <0|H|0><0|1>
+        e_2 = nonorth_dot(ref, tmp) - e_ref * nonorth_dot(ref,psi1) 
+        e_2 = -e_2
+        @printf(" E(REF)       =                  %12.8f\n", e_ref)
+        @printf(" E(PT2) corr  =                  %12.8f\n", e_2)
+        @printf(" E(PT2) total =                  %12.8f\n", e_ref + e_2)
+        e2 = e_ref + e_2
+    end
+    @printf(" <0|sig>  : %12.8f\n",nonorth_dot(ref,psi1))
+        
 
 
-
-
-    #x, info = linsolve(Hmap,zeros(size(v0)))
-    return ecorr+e0, x
+    return psi1, e2
+     
 end#=}}}=#
 
 
@@ -2961,11 +2961,12 @@ function solve_for_compressed_space(ref_vec::CompressedTuckerState, cluster_ops,
         thresh_var  = 1e-4,
         thresh_foi  = 1e-6,
         tol_ci      = 1e-5,
-        do_pt       = false,
+        do_pt       = true,
         tol_tucker  = 1e-6)
       #={{{=#
     e_last = 0.0
     e_var  = 0.0
+    e_pt2  = 0.0
     for iter in 1:max_iter
         println(" --------------------------------------------------------------------")
         println(" Iterate PT-Var:       Iteration #: ",iter)
@@ -3008,12 +3009,10 @@ function solve_for_compressed_space(ref_vec::CompressedTuckerState, cluster_ops,
 
         if do_pt
             #
-            # Compute PT2 Energy
-            sig = deepcopy(ref_vec)
-            zero!(sig)
-            @time build_sigma!(sig, pt1_vec, cluster_ops, clustered_ham)
-            e_2 = nonorth_dot(ref_vec, sig)
-            @printf(" E(PT2) corr =                  %12.8f\n", e_2)
+            # 
+            println()
+            println(" Compute PT vector. Reference space dim = ", length(ref_vec))
+            pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol_ci, do_pt=do_pt)
         end
 
         # 
@@ -3051,7 +3050,7 @@ function solve_for_compressed_space(ref_vec::CompressedTuckerState, cluster_ops,
         ref_vec = var_vec
 
         @printf(" E(Ref)      = %12.8f\n", e0[1])
-        do_pt == false || @printf(" E(PT2) tot  = %12.8f\n", e0[1]+e_2)
+        do_pt == false || @printf(" E(PT2) tot  = %12.8f\n", e_pt2)
         @printf(" E(var) tot  = %12.8f\n", e_var[1])
 
         if abs(e_last[1] - e_var[1]) < tol_tucker 
@@ -3086,8 +3085,14 @@ function do_fois_cepa(ref::CompressedTuckerState, cluster_ops, clustered_ham;
     #
     # Get First order wavefunction
     println()
-    println(" Compute first order wavefunction. Reference space dim = ", length(ref_vec))
+    println(" Compute FOIS. Reference space dim = ", length(ref_vec))
     @time pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+
+#    #
+#    # 
+#    println()
+#    println(" Compute PT vector. Reference space dim = ", length(ref_vec))
+#    pt1_vec = hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol, do_pt=do_pt)
 
     # 
     # Compress FOIS
@@ -3122,3 +3127,5 @@ function do_fois_cepa(ref::CompressedTuckerState, cluster_ops, clustered_ham;
     normalize!(x_cepa)
     return e_cepa, x_cepa
 end
+
+
