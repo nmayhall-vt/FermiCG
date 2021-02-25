@@ -1,10 +1,12 @@
 using LinearAlgebra
+using StaticArrays
 
 abstract type SparseConfig{N} end
 """
 """
 struct FockConfig{N} <: SparseConfig{N} 
     config::NTuple{N,Tuple{UInt8,UInt8}}
+    #config::SVector{N,Tuple{UInt8,UInt8}}
 end
 """
 """
@@ -15,11 +17,12 @@ end
 """
 struct TransferConfig{N} <: SparseConfig{N}
     config::NTuple{N,Tuple{Int8,Int8}}
+    #config::SVector{N,Tuple{Int8,Int8}}
 end
 """
 """
-struct OperatorConfig{T,N} where T<:SparseConfig{N}
-    config::Tuple{FockConfig, FockConfig, T{N}, T{N}}
+struct OperatorConfig{N} 
+    config::Tuple{FockConfig, FockConfig, SparseConfig{N}, SparseConfig{N}}
 end
 """
     config::Vector{UnitRange{Int}}
@@ -47,9 +50,9 @@ Base.push!(tc::TuckerConfig, range) = push!(tc.config,range)
 
 
 function Base.:(+)(x::FockConfig, y::TransferConfig)
-    out = []
+    out = Vector{Tuple{UInt8,UInt8}}()
     for ci in 1:length(x)
-        push!(out, (x[ci][1] + y[ci][1], x[ci][2] + y[ci][2]))
+        push!(out, (convert(UInt8, x[ci][1] + y[ci][1]), convert(UInt8, (x[ci][2] + y[ci][2]))))
     end
     return FockConfig(out)
 end
@@ -70,21 +73,19 @@ Base.setindex!(s::SparseConfig, i, j) = s.config[j] = i
 Base.iterate(conf::SparseConfig, state=1) = iterate(conf.config, state)
 
 # Conversions
-Base.convert(::Type{TransferConfig}, input::Vector{Tuple{T,T}}) where T<:Integer = TransferConfig(input)
-Base.convert(::Type{TransferConfig}, input::Tuple{Tuple{T,T}}) where T<:Integer = TransferConfig(input)
-Base.convert(::Type{ClusterConfig}, input::Vector{T}) where T<:Integer = ClusterConfig(input)
-Base.convert(::Type{ClusterConfig}, input::Tuple{T}) where T<:Integer = ClusterConfig(input)
-Base.convert(::Type{FockConfig}, input::Vector{Tuple{T,T}}) where T<:Integer = FockConfig(input)
-Base.convert(::Type{FockConfig}, input::Tuple{Tuple{T,T}}) where T<:Integer = FockConfig(input)
-Base.convert(::Type{TuckerConfig}, input::Vector{UnitRange{T}}) where T<:Integer = TuckerConfig(input)
+Base.convert(::Type{TransferConfig}, input::Vector{Tuple{T,T}}) where T = TransferConfig(ntuple(i -> convert(Tuple{Int8, Int8}, input[i]), length(input)))
+Base.convert(::Type{TransferConfig}, input::Tuple{Tuple{T,T}}) where T  = TransferConfig(ntuple(i -> convert(Tuple{Int8, Int8}, input[i]), length(input)))
 
-TransferConfig(in::Vector{Tuple{T,T}}) where T<:Union{Int16,Int} = TransferConfig([(Int8(i[1]), Int8(i[2])) for i in in]) 
-TransferConfig(in::Tuple{Tuple{T,T}}) where T<:Union{Int16,Int} = TransferConfig([(Int8(i[1]), Int8(i[2])) for i in in]) 
-FockConfig(in::Vector{Tuple{T,T}}) where T<:Union{Int16,Int} = FockConfig([(UInt8(i[1]), UInt8(i[2])) for i in in]) 
-FockConfig(in::Tuple{Tuple{T,T}}) where T<:Union{Int16,Int} = FockConfig([(UInt8(i[1]), UInt8(i[2])) for i in in]) 
-ClusterConfig(in::Vector{T}) where T<:Union{Int16,Int} = ClusterConfig([UInt8(i) for i in in]) 
-ClusterConfig(in::Tuple{T}) where T<:Union{Int16,Int} = ClusterConfig([UInt8(i) for i in in]) 
-#ClusterConfig(in::Vector{Int}) = ClusterConfig([UInt8(i) for i in in]) 
+Base.convert(::Type{FockConfig}, input::Vector{Tuple{T,T}}) where T  = FockConfig(ntuple(i -> convert(Tuple{UInt8, UInt8}, input[i]), length(input)))
+Base.convert(::Type{FockConfig}, input::Tuple{Tuple{T,T}}) where T  = FockConfig(ntuple(i -> convert(Tuple{UInt8, UInt8}, input[i]), length(input)))
+
+Base.convert(::Type{ClusterConfig}, input::Vector{T}) where T = ClusterConfig(ntuple(i -> convert(UInt8, input[i]), length(input)))
+Base.convert(::Type{TuckerConfig}, input::Vector{T}) where T = TuckerConfig(ntuple(i -> input[i], length(input)))
+
+FockConfig(input::Vector{T}) where T = convert(FockConfig, input)
+TuckerConfig(input::Vector{T}) where T = convert(TuckerConfig, input)
+TransferConfig(input::Vector) = convert(TransferConfig, input)
+
 
 """
     Base.:-(a::FockConfig, b::FockConfig)

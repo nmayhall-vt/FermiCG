@@ -107,6 +107,7 @@ end
 """
 function compress(ts::CompressedTuckerState{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
     d = OrderedDict{FockConfig, OrderedDict{TuckerConfig, Tucker{T,N}}}() 
+    #d = OrderedDict{FockConfig{N}, OrderedDict{TuckerConfig{N}, Tucker{T,N}}}() 
     for (fock, tconfigs) in ts.data
         for (tconfig, coeffs) in tconfigs
             tmp = compress(ts.data[fock][tconfig], thresh=thresh, max_number=max_number)
@@ -2688,30 +2689,30 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
     H0inv = Vector{Dict{NTuple{2,Int}, Matrix{T}} }()
     e0 = 0.0
 
-    #
-    # get <0|H0|0>
-    tmp = deepcopy(ket_cts)
-    zero!(tmp)
-
-    build_sigma!(tmp, ket_cts, cluster_ops, clustered_ham; nbody=1)
-    e0 = orth_dot(tmp,ket_cts)
-    @printf(" Norm |0>: %12.8f\n", orth_dot(ket_cts,ket_cts))
-    @printf(" <0|H0|0>: %12.8f\n", e0)
-
-    for ci in ket_cts.clusters
-        #display(ci)
-        tmp = Dict{NTuple{2,Int}, Matrix{T}}()
-        tmp2 = Dict{NTuple{2,Int}, Matrix{T}}()
-        for (fock, mat) in cluster_ops[ci.idx][H0_string]
-        #display(fock)
-            fock[1] == fock[2] || error(" H shouldn't mix fock spaces?")
-            tmp[fock[1]] = e0/3.0 * Matrix(1.0* I, size(mat)...) - mat
-            #display(mat')
-            tmp2[fock[1]] = pinv(tmp[fock[1]])
-        end
-        push!(H0, tmp)
-        push!(H0inv, tmp2)
-    end
+#    #
+#    # get <0|H0|0>
+#    tmp = deepcopy(ket_cts)
+#    zero!(tmp)
+#
+#    build_sigma!(tmp, ket_cts, cluster_ops, clustered_ham; nbody=1)
+#    e0 = orth_dot(tmp,ket_cts)
+#    @printf(" Norm |0>: %12.8f\n", orth_dot(ket_cts,ket_cts))
+#    @printf(" <0|H0|0>: %12.8f\n", e0)
+#
+#    for ci in ket_cts.clusters
+#        #display(ci)
+#        tmp = Dict{NTuple{2,Int}, Matrix{T}}()
+#        tmp2 = Dict{NTuple{2,Int}, Matrix{T}}()
+#        for (fock, mat) in cluster_ops[ci.idx][H0_string]
+#        #display(fock)
+#            fock[1] == fock[2] || error(" H shouldn't mix fock spaces?")
+#            tmp[fock[1]] = e0/3.0 * Matrix(1.0* I, size(mat)...) - mat
+#            #display(mat')
+#            tmp2[fock[1]] = pinv(tmp[fock[1]])
+#        end
+#        push!(H0, tmp)
+#        push!(H0inv, tmp2)
+#    end
 
  
 #    for (ket_fock, ket_tconfigs) in ket_cts
@@ -2783,11 +2784,12 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
                     # Now loop over cartesian product of available subspaces (those in X above) and
                     # create the target TuckerConfig and then evaluate the associated terms
                     for prod in product(available...)
-                        sig_tconfig = deepcopy(ket_tconfig)
+                        sig_tconfig = [ket_tconfig...]
                         for cidx in 1:length(term.clusters)
                             ci = term.clusters[cidx]
                             sig_tconfig[ci.idx] = prod[cidx]
                         end
+                        sig_tconfig = convert(TuckerConfig, sig_tconfig)
 
                         #
                         # the `term` has now coupled our ket TuckerConfig, to a sig TuckerConfig

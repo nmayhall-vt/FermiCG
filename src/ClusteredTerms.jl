@@ -243,9 +243,10 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
 
                         clusteredterm = ClusteredTerm2B((oper1,oper2), [Tuple(fock1),Tuple(fock2)], (ci, cj), h, Dict())
                         #display(clusteredterm)
-                        focktrans = deepcopy(zero_fock)
+                        focktrans = [zero_fock...]
                         focktrans[ci.idx] = Tuple(fock1)
                         focktrans[cj.idx] = Tuple(fock2)
+                        focktrans = convert(TransferConfig, focktrans)
                         if haskey(terms,focktrans)
                             push!(terms[focktrans], clusteredterm)
                         else
@@ -394,9 +395,10 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
 
                         clusteredterm = ClusteredTerm2B((oper1,oper2), [Tuple(fock1),Tuple(fock2)], (ci, cj), vcurr, Dict())
                         #display(clusteredterm)
-                        focktrans = deepcopy(zero_fock)
+                        focktrans = [zero_fock...]
                         focktrans[ci.idx] = Tuple(fock1)
                         focktrans[cj.idx] = Tuple(fock2)
+                        focktrans = convert(TransferConfig, focktrans)
                         if haskey(terms,focktrans)
                             push!(terms[focktrans], clusteredterm)
                         else
@@ -544,10 +546,11 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
 
                             clusteredterm = ClusteredTerm3B((oper1,oper2,oper3), [Tuple(fock1),Tuple(fock2),Tuple(fock3)], (ci, cj, ck), vcurr, Dict())
                             #display(clusteredterm)
-                            focktrans = deepcopy(zero_fock)
+                            focktrans = [zero_fock...]
                             focktrans[ci.idx] = Tuple(fock1)
                             focktrans[cj.idx] = Tuple(fock2)
                             focktrans[ck.idx] = Tuple(fock3)
+                            focktrans = convert(TransferConfig, focktrans)
                             if haskey(terms,focktrans)
                                 push!(terms[focktrans], clusteredterm)
                             else
