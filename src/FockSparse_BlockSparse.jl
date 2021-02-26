@@ -5,83 +5,6 @@ using BenchmarkTools
 using IterativeSolvers
 
 
-"""
-Defines a single cluster's subspace for Tucker. Each focksector is allowed to have a distinct cluster state range 
-for the subspace.
-
-    cluster::Cluster
-    data::OrderedDict{Tuple{UInt8,UInt8}, UnitRange{Int}}
-"""
-struct ClusterSubspace
-    cluster::Cluster
-    data::OrderedDict{Tuple{UInt8,UInt8}, UnitRange{Int}}
-end
-function ClusterSubspace(cluster::Cluster)
-    return ClusterSubspace(cluster,OrderedDict{Tuple{UInt8,UInt8}, UnitRange{Int}}())
-end
-Base.haskey(css::ClusterSubspace, i) = return haskey(css.data,i)
-Base.setindex!(tss::ClusterSubspace, i, j) = tss.data[j] = i
-Base.getindex(tss::ClusterSubspace, i) = return tss.data[i] 
-function Base.display(tss::ClusterSubspace)
-    @printf(" Subspace for Cluster: %4i : ", tss.cluster.idx)
-    display(tss.cluster)
-    for (fock,range) in tss.data
-        @printf("  %10s   Range: %4i → %-4i Dim %4i\n",Int.(fock), first(range), last(range), length(range))
-    end
-end
-
-"""
-    get_ortho_compliment(tss::ClusterSubspace, cb::ClusterBasis)
-
-For a given `ClusterSubspace`, `tss`, return the subspace remaining
-"""
-function get_ortho_compliment(tss::ClusterSubspace, cb::ClusterBasis)
-#={{{=#
-    data = OrderedDict{Tuple{UInt8,UInt8}, UnitRange{Int}}()
-    for (fock,basis) in cb
-    
-        if haskey(tss.data,fock)
-            first(tss.data[fock]) == 1 || error(" p-space doesn't include ground state?")
-            newrange = last(tss[fock])+1:size(cb[fock],2)
-            if length(newrange) > 0
-                data[fock] = newrange
-            end
-        else
-            newrange = 1:size(cb[fock],2)
-            if length(newrange) > 0
-                data[fock] = newrange
-            end
-        end
-    end
-
-    return ClusterSubspace(tss.cluster, data)
-#=}}}=#
-end
-
-
-
-"""
-Check if `tc1` is a subset of `tc2`
-"""
-function is_subset(tc1::TuckerConfig, tc2::TuckerConfig)
-    length(tc1.config) == length(tc2.config) || return false
-    for i in 1:length(tc1)
-        if first(tc1[i]) < first(tc2[i]) || last(tc1[i]) > last(tc2[i])
-            return false
-        end
-    end
-    return true
-end
-
-# Conversions
-Base.convert(::Type{TuckerConfig}, input::Vector{UnitRange{T}}) where T<:Integer = TuckerConfig(input)
-
-"""
-    dim(tc::TuckerConfig)
-
-Return total dimension of space indexed by `tc`
-"""
-dim(tc::TuckerConfig) = prod(size(tc)) 
 
 
 """
@@ -95,9 +18,9 @@ E.g., used in n-body Tucker
     p_spaces::Vector{ClusterSubspace}
     q_spaces::Vector{ClusterSubspace}
 """
-struct TuckerState <: AbstractState 
+struct TuckerState{T,N} <: AbstractState 
     clusters::Vector{Cluster}
-    data::OrderedDict{FockConfig,OrderedDict{TuckerConfig,Array}}
+    data::OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Array{T}}}
     p_spaces::Vector{ClusterSubspace}
     q_spaces::Vector{ClusterSubspace}
 end
@@ -105,6 +28,19 @@ Base.haskey(ts::TuckerState, i) = return haskey(ts.data,i)
 Base.getindex(ts::TuckerState, i) = return ts.data[i]
 Base.setindex!(ts::TuckerState, i, j) = return ts.data[j] = i
 Base.iterate(ts::TuckerState, state=1) = iterate(ts.data, state)
+
+
+
+# Conversions
+#Base.convert(::Type{TuckerConfig}, input::Vector{UnitRange{T}}) where T<:Integer = TuckerConfig(input)
+
+"""
+    dim(tc::TuckerConfig)
+
+Return total dimension of space indexed by `tc`
+"""
+dim(tc::TuckerConfig) = prod(size(tc)) 
+
 
 
 """
@@ -129,8 +65,9 @@ function TuckerState(clusters::Vector{Cluster}, p_spaces::Vector{ClusterSubspace
         end
     end
 
+    N = length(clusters)
     #s = TuckerState(clusters)
-    data = OrderedDict{FockConfig,OrderedDict{TuckerConfig,Array}}()
+    data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Array{Float64}}}()
     ns = []
     for cssi in p_spaces 
         nsi = []

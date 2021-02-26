@@ -37,9 +37,12 @@ include("Clusters.jl")
 include("Indexing.jl")
 include("States.jl")
 
+include("FockSparse_ElementSparse.jl")
+include("FockSparse_BlockSparse.jl")
+include("FockSparse_BlockSparseTucker.jl")
+
 include("ClusteredStates.jl")
 include("ClusteredTerms.jl")
-include("Tucker.jl")
 include("Tucker_functions.jl")
 include("CompressedTucker.jl")
 include("CMFs.jl")
