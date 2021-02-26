@@ -2682,46 +2682,6 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
     sig_cts = CompressedTuckerState(ket_cts.clusters, OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker{T,N}} }(),  ket_cts.p_spaces, ket_cts.q_spaces)
 
     data = OrderedDict{FockConfig, OrderedDict{TuckerConfig, Vector{Tucker{T,N}} } }()
-    #
-    # Build zeroth-order hamiltonian
-    H0 = Vector{Dict{NTuple{2,Int}, Matrix{T}} }()
-    H0inv = Vector{Dict{NTuple{2,Int}, Matrix{T}} }()
-    e0 = 0.0
-
-    #
-    # get <0|H0|0>
-    tmp = deepcopy(ket_cts)
-    zero!(tmp)
-
-    build_sigma!(tmp, ket_cts, cluster_ops, clustered_ham; nbody=1)
-    e0 = orth_dot(tmp,ket_cts)
-    @printf(" Norm |0>: %12.8f\n", orth_dot(ket_cts,ket_cts))
-    @printf(" <0|H0|0>: %12.8f\n", e0)
-
-    for ci in ket_cts.clusters
-        #display(ci)
-        tmp = Dict{NTuple{2,Int}, Matrix{T}}()
-        tmp2 = Dict{NTuple{2,Int}, Matrix{T}}()
-        for (fock, mat) in cluster_ops[ci.idx][H0_string]
-        #display(fock)
-            fock[1] == fock[2] || error(" H shouldn't mix fock spaces?")
-            tmp[fock[1]] = e0/3.0 * Matrix(1.0* I, size(mat)...) - mat
-            #display(mat')
-            tmp2[fock[1]] = pinv(tmp[fock[1]])
-        end
-        push!(H0, tmp)
-        push!(H0inv, tmp2)
-    end
-
- 
-#    for (ket_fock, ket_tconfigs) in ket_cts
-#        for (ket_tconfig, ket_tuck) in ket_tconfigs
-#            for i in 1:N
-#                h = H0[i][ket_fock[i]][ket_tconfig[i],ket_tconfig[i]]
-#                h = H0[i][ket_fock[i]]
-#            end
-#        end
-#    end
 
     for (ket_fock, ket_tconfigs) in ket_cts
         for (fock_trans, terms) in clustered_ham
@@ -2783,11 +2743,12 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
                     # Now loop over cartesian product of available subspaces (those in X above) and
                     # create the target TuckerConfig and then evaluate the associated terms
                     for prod in product(available...)
-                        sig_tconfig = deepcopy(ket_tconfig)
+                        sig_tconfig = [ket_tconfig...]
                         for cidx in 1:length(term.clusters)
                             ci = term.clusters[cidx]
                             sig_tconfig[ci.idx] = prod[cidx]
                         end
+                        sig_tconfig = TuckerConfig(sig_tconfig)
 
                         #
                         # the `term` has now coupled our ket TuckerConfig, to a sig TuckerConfig
@@ -2804,21 +2765,6 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
                                                                 sig_fock, sig_tconfig,
                                                                 ket_fock, ket_tconfig, ket_tuck,
                                                                 thresh=thresh, max_number=max_number)
-#                        if sig_fock == ket_fock
-#                            println(" wtf")
-#                            display(sig_tconfig)
-#                            display(ket_tconfig)
-#                            display(size(sig_tuck))
-#                            display(dims_large(sig_tuck))
-#                            display(dims_small(sig_tuck))
-#                            println()
-#                        end
-
-
-
-                        #if length(term.clusters) == 1
-                        #    sig_tuck.core .= 0.0
-                        #end
                        
                         sig_tuck = compress(sig_tuck, thresh=thresh)
 
@@ -2889,45 +2835,6 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
     end
    
    
-    if do_pt
-        # 
-        # apply resolvent 
-        for (fock,tconfigs) in sig_cts 
-            for (tconfig, tuck) in tconfigs
-                resolvs = [H0[i][fock[i]][tconfig[i],tconfig[i]] for i in 1:N]
-                #resolvs = [H0inv[i][fock[i]][tconfig[i],tconfig[i]] for i in 1:N]
-                new_core = zeros(size(tuck.core)...)
-                for i in 1:N
-                    inds = []
-                    push!(inds,[i,-i])
-                    push!(inds,[-j for j in 1:N])
-                    inds[2][i] = i
-                    r = inv(tuck.factors[i]' * resolvs[i] * tuck.factors[i])
-                    #r = tuck.factors[i]' * resolvs[i] * tuck.factors[i] 
-                    new_core .+= ncon([r, tuck.core], inds)
-                end
-                sig_cts[fock][tconfig].core .= new_core
-                #sig_cts[fock][tconfig] = compress(sig_cts[fock][tconfig], thresh=thresh) 
-            end
-        end
-
-        # 
-        # project out A space
-        for (fock,tconfigs) in sig_cts 
-            for (tconfig, tuck) in tconfigs
-                if haskey(ket_cts, fock)
-                    if haskey(ket_cts[fock], tconfig)
-                        ket_tuck_A = ket_cts[fock][tconfig]
-
-                        ovlp = nonorth_dot(tuck, ket_tuck_A) / nonorth_dot(ket_tuck_A, ket_tuck_A)
-                        tmp = scale(ket_tuck_A, -1.0 * ovlp)
-                        sig_cts[fock][tconfig] = nonorth_add(tuck, tmp, thresh=1e-16)
-                    end
-                end
-            end
-        end
-
-    end
     # now combine Tuckers, project out reference space and multiply by resolvents
     #prune_empty_TuckerConfigs!(sig_cts)
     return sig_cts

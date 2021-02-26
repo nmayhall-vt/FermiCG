@@ -151,11 +151,12 @@ function TuckerState(clusters::Vector{Cluster}, p_spaces::Vector{ClusterSubspace
 
             fockconfig = FockConfig(collect(newfock))
 
-            tuckconfig = TuckerConfig()
-            for ci in clusters
-                cssi = p_spaces[ci.idx]
-                push!(tuckconfig, cssi.data[newfock[ci.idx]])
-            end
+            tuckconfig = TuckerConfig((p_spaces[ci.idx].data[newfock[ci.idx]] for ci in clusters))
+#            tuckconfig = TuckerConfig()
+#            for ci in clusters
+#                cssi = p_spaces[ci.idx]
+#                push!(tuckconfig, cssi.data[newfock[ci.idx]])
+#            end
 
             haskey(data, fockconfig) == false || error(" here:", fockconfig)
             data[fockconfig] = OrderedDict(tuckconfig => zeros((size(tuckconfig)...,nroots)))

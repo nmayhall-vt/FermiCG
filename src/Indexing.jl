@@ -2,18 +2,20 @@ using LinearAlgebra
 using StaticArrays
 
 
-Base.convert(::Type{Tuple{T,T}}, in::Tuple{T2,T2}) where {T,T2} = ( convert(T, in[1]), convert(T, in[2]) )
-
-Base.convert(::Type{NTuple{N, Tuple{T,T}}}, in::Vector{Tuple{T2,T2}}) where {T,N,T2} = ntuple(i -> convert(Tuple{T,T}, in[i]), length(in))
-#Base.convert(::Type{NTuple{N, Tuple{T,T}}}, in::Vector{Tuple{T,T}}) where {T,N}      = ntuple(i -> in[i], length(in))
+#Base.convert(::Type{Tuple{T,T}}, in::Tuple{T2,T2}) where {T,T2} = ( convert(T, in[1]), convert(T, in[2]) )
 
 """
 """
-const ClusterConfig{N}    = NTuple{N,UInt16}  
-const FockConfig{N}       = NTuple{N,Tuple{UInt16,UInt16}} 
-const TransferConfig{N}   = NTuple{N,Tuple{Int16,Int16}}
-const TuckerConfig{N}     = NTuple{N,UnitRange{UInt16}}
+const ClusterConfig{N}    = NTuple{N,Int16}  
+const FockConfig{N}       = NTuple{N,Tuple{Int16,Int16}} 
+const TransferConfig{N}   = Tuple{Vararg{Tuple{Int16,Int16}, N}}
+const TuckerConfig{N}     = NTuple{N,UnitRange{Int}}
 const OperatorConfig{N,T} = Tuple{FockConfig{N}, FockConfig{N}, T, T}
+
+function Base.convert(::Type{TransferConfig}, in::Vector{Tuple{T,T}}) where {T,N} 
+    return ntuple(i -> convert(Tuple{T,T}, in[i]), length(in))
+end
+
 
 #Base.isequal(x::FockConfig, y::FockConfig) = all([all(isequal.(x[i],y[i])) for i in 1:length(x.config)])
 #Base.isequal(x::TransferConfig, y::TransferConfig) = all([all(isequal.(x[i],y[i])) for i in 1:length(x.config)])
@@ -26,49 +28,21 @@ const OperatorConfig{N,T} = Tuple{FockConfig{N}, FockConfig{N}, T, T}
 ##Base.:(==)(x::ClusterConfig, y::ClusterConfig) = all(x.config .== y.config)
 #Base.:(==)(x::TuckerConfig, y::TuckerConfig) = all(x.config .== y.config)
 #
-#Base.size(tc::TuckerConfig) = Tuple(length.(tc.config))
+Base.size(tc::TuckerConfig) = Tuple(length.(tc))
 #Base.push!(tc::TuckerConfig, range) = push!(tc.config,range)
 
 
 function Base.:(+)(x::FockConfig{N}, y::TransferConfig{N}) where N
-#    out = Vector{Tuple{UInt8,UInt8}}()
-#    for ci in 1:length(x)
-#        push!(out, (convert(UInt8, x[ci][1] + y[ci][1]), convert(UInt8, (x[ci][2] + y[ci][2]))))
-#    end
-    return FockConfig{N}(((x[ci][1] + y[ci][1]), (x[ci][2] + y[ci][2]) for i in 1:N))
+    return FockConfig{N}( ( (x[i][1] + y[i][1], x[i][2] + y[i][2]) for i in 1:N) )
 end
-
-        
-##
-##   Iteration through Configs
-##Base.eltype(iter::FockConfig) = Tuple{UInt8,UInt8} 
-##Base.eltype(iter::ClusterConfig) = UInt8 
-##Base.eltype(iter::TransferConfig) = Tuple{Int8,Int8}
-#Base.iterate(conf::SparseConfig, state=1) = iterate(conf.config, state)
-#
-## Conversions
-#Base.convert(::Type{TransferConfig}, input::Vector{Tuple{T,T}}) where T = TransferConfig(ntuple(i -> convert(Tuple{Int8, Int8}, input[i]), length(input)))
-#Base.convert(::Type{TransferConfig}, input::Tuple{Tuple{T,T}}) where T  = TransferConfig(ntuple(i -> convert(Tuple{Int8, Int8}, input[i]), length(input)))
-#
-#Base.convert(::Type{FockConfig}, input::Vector{Tuple{T,T}}) where T  = FockConfig(ntuple(i -> convert(Tuple{UInt8, UInt8}, input[i]), length(input)))
-#Base.convert(::Type{FockConfig}, input::Tuple{Tuple{T,T}}) where T  = FockConfig(ntuple(i -> convert(Tuple{UInt8, UInt8}, input[i]), length(input)))
-#
-#Base.convert(::Type{ClusterConfig}, input::Vector{T}) where T = ClusterConfig(ntuple(i -> convert(UInt8, input[i]), length(input)))
-#Base.convert(::Type{TuckerConfig}, input::Vector{T}) where T = TuckerConfig(ntuple(i -> input[i], length(input)))
-#
-#FockConfig(input::Vector{T}) where T = convert(FockConfig, input)
-#TuckerConfig(input::Vector{T}) where T = convert(TuckerConfig, input)
-#TransferConfig(input::Vector) = convert(TransferConfig, input)
-#ClusterConfig(input::Vector{T}) where T = convert(ClusterConfig, input)
-
 
 """
     Base.:-(a::FockConfig, b::FockConfig)
 
 Subtract two `FockConfig`'s, returning a `TransferConfig`
 """
-function Base.:-(a::FockConfig, b::FockConfig)
-    return TransferConfig([(a[i][1]-b[i][1], a[i][2]-b[i][2]) for i in 1:length(a)])
+function Base.:-(a::FockConfig{N}, b::FockConfig{N}) where N
+    return TransferConfig(( (a[i][1]-b[i][1], a[i][2]-b[i][2]) for i in 1:N))
 end
 """
     dim(fc::FockConfig, no)
