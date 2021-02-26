@@ -7,7 +7,7 @@ using HDF5
 using Random
 using PyCall
 
-#@testset "CompressedTuckerState" begin
+@testset "CompressedTuckerState" begin
     atoms = []
 
     r = 1
@@ -114,14 +114,14 @@ using PyCall
 
     #e_var, v_var = FermiCG.solve_for_compressed_space(ref_vec, cluster_ops, clustered_ham, nbody=4, thresh_var=1e-4, thresh_foi=1e-6, tol_ci=1e-5, tol_tucker=1e-5)
     #@test isapprox(e_var[1], -19.804923102794756, atol=1e-10)
-    e_var, v_var = FermiCG.solve_for_compressed_space(ref_vec, cluster_ops, clustered_ham, nbody=4, thresh_var=1e-4, thresh_foi=1e-5, tol_ci=1e-5, tol_tucker=1e-5, do_pt=true)
-    @test isapprox(e_var[1], -19.802760906086426, atol=1e-10)
+    e_var, v_var = FermiCG.solve_for_compressed_space(ref_vec, cluster_ops, clustered_ham, nbody=4, thresh_var=1e-4, thresh_foi=1e-5, tol_ci=1e-10, tol_tucker=1e-5, do_pt=true)
+    @test isapprox(e_var[1], -19.802760904137205, atol=1e-9)
 
      e_cepa, v_cepa = FermiCG.do_fois_cepa(v_var, cluster_ops, clustered_ham)
-     @test isapprox(e_cepa[1], -19.80667040867044, atol=1e-10)
+     @test isapprox(e_cepa[1], -19.80667040867044, atol=1e-9)
 
      e_ci, v_ci = FermiCG.tucker_ci_solve(v_cepa, cluster_ops, clustered_ham)
-     @test isapprox(e_ci[1], -19.80662469931452, atol=1e-10)
+     @test isapprox(e_ci[1], -19.80662469931452, atol=1e-9)
 
-#end
+end
 

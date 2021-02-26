@@ -35,6 +35,8 @@ include("Solvers.jl");
 include("Hamiltonians.jl");
 include("Clusters.jl")
 include("Indexing.jl")
+include("States.jl")
+
 include("ClusteredStates.jl")
 include("ClusteredTerms.jl")
 include("Tucker.jl")
