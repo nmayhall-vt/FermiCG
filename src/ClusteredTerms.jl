@@ -767,8 +767,8 @@ end
 
 
 function check_term(term::ClusteredTerm1B, 
-                            fock_bra::FockConfig, bra::SparseConfig, 
-                            fock_ket::FockConfig, ket::SparseConfig)
+                            fock_bra::FockConfig, bra::T, 
+                            fock_ket::FockConfig, ket::T) where T<:Union{ClusterConfig, TuckerConfig}
     length(fock_bra) == length(fock_ket) || throw(Exception)
     length(bra) == length(ket) || throw(Exception)
     n_clusters = length(bra)
@@ -784,8 +784,8 @@ function check_term(term::ClusteredTerm1B,
 end
 
 function check_term(term::ClusteredTerm2B, 
-                            fock_bra::FockConfig, bra::SparseConfig, 
-                            fock_ket::FockConfig, ket::SparseConfig)
+                            fock_bra::FockConfig, bra::T, 
+                            fock_ket::FockConfig, ket::T) where T<:Union{ClusterConfig, TuckerConfig}
     length(fock_bra) == length(fock_ket) || throw(Exception)
     length(bra) == length(ket) || throw(Exception)
     n_clusters = length(bra)
@@ -802,8 +802,8 @@ function check_term(term::ClusteredTerm2B,
 end
 
 function check_term(term::ClusteredTerm3B, 
-                            fock_bra::FockConfig, bra::SparseConfig, 
-                            fock_ket::FockConfig, ket::SparseConfig)
+                            fock_bra::FockConfig, bra::T, 
+                            fock_ket::FockConfig, ket::T) where T<:Union{ClusterConfig, TuckerConfig}
     length(fock_bra) == length(fock_ket) || throw(Exception)
     length(bra) == length(ket) || throw(Exception)
     n_clusters = length(bra)
@@ -821,8 +821,8 @@ function check_term(term::ClusteredTerm3B,
 end
 
 function check_term(term::ClusteredTerm4B, 
-                            fock_bra::FockConfig, bra::SparseConfig, 
-                            fock_ket::FockConfig, ket::SparseConfig)
+                            fock_bra::FockConfig, bra::T, 
+                            fock_ket::FockConfig, ket::T) where T<:Union{ClusterConfig, TuckerConfig}
     length(fock_bra) == length(fock_ket) || throw(Exception)
     length(bra) == length(ket) || throw(Exception)
     n_clusters = length(bra)

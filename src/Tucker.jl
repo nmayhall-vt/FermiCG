@@ -59,26 +59,6 @@ function get_ortho_compliment(tss::ClusterSubspace, cb::ClusterBasis)
 end
 
 
-"""
-    config::Vector{UnitRange{Int}}
-"""
-#struct TuckerConfig{T, N} <: SparseConfig where {T,N}
-#    config::NTuple{N,UnitRange{T}}
-#end
-struct TuckerConfig <: SparseConfig
-    config::Vector{UnitRange{Int}}
-end
-"""
-    TuckerConfig()
-"""
-function TuckerConfig()
-    return TuckerConfig([])
-end
-Base.size(tc::TuckerConfig) = Tuple(length.(tc.config))
-Base.hash(a::TuckerConfig) = hash(a.config)
-Base.isequal(x::TuckerConfig, y::TuckerConfig) = all(isequal.(x.config, y.config))
-Base.push!(tc::TuckerConfig, range) = push!(tc.config,range)
-Base.:(==)(x::TuckerConfig, y::TuckerConfig) = all(x.config .== y.config)
 
 """
 Check if `tc1` is a subset of `tc2`
