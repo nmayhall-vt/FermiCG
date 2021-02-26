@@ -2613,8 +2613,8 @@ function hylleraas_compressed_mp2(sig::CompressedTuckerState, ref::CompressedTuc
 
 
     x_vector = zeros(dim)
-    x, solver = cg!(x_vector, Axx, b)
-    #x, solver = cg!(x_vector, Axx, b, log=true, maxiter=max_iter, verbose=verbose, abstol=tol)
+    #x, solver = cg!(x_vector, Axx, b)
+    x, solver = cg!(x_vector, Axx, b, log=true, maxiter=max_iter, verbose=true, abstol=tol)
 
     psi1 = deepcopy(sig)
     set_vector!(psi1,x_vector)
