@@ -3,7 +3,7 @@ using Printf
 using Test
 using LinearAlgebra
 
-@testset "full_hbuild" begin
+#@testset "full_hbuild" begin
     atoms = []
         push!(atoms,Atom(1,"H",[-1.30,00,0.00]))
         push!(atoms,Atom(2,"H",[-1.30,00,1.00]))
@@ -136,7 +136,7 @@ using LinearAlgebra
     display(F.vectors[:,1])
     println()
     
-    @test isapprox(F.values[1], -9.2156766772454, atol=1e-10)
+    @test isapprox(F.values[1], -5.066833300762457, atol=1e-10)
 #
 #    #FermiCG.print_configs(ci_vector)
 #    for i in 1:dim
@@ -148,6 +148,6 @@ using LinearAlgebra
 #    end
     #@printf(" sum of H %12.8f\n", sum(abs.(H)))
     maximum(abs.(H-H')) < 1e-14 || error("Hamiltonian not symmetric: ",maximum(abs.(H-H'))); 
-end
+#end
 
 

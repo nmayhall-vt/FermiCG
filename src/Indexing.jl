@@ -3,7 +3,19 @@ using StaticArrays
 
 
 
-const ClusterConfig{N}    = NTuple{N,Int16}  
+abstract type SparseIndex end
+
+struct ClusterConfig{N} <: SparseIndex
+    config::NTuple{N,Int16}  
+end
+
+Base.length(a::SparseIndex) = length(a.config)
+Base.getindex(s::SparseIndex, i) = s.config[i]
+Base.hash(a::SparseIndex) = hash(a.config)
+Base.isequal(x::SparseIndex, y::SparseIndex) = isequal(x.config, y.config) 
+Base.:(==)(x::SparseIndex, y::SparseIndex) = x.config == y.config 
+
+
 const FockConfig{N}       = NTuple{N,Tuple{Int16,Int16}} 
 const TransferConfig{N}   = Tuple{Vararg{Tuple{Int16,Int16}, N}}
 const TuckerConfig{N}     = NTuple{N,UnitRange{Int}}
@@ -11,16 +23,13 @@ const OperatorConfig{N,T} = Tuple{FockConfig{N}, FockConfig{N}, T, T}
 
 
 
+function ClusterConfig(in::Vector{T}) where T
+    return convert(ClusterConfig{length(in)}, in)
+end
 
-import Base.show
-show(io::IO, ::Type{ClusterConfig}) = print(io, "ClusterConfig")
-show(io::IO, ::Type{FockConfig}) = print(io, "FockConfig")
-show(io::IO, ::Type{TransferConfig}) = print(io, "TransferConfig")
-show(io::IO, ::Type{TuckerConfig}) = print(io, "TuckerConfig")
-
-
-
-
+function Base.convert(::Type{ClusterConfig{N}}, in::Vector{T}) where {T,N} 
+    return ClusterConfig{N}(ntuple(i -> convert(Int16, in[i]), length(in)))
+end
 
 function Base.convert(::Type{TransferConfig}, in::Vector{Tuple{T,T}}) where {T,N} 
     return ntuple(i -> convert(Tuple{T,T}, in[i]), length(in))
