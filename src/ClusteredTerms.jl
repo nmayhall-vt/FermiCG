@@ -157,7 +157,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
     fill!(ops_a,"")
     fill!(ops_b,"")
   
-    zero_fock = TransferConfig(((0,0) for i in clusters))
+    zero_fock = TransferConfig([(0,0) for i in clusters])
     #zero_fock::Vector{Tuple{Int16,Int16}} = [(0,0) for i in clusters]
     #zero_fock = Tuple([(0,0) for i in clusters])
     terms[zero_fock] = Vector{ClusteredTerm}()
@@ -243,10 +243,11 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
 
                         clusteredterm = ClusteredTerm2B((oper1,oper2), (Tuple(fock1),Tuple(fock2)), (ci, cj), h, Dict())
                         #display(clusteredterm)
-                        focktrans = [zero_fock...]
-                        focktrans[ci.idx] = Tuple(fock1)
-                        focktrans[cj.idx] = Tuple(fock2)
-                        focktrans = TransferConfig(focktrans)
+                        focktrans = replace(zero_fock, (ci.idx, cj.idx), (fock1, fock2))
+#                        focktrans = [zero_fock...]
+#                        focktrans[ci.idx] = Tuple(fock1)
+#                        focktrans[cj.idx] = Tuple(fock2)
+#                        focktrans = TransferConfig(focktrans)
                         if haskey(terms,focktrans)
                             push!(terms[focktrans], clusteredterm)
                         else
@@ -395,10 +396,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
 
                         clusteredterm = ClusteredTerm2B((oper1,oper2), (Tuple(fock1),Tuple(fock2)), (ci, cj), vcurr, Dict())
                         #display(clusteredterm)
-                        focktrans = [zero_fock...]
-                        focktrans[ci.idx] = Tuple(fock1)
-                        focktrans[cj.idx] = Tuple(fock2)
-                        focktrans = TransferConfig(focktrans)
+                        focktrans = replace(zero_fock, (ci.idx, cj.idx), (fock1, fock2))
                         if haskey(terms,focktrans)
                             push!(terms[focktrans], clusteredterm)
                         else
@@ -546,11 +544,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
 
                             clusteredterm = ClusteredTerm3B((oper1,oper2,oper3), (Tuple(fock1),Tuple(fock2),Tuple(fock3)), (ci, cj, ck), vcurr, Dict())
                             #display(clusteredterm)
-                            focktrans = [zero_fock...]
-                            focktrans[ci.idx] = Tuple(fock1)
-                            focktrans[cj.idx] = Tuple(fock2)
-                            focktrans[ck.idx] = Tuple(fock3)
-                            focktrans = TransferConfig(focktrans)
+                            focktrans = replace(zero_fock, (ci.idx, cj.idx, ck.idx), (fock1, fock2, fock3))
                             if haskey(terms,focktrans)
                                 push!(terms[focktrans], clusteredterm)
                             else
@@ -655,12 +649,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
                                 end
 
                                 clusteredterm = ClusteredTerm4B((oper1,oper2,oper3,oper4), (Tuple(fock1),Tuple(fock2),Tuple(fock3),Tuple(fock4)), (ci, cj, ck, cl), v, Dict())
-                                focktrans = [zero_fock...]
-                                focktrans[ci.idx] = Tuple(fock1)
-                                focktrans[cj.idx] = Tuple(fock2)
-                                focktrans[ck.idx] = Tuple(fock3)
-                                focktrans[cl.idx] = Tuple(fock4)
-                                focktrans = TransferConfig(focktrans)
+                                focktrans = replace(zero_fock, (ci.idx, cj.idx, ck.idx, cl.idx), (fock1, fock2, fock3, fock4))
                                 if haskey(terms,focktrans)
                                     push!(terms[focktrans], clusteredterm)
                                 else

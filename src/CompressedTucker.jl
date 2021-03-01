@@ -2653,7 +2653,7 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
                     # Now loop over cartesian product of available subspaces (those in X above) and
                     # create the target TuckerConfig and then evaluate the associated terms
                     for prod in product(available...)
-                        sig_tconfig = [ket_tconfig...]
+                        sig_tconfig = [ket_tconfig.config...]
                         for cidx in 1:length(term.clusters)
                             ci = term.clusters[cidx]
                             sig_tconfig[ci.idx] = prod[cidx]

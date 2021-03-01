@@ -88,7 +88,7 @@ function TuckerState(clusters::Vector{Cluster}, p_spaces::Vector{ClusterSubspace
 
             fockconfig = FockConfig(collect(newfock))
 
-            tuckconfig = TuckerConfig((p_spaces[ci.idx].data[newfock[ci.idx]] for ci in clusters))
+            tuckconfig = TuckerConfig([p_spaces[ci.idx].data[newfock[ci.idx]] for ci in clusters])
 #            tuckconfig = TuckerConfig()
 #            for ci in clusters
 #                cssi = p_spaces[ci.idx]
