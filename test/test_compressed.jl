@@ -7,7 +7,7 @@ using HDF5
 using Random
 using PyCall
 
-#@testset "CompressedTuckerState" begin
+@testset "CompressedTuckerState" begin
     atoms = []
 
     r = 1
@@ -123,5 +123,5 @@ using PyCall
      e_ci, v_ci = FermiCG.tucker_ci_solve(v_cepa, cluster_ops, clustered_ham)
      @test isapprox(e_ci[1], -19.80662469931452, atol=1e-9)
 
-#end
+end
 

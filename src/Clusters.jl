@@ -787,7 +787,7 @@ end
 
 
 
-function add_cmf_operators!(ops::Vector{ClusterOps}, bases::Vector{ClusterBasis}, ints, Da, Db; verbose=1)
+function add_cmf_operators!(ops::Vector{ClusterOps}, bases::Vector{ClusterBasis}, ints, Da, Db; verbose=0)
     
     n_clusters = length(bases)
     for ci_idx in 1:n_clusters

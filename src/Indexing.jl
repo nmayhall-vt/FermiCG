@@ -10,6 +10,7 @@ Base.getindex(s::SparseIndex, i) = s.config[i]
 Base.hash(a::SparseIndex) = hash(a.config)
 Base.isequal(x::SparseIndex, y::SparseIndex) = isequal(x.config, y.config) 
 Base.:(==)(x::SparseIndex, y::SparseIndex) = x.config == y.config 
+Base.iterate(conf::SparseIndex, state=1) = iterate(conf.config, state)
 
 struct ClusterConfig{N} <: SparseIndex
     config::NTuple{N,Int16}  
@@ -40,6 +41,11 @@ TuckerConfig(in::Vector{T}) where T = convert(TuckerConfig{length(in)}, in)
 
 Base.size(tc::TuckerConfig) = length.(tc.config)
 Base.:(==)(x::TuckerConfig, y::TuckerConfig) = all(x.config .== y.config)
+"""
+    dim(tc::TuckerConfig)
+
+Return total dimension of space indexed by `tc`
+"""
 dim(tc::TuckerConfig) = prod(size(tc)) 
 
 function Base.convert(::Type{ClusterConfig{N}}, in::Vector{T}) where {T,N} 
@@ -71,7 +77,6 @@ function replace(tc::TransferConfig, idx, fock)
     return TransferConfig(new)
 end
 
-Base.size(tc::TuckerConfig) = Tuple(length.(tc))
 
 
 """

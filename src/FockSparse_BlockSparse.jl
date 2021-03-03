@@ -34,12 +34,6 @@ Base.iterate(ts::TuckerState, state=1) = iterate(ts.data, state)
 # Conversions
 #Base.convert(::Type{TuckerConfig}, input::Vector{UnitRange{T}}) where T<:Integer = TuckerConfig(input)
 
-"""
-    dim(tc::TuckerConfig)
-
-Return total dimension of space indexed by `tc`
-"""
-dim(tc::TuckerConfig) = prod(size(tc)) 
 
 
 

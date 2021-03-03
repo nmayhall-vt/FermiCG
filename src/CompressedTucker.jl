@@ -9,347 +9,6 @@ using IterativeSolvers
 
 
 """
-    compress(ts::CompressedTuckerState; thresh=-1, max_number=nothing)
-
-- `ts::TuckerState`
-- `thresh`: threshold for compression
-- `max_number`: only keep certain number of vectors per TuckerConfig
-"""
-function compress(ts::CompressedTuckerState{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
-    d = OrderedDict{FockConfig, OrderedDict{TuckerConfig, Tucker{T,N}}}() 
-    for (fock, tconfigs) in ts.data
-        for (tconfig, coeffs) in tconfigs
-            tmp = compress(ts.data[fock][tconfig], thresh=thresh, max_number=max_number)
-            if length(tmp) == 0
-                continue
-            end
-            if haskey(d, fock)
-                d[fock][tconfig] = tmp
-            else
-                d[fock] = OrderedDict(tconfig => tmp)
-            end
-        end
-    end
-    return CompressedTuckerState(ts.clusters, d, ts.p_spaces, ts.q_spaces)
-end
-
-
-"""
-    orth_add!(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
-
-Add coeffs in `ts2` to `ts1`
-
-Note: this assumes `t1` and `t2` have the same compression vectors
-"""
-function orth_add!(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
-#={{{=#
-    for (fock,configs) in ts2
-        if haskey(ts1, fock)
-            for (config,coeffs) in configs
-                if haskey(ts1[fock], config)
-                    ts1[fock][config].core .+= ts2[fock][config].core
-                else
-                    ts1[fock][config] = ts2[fock][config]
-                end
-            end
-        else
-            ts1[fock] = ts2[fock]
-        end
-    end
-#=}}}=#
-end
-
-"""
-    nonorth_add!(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
-
-Add coeffs in `ts2` to `ts1`
-
-Note: this does not assume `t1` and `t2` have the same compression vectors
-"""
-function nonorth_add!(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
-#={{{=#
-    for (fock,configs) in ts2
-        if haskey(ts1, fock)
-            for (config,coeffs) in configs
-                if haskey(ts1[fock], config)
-                    ts1[fock][config] = ts1[fock][config] + ts2[fock][config] # note this is non-trivial work here
-                else
-                    ts1[fock][config] = ts2[fock][config]
-                end
-            end
-        else
-            ts1[fock] = ts2[fock]
-        end
-    end
-#=}}}=#
-end
-
-"""
-    add_fockconfig!(s::CompressedTuckerState, fock::FockConfig)
-"""
-function add_fockconfig!(s::CompressedTuckerState{T,N}, fock::FockConfig) where {T,N}
-    s.data[fock] = OrderedDict{TuckerConfig, Tucker{T,N}}()
-end
-
-"""
-    Base.length(s::CompressedTuckerState)
-"""
-function Base.length(s::CompressedTuckerState)
-    l = 0
-    for (fock,tconfigs) in s.data
-        for (tconfig, tuck) in tconfigs
-            l += length(tuck)
-        end
-    end
-    return l
-end
-"""
-    prune_empty_fock_spaces!(s::AbstractState)
-
-remove fock_spaces that don't have any configurations
-"""
-function prune_empty_fock_spaces!(s::AbstractState)
-    focklist = keys(s.data)
-    for fock in focklist
-        if length(s.data[fock]) == 0
-            delete!(s.data, fock)
-        end
-    end
-    focklist = keys(s.data)
-    for (fock,tconfigs) in s.data
-        for (tconfig,coeff) in tconfigs
-        end
-    end
-end
-"""
-    prune_empty_TuckerConfigs!(s::T) where T<:Union{TuckerState, CompressedTuckerState}
-
-remove fock_spaces that don't have any configurations
-"""
-function prune_empty_TuckerConfigs!(s::T) where T<:Union{TuckerState, CompressedTuckerState}
-    focklist = keys(s.data)
-    for fock in focklist
-        tconflist = keys(s.data[fock])
-        for tconf in tconflist
-            if length(s.data[fock][tconf]) == 0
-                delete!(s.data[fock], tconf)
-            end
-        end
-    end
-    for (fock,tconfigs) in s.data
-        for (tconfig,coeff) in tconfigs
-        end
-    end
-    prune_empty_fock_spaces!(s)
-end
-
-
-"""
-    get_vector(s::CompressedTuckerState)
-
-Return a vector of the variables. Note that this is the core tensors being returned
-"""
-function get_vector(cts::CompressedTuckerState)
-
-    v = zeros(length(cts), 1)
-    idx = 1
-    for (fock, tconfigs) in cts
-        for (tconfig, tuck) in tconfigs
-            dims = size(tuck.core)
-
-            dim1 = prod(dims)
-            v[idx:idx+dim1-1,:] = copy(reshape(tuck.core,dim1))
-            idx += dim1
-        end
-    end
-    return v
-end
-"""
-    set_vector!(s::CompressedTuckerState)
-"""
-function set_vector!(ts::CompressedTuckerState, v)
-
-    #length(size(v)) == 1 || error(" Only takes vectors", size(v))
-    nbasis = size(v)[1]
-
-    idx = 1
-    for (fock, tconfigs) in ts
-        for (tconfig, tuck) in tconfigs
-            dims = size(tuck)
-
-            dim1 = prod(dims)
-            ts[fock][tconfig].core .= reshape(v[idx:idx+dim1-1], size(tuck.core))
-            idx += dim1
-        end
-    end
-    nbasis == idx-1 || error("huh?", nbasis, " ", idx)
-    return
-end
-"""
-    zero!(s::CompressedTuckerState)
-"""
-function zero!(s::CompressedTuckerState)
-    for (fock, tconfigs) in s
-        for (tconfig, tcoeffs) in tconfigs
-            fill!(s[fock][tconfig].core, 0.0)
-        end
-    end
-end
-
-"""
-    Base.display(s::CompressedTuckerState; thresh=1e-3)
-
-Pretty print
-"""
-function Base.display(s::CompressedTuckerState; thresh=1e-3)
-#={{{=#
-    println()
-    @printf(" --------------------------------------------------\n")
-    @printf(" ---------- # Fockspaces -------------------: %5i  \n",length(keys(s.data)))
-    @printf(" ---------- # Configs    -------------------: %5i  \n",length(s))
-    @printf(" --------------------------------------------------\n")
-    @printf(" Printing contributions greater than: %f", thresh)
-    @printf("\n")
-    @printf(" %-20s%-10s%-10s%-20s\n", "Weight", "# configs", "(full)", "(α,β)...")
-    @printf(" %-20s%-10s%-10s%-20s\n", "-------","---------", "---------", "----------")
-    for (fock,configs) in s.data
-        prob = 0
-        len = 0
-
-        lenfull = 0
-        for (config, tuck) in configs
-            prob += sum(tuck.core .* tuck.core)
-            len += length(tuck.core)
-            lenfull += prod(dims_large(tuck))
-        end
-        if prob > thresh
-        #if lenfull > 0
-            #@printf(" %-20.3f%-10i%-10i", prob,len, lenfull)
-            @printf(" %-20.3f%-10s%-10s", prob,"","")
-            for sector in fock
-                @printf("(%2i,%-2i)", sector[1],sector[2])
-            end
-            println()
-
-            #@printf("     %-16s%-20s%-20s\n", "Weight", "", "Subspaces")
-            #@printf("     %-16s%-20s%-20s\n", "-------", "", "----------")
-            for (config, tuck) in configs
-                probi = sum(tuck.core .* tuck.core)
-                @printf("     %-16.3f%-10i%-10i", probi,length(tuck.core),prod(dims_large(tuck)))
-                for range in config
-                    @printf("%7s", range)
-                end
-                println()
-            end
-            #println()
-            @printf(" %-20s%-20s%-20s\n", "---------", "", "----------")
-        end
-    end
-    print(" --------------------------------------------------\n")
-    println()
-#=}}}=#
-end
-"""
-    print_fock_occupations(s::CompressedTuckerState; thresh=1e-3)
-
-Pretty print
-"""
-function print_fock_occupations(s::CompressedTuckerState; thresh=1e-3)
-#={{{=#
-
-    println()
-    @printf(" --------------------------------------------------\n")
-    @printf(" ---------- # Fockspaces -------------------: %5i  \n",length(keys(s.data)))
-    @printf(" ---------- # Configs    -------------------: %5i  \n",length(s))
-    @printf(" --------------------------------------------------\n")
-    @printf(" Printing contributions greater than: %f", thresh)
-    @printf("\n")
-    @printf(" %-20s%-10s%-10s%-20s\n", "Weight", "# configs", "(full)", "(α,β)...")
-    @printf(" %-20s%-10s%-10s%-20s\n", "-------","---------", "---------", "----------")
-    for (fock,configs) in s.data
-        prob = 0
-        len = 0
-        lenfull = 0
-        for (config, tuck) in configs
-            prob += sum(tuck.core .* tuck.core)
-            len += length(tuck.core)
-            lenfull += prod(dims_large(tuck))
-        end
-        if prob > thresh
-            @printf(" %-20.3f%-10i%-10i", prob,len,lenfull)
-            for sector in fock
-                @printf("(%2i,%-2i)", sector[1],sector[2])
-            end
-            println()
-        end
-    end
-    print(" --------------------------------------------------\n")
-    println()
-#=}}}=#
-end
-
-
-"""
-    dot(ts1::FermiCG.CompressedTuckerState, ts2::FermiCG.CompressedTuckerState)
-
-Dot product between `ts2` and `ts1`
-
-Warning: this assumes both `ts1` and `ts2` have the same tucker factors for each `TuckerConfig`
-"""
-function orth_dot(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
-#={{{=#
-    overlap = 0.0
-    for (fock,configs) in ts2
-        haskey(ts1, fock) || continue
-        for (config,coeffs) in configs
-            haskey(ts1[fock], config) || continue
-            overlap += sum(ts1[fock][config].core .* ts2[fock][config].core)
-        end
-    end
-    return overlap
-#=}}}=#
-end
-
-
-
-"""
-    nonorth_dot(ts1::FermiCG.CompressedTuckerState, ts2::FermiCG.CompressedTuckerState; verbose=0)
-
-Dot product between 1ts2` and `ts1` where each have their own Tucker factors
-"""
-function nonorth_dot(ts1::CompressedTuckerState, ts2::CompressedTuckerState; verbose=0)
-#={{{=#
-    overlap = 0.0
-    for (fock,configs) in ts2
-        haskey(ts1, fock) || continue
-        verbose == 0 || display(fock)
-        for (config,coeffs) in configs
-            haskey(ts1[fock], config) || continue
-            verbose == 0 || display(config)
-            overlap += dot(ts1[fock][config] , ts2[fock][config])
-            verbose == 0 || display(dot(ts1[fock][config] , ts2[fock][config]))
-        end
-    end
-    return overlap
-#=}}}=#
-end
-
-"""
-    scale!(ts::FermiCG.CompressedTuckerState, a::T<:Number)
-
-Scale `ts` by a constant
-"""
-function scale!(ts::CompressedTuckerState, a::T) where T<:Number
-    #={{{=#
-    for (fock,configs) in ts
-        for (config,tuck) in configs
-            ts[fock][config].core .*= a
-        end
-    end
-    #=}}}=#
-end
-
-"""
     get_map(ci_vector::CompressedTuckerState, cluster_ops, clustered_ham)
 
 Get LinearMap with takes a vector and returns action of H on that vector
@@ -387,7 +46,8 @@ end
 
 function tucker_ci_solve(ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; tol=1e-5)
 #={{{=#
-  
+
+    @printf(" Solve CI with # variables = %i\n", length(ci_vector))
     vec = deepcopy(ci_vector)
     normalize!(vec)
     #flush term cache
@@ -1364,7 +1024,7 @@ Ax=b
 After solving, the Energy can be obtained as:
 E = (Eref + Hax*Cx) / (1 + Sax*Cx)
 """
-function tucker_cepa_solve(ref_vector::CompressedTuckerState, cepa_vector::CompressedTuckerState, cluster_ops, clustered_ham; tol=1e-5, cache=true, max_iter=30, verbose=false)
+function tucker_cepa_solve(ref_vector::CompressedTuckerState, cepa_vector::CompressedTuckerState, cluster_ops, clustered_ham; tol=1e-5, cache=true, max_iter=30, verbose=false, do_pt2=false)
 #={{{=#
     sig = deepcopy(ref_vector)
     zero!(sig)
@@ -1373,6 +1033,14 @@ function tucker_cepa_solve(ref_vector::CompressedTuckerState, cepa_vector::Compr
     length(e0) == 1 || error("Only one state at a time please", e0)
     e0 = e0[1]
     @printf(" Reference Energy: %12.8f\n",e0)
+
+    e0_1b = 0.0
+    if do_pt2
+        sig = deepcopy(ref_vector)
+        zero!(sig)
+        build_sigma!(sig, ref_vector, cluster_ops, clustered_ham, nbody=1)
+        e0_1b = nonorth_dot(ref_vector, sig)
+    end
 
 
     x_vector = deepcopy(cepa_vector)
@@ -1428,15 +1096,23 @@ function tucker_cepa_solve(ref_vector::CompressedTuckerState, cepa_vector::Compr
 
     @printf(" Norm of Sx overlap: %12.8f\n", orth_dot(Sx,Sx))
 
+    nbody = 4
+    if do_pt2
+        nbody = 1
+    end
     function mymatvec(v)
         set_vector!(x_vector, v)
         #@printf(" Overlap between <1|0>:          %8.1e\n", nonorth_dot(x_vector, ref_vector, verbose=0))
         sig = deepcopy(x_vector)
         zero!(sig)
-        build_sigma!(sig, x_vector, cluster_ops, clustered_ham, cache=cache)
+        build_sigma!(sig, x_vector, cluster_ops, clustered_ham, cache=cache, nbody=nbody)
 
         tmp = deepcopy(x_vector)
-        scale!(tmp, -e0)
+        if do_pt2
+            scale!(tmp, -e0_1b)
+        else
+            scale!(tmp, -e0)
+        end
         orth_add!(sig, tmp)
         return get_vector(sig)
     end
@@ -1468,6 +1144,7 @@ function tucker_cepa_solve(ref_vector::CompressedTuckerState, cepa_vector::Compr
     @printf(" Cepa: %12.8f\n", ecorr)
     length(ecorr) == 1 || error(" Dimension Error", ecorr)
     ecorr = ecorr[1]
+    @printf(" <1|1> = %12.8f\n", orth_dot(x_vector,x_vector))
 
     @printf(" E(CEPA) = %12.8f\n", (e0 + ecorr)/(1+SxC))
 
@@ -2466,42 +2143,83 @@ E0 = <0|H0|0>
 E_ref = <0|H|0>
 
 """
-function hylleraas_compressed_mp2(sig::CompressedTuckerState, ref::CompressedTuckerState,
-            cluster_ops, clustered_ham; tol=1e-6, nbody=4, max_iter=40, verbose=1, do_pt = true)
+function hylleraas_compressed_mp2(sig_in::CompressedTuckerState, ref::CompressedTuckerState,
+            cluster_ops, clustered_ham; tol=1e-6, nbody=4, max_iter=40, verbose=1, do_pt = true, thresh=1e-8)
 #={{{=#
     
 #
+    @printf(" Length of input FOIS: %i\n", length(sig_in)) 
+    
+    # 
+    # get H|0>
+    @printf(" Build exact <X|V|0>\n")
+    sig = deepcopy(sig_in)
+    sig = compress(sig, thresh=thresh)
+    @printf(" Length of input FOIS: %i\n", length(sig)) 
+    project_out!(sig, ref, thresh=thresh)
+    zero!(sig)
+    build_sigma!(sig, ref, cluster_ops, clustered_ham)
+    #scale!(sig, -1.0)
+    
     # (H0 - E0) |1> = X H |0>
 
     e2 = 0.0
+   
+    # 
+    # get E_ref = <0|H|0>
+    tmp = deepcopy(ref)
+    zero!(tmp)
+    build_sigma!(tmp, ref, cluster_ops, clustered_ham)
+    e_ref = nonorth_dot(ref, tmp)
+    @printf(" <0|H|0> 0 : %12.8f\n",e_ref)
 
-    #
-    # get |sig0> = H0|0>
-    #
-    # todo: currently only working for 1body hamiltonian, replace with CMF hamiltonias
-    #
-    sig0 = deepcopy(ref)
-    zero!(sig0)
-    FermiCG.build_sigma!(sig0, ref, cluster_ops, clustered_ham, nbody=1)
-    e0 = orth_dot(ref,sig0)
+
+    # 
+    # get E0 = <0|H0|0>
+    tmp = deepcopy(ref)
+    zero!(tmp)
+    build_sigma!(tmp, ref, cluster_ops, clustered_ham, nbody=1)
+    e0 = orth_dot(ref,tmp)
     @printf(" <0|sig>  : %12.8f\n",nonorth_dot(ref,sig))
     @printf(" <0|H0|0>  : %12.8f\n",e0)
-#
-#    tmp = deepcopy(sig)
-#    FermiCG.scale!(tmp, -e0)
-#
-#    nonorth_add!(sig, sig0)
-#    nonorth_add!(sig, tmp)
+
+
+    @printf(" Length of FOIS      : %i\n", length(sig)) 
     
-    b = get_vector(sig)
+   
+    @printf(" Project out reference\n")
+    #sig = compress(sig, thresh=thresh)
+    @printf(" <0|sig>  : %12.8f\n",nonorth_dot(ref,sig))
+    @printf(" Length of FOIS      : %i\n", length(sig)) 
+   
+    b = -get_vector(sig)
+    
+    #
+    # Get Overlap <X|A>C(A)
+    Sx = deepcopy(sig)
+    zero!(Sx)
+    for (fock,tconfigs) in Sx 
+        for (tconfig, tuck) in tconfigs
+            if haskey(ref, fock)
+                if haskey(ref[fock], tconfig)
+                    ref_tuck = ref[fock][tconfig]
+                    # Cr(i,j,k...) Ur(Ii) Ur(Jj) ...
+                    # Ux(Ii') Ux(Jj') ...
+                    #
+                    # Cr(i,j,k...) S(ii') S(jj')...
+                    overlaps = []
+                    for i in 1:length(Sx.clusters)
+                        push!(overlaps, ref_tuck.factors[i]' * tuck.factors[i])
+                    end
+                    Sx[fock][tconfig].core .= transform_basis(ref_tuck.core, overlaps)
+                end
+            end
+        end
+    end
 
-    #
-    # now we should have
-    #
-    #  (H0 - E0) |1> = b
-    #
-    #  solve with CG
+    b .= b .+ get_vector(Sx)*e_ref
 
+    
     function mymatvec(x)
 
         xr = deepcopy(sig)
@@ -2523,39 +2241,27 @@ function hylleraas_compressed_mp2(sig::CompressedTuckerState, ref::CompressedTuc
 
 
     x_vector = zeros(dim)
-    #x, solver = cg!(x_vector, Axx, b)
     x, solver = cg!(x_vector, Axx, b, log=true, maxiter=max_iter, verbose=true, abstol=tol)
 
     psi1 = deepcopy(sig)
     set_vector!(psi1,x_vector)
+    
+    SxC = orth_dot(Sx,psi1)
+    @printf(" <A|X>C(X) = %12.8f\n", SxC)
    
-    if do_pt
-        #
-        # Compute PT2 Energy 
-        tmp = deepcopy(ref)
-        zero!(tmp)
-        @time build_sigma!(tmp, ref, cluster_ops, clustered_ham)
-        e_ref = nonorth_dot(ref, tmp)
-        zero!(tmp)
+    tmp = deepcopy(ref)
+    zero!(tmp)
+    build_sigma!(tmp,psi1, cluster_ops, clustered_ham)
+    ecorr = nonorth_dot(tmp,ref)
+    @printf(" <1|1> = %12.8f\n", orth_dot(psi1,psi1))
+    @printf(" <0|H|1> = %12.8f\n", ecorr)
+    length(ecorr) == 1 || error(" Dimension Error", ecorr)
+    ecorr = ecorr[1]
 
-        @time build_sigma!(tmp, psi1, cluster_ops, clustered_ham)
-        
-        # 
-        # project out the overlap 
-        # E2 = <0|HX|1> = <0|H|1> - <0|H|0><0|1>
-        e_2 = nonorth_dot(ref, tmp) - e_ref * nonorth_dot(ref,psi1) 
-        e_2 = -e_2
-        @printf(" E(REF)       =                  %12.8f\n", e_ref)
-        @printf(" E(PT2) corr  =                  %12.8f\n", e_2)
-        @printf(" E(PT2) total =                  %12.8f\n", e_ref + e_2)
-        e2 = e_ref + e_2
-    end
-    @printf(" <0|sig>  : %12.8f\n",nonorth_dot(ref,psi1))
-        
+    @printf(" E(PT2)  = %12.8f\n", (e_ref + ecorr)/(1+SxC))
 
+    return psi1, (ecorr+e_ref)/(1+SxC) 
 
-    return psi1, e2
-     
 end#=}}}=#
 
 
@@ -2712,19 +2418,12 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
     end
 
     for (fock,tconfigs) in data
-        #display(fock)
         for (tconfig, tuck) in tconfigs
-            #display(tconfig)
-            #display(length(tuck))
-            
-            #sig_cts[fock][tconfig] = nonorth_add(tuck)
             if haskey(sig_cts, fock)
                 sig_cts[fock][tconfig] = compress(nonorth_add(tuck), thresh=thresh)
-                #sig_cts[fock][tconfig] = nonorth_add(tuck)
             else
                 sig_cts[fock] = OrderedDict(tconfig => nonorth_add(tuck))
             end
-            #sig_cts[fock][tconfig] = compress(nonorth_add(tuck), thresh=thresh)
         end
     end
 
@@ -2738,15 +2437,16 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
 
                     ovlp = nonorth_dot(tuck, ket_tuck_A) / nonorth_dot(ket_tuck_A, ket_tuck_A)
                     tmp = scale(ket_tuck_A, -1.0 * ovlp)
-                    sig_cts[fock][tconfig] = nonorth_add(tuck, tmp, thresh=1e-16)
+                    #sig_cts[fock][tconfig] = nonorth_add(tuck, tmp, thresh=1e-16)
                 end
             end
         end
     end
    
-   
+  
     # now combine Tuckers, project out reference space and multiply by resolvents
     #prune_empty_TuckerConfigs!(sig_cts)
+    #return compress(sig_cts, thresh=thresh)
     return sig_cts
 #=}}}=#
 end
@@ -2771,8 +2471,9 @@ end
 - `tol_ci`:     Convergence threshold for the CI (norm of residual)
 - `tol_tucker`: Convergence threshold for Tucker iterations (energy change)
 """
-function solve_for_compressed_space(ref_vec::CompressedTuckerState, cluster_ops, clustered_ham;
+function solve_for_compressed_space(input_vec::CompressedTuckerState, cluster_ops, clustered_ham;
         max_iter    = 20,
+        max_iter_pt = 100, # max number of iterations for solving for PT1
         nbody       = 4,
         H0          = "cmf",
         thresh_var  = 1e-4,
@@ -2785,6 +2486,8 @@ function solve_for_compressed_space(ref_vec::CompressedTuckerState, cluster_ops,
     e_last = 0.0
     e_var  = 0.0
     e_pt2  = 0.0
+    ref_vec = deepcopy(input_vec)
+
     for iter in 1:max_iter
         println(" --------------------------------------------------------------------")
         println(" Iterate PT-Var:       Iteration #: ",iter)
@@ -2841,7 +2544,7 @@ function solve_for_compressed_space(ref_vec::CompressedTuckerState, cluster_ops,
             # 
             println()
             println(" Compute PT vector. Reference space dim = ", length(ref_vec))
-            pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol_ci, do_pt=do_pt)
+            pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol_ci, do_pt=do_pt, max_iter=max_iter_pt)
             # 
             # Compress first order wavefunction 
             norm1 = orth_dot(pt1_vec, pt1_vec)
@@ -2859,6 +2562,7 @@ function solve_for_compressed_space(ref_vec::CompressedTuckerState, cluster_ops,
         # CI
         println()
         var_vec = deepcopy(ref_vec)
+        zero!(pt1_vec)
         nonorth_add!(var_vec, pt1_vec)
         normalize!(var_vec)
         @printf(" Solve in compressed FOIS. Dimension =   %10i\n", length(var_vec))
@@ -2883,14 +2587,14 @@ function solve_for_compressed_space(ref_vec::CompressedTuckerState, cluster_ops,
 
         if abs(e_last[1] - e_var[1]) < tol_tucker 
             println("*Converged")
-            return e_var, var_vec
+            return e_var, ref_vec
             break
         end
         e_last = e_var
             
     end
     println(" Not converged")
-    return e_var, var_vec
+    return e_var,ref_vec 
 end
     #=}}}=#
     
@@ -2957,3 +2661,25 @@ function do_fois_cepa(ref::CompressedTuckerState, cluster_ops, clustered_ham;
 end
 
 
+"""
+    project_out!(v::CompressedTuckerState, w::CompressedTuckerState; thresh=1e-16)
+
+Project w out of v 
+|v'> = |v> - |w><w|v>
+"""
+function project_out!(v::CompressedTuckerState, w::CompressedTuckerState; thresh=1e-16)
+    
+    for (fock,tconfigs) in v 
+        for (tconfig, tuck) in tconfigs
+            if haskey(w, fock)
+                if haskey(w[fock], tconfig)
+                    w_tuck = w[fock][tconfig]
+
+                    ovlp = nonorth_dot(tuck, w_tuck) / nonorth_dot(w_tuck, w_tuck)
+                    tmp = scale(w_tuck, -1.0 * ovlp)
+                    v[fock][tconfig] = nonorth_add(tuck, tmp, thresh=thresh)
+                end
+            end
+        end
+    end
+end
