@@ -99,9 +99,23 @@ function flush_cache(clustered_ham::ClusteredOperator)
         end
     end
 end
+Base.haskey(co::ClusteredOperator, i) = return haskey(co.trans,i)
+Base.setindex!(co::ClusteredOperator, i, j) = return co.trans[j] = i
+Base.getindex(co::ClusteredOperator, i) = return co.trans[i]
+Base.iterate(co::ClusteredOperator, state=1) = iterate(co.trans, state)
 flush_cache(h::Dict{TransferConfig,Vector{ClusteredTerm}}) = flush_cache(ClusteredOperator(h)) 
 mem_used_by_cache(h::Dict{TransferConfig,Vector{ClusteredTerm}}) = mem_used_by_cache(ClusteredOperator(h)) 
 Base.convert(::Type{ClusteredOperator}, input::Dict{TransferConfig,Vector{ClusteredTerm}}) = ClusteredOperator(input)
+
+function Base.display(co::ClusteredOperator)
+    for (ftrans, terms) in co
+        display(ftrans)
+        for term in terms
+            display(term)
+        end
+    end
+end
+
 function mem_used_by_cache(h::ClusteredOperator)
     mem = 0.0
     for (ftrans, terms) in h.trans
@@ -148,7 +162,8 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
     size(ints.h1,1) == norb || throw(Exception)
     size(ints.h1,2) == norb || throw(Exception)
 
-    terms = Dict{TransferConfig,Vector{ClusteredTerm}}()
+    #terms = Dict{TransferConfig,Vector{ClusteredTerm}}()
+    terms = ClusteredOperator() 
     #terms = Dict{Vector{Tuple{Int16,Int16}},Vector{ClusteredTerm}}()
     #terms = Dict{Tuple,Vector{ClusteredTerm}}()
     n_clusters = length(clusters)
@@ -671,11 +686,12 @@ end
 
 
 """
-    unique!(ClusteredHam::Dict{TransferConfig,Vector{ClusteredTerm}})
+    unique!(clustered_ham::ClusteredOperator)
 
 combine terms to keep only unique operators
 """
-function unique!(clustered_ham::Dict{TransferConfig,Vector{ClusteredTerm}})
+function unique!(clustered_ham::ClusteredOperator)
+#function unique!(clustered_ham::Dict{TransferConfig,Vector{ClusteredTerm}})
 #={{{=#
     println(" Remove duplicates")
     #
@@ -1145,3 +1161,31 @@ function print_fock_sectors(sector::Vector{Tuple{T,T}}) where T<:Integer
     end
     println()
 end
+
+
+
+
+"""
+    extract_1body_operator(clustered_ham::ClusteredOperator; op_string="H")
+
+Extract a 1-body operator for use in perturbation theory
+- `op_string`: either H or Hcmf
+"""
+function extract_1body_operator(clustered_ham::ClusteredOperator; op_string="H")
+    out = ClusteredOperator()
+    for (ftrans, terms) in clustered_ham
+        for term in terms
+            if term isa ClusteredTerm1B
+                
+                term2 = ClusteredTerm1B((op_string,), term.delta, term.clusters, term.ints, term.cache)
+                if haskey(out, ftrans)
+                    push!(out[ftrans], term2)
+                else
+                    out[ftrans] = [term2]
+                end
+            end
+        end
+    end
+    return out
+end
+
