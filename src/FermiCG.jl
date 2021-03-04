@@ -43,6 +43,7 @@ include("FockSparse_BlockSparseTucker.jl")
 
 include("ClusteredTerms.jl")
 include("ClusteredStates.jl")
+include("tpsci_functions.jl")
 include("Tucker_functions.jl")
 include("CompressedTucker.jl")
 include("CMFs.jl")

@@ -4,6 +4,7 @@ using Test
 using LinearAlgebra
 using Arpack 
 using StatProfilerHTML
+using BenchmarkTools
 
 #@testset "full_hbuild" begin
     atoms = []
@@ -16,15 +17,16 @@ if true
     push!(atoms,Atom(4,"H",[0,0,3]))
     push!(atoms,Atom(5,"H",[0,0.4,4]))
     push!(atoms,Atom(6,"H",[0,0,5]))
-    push!(atoms,Atom(7,"H",[0,0,6]))
-    push!(atoms,Atom(8,"H",[0,0,7]))
+    #push!(atoms,Atom(7,"H",[0,0,6]))
+    #push!(atoms,Atom(8,"H",[0,0,7]))
     #push!(atoms,Atom(9,"H",[0,0,8]))
     #push!(atoms,Atom(10,"H",[0,0,9]))
-    clusters    = [(1:6),(7:10)]
     #clusters    = [(1:4),(5:6),(7:10)]
+    clusters    = [(1:2),(3:4),(5:6),(7:8)]
     clusters    = [(1:4),(5:8)]
     clusters    = [(1:4),(5:6),(7:8)]
-    clusters    = [(1:2),(3:4),(5:6),(7:8)]
+    clusters    = [(1:6),(7:10)]
+    clusters    = [(1:2),(3:4),(5:6)]
 elseif true
     push!(atoms,Atom(1,"H",[-1.30,00,0.00]))
     push!(atoms,Atom(2,"H",[-1.30,00,1.00]))
@@ -48,8 +50,8 @@ end
     basis = "sto-3g"
     mol     = Molecule(0,1,atoms,basis)
    
-    na = 4
-    nb = 4
+    na = 3
+    nb = 3
 
     mf = FermiCG.pyscf_do_scf(mol)
     nbas = size(mf.mo_coeff)[1]
@@ -90,16 +92,6 @@ end
     #display(cluster_bases[2][(2,2)])
     
 
-#    if true 
-#    @time H = FermiCG.build_full_H_serial(ci_vector, cluster_ops, clustered_ham)
-#    dim = size(H,1)
-#    
-#        F = eigen(H)
-#        for (idx,Fi) in enumerate(F.values[1:min(10,length(F.values))])
-#            @printf(" %4i %18.13f\n", idx, Fi)
-#        end
-#    end
-#    println()
     
     #@time H = FermiCG.build_full_H_serial(ci_vector, cluster_ops, clustered_ham)
     #e,v = Arpack.eigs(H, nev = 1, which=:SR)
@@ -108,33 +100,20 @@ end
 
     #@profilehtml H = FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
     @time H = FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
+    #@btime FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
     e,v = Arpack.eigs(H, nev = 1, which=:SR)
     @printf(" Energy: %18.12f\n",real(e[1]))
    
-    #if false
-        #F = eigen(H)
-        #for (idx,Fi) in enumerate(F.values[1:min(10,length(F.values))])
-        #    @printf(" %4i %18.13f\n", idx, Fi)
-        #end
-    #end
     
 
     #FermiCG.set_vector!(ci_vector, F.vectors[:,1])
     #display(ci_vector)
     println()
     
+    
     #@test isapprox(F.values[1], -5.066833300762457, atol=1e-10)
-#
-#    #FermiCG.print_configs(ci_vector)
-#    for i in 1:dim
-#        @printf("%12.8f",H[2,i])
-#        for j in 1:dim
-#            #@printf("%12.8f",H[i,j])
-#        end
-#        println()
-#    end
-    #@printf(" sum of H %12.8f\n", sum(abs.(H)))
-    maximum(abs.(H-H')) < 1e-14 || error("Hamiltonian not symmetric: ",maximum(abs.(H-H'))); 
+    
+    #maximum(abs.(H-H')) < 1e-14 || error("Hamiltonian not symmetric: ",maximum(abs.(H-H'))); 
 #end
 
 
