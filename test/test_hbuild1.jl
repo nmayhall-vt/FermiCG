@@ -2,23 +2,38 @@ using FermiCG
 using Printf
 using Test
 using LinearAlgebra
+using Arpack 
+using StatProfilerHTML
 
 #@testset "full_hbuild" begin
     atoms = []
-        push!(atoms,Atom(1,"H",[-1.30,00,0.00]))
-        push!(atoms,Atom(2,"H",[-1.30,00,1.00]))
-        push!(atoms,Atom(3,"H",[ 0.00,30,0.00]))
-        push!(atoms,Atom(4,"H",[ 0.00,30,1.00]))
-        push!(atoms,Atom(5,"H",[ 1.33,60,0.00]))
-        push!(atoms,Atom(6,"H",[ 1.30,60,1.00]))
-#    push!(atoms,Atom(1,"H",[0,0,0]))
-#    push!(atoms,Atom(2,"H",[0,1,0]))
-#    push!(atoms,Atom(3,"H",[0,0,2]))
-#    push!(atoms,Atom(4,"H",[0,0,3]))
-#    push!(atoms,Atom(5,"H",[0,0.4,4]))
-#    push!(atoms,Atom(6,"H",[0,0,5]))
-#    push!(atoms,Atom(7,"H",[0,0,6]))
-#    push!(atoms,Atom(8,"H",[0,0,7]))
+  
+    clusters = []
+if true 
+    push!(atoms,Atom(1,"H",[0,0,0]))
+    push!(atoms,Atom(2,"H",[0,1,0]))
+    push!(atoms,Atom(3,"H",[0,0,2]))
+    push!(atoms,Atom(4,"H",[0,0,3]))
+    push!(atoms,Atom(5,"H",[0,0.4,4]))
+    push!(atoms,Atom(6,"H",[0,0,5]))
+    push!(atoms,Atom(7,"H",[0,0,6]))
+    push!(atoms,Atom(8,"H",[0,0,7]))
+    #push!(atoms,Atom(9,"H",[0,0,8]))
+    #push!(atoms,Atom(10,"H",[0,0,9]))
+    clusters    = [(1:6),(7:10)]
+    #clusters    = [(1:4),(5:6),(7:10)]
+    clusters    = [(1:4),(5:8)]
+    clusters    = [(1:4),(5:6),(7:8)]
+    clusters    = [(1:2),(3:4),(5:6),(7:8)]
+elseif true
+    push!(atoms,Atom(1,"H",[-1.30,00,0.00]))
+    push!(atoms,Atom(2,"H",[-1.30,00,1.00]))
+    push!(atoms,Atom(3,"H",[ 0.00,30,0.00]))
+    push!(atoms,Atom(4,"H",[ 0.00,30,1.00]))
+    push!(atoms,Atom(5,"H",[ 1.33,60,0.00]))
+    push!(atoms,Atom(6,"H",[ 1.30,60,1.00]))
+    clusters    = [(1:2),(3:4),(5:6)]
+end
     
 #    push!(atoms,Atom(1,"H",[0,0,0]))
 #    push!(atoms,Atom(2,"H",[0,0,1]))
@@ -32,12 +47,14 @@ using LinearAlgebra
     #push!(atoms,Atom(10,"H",[0,0,9]))
     basis = "sto-3g"
     mol     = Molecule(0,1,atoms,basis)
-    
+   
+    na = 4
+    nb = 4
 
     mf = FermiCG.pyscf_do_scf(mol)
     nbas = size(mf.mo_coeff)[1]
     ints = FermiCG.pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
-    e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,3,3,conv_tol=1e-10,max_cycle=100)
+    e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,na,nb,conv_tol=1e-10,max_cycle=100)
     @printf(" FCI Energy: %12.8f\n", e_fci)
    
     C = mf.mo_coeff
@@ -52,13 +69,8 @@ using LinearAlgebra
     flush(stdout)
 
     
-    clusters    = [(1:4),(5:8)]
-    clusters    = [(1:4),(5:6),(7:10)]
-    clusters    = [(1:2),(3:4),(5:6),(7:8),(9:10)]
-    clusters    = [(1:2),(3:4),(5:6)]
-    #clusters    = [(1:4),(5:6),(7:8)]
 
-    max_roots = 100 
+    max_roots = 400 
 
     clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
     
@@ -71,72 +83,47 @@ using LinearAlgebra
     cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
 
     ci_vector = FermiCG.ClusteredState(clusters)
-#    FermiCG.add_fockconfig!(ci_vector,[(1,1),(1,1),(1,1)])
-#    FermiCG.add_fockconfig!(ci_vector,[(1,1),(1,0),(0,1)])
-#    FermiCG.add_fockconfig!(ci_vector,[(1,1),(0,1),(1,0)])
-#    
-#    #FermiCG.add_fockconfig!(ci_vector,[(2,1),(0,0),(0,1)])
-#    FermiCG.add_fockconfig!(ci_vector,[(1,1),(1,1),(0,0)])
-#    FermiCG.add_fockconfig!(ci_vector,[(2,0),(1,0),(1,0)])
-#    FermiCG.add_fockconfig!(ci_vector,[(2,2),(0,0),(0,0)])
 
-    FermiCG.expand_to_full_space!(ci_vector, cluster_bases, 3, 3)
+    FermiCG.expand_to_full_space!(ci_vector, cluster_bases, na, nb)
     
     display(ci_vector)
     #display(cluster_bases[2][(2,2)])
     
-    function build(ci_vector, cluster_ops, clustered_ham)
-        dim = length(ci_vector)
-        H = zeros(dim, dim)
+
+#    if true 
+#    @time H = FermiCG.build_full_H_serial(ci_vector, cluster_ops, clustered_ham)
+#    dim = size(H,1)
+#    
+#        F = eigen(H)
+#        for (idx,Fi) in enumerate(F.values[1:min(10,length(F.values))])
+#            @printf(" %4i %18.13f\n", idx, Fi)
+#        end
+#    end
+#    println()
+    
+    #@time H = FermiCG.build_full_H_serial(ci_vector, cluster_ops, clustered_ham)
+    #e,v = Arpack.eigs(H, nev = 1, which=:SR)
+    #@printf(" Energy: %18.12f\n",real(e[1]))
+    
+
+    #@profilehtml H = FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
+    @time H = FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
+    e,v = Arpack.eigs(H, nev = 1, which=:SR)
+    @printf(" Energy: %18.12f\n",real(e[1]))
    
-        zero_fock = FermiCG.TransferConfig([(0,0) for i in ci_vector.clusters])
-        bra_idx = 0
-        for (fock_bra, configs_bra) in ci_vector.data
-            for (config_bra, coeff_bra) in configs_bra
-                bra_idx += 1
-                ket_idx = 0
-                for (fock_ket, configs_ket) in ci_vector.data
-                    fock_trans = fock_bra - fock_ket
+    #if false
+        #F = eigen(H)
+        #for (idx,Fi) in enumerate(F.values[1:min(10,length(F.values))])
+        #    @printf(" %4i %18.13f\n", idx, Fi)
+        #end
+    #end
+    
 
-                    # check if transition is connected by H
-                    if haskey(clustered_ham, fock_trans) == false
-                        ket_idx += length(configs_ket)
-                        continue
-                    end
-
-                    for (config_ket, coeff_ket) in configs_ket
-                        ket_idx += 1
-                        ket_idx <= bra_idx || continue
-         
-                        
-                        for term in clustered_ham[fock_trans]
-                            me = FermiCG.contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
-                            H[bra_idx, ket_idx] += me 
-                        end
-                    
-                        H[ket_idx, bra_idx] = H[bra_idx, ket_idx]
-
-                    end
-                end
-            end
-        end
-        return H
-    end
-
-    @time H = build(ci_vector, cluster_ops, clustered_ham)
-    dim = size(H,1)
-
-
-
-    F = eigen(H)
-    for (idx,Fi) in enumerate(F.values[1:min(10,length(F.values))])
-        @printf(" %4i %18.13f\n", idx, Fi)
-    end
-    display(ci_vector)
-    display(F.vectors[:,1])
+    #FermiCG.set_vector!(ci_vector, F.vectors[:,1])
+    #display(ci_vector)
     println()
     
-    @test isapprox(F.values[1], -5.066833300762457, atol=1e-10)
+    #@test isapprox(F.values[1], -5.066833300762457, atol=1e-10)
 #
 #    #FermiCG.print_configs(ci_vector)
 #    for i in 1:dim
