@@ -137,3 +137,6 @@ function build_full_H(ci_vector::ClusteredState, cluster_ops, clustered_ham::Clu
 end
 #=}}}=#
 
+
+function matvec(ci_vector::ClusteredState, cluster_ops, clustered_ham)
+end

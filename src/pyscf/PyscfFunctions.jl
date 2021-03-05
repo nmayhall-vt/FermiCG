@@ -275,6 +275,7 @@ function pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1, verbose=1
 	nelec = na + nb
 	norb = size(ham.h1)[1]
 	efci, ci = cisolver.kernel(ham.h1, ham.h2, norb , nelec, ecore=0, nroots =nroots, verbose=100)
+    #@printf(" Length of CI Vector: %i\n", length(ci[1]))
     #println(size(ci[1]))
 	fci_dim = size(ci,1)*size(ci,2)
 	# d1 = cisolver.make_rdm1(ci, norb, nelec)

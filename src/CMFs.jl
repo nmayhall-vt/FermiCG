@@ -214,8 +214,48 @@ function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rd
     rdm2_dict = Dict{Integer,Array}()
     for ci in clusters
         flush(stdout)
+
+        problem = FermiCG.StringCI.FCIProblem(length(ci), fspace[ci.idx][1],fspace[ci.idx][2])
+        verbose == 0 || display(problem)
         ints_i = form_casci_ints(ints, ci, rdm1a, rdm1b)
-        e, d1, d2 = FermiCG.pyscf_fci(ints_i,fspace[ci.idx][1],fspace[ci.idx][2], verbose=verbose)
+        
+        no = length(ci)
+        e = 0.0
+        d1 = zeros(no, no)
+        d2 = zeros(no, no, no, no)
+        if problem.dim == 1
+        
+            #
+            # we have a slater determinant. Compute energy and dms
+        
+            na = fspace[ci.idx][1]
+            nb = fspace[ci.idx][2]
+
+            if (na == no) && (nb == no)
+                #
+                # a doubly occupied space
+                d1 = Matrix(1.0I, no, no)
+                for p in 1:no, q in 1:no, r in 1:no, s in 1:no
+                    d2[p,q,r,s] = 2*d1[p,q]*d1[r,s] - d1[p,s]*d1[r,q]
+                end
+                d1 *= 2.0
+                d2 *= 2.0
+                e = compute_energy(0, ints_i.h1, ints_i.h2, d1, d2)
+                verbose == 0 || @printf(" Slater Det Energy: %12.8f\n", e)
+
+            elseif (na == 0) && (nb==0)
+                # 
+                # a virtual space (do nothing)
+            else
+                error(" How can this be?")
+            end
+            #e, d1, d2 = FermiCG.pyscf_fci(ints_i,fspace[ci.idx][1],fspace[ci.idx][2], verbose=verbose)
+        else
+            #
+            # run PYSCF FCI
+            e, d1, d2 = FermiCG.pyscf_fci(ints_i,fspace[ci.idx][1],fspace[ci.idx][2], verbose=verbose)
+        end
+        
         rdm1_dict[ci.idx] = d1
         rdm2_dict[ci.idx] = d2
     end
@@ -518,8 +558,10 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess;
     e_curr = 0
     g_curr = 0
     e_err = 0
-    da = zeros(size(ints.h1))
-    db = zeros(size(ints.h1))
+    #da = zeros(size(ints.h1))
+    #db = zeros(size(ints.h1))
+    da = deepcopy(dguess)
+    db = deepcopy(dguess)
     da1 = zeros(size(ints.h1))
     db1 = zeros(size(ints.h1))
     iter = 0
@@ -532,7 +574,9 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess;
         K = unpack_gradient(k, norb)
         U = exp(K)
         ints2 = orbital_rotation(ints,U)
-        e, da1, db1, rdm1_dict, rdm2_dict = cmf_ci(ints2, clusters, fspace, da+db, dconv=gconv/10.0, verbose=0)
+        da1 = U'*da*U
+        db1 = U'*db*U
+        e, da1, db1, rdm1_dict, rdm2_dict = cmf_ci(ints2, clusters, fspace, da1+db1, dconv=gconv/10.0, verbose=0)
         e_err = e-e_curr
         e_curr = e
         return e
@@ -562,8 +606,10 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess;
         U = exp(K)
         #println(size(U), size(kappa))
         ints2 = orbital_rotation(ints,U)
+        da1 = U'*da*U
+        db1 = U'*db*U
         
-        e, gd1a, gd1b, rdm1_dict, rdm2_dict = cmf_ci(ints2, clusters, fspace, da+db, dconv=gconv/10.0, verbose=verbose)
+        e, gd1a, gd1b, rdm1_dict, rdm2_dict = cmf_ci(ints2, clusters, fspace, da1+db1, dconv=gconv/10.0, verbose=verbose)
         grad = zeros(size(ints2.h1))
         for ci in clusters
             grad_1 = grad[:,ci.orb_list]
