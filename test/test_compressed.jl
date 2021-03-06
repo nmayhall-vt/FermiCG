@@ -113,15 +113,16 @@ using PyCall
     ref_vec  = FermiCG.CompressedTuckerState(ref_vector, thresh=-1);
 
 
-    #e_var, v_var = FermiCG.solve_for_compressed_space(ref_vec, cluster_ops, clustered_ham, nbody=4, thresh_var=1e-4, thresh_foi=1e-6, tol_ci=1e-5, tol_tucker=1e-5)
-    #@test isapprox(e_var[1], -19.804923102794756, atol=1e-10)
-    #e_var, v_var = FermiCG.solve_for_compressed_space(ref_vec, cluster_ops, clustered_ham, nbody=4, thresh_var=1e-4, thresh_foi=1e-5, tol_ci=1e-10, tol_tucker=1e-5, do_pt=true)
-    #@test isapprox(e_var[1], -19.802760904137205, atol=1e-9)
+    e_var, v_var = FermiCG.solve_for_compressed_space(ref_vec, cluster_ops, clustered_ham, nbody=4, thresh_var=1e-4, thresh_foi=1e-6, tol_ci=1e-5, tol_tucker=1e-5)
+    @test isapprox(e_var[1], -19.804923102794756, atol=1e-10)
+    
+    e_var, v_var = FermiCG.solve_for_compressed_space(ref_vec, cluster_ops, clustered_ham, nbody=4, thresh_var=1e-4, thresh_foi=1e-5, tol_ci=1e-10, tol_tucker=1e-5, do_pt=true)
+    @test isapprox(e_var[1], -19.802760904137205, atol=1e-9)
 
     @time fois_vec  = FermiCG.build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=4, thresh=1e-8)
 
-    #e_cepa, v_cepa = FermiCG.do_fois_cepa(v_var, cluster_ops, clustered_ham)
-    #@test isapprox(e_cepa[1], -19.80667040867044, atol=1e-9)
+    e_cepa, v_cepa = FermiCG.do_fois_cepa(v_var, cluster_ops, clustered_ham)
+    @test isapprox(e_cepa[1], -19.80667040867044, atol=1e-9)
 
     FermiCG.normalize!(fois_vec)
     e_ci, v_ci = FermiCG.tucker_ci_solve(fois_vec, cluster_ops, clustered_ham)
