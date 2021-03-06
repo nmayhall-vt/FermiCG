@@ -82,7 +82,7 @@ end
 """
     build_sigma!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham)
 """
-function build_sigma!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; nbody=4, cache=false)
+function build_sigma_serial!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; nbody=4, cache=false)
     #={{{=#
 
     for (fock_bra, configs_bra) in sigma_vector
@@ -111,6 +111,58 @@ function build_sigma!(sigma_vector::CompressedTuckerState, ci_vector::Compressed
             end
         end
     end
+    return
+    #=}}}=#
+end
+
+
+"""
+    build_sigma_parallel!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham)
+"""
+function build_sigma!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; nbody=4, cache=false)
+    #={{{=#
+
+    jobs = []
+    for (fock_bra, configs_bra) in sigma_vector
+        for (config_bra, tuck_bra) in configs_bra
+            push!(jobs, (fock_bra, config_bra))
+        end
+    end
+   
+    function do_job(job)
+        
+        fock_bra = job[1]
+        config_bra = job[2]
+        coeff_bra = sigma_vector[fock_bra][config_bra]
+        
+        for (fock_ket, configs_ket) in ci_vector
+            fock_trans = fock_bra - fock_ket
+
+            # check if transition is connected by H
+            haskey(clustered_ham, fock_trans) == true || continue
+
+            for (config_ket, coeff_ket) in configs_ket
+
+
+                for term in clustered_ham[fock_trans]
+
+                    length(term.clusters) <= nbody || continue
+
+                    FermiCG.form_sigma_block!(term, cluster_ops, fock_bra, config_bra,
+                                              fock_ket, config_ket,
+                                              coeff_bra, coeff_ket,
+                                              cache=cache)
+
+
+                end
+            end
+        end
+    end
+    
+    Threads.@threads for job in jobs
+        do_job(job)
+    end
+
     return
     #=}}}=#
 end
