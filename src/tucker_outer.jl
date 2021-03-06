@@ -736,6 +736,12 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
                         # Both the Compression and addition takes a fair amount of work.
 
 
+#                        if check_term(term, sig_fock, sig_tconfig, ket_fock, ket_tconfig) == false
+#       
+#                            println()
+#                            display(term.delta)
+#                            display(sig_fock - ket_fock)
+#                        end
                         check_term(term, sig_fock, sig_tconfig, ket_fock, ket_tconfig) || continue
 
 

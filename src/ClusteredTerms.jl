@@ -789,6 +789,7 @@ function check_term(term::ClusteredTerm1B,
         fock_bra[ci] == fock_ket[ci] || return false 
         bra[ci] == ket[ci] || return false
     end
+    fock_bra[term.clusters[1].idx] == fock_ket[term.clusters[1].idx] .+ term.delta[1] || return false 
     return true
 end
 
@@ -798,6 +799,8 @@ function check_term(term::ClusteredTerm2B,
     length(fock_bra) == length(fock_ket) || throw(Exception)
     length(bra) == length(ket) || throw(Exception)
     n_clusters = length(bra)
+    #
+    #
     # 
     # make sure inactive clusters are diagonal
     for ci in 1:n_clusters
@@ -807,6 +810,8 @@ function check_term(term::ClusteredTerm2B,
         fock_bra[ci] == fock_ket[ci] || return false 
         bra[ci] == ket[ci] || return false
     end
+    fock_bra[term.clusters[1].idx] == fock_ket[term.clusters[1].idx] .+ term.delta[1] || return false 
+    fock_bra[term.clusters[2].idx] == fock_ket[term.clusters[2].idx] .+ term.delta[2] || return false 
     return true
 end
 
@@ -826,6 +831,9 @@ function check_term(term::ClusteredTerm3B,
         fock_bra[ci] == fock_ket[ci] || return false 
         bra[ci] == ket[ci] || return false
     end
+    fock_bra[term.clusters[1].idx] == fock_ket[term.clusters[1].idx] .+ term.delta[1] || return false 
+    fock_bra[term.clusters[2].idx] == fock_ket[term.clusters[2].idx] .+ term.delta[2] || return false 
+    fock_bra[term.clusters[3].idx] == fock_ket[term.clusters[3].idx] .+ term.delta[3] || return false 
     return true
 end
 
@@ -846,6 +854,10 @@ function check_term(term::ClusteredTerm4B,
         fock_bra[ci] == fock_ket[ci] || return false 
         bra[ci] == ket[ci] || return false
     end
+    fock_bra[term.clusters[1].idx] == fock_ket[term.clusters[1].idx] .+ term.delta[1] || return false 
+    fock_bra[term.clusters[2].idx] == fock_ket[term.clusters[2].idx] .+ term.delta[2] || return false 
+    fock_bra[term.clusters[3].idx] == fock_ket[term.clusters[3].idx] .+ term.delta[3] || return false 
+    fock_bra[term.clusters[4].idx] == fock_ket[term.clusters[4].idx] .+ term.delta[4] || return false 
     return true
 end
 

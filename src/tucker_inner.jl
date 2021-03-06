@@ -92,6 +92,8 @@ function build_sigma!(sigma_vector::CompressedTuckerState, ci_vector::Compressed
 
                     length(term.clusters) <= nbody || continue
 
+                    check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
+
                     # these methods dispatched on type of term should only change coeff_bra
                     form_sigma_block!(term, cluster_ops, fock_bra, config_bra,
                                               fock_ket, config_ket,
@@ -118,50 +120,221 @@ end
 # projected into the space defined by bra. This is used to work with H within a subspace defined by a compression
 #
 #
-function form_sigma_block!(term::ClusteredTerm1B,
+function form_sigma_block!(term::C,
                             cluster_ops::Vector{ClusterOps},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             coeffs_bra::Tucker{T,N}, coeffs_ket::Tucker{T,N};
-                            cache=false ) where {T,N}
-#={{{=#
-    #display(term)
-    c1 = term.clusters[1]
-    length(fock_bra) == length(fock_ket) || throw(Exception)
-    length(bra) == length(ket) || throw(Exception)
-    n_clusters = length(bra)
+                            cache=false ) where {T,N, C<:ClusteredTerm}
+    #={{{=#
+    check_term(term, fock_bra, bra, fock_ket, ket) || throw(Exception) 
     #
-    # make sure inactive clusters are diagonal
-    for ci in 1:n_clusters
-        ci != c1.idx || continue
+    # determine sign from rearranging clusters if odd number of operators
+    state_sign = compute_terms_state_sign(term, fock_ket)
 
-        fock_bra[ci] == fock_ket[ci] || throw(Exception)
-        bra[ci] == ket[ci] || return 0.0
-    end
-
-    #
-    # make sure active clusters are correct transitions
-    fock_bra[c1.idx] == fock_ket[c1.idx] .+ term.delta[1] || throw(Exception)
+    # todo: add in 2e integral tucker decomposition and compress gamma along 1st index first
 
     op = Array{Float64}[]
-    cache_key = (fock_bra, fock_ket, bra, ket)
-    #cache_key = (fock_bra[c1.idx], fock_ket[c1.idx], bra[c1.idx], ket[c1.idx])
+    cache_key = OperatorConfig((fock_bra, fock_ket, bra, ket))
     if cache && haskey(term.cache, cache_key)
+       
+        #
+        # read the dense H term
         op = term.cache[cache_key]
+    
     else
-        op1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
 
         #
-        # Get 1body operator and compress it using the cluster's Tucker factors
-        op = coeffs_bra.factors[c1.idx]' * (op1[bra[c1.idx],ket[c1.idx]] * coeffs_ket.factors[c1.idx])
+        # build the dense H term
+        op = build_dense_H_term(term, cluster_ops, fock_bra, bra, coeffs_bra, fock_ket, ket, coeffs_ket)
+        
         if cache
             term.cache[cache_key] = op
         end
     end
 
-    #
-    # Use blas with transposes
+    coeffs_bra2 = contract_dense_H_with_state(term, op, state_sign, coeffs_bra, coeffs_ket)
+    
+    coeffs_bra.core .= coeffs_bra2.core
+    return
+end
+#=}}}=#
 
+
+
+
+
+"""
+    Contract integrals and ClusterOps to form dense 4-body Hamiltonian matrix (tensor) in Tucker basis
+"""
+function build_dense_H_term(term::ClusteredTerm1B, cluster_ops, fock_bra, bra, coeffs_bra::Tucker, fock_ket, ket, coeffs_ket::Tucker)
+#={{{=#
+    c1 = term.clusters[1]
+    op = Array{Float64}[]
+        
+    op1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
+
+    #
+    # Get 1body operator and compress it using the cluster's Tucker factors
+    op = coeffs_bra.factors[c1.idx]' * (op1[bra[c1.idx],ket[c1.idx]] * coeffs_ket.factors[c1.idx])
+
+    return op
+end
+#=}}}=#
+function build_dense_H_term(term::ClusteredTerm2B, cluster_ops, fock_bra, bra, coeffs_bra::Tucker, fock_ket, ket, coeffs_ket::Tucker)
+#={{{=#
+    c1 = term.clusters[1]
+    c2 = term.clusters[2]
+    op = Array{Float64}[]
+
+    #
+    # Compress Gammas using the cluster's Tucker factors
+    # e.g.,
+    #   Gamma(pqr, I, J) Ul(I,k) Ur(J,l) = Gamma(pqr, k, l) where k and l are compressed indices
+    @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    Ul = coeffs_bra.factors[c1.idx]
+    Ur = coeffs_ket.factors[c1.idx]
+    @tensor begin
+        tmp[p,k,J] := Ul[I,k] * gamma1[p,I,J]
+        g1[p,k,l] := Ur[J,l] * tmp[p,k,J]
+    end
+    #g1 = _compress_local_operator(gamma1, Ul, Ur)
+    #g1 = @ncon([gamma1, U1, U2], [[-1,2,3], [2,-2], [3,-3]])
+
+    @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+    Ul = coeffs_bra.factors[c2.idx]
+    Ur = coeffs_ket.factors[c2.idx]
+    @tensor begin
+        tmp[p,k,J] := Ul[I,k] * gamma2[p,I,J]
+        g2[p,k,l] := Ur[J,l] * tmp[p,k,J]
+    end
+    #g2 = @ncon([gamma2, U1, U2], [[-1,2,3], [2,-2], [3,-3]])
+    #display(("g1/2", size(g1), size(g2)))
+
+    @tensor begin
+        op[q,J,I] := term.ints[p,q] * g1[p,I,J]
+        op[J,L,I,K] := op[q,J,I] * g2[q,K,L]
+    end
+
+    return op
+end
+#=}}}=#
+function build_dense_H_term(term::ClusteredTerm3B, cluster_ops, fock_bra, bra, coeffs_bra::Tucker, fock_ket, ket, coeffs_ket::Tucker)
+#={{{=#
+    c1 = term.clusters[1]
+    c2 = term.clusters[2]
+    c3 = term.clusters[3]
+    op = Array{Float64}[]
+
+    #
+    # Compress Gammas using the cluster's Tucker factors
+    # e.g.,
+    #   Gamma(pqr, I, J) Ul(I,k) Ur(J,l) = Gamma(pqr, k, l) where k and l are compressed indices
+    @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    Ul = coeffs_bra.factors[c1.idx]
+    Ur = coeffs_ket.factors[c1.idx]
+    @tensor begin
+        tmp[p,k,J] := Ul[I,k] * gamma1[p,I,J]
+        g1[p,k,l] := Ur[J,l] * tmp[p,k,J]
+    end
+
+    @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+    Ul = coeffs_bra.factors[c2.idx]
+    Ur = coeffs_ket.factors[c2.idx]
+    @tensor begin
+        tmp[p,k,J] := Ul[I,k] * gamma2[p,I,J]
+        g2[p,k,l] := Ur[J,l] * tmp[p,k,J]
+    end
+    #display(("g1/2", size(g1), size(g2)))
+
+    @views gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,bra[c3.idx],ket[c3.idx]]
+    Ul = coeffs_bra.factors[c3.idx]
+    Ur = coeffs_ket.factors[c3.idx]
+    @tensor begin
+        tmp[p,k,J] := Ul[I,k] * gamma3[p,I,J]
+        g3[p,k,l] := Ur[J,l] * tmp[p,k,J]
+    end
+
+    #
+    # Now contract into 3body term
+    #
+    # h(p,q) * g1(p,I,J) * g2(q,K,L) = op(J,L,I,K)
+    @tensor begin
+        op[q,r,I,J] := term.ints[p,q,r] * g1[p,I,J]
+        op[r,I,J,K,L] := op[q,r,I,J] * g2[q,K,L]
+        op[J,L,N,I,K,M] := op[r,I,J,K,L] * g3[r,M,N]
+    end
+
+    return op
+end
+#=}}}=#
+function build_dense_H_term(term::ClusteredTerm4B, cluster_ops, fock_bra, bra, coeffs_bra::Tucker, fock_ket, ket, coeffs_ket::Tucker)
+#={{{=#
+    c1 = term.clusters[1]
+    c2 = term.clusters[2]
+    c3 = term.clusters[3]
+    c4 = term.clusters[4]
+    op = Array{Float64}[]
+
+    #
+    # Compress Gammas using the cluster's Tucker factors
+    # e.g.,
+    #   Gamma(pqr, I, J) Ul(I,k) Ur(J,l) = Gamma(pqr, k, l) where k and l are compressed indices
+    @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    Ul = coeffs_bra.factors[c1.idx]
+    Ur = coeffs_ket.factors[c1.idx]
+    @tensor begin
+        tmp[p,k,J] := Ul[I,k] * gamma1[p,I,J]
+        g1[p,k,l] := Ur[J,l] * tmp[p,k,J]
+    end
+
+    @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+    Ul = coeffs_bra.factors[c2.idx]
+    Ur = coeffs_ket.factors[c2.idx]
+    @tensor begin
+        tmp[p,k,J] := Ul[I,k] * gamma2[p,I,J]
+        g2[p,k,l] := Ur[J,l] * tmp[p,k,J]
+    end
+    #display(("g1/2", size(g1), size(g2)))
+
+    @views gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,bra[c3.idx],ket[c3.idx]]
+    Ul = coeffs_bra.factors[c3.idx]
+    Ur = coeffs_ket.factors[c3.idx]
+    @tensor begin
+        tmp[p,k,J] := Ul[I,k] * gamma3[p,I,J]
+        g3[p,k,l] := Ur[J,l] * tmp[p,k,J]
+    end
+
+    @views gamma4 = cluster_ops[c4.idx][term.ops[4]][(fock_bra[c4.idx],fock_ket[c4.idx])][:,bra[c4.idx],ket[c4.idx]]
+    Ul = coeffs_bra.factors[c4.idx]
+    Ur = coeffs_ket.factors[c4.idx]
+    @tensor begin
+        tmp[p,k,J] := Ul[I,k] * gamma4[p,I,J]
+        g4[p,k,l] := Ur[J,l] * tmp[p,k,J]
+    end
+
+    #
+    # Now contract into 4body term
+    #
+    # h(p,q) * g1(p,I,J) * g2(q,K,L) = op(J,L,I,K)
+    @tensor begin
+        op[q,r,s,J,I] := term.ints[p,q,r,s] * g1[p,I,J]
+        op[r,s,J,L,I,K] := op[q,r,s,J,I] * g2[q,K,L]
+        op[s,J,L,N,I,K,M] := op[r,s,J,L,I,K] * g3[r,M,N]
+        op[J,L,N,P,I,K,M,O] := op[s,J,L,N,I,K,M] * g4[s,O,P]
+    end
+    return op
+end
+#=}}}=#
+
+"""
+    Contract  Hamiltonian matrix (tensor) in Tucker basis with trial vector (Tucker)
+"""
+function contract_dense_H_with_state(term::ClusteredTerm1B, op, state_sign, coeffs_bra::Tucker{T,N}, coeffs_ket::Tucker{T,N}) where {T,N}
+#={{{=#
+    c1 = term.clusters[1]
+
+    n_clusters = N 
     #
     # form overlaps - needed when TuckerConfigs aren't the same because each does their own compression and has
     # distinct Tucker factors
@@ -225,91 +398,15 @@ function form_sigma_block!(term::ClusteredTerm1B,
         #coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
     end
 
-    coeffs_bra.core .= coeffs_bra2
-
-    return
-#=}}}=#
+    return Tucker(coeffs_bra2, coeffs_bra.factors)
 end
-
-function form_sigma_block!(term::ClusteredTerm2B,
-                            cluster_ops::Vector{ClusterOps},
-                            fock_bra::FockConfig, bra::TuckerConfig,
-                            fock_ket::FockConfig, ket::TuckerConfig,
-                            coeffs_bra::Tucker{T,N}, coeffs_ket::Tucker{T,N};
-                            cache=false) where {T,N}
-    #={{{=#
-    #display(term)
-    #display.((fock_bra, fock_ket))
+#=}}}=#
+function contract_dense_H_with_state(term::ClusteredTerm2B, op, state_sign, coeffs_bra::Tucker{T,N}, coeffs_ket::Tucker{T,N}) where {T,N}
+#={{{=#
     c1 = term.clusters[1]
     c2 = term.clusters[2]
-    length(fock_bra) == length(fock_ket) || throw(Exception)
-    length(bra) == length(ket) || throw(Exception)
-    n_clusters = length(bra)
-    #
-    # make sure inactive clusters are diagonal
-    for ci in 1:n_clusters
-        ci != c1.idx || continue
-        ci != c2.idx || continue
 
-        fock_bra[ci] == fock_ket[ci] || throw(Exception)
-        bra[ci] == ket[ci] || return 0.0
-    end
-
-    #
-    # make sure active clusters are correct transitions
-    fock_bra[c1.idx] == fock_ket[c1.idx] .+ term.delta[1] || throw(Exception)
-    fock_bra[c2.idx] == fock_ket[c2.idx] .+ term.delta[2] || throw(Exception)
-
-    #
-    # determine sign from rearranging clusters if odd number of operators
-    state_sign = compute_terms_state_sign(term, fock_ket)
-
-    # todo: add in 2e integral tucker decomposition and compress gamma along 1st index first
-    #
-    # Now contract into 2body term
-    #
-    # h(p,q) * g1(p,I,J) * g2(q,K,L) = op(J,L,I,K)
-    op = Array{Float64}[]
-    cache_key = OperatorConfig((fock_bra, fock_ket, bra, ket))
-    if cache && haskey(term.cache, cache_key)
-        op = term.cache[cache_key]
-    else
-        #
-        # Compress Gammas using the cluster's Tucker factors
-        # e.g.,
-        #   Gamma(pqr, I, J) Ul(I,k) Ur(J,l) = Gamma(pqr, k, l) where k and l are compressed indices
-        @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
-        Ul = coeffs_bra.factors[c1.idx]
-        Ur = coeffs_ket.factors[c1.idx]
-        @tensor begin
-            tmp[p,k,J] := Ul[I,k] * gamma1[p,I,J]
-            g1[p,k,l] := Ur[J,l] * tmp[p,k,J]
-        end
-        #g1 = _compress_local_operator(gamma1, Ul, Ur)
-        #g1 = @ncon([gamma1, U1, U2], [[-1,2,3], [2,-2], [3,-3]])
-
-        @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
-        Ul = coeffs_bra.factors[c2.idx]
-        Ur = coeffs_ket.factors[c2.idx]
-        @tensor begin
-            tmp[p,k,J] := Ul[I,k] * gamma2[p,I,J]
-            g2[p,k,l] := Ur[J,l] * tmp[p,k,J]
-        end
-        #g2 = @ncon([gamma2, U1, U2], [[-1,2,3], [2,-2], [3,-3]])
-        #display(("g1/2", size(g1), size(g2)))
-
-        @tensor begin
-            op[q,J,I] := term.ints[p,q] * g1[p,I,J]
-            op[J,L,I,K] := op[q,J,I] * g2[q,K,L]
-        end
-        if cache
-            term.cache[cache_key] = op
-        end
-    end
-
-    #
-    # Use blas with transposes
-
+    n_clusters = N 
     #
     # form overlaps - needed when TuckerConfigs aren't the same because each does their own compression and has
     # distinct Tucker factors
@@ -381,73 +478,16 @@ function form_sigma_block!(term::ClusteredTerm2B,
         #coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
     end
 
-    coeffs_bra.core .= coeffs_bra2
-
-    return
-    #=}}}=#
+    return Tucker(coeffs_bra2, coeffs_bra.factors)
 end
-
-function form_sigma_block!(term::ClusteredTerm3B,
-                            cluster_ops::Vector{ClusterOps},
-                            fock_bra::FockConfig, bra::TuckerConfig,
-                            fock_ket::FockConfig, ket::TuckerConfig,
-                            coeffs_bra::Tucker{T,N}, coeffs_ket::Tucker{T,N};
-                            cache=false) where {T,N}
-    #={{{=#
-    #display(term)
-    #display.((fock_bra, fock_ket))
+#=}}}=#
+function contract_dense_H_with_state(term::ClusteredTerm3B, op, state_sign, coeffs_bra::Tucker{T,N}, coeffs_ket::Tucker{T,N}) where {T,N}
+#={{{=#
     c1 = term.clusters[1]
     c2 = term.clusters[2]
     c3 = term.clusters[3]
-    length(fock_bra) == length(fock_ket) || throw(Exception)
-    length(bra) == length(ket) || throw(Exception)
-    n_clusters = length(bra)
-    #
-    # make sure inactive clusters are diagonal
-    for ci in 1:n_clusters
-        ci != c1.idx || continue
-        ci != c2.idx || continue
-        ci != c3.idx || continue
 
-        fock_bra[ci] == fock_ket[ci] || throw(Exception)
-        bra[ci] == ket[ci] || return 0.0
-    end
-
-    #
-    # make sure active clusters are correct transitions
-    fock_bra[c1.idx] == fock_ket[c1.idx] .+ term.delta[1] || throw(Exception)
-    fock_bra[c2.idx] == fock_ket[c2.idx] .+ term.delta[2] || throw(Exception)
-    fock_bra[c3.idx] == fock_ket[c3.idx] .+ term.delta[3] || throw(Exception)
-
-    #
-    # determine sign from rearranging clusters if odd number of operators
-    state_sign = compute_terms_state_sign(term, fock_ket)
-
-    # todo: add in 2e integral tucker decomposition and compress gamma along 1st index first
-
-
-    op = Array{Float64}[]
-    cache_key = OperatorConfig((fock_bra, fock_ket, bra, ket))
-    if cache && haskey(term.cache, cache_key)
-       
-        #
-        # read the dense H term
-        op = term.cache[cache_key]
-    
-    else
-
-        #
-        # build the dense H term
-        op = build_dense_H_term(term, cluster_ops, fock_bra, bra, coeffs_bra, fock_ket, ket, coeffs_ket)
-        
-        if cache
-            term.cache[cache_key] = op
-        end
-    end
-
-    #
-    # Use blas with transposes
-
+    n_clusters = N 
     #
     # form overlaps - needed when TuckerConfigs aren't the same because each does their own compression and has
     # distinct Tucker factors
@@ -517,71 +557,17 @@ function form_sigma_block!(term::ClusteredTerm3B,
         #coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
     end
 
-    coeffs_bra.core .= coeffs_bra2
-
-    return
-    #=}}}=#
+    return Tucker(coeffs_bra2, coeffs_bra.factors)
 end
-
-function form_sigma_block!(term::ClusteredTerm4B,
-                            cluster_ops::Vector{ClusterOps},
-                            fock_bra::FockConfig, bra::TuckerConfig,
-                            fock_ket::FockConfig, ket::TuckerConfig,
-                            coeffs_bra::Tucker{T,N}, coeffs_ket::Tucker{T,N};
-                            cache=false) where {T,N}
-    #={{{=#
-    #display(term)
-    #display.((fock_bra, fock_ket))
+#=}}}=#
+function contract_dense_H_with_state(term::ClusteredTerm4B, op, state_sign, coeffs_bra::Tucker{T,N}, coeffs_ket::Tucker{T,N}) where {T,N}
+#={{{=#
     c1 = term.clusters[1]
     c2 = term.clusters[2]
     c3 = term.clusters[3]
     c4 = term.clusters[4]
-    length(fock_bra) == length(fock_ket) || throw(Exception)
-    length(bra) == length(ket) || throw(Exception)
-    n_clusters = length(bra)
-    #
-    # make sure inactive clusters are diagonal
-    for ci in 1:n_clusters
-        ci != c1.idx || continue
-        ci != c2.idx || continue
-        ci != c3.idx || continue
-        ci != c4.idx || continue
 
-        fock_bra[ci] == fock_ket[ci] || throw(Exception)
-        bra[ci] == ket[ci] || return 0.0
-    end
-
-    #
-    # make sure active clusters are correct transitions
-    fock_bra[c1.idx] == fock_ket[c1.idx] .+ term.delta[1] || throw(Exception)
-    fock_bra[c2.idx] == fock_ket[c2.idx] .+ term.delta[2] || throw(Exception)
-    fock_bra[c3.idx] == fock_ket[c3.idx] .+ term.delta[3] || throw(Exception)
-    fock_bra[c4.idx] == fock_ket[c4.idx] .+ term.delta[4] || throw(Exception)
-
-    #
-    # determine sign from rearranging clusters if odd number of operators
-    state_sign = compute_terms_state_sign(term, fock_ket)
-
-    # todo: add in 2e integral tucker decomposition and compress gamma along 1st index first
-
-    op = Array{Float64}[]
-    cache_key = OperatorConfig((fock_bra, fock_ket, bra, ket))
-    if cache && haskey(term.cache, cache_key)
-       
-        #
-        # read the dense H term
-        op = term.cache[cache_key]
-    
-    else
-
-        #
-        # build the dense H term
-        op = build_dense_H_term(term, cluster_ops, fock_bra, bra, coeffs_bra, fock_ket, ket, coeffs_ket)
-        
-        if cache
-            term.cache[cache_key] = op
-        end
-    end
+    n_clusters = N 
 
     #
     # form overlaps - needed when TuckerConfigs aren't the same because each does their own compression and has
@@ -653,122 +639,7 @@ function form_sigma_block!(term::ClusteredTerm4B,
     if length(coeffs_bra2) >= length(coeffs_ket2)
         #coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
     end
-
-    coeffs_bra.core .= coeffs_bra2
-
-    return
-    #=}}}=#
-end
-
-
-"""
-    Contract integrals and ClusterOps to form dense 4-body Hamiltonian matrix (tensor)
-"""
-function build_dense_H_term(term::ClusteredTerm3B, cluster_ops, fock_bra, bra, coeffs_bra, fock_ket, ket, coeffs_ket)
-#={{{=#
-    c1 = term.clusters[1]
-    c2 = term.clusters[2]
-    c3 = term.clusters[3]
-    op = Array{Float64}[]
-
-    #
-    # Compress Gammas using the cluster's Tucker factors
-    # e.g.,
-    #   Gamma(pqr, I, J) Ul(I,k) Ur(J,l) = Gamma(pqr, k, l) where k and l are compressed indices
-    @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
-    Ul = coeffs_bra.factors[c1.idx]
-    Ur = coeffs_ket.factors[c1.idx]
-    @tensor begin
-        tmp[p,k,J] := Ul[I,k] * gamma1[p,I,J]
-        g1[p,k,l] := Ur[J,l] * tmp[p,k,J]
-    end
-
-    @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
-    Ul = coeffs_bra.factors[c2.idx]
-    Ur = coeffs_ket.factors[c2.idx]
-    @tensor begin
-        tmp[p,k,J] := Ul[I,k] * gamma2[p,I,J]
-        g2[p,k,l] := Ur[J,l] * tmp[p,k,J]
-    end
-    #display(("g1/2", size(g1), size(g2)))
-
-    @views gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,bra[c3.idx],ket[c3.idx]]
-    Ul = coeffs_bra.factors[c3.idx]
-    Ur = coeffs_ket.factors[c3.idx]
-    @tensor begin
-        tmp[p,k,J] := Ul[I,k] * gamma3[p,I,J]
-        g3[p,k,l] := Ur[J,l] * tmp[p,k,J]
-    end
-
-    #
-    # Now contract into 3body term
-    #
-    # h(p,q) * g1(p,I,J) * g2(q,K,L) = op(J,L,I,K)
-    @tensor begin
-        op[q,r,I,J] := term.ints[p,q,r] * g1[p,I,J]
-        op[r,I,J,K,L] := op[q,r,I,J] * g2[q,K,L]
-        op[J,L,N,I,K,M] := op[r,I,J,K,L] * g3[r,M,N]
-    end
-
-    return op
-end
-#=}}}=#
-function build_dense_H_term(term::ClusteredTerm4B, cluster_ops, fock_bra, bra, coeffs_bra, fock_ket, ket, coeffs_ket)
-#={{{=#
-    c1 = term.clusters[1]
-    c2 = term.clusters[2]
-    c3 = term.clusters[3]
-    c4 = term.clusters[4]
-    op = Array{Float64}[]
-
-    #
-    # Compress Gammas using the cluster's Tucker factors
-    # e.g.,
-    #   Gamma(pqr, I, J) Ul(I,k) Ur(J,l) = Gamma(pqr, k, l) where k and l are compressed indices
-    @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
-    Ul = coeffs_bra.factors[c1.idx]
-    Ur = coeffs_ket.factors[c1.idx]
-    @tensor begin
-        tmp[p,k,J] := Ul[I,k] * gamma1[p,I,J]
-        g1[p,k,l] := Ur[J,l] * tmp[p,k,J]
-    end
-
-    @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
-    Ul = coeffs_bra.factors[c2.idx]
-    Ur = coeffs_ket.factors[c2.idx]
-    @tensor begin
-        tmp[p,k,J] := Ul[I,k] * gamma2[p,I,J]
-        g2[p,k,l] := Ur[J,l] * tmp[p,k,J]
-    end
-    #display(("g1/2", size(g1), size(g2)))
-
-    @views gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,bra[c3.idx],ket[c3.idx]]
-    Ul = coeffs_bra.factors[c3.idx]
-    Ur = coeffs_ket.factors[c3.idx]
-    @tensor begin
-        tmp[p,k,J] := Ul[I,k] * gamma3[p,I,J]
-        g3[p,k,l] := Ur[J,l] * tmp[p,k,J]
-    end
-
-    @views gamma4 = cluster_ops[c4.idx][term.ops[4]][(fock_bra[c4.idx],fock_ket[c4.idx])][:,bra[c4.idx],ket[c4.idx]]
-    Ul = coeffs_bra.factors[c4.idx]
-    Ur = coeffs_ket.factors[c4.idx]
-    @tensor begin
-        tmp[p,k,J] := Ul[I,k] * gamma4[p,I,J]
-        g4[p,k,l] := Ur[J,l] * tmp[p,k,J]
-    end
-
-    #
-    # Now contract into 4body term
-    #
-    # h(p,q) * g1(p,I,J) * g2(q,K,L) = op(J,L,I,K)
-    @tensor begin
-        op[q,r,s,J,I] := term.ints[p,q,r,s] * g1[p,I,J]
-        op[r,s,J,L,I,K] := op[q,r,s,J,I] * g2[q,K,L]
-        op[s,J,L,N,I,K,M] := op[r,s,J,L,I,K] * g3[r,M,N]
-        op[J,L,N,P,I,K,M,O] := op[s,J,L,N,I,K,M] * g4[s,O,P]
-    end
-    return op
+    return Tucker(coeffs_bra2, coeffs_bra.factors)
 end
 #=}}}=#
 
@@ -816,7 +687,7 @@ function form_sigma_block_expand(term::ClusteredTerm1B,
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             coeffs_ket::Tucker{T,N};
-                            max_number=nothing, prescreen=1e-4) where {T,N}
+                            max_number=nothing, prescreen=1e-6) where {T,N}
 #={{{=#
     #display(term)
     c1 = term.clusters[1]
@@ -899,7 +770,7 @@ function form_sigma_block_expand(term::ClusteredTerm2B,
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             coeffs_ket::Tucker{T,N};
-                            max_number=nothing, prescreen=1e-4) where {T,N}
+                            max_number=nothing, prescreen=1e-6) where {T,N}
     #={{{=#
     #display(term)
     #display.((fock_bra, fock_ket))
@@ -1056,7 +927,7 @@ function form_sigma_block_expand(term::ClusteredTerm3B,
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             coeffs_ket::Tucker{T,N};
-                            max_number=nothing, prescreen=1e-4) where {T,N}
+                            max_number=nothing, prescreen=1e-6) where {T,N}
     #={{{=#
     #display(term)
     #display.((fock_bra, fock_ket))
@@ -1220,7 +1091,7 @@ function form_sigma_block_expand(term::ClusteredTerm4B,
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             coeffs_ket::Tucker{T,N};
-                            max_number=nothing, prescreen=1e-4) where {T,N}
+                            max_number=nothing, prescreen=1e-6) where {T,N}
 #={{{=#
     #display(term)
     #display.((fock_bra, fock_ket))
