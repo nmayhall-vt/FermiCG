@@ -43,15 +43,19 @@ function cache_hamiltonian(bra::CompressedTuckerState, ket::CompressedTuckerStat
     for (ftrans,terms) in clustered_ham
         for term in terms
             for (fock_ket, configs_ket) in ket
-                fock_bra = bra_ket + ftrans
+                fock_bra = [fock_ket.config...]
+                for (cii,ci) in enumerate(term.clusters)
+                    fock_bra[ci.idx] = ftrans[cii]
+                end
+                fock_bra = TransferConfig(fock_bra)
+                
                 for (config_ket, tuck_ket) in configs_ket
                     for (config_bra, tuck_bra) in ket[fock_bra]
-                    
-                        # this function changes term only
-                        form_sigma_block!(term, cluster_ops, fock_bra, config_bra,
-                                              fock_ket, config_ket,
-                                              coeff_bra, coeff_ket,
-                                              cache=cache)
+    
+                        cache_key = OperatorConfig((fock_bra, fock_ket, config_bra, config_ket))
+                        term.cache[cache_key] = build_dense_H_term(term, cluster_ops, 
+                                                                    fock_bra, bra, tuck_bra, 
+                                                                    fock_ket, ket, tuck_ket)
                     end
                 end
             end
@@ -94,11 +98,11 @@ function build_sigma!(sigma_vector::CompressedTuckerState, ci_vector::Compressed
 
                     check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
 
-                    # these methods dispatched on type of term should only change coeff_bra
-                    form_sigma_block!(term, cluster_ops, fock_bra, config_bra,
-                                              fock_ket, config_ket,
-                                              coeff_bra, coeff_ket,
-                                              cache=cache)
+                    # these methods dispatched on type of term
+                    coeff_bra.core .= form_sigma_block!(term, cluster_ops, fock_bra, config_bra,
+                                                  fock_ket, config_ket,
+                                                  coeff_bra, coeff_ket,
+                                                  cache=cache)
 
 
                 end
@@ -153,10 +157,7 @@ function form_sigma_block!(term::C,
         end
     end
 
-    coeffs_bra2 = contract_dense_H_with_state(term, op, state_sign, coeffs_bra, coeffs_ket)
-    
-    coeffs_bra.core .= coeffs_bra2.core
-    return
+    return contract_dense_H_with_state(term, op, state_sign, coeffs_bra, coeffs_ket)
 end
 #=}}}=#
 
@@ -398,7 +399,7 @@ function contract_dense_H_with_state(term::ClusteredTerm1B, op, state_sign, coef
         #coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
     end
 
-    return Tucker(coeffs_bra2, coeffs_bra.factors)
+    return coeffs_bra2
 end
 #=}}}=#
 function contract_dense_H_with_state(term::ClusteredTerm2B, op, state_sign, coeffs_bra::Tucker{T,N}, coeffs_ket::Tucker{T,N}) where {T,N}
@@ -478,7 +479,7 @@ function contract_dense_H_with_state(term::ClusteredTerm2B, op, state_sign, coef
         #coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
     end
 
-    return Tucker(coeffs_bra2, coeffs_bra.factors)
+    return coeffs_bra2
 end
 #=}}}=#
 function contract_dense_H_with_state(term::ClusteredTerm3B, op, state_sign, coeffs_bra::Tucker{T,N}, coeffs_ket::Tucker{T,N}) where {T,N}
@@ -557,7 +558,7 @@ function contract_dense_H_with_state(term::ClusteredTerm3B, op, state_sign, coef
         #coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
     end
 
-    return Tucker(coeffs_bra2, coeffs_bra.factors)
+    return coeffs_bra2
 end
 #=}}}=#
 function contract_dense_H_with_state(term::ClusteredTerm4B, op, state_sign, coeffs_bra::Tucker{T,N}, coeffs_ket::Tucker{T,N}) where {T,N}
@@ -639,7 +640,7 @@ function contract_dense_H_with_state(term::ClusteredTerm4B, op, state_sign, coef
     if length(coeffs_bra2) >= length(coeffs_ket2)
         #coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
     end
-    return Tucker(coeffs_bra2, coeffs_bra.factors)
+    return coeffs_bra2
 end
 #=}}}=#
 
@@ -762,8 +763,8 @@ function form_sigma_block_expand(term::ClusteredTerm1B,
     new_factors[c1.idx] = Matrix(1.0I, size(bra_core,c1.idx), size(bra_core,c1.idx))
     return Tucker(bra_core, NTuple{N}(new_factors))
     
-#=}}}=#
 end
+#=}}}=#
 
 function form_sigma_block_expand(term::ClusteredTerm2B,
                             cluster_ops::Vector{ClusterOps},
@@ -919,8 +920,8 @@ function form_sigma_block_expand(term::ClusteredTerm2B,
     new_factors[c1.idx] = new_factor1
     new_factors[c2.idx] = new_factor2 
     return Tucker(bra_core, NTuple{N}(new_factors))
-    #=}}}=#
 end
+#=}}}=#
 
 function form_sigma_block_expand(term::ClusteredTerm3B,
                             cluster_ops::Vector{ClusterOps},
@@ -1083,8 +1084,8 @@ function form_sigma_block_expand(term::ClusteredTerm3B,
     new_factors[c3.idx] = new_factor3 
     return Tucker(bra_core, NTuple{N}(new_factors))
 
-    #=}}}=#
 end
+#=}}}=#
 
 function form_sigma_block_expand(term::ClusteredTerm4B,
                             cluster_ops::Vector{ClusterOps},
@@ -1266,5 +1267,5 @@ function form_sigma_block_expand(term::ClusteredTerm4B,
     new_factors[c4.idx] = new_factor4 
     return Tucker(bra_core, NTuple{N}(new_factors))
     
-#=}}}=#
 end
+#=}}}=#

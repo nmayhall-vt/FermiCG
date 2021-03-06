@@ -64,6 +64,9 @@ function tucker_ci_solve(ci_vector::CompressedTuckerState, cluster_ops, clustere
     nr = size(v0)[2]
    
 
+
+    #cache_hamiltonian(ci_vector, ci_vector, cluster_ops, clustered_ham)
+    
     davidson = Davidson(Hmap,v0=v0,max_iter=80, max_ss_vecs=40, nroots=nr, tol=tol)
     #Adiag = StringCI.compute_fock_diagonal(problem,mf.mo_energy, e_mf)
     #FermiCG.solve(davidson)
@@ -124,7 +127,7 @@ function tucker_cepa_solve(ref_vector::CompressedTuckerState, cepa_vector::Compr
 #={{{=#
     sig = deepcopy(ref_vector)
     zero!(sig)
-    build_sigma!(sig, ref_vector, cluster_ops, clustered_ham)
+    build_sigma!(sig, ref_vector, cluster_ops, clustered_ham, cache=false)
     e0 = nonorth_dot(ref_vector, sig)
     length(e0) == 1 || error("Only one state at a time please", e0)
     e0 = e0[1]
@@ -201,7 +204,8 @@ function tucker_cepa_solve(ref_vector::CompressedTuckerState, cepa_vector::Compr
         #@printf(" Overlap between <1|0>:          %8.1e\n", nonorth_dot(x_vector, ref_vector, verbose=0))
         sig = deepcopy(x_vector)
         zero!(sig)
-        build_sigma!(sig, x_vector, cluster_ops, clustered_ham, cache=cache, nbody=nbody)
+        #build_sigma!(sig, x_vector, cluster_ops, clustered_ham, nbody=nbody, cache=false)
+        build_sigma!(sig, x_vector, cluster_ops, clustered_ham, nbody=nbody, cache=cache)
 
         tmp = deepcopy(x_vector)
         if do_pt2
@@ -235,7 +239,7 @@ function tucker_cepa_solve(ref_vector::CompressedTuckerState, cepa_vector::Compr
 
     sig = deepcopy(ref_vector)
     zero!(sig)
-    build_sigma!(sig,x_vector, cluster_ops, clustered_ham)
+    @time build_sigma!(sig,x_vector, cluster_ops, clustered_ham)
     ecorr = nonorth_dot(sig,ref_vector)
     @printf(" Cepa: %12.8f\n", ecorr)
     length(ecorr) == 1 || error(" Dimension Error", ecorr)
