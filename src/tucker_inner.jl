@@ -4,7 +4,7 @@ using BenchmarkTools
 """
     build_sigma!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham)
 """
-function build_sigma_serial!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; nbody=4, cache=false)
+function build_sigma!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; nbody=4, cache=false)
     #={{{=#
 
     for (fock_bra, configs_bra) in sigma_vector
@@ -21,11 +21,13 @@ function build_sigma_serial!(sigma_vector::CompressedTuckerState, ci_vector::Com
                     for term in clustered_ham[fock_trans]
 
                         length(term.clusters) <= nbody || continue
+                    
+                        check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
 
-                        FermiCG.form_sigma_block!(term, cluster_ops, fock_bra, config_bra,
-                                                  fock_ket, config_ket,
-                                                  coeff_bra, coeff_ket,
-                                                  cache=cache)
+                        coeff_bra.core .= form_sigma_block!(term, cluster_ops, fock_bra, config_bra,
+                                                            fock_ket, config_ket,
+                                                            coeff_bra, coeff_ket,
+                                                            cache=cache)
 
 
                     end
@@ -67,7 +69,7 @@ end
 """
     build_sigma_parallel!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham)
 """
-function build_sigma!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; nbody=4, cache=false)
+function abuild_sigma!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; nbody=4, cache=false)
     #={{{=#
 
     jobs = []
@@ -688,7 +690,7 @@ function form_sigma_block_expand(term::ClusteredTerm1B,
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             coeffs_ket::Tucker{T,N};
-                            max_number=nothing, prescreen=1e-6) where {T,N}
+                            max_number=nothing, prescreen=1e-4) where {T,N}
 #={{{=#
     #display(term)
     c1 = term.clusters[1]
@@ -771,7 +773,7 @@ function form_sigma_block_expand(term::ClusteredTerm2B,
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             coeffs_ket::Tucker{T,N};
-                            max_number=nothing, prescreen=1e-6) where {T,N}
+                            max_number=nothing, prescreen=1e-4) where {T,N}
     #={{{=#
     #display(term)
     #display.((fock_bra, fock_ket))
@@ -928,7 +930,7 @@ function form_sigma_block_expand(term::ClusteredTerm3B,
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             coeffs_ket::Tucker{T,N};
-                            max_number=nothing, prescreen=1e-6) where {T,N}
+                            max_number=nothing, prescreen=1e-4) where {T,N}
     #={{{=#
     #display(term)
     #display.((fock_bra, fock_ket))
@@ -1092,7 +1094,7 @@ function form_sigma_block_expand(term::ClusteredTerm4B,
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             coeffs_ket::Tucker{T,N};
-                            max_number=nothing, prescreen=1e-6) where {T,N}
+                            max_number=nothing, prescreen=1e-4) where {T,N}
 #={{{=#
     #display(term)
     #display.((fock_bra, fock_ket))

@@ -123,7 +123,167 @@ Ax=b
 After solving, the Energy can be obtained as:
 E = (Eref + Hax*Cx) / (1 + Sax*Cx)
 """
-function tucker_cepa_solve(ref_vector::CompressedTuckerState, cepa_vector::CompressedTuckerState, cluster_ops, clustered_ham; tol=1e-5, cache=true, max_iter=30, verbose=false, do_pt2=false)
+function tucker_cepa_solve(ref_vector::CompressedTuckerState, cepa_vector::CompressedTuckerState, cluster_ops, clustered_ham; tol=1e-5, cache=true, max_iter=30, verbose=false)
+#={{{=#
+
+    sig = deepcopy(ref_vector)
+    zero!(sig)
+    build_sigma!(sig, ref_vector, cluster_ops, clustered_ham, cache=false)
+    e0 = nonorth_dot(ref_vector, sig)
+    length(e0) == 1 || error("Only one state at a time please", e0)
+    e0 = e0[1]
+    @printf(" Reference Energy: %12.8f\n",e0)
+
+
+    x_vector = deepcopy(cepa_vector)
+    a_vector = deepcopy(ref_vector)
+
+
+#    project_out!(x_vector, a_vector)
+#    #
+#    # Project out reference space
+#    for (fock,tconfigs) in x_vector 
+#        for (tconfig, tuck) in tconfigs
+#            if haskey(ref_vector, fock)
+#                if haskey(ref_vector[fock], tconfig)
+#                    ref_tuck = ref_vector[fock][tconfig]
+#
+#                    ovlp = nonorth_dot(tuck, ref_tuck) / nonorth_dot(ref_tuck, ref_tuck)
+#                    tmp = scale(ref_tuck, -1.0 * ovlp)
+#                    x_vector[fock][tconfig] = nonorth_add(tuck, tmp, thresh=1e-16)
+#                end
+#            end
+#        end
+#    end
+
+    b = deepcopy(x_vector)
+    zero!(b)
+    build_sigma!(b, ref_vector, cluster_ops, clustered_ham, cache=false)
+    bv = -get_vector(b)
+
+    @printf(" Overlap between <0|0>:          %18.12e\n", nonorth_dot(ref_vector, ref_vector, verbose=0))
+    @printf(" Overlap between <1|0>:          %18.12e\n", nonorth_dot(x_vector, ref_vector, verbose=0))
+    @printf(" Overlap between <1|1>:          %18.12e\n", nonorth_dot(x_vector, x_vector, verbose=0))
+    
+    #
+    # Get Overlap <X|A>C(A)
+    Sx = deepcopy(x_vector)
+    zero!(Sx)
+    for (fock,tconfigs) in Sx 
+        for (tconfig, tuck) in tconfigs
+            if haskey(ref_vector, fock)
+                if haskey(ref_vector[fock], tconfig)
+                    ref_tuck = ref_vector[fock][tconfig]
+                    # Cr(i,j,k...) Ur(Ii) Ur(Jj) ...
+                    # Ux(Ii') Ux(Jj') ...
+                    #
+                    # Cr(i,j,k...) S(ii') S(jj')...
+                    overlaps = []
+                    for i in 1:length(Sx.clusters)
+                        push!(overlaps, ref_tuck.factors[i]' * tuck.factors[i])
+                    end
+                    Sx[fock][tconfig].core .= transform_basis(ref_tuck.core, overlaps)
+                end
+            end
+        end
+    end
+    @printf(" Norm of Sx overlap: %18.12f\n", orth_dot(Sx,Sx))
+    @printf(" Norm of b         : %18.12f\n", sum(bv.*bv))
+
+    bv .= bv .+ get_vector(Sx)*e0
+
+    @printf(" Norm of b         : %18.12f\n", sum(bv.*bv))
+
+    function mymatvec(v)
+        set_vector!(x_vector, v)
+        #@printf(" Overlap between <1|0>:          %8.1e\n", nonorth_dot(x_vector, ref_vector, verbose=0))
+        sig = deepcopy(x_vector)
+        zero!(sig)
+        #build_sigma!(sig, x_vector, cluster_ops, clustered_ham, cache=false)
+        build_sigma!(sig, x_vector, cluster_ops, clustered_ham, cache=cache)
+
+        tmp = deepcopy(x_vector)
+        scale!(tmp, -e0)
+        orth_add!(sig, tmp)
+        return get_vector(sig)
+    end
+    dim = length(x_vector)
+    Axx = LinearMap(mymatvec, dim, dim)
+    #Axx = LinearMap(mymatvec, dim, dim; issymmetric=true, ismutating=false, ishermitian=true)
+
+    #flush term cache
+    println(" Now flushing:")
+    flush_cache(clustered_ham)
+   
+    println(" Start CEPA iterations with dimension = ", length(x_vector))
+    x, solver = cg!(get_vector(x_vector), Axx,bv,log=true, maxiter=max_iter, verbose=verbose, abstol=tol)
+    
+    #flush term cache
+    println(" Now flushing:")
+    flush_cache(clustered_ham)
+
+    set_vector!(x_vector, x)
+
+    SxC = nonorth_dot(Sx,x_vector)
+    @printf(" <A|X>C(X) = %18.12e\n", SxC)
+
+    sig = deepcopy(ref_vector)
+    zero!(sig)
+    build_sigma!(sig,x_vector, cluster_ops, clustered_ham)
+    ecorr = nonorth_dot(sig,ref_vector)
+    @printf(" Cepa: %18.12f\n", ecorr)
+    
+    sig = deepcopy(x_vector)
+    zero!(sig)
+    build_sigma!(sig,ref_vector, cluster_ops, clustered_ham)
+    ecorr = nonorth_dot(sig,x_vector)
+    @printf(" Cepa: %18.12f\n", ecorr)
+    
+    length(ecorr) == 1 || error(" Dimension Error", ecorr)
+    ecorr = ecorr[1]
+    @printf(" <1|1> = %18.12f\n", orth_dot(x_vector,x_vector))
+    @printf(" <1|1> = %18.12f\n", sum(x.*x))
+
+    @printf(" E(CEPA) = %18.12f\n", (e0 + ecorr)/(1+SxC))
+
+    #x, info = linsolve(Hmap,zeros(size(v0)))
+    return (ecorr+e0)/(1+SxC), x_vector 
+end#=}}}=#
+
+"""
+    tucker_cepa_solve!(ref_vector::CompressedTuckerState, cepa_vector::CompressedTuckerState, cluster_ops, clustered_ham; tol=1e-5, cache=true)
+
+# Arguments
+- `ref_vector`: Input reference state. 
+- `cepa_vector`: CompressedTuckerState which defines the configurational space defining {X}. This 
+should be the first-order interacting space (or some compressed version of it).
+- `cluster_ops`
+- `clustered_ham`
+- `tol`: haven't yet set this up (NYI)
+- `cache`: Should we cache the compressed H operators? Speeds up drastically, but uses lots of memory
+
+Compute compressed CEPA.
+Since there can be non-zero overlap with a multireference state, we need to generalize.
+
+HC = SCe
+
+|Haa + Hax| |1 | = |I   + Sax| |1 | E
+|Hxa + Hxx| |Cx|   |Sxa + I  | |Cx|
+
+Haa + Hax*Cx = (1 + Sax*Cx)E
+Hxa + HxxCx = SxaE + CxE
+
+The idea for CEPA is to approximate E in the amplitude equation.
+CEPA(0): E = Eref
+
+(Hxx-Eref)*Cx = Sxa*Eref - Hxa
+
+Ax=b
+
+After solving, the Energy can be obtained as:
+E = (Eref + Hax*Cx) / (1 + Sax*Cx)
+"""
+function tucker_cepa_solve2(ref_vector::CompressedTuckerState, cepa_vector::CompressedTuckerState, cluster_ops, clustered_ham; tol=1e-5, cache=true, max_iter=30, verbose=false, do_pt2=false)
 #={{{=#
     sig = deepcopy(ref_vector)
     zero!(sig)
@@ -145,21 +305,23 @@ function tucker_cepa_solve(ref_vector::CompressedTuckerState, cepa_vector::Compr
     x_vector = deepcopy(cepa_vector)
     a_vector = deepcopy(ref_vector)
 
-    #
-    # Project out reference space
-    for (fock,tconfigs) in x_vector 
-        for (tconfig, tuck) in tconfigs
-            if haskey(ref_vector, fock)
-                if haskey(ref_vector[fock], tconfig)
-                    ref_tuck = ref_vector[fock][tconfig]
 
-                    ovlp = nonorth_dot(tuck, ref_tuck) / nonorth_dot(ref_tuck, ref_tuck)
-                    tmp = scale(ref_tuck, -1.0 * ovlp)
-                    x_vector[fock][tconfig] = nonorth_add(tuck, tmp, thresh=1e-16)
-                end
-            end
-        end
-    end
+#    project_out!(x_vector, a_vector)
+#    #
+#    # Project out reference space
+#    for (fock,tconfigs) in x_vector 
+#        for (tconfig, tuck) in tconfigs
+#            if haskey(ref_vector, fock)
+#                if haskey(ref_vector[fock], tconfig)
+#                    ref_tuck = ref_vector[fock][tconfig]
+#
+#                    ovlp = nonorth_dot(tuck, ref_tuck) / nonorth_dot(ref_tuck, ref_tuck)
+#                    tmp = scale(ref_tuck, -1.0 * ovlp)
+#                    x_vector[fock][tconfig] = nonorth_add(tuck, tmp, thresh=1e-16)
+#                end
+#            end
+#        end
+#    end
     @printf(" Overlap between <1|0>:          %8.1e\n", nonorth_dot(x_vector, ref_vector, verbose=0))
 
     b = deepcopy(x_vector)
@@ -194,18 +356,15 @@ function tucker_cepa_solve(ref_vector::CompressedTuckerState, cepa_vector::Compr
     bv .= bv .+ get_vector(Sx)*e0
 
     @printf(" Norm of Sx overlap: %12.8f\n", orth_dot(Sx,Sx))
+    @printf(" Norm of b         : %12.8f\n", sum(bv.*bv))
 
-    nbody = 4
-    if do_pt2
-        nbody = 1
-    end
     function mymatvec(v)
         set_vector!(x_vector, v)
         #@printf(" Overlap between <1|0>:          %8.1e\n", nonorth_dot(x_vector, ref_vector, verbose=0))
         sig = deepcopy(x_vector)
         zero!(sig)
         #build_sigma!(sig, x_vector, cluster_ops, clustered_ham, nbody=nbody, cache=false)
-        build_sigma!(sig, x_vector, cluster_ops, clustered_ham, nbody=nbody, cache=cache)
+        build_sigma!(sig, x_vector, cluster_ops, clustered_ham, cache=cache)
 
         tmp = deepcopy(x_vector)
         if do_pt2
@@ -235,7 +394,7 @@ function tucker_cepa_solve(ref_vector::CompressedTuckerState, cepa_vector::Compr
 
 
     SxC = orth_dot(Sx,x_vector)
-    @printf(" <A|X>C(X) = %12.8f\n", SxC)
+    @printf(" <A|X>C(X) = %12.3e\n", SxC)
 
     sig = deepcopy(ref_vector)
     zero!(sig)
@@ -509,7 +668,8 @@ function hylleraas_compressed_mp2(sig_in::CompressedTuckerState, ref::Compressed
     
     # 
     # get <X|H|0>
-    sig = compress(sig_in, thresh=thresh)
+    #sig = compress(sig_in, thresh=thresh)
+    sig = deepcopy(sig_in)
     @printf(" Length of input      FOIS: %i\n", length(sig_in)) 
     @printf(" Length of compressed FOIS: %i\n", length(sig)) 
     #project_out!(sig, ref, thresh=thresh)
@@ -606,6 +766,7 @@ function hylleraas_compressed_mp2(sig_in::CompressedTuckerState, ref::Compressed
     dim = length(b)
     Axx = LinearMap(mymatvec, dim, dim)
 
+    @printf(" Norm of b         : %18.12f\n", sum(b.*b))
 
     x_vector = zeros(dim)
     @time x, solver = cg!(x_vector, Axx, b, log=true, maxiter=max_iter, verbose=true, abstol=tol)
@@ -799,21 +960,21 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
         end
     end
 
-    # 
-    # project out A space
-    for (fock,tconfigs) in sig_cts 
-        for (tconfig, tuck) in tconfigs
-            if haskey(ket_cts, fock)
-                if haskey(ket_cts[fock], tconfig)
-                    ket_tuck_A = ket_cts[fock][tconfig]
-
-                    ovlp = nonorth_dot(tuck, ket_tuck_A) / nonorth_dot(ket_tuck_A, ket_tuck_A)
-                    tmp = scale(ket_tuck_A, -1.0 * ovlp)
-                    #sig_cts[fock][tconfig] = nonorth_add(tuck, tmp, thresh=1e-16)
-                end
-            end
-        end
-    end
+#    # 
+#    # project out A space
+#    for (fock,tconfigs) in sig_cts 
+#        for (tconfig, tuck) in tconfigs
+#            if haskey(ket_cts, fock)
+#                if haskey(ket_cts[fock], tconfig)
+#                    ket_tuck_A = ket_cts[fock][tconfig]
+#
+#                    ovlp = nonorth_dot(tuck, ket_tuck_A) / nonorth_dot(ket_tuck_A, ket_tuck_A)
+#                    tmp = scale(ket_tuck_A, -1.0 * ovlp)
+#                    #sig_cts[fock][tconfig] = nonorth_add(tuck, tmp, thresh=1e-16)
+#                end
+#            end
+#        end
+#    end
    
   
     # now combine Tuckers, project out reference space and multiply by resolvents
@@ -988,6 +1149,8 @@ function do_fois_cepa(ref::CompressedTuckerState, cluster_ops, clustered_ham;
     println(" Compute FOIS. Reference space dim = ", length(ref_vec))
     @time pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
 
+    project_out!(pt1_vec, ref)
+
 #    #
 #    # 
 #    println()
@@ -1004,14 +1167,6 @@ function do_fois_cepa(ref::CompressedTuckerState, cluster_ops, clustered_ham;
     @printf(" FOIS Compressed from:     %8i → %8i (thresh = %8.1e)\n", dim1, dim2, thresh_foi)
     @printf(" Norm of |1>:              %12.8f \n", norm2)
     @printf(" Overlap between <1|0>:    %8.1e\n", nonorth_dot(pt1_vec, ref_vec, verbose=0))
-
-    #
-    # Compute PT2 Energy
-    sig = deepcopy(pt1_vec)
-    zero!(sig)
-    build_sigma!(sig, ref_vec, cluster_ops, clustered_ham)
-    e_2 = nonorth_dot(pt1_vec, sig)
-    @printf(" E(PT2) corr =                  %12.8f\n", e_2)
 
     # 
     # Solve CEPA 

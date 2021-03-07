@@ -123,7 +123,7 @@ using PyCall
     @test isapprox(e_var[1], -18.33000292416142, atol=1e-8)
 
     e_cepa, v_cepa = FermiCG.do_fois_cepa(ref_vec, cluster_ops, clustered_ham, thresh_foi=1e-8, max_iter=50, tol=1e-8)
-    @test isapprox(e_cepa[1], -18.330569610889185, atol=1e-8)
+    @test isapprox(e_cepa[1], -18.330092885975663, atol=1e-8)
 
     e_ci, v_ci = FermiCG.tucker_ci_solve(v_cepa, cluster_ops, clustered_ham)
     @test isapprox(e_ci[1], -18.330044872505518, atol=1e-8)
