@@ -17,16 +17,16 @@ if true
     push!(atoms,Atom(4,"H",[0,0,3]))
     push!(atoms,Atom(5,"H",[0,0.4,4]))
     push!(atoms,Atom(6,"H",[0,0,5]))
-    #push!(atoms,Atom(7,"H",[0,0,6]))
-    #push!(atoms,Atom(8,"H",[0,0,7]))
+    push!(atoms,Atom(7,"H",[0,0,6]))
+    push!(atoms,Atom(8,"H",[0,0,7]))
     #push!(atoms,Atom(9,"H",[0,0,8]))
     #push!(atoms,Atom(10,"H",[0,0,9]))
     #clusters    = [(1:4),(5:6),(7:10)]
     clusters    = [(1:2),(3:4),(5:6),(7:8)]
-    clusters    = [(1:4),(5:8)]
-    clusters    = [(1:4),(5:6),(7:8)]
-    clusters    = [(1:6),(7:10)]
     clusters    = [(1:2),(3:4),(5:6)]
+    clusters    = [(1:6),(7:10)]
+    clusters    = [(1:4),(5:6),(7:8)]
+    clusters    = [(1:5),(6:8)]
 elseif true
     push!(atoms,Atom(1,"H",[-1.30,00,0.00]))
     push!(atoms,Atom(2,"H",[-1.30,00,1.00]))
@@ -50,14 +50,14 @@ end
     basis = "sto-3g"
     mol     = Molecule(0,1,atoms,basis)
    
-    na = 3
-    nb = 3
+    na = 4
+    nb = 4
 
     mf = FermiCG.pyscf_do_scf(mol)
     nbas = size(mf.mo_coeff)[1]
     ints = FermiCG.pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
-    e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,na,nb,conv_tol=1e-10,max_cycle=100)
-    @printf(" FCI Energy: %12.8f\n", e_fci)
+    #e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,na,nb,conv_tol=1e-10,max_cycle=100)
+    #@printf(" FCI Energy: %12.8f\n", e_fci)
    
     C = mf.mo_coeff
     Cl = FermiCG.localize(mf.mo_coeff,"lowdin",mf)
@@ -98,8 +98,9 @@ end
     #@printf(" Energy: %18.12f\n",real(e[1]))
     
 
+    H = FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
     #@profilehtml H = FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
-    @time H = FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
+    #@time H = FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
     #@btime FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
     e,v = Arpack.eigs(H, nev = 1, which=:SR)
     @printf(" Energy: %18.12f\n",real(e[1]))

@@ -7,7 +7,7 @@ using HDF5
 using Random
 using PyCall
 
-#@testset "CompressedTuckerState" begin
+@testset "CompressedTuckerState" begin
     atoms = []
 
     r = 1
@@ -136,5 +136,5 @@ using PyCall
 
     #v_pt, e_pt = FermiCG.hylleraas_compressed_mp2(v_cepa, ref_vec, cluster_ops, clustered_ham; tol=1e-8, max_iter=100, H0="Hcmf", verbose=1)
     #@test isapprox(e_pt, -18.32863783512617, atol=1e-8)
-#end
+end
 

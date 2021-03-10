@@ -47,9 +47,12 @@ include("ClusteredStates.jl")
 include("tucker_inner.jl")
 include("tucker_outer.jl")
 
-include("tpsci_functions.jl")
-include("Tucker_functions.jl")
-include("CompressedTucker.jl")
+include("tpsci_inner.jl")
+include("tpsci_outer.jl")
+
+include("dense_inner.jl")
+include("dense_outer.jl")
+
 include("CMFs.jl")
 include("pyscf/PyscfFunctions.jl");
 #
