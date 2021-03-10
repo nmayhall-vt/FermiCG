@@ -16,7 +16,7 @@ Get LinearMap with takes a vector and returns action of H on that vector
 function get_map(ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; shift = nothing, cache=false)
     #={{{=#
     iters = 0
-
+    
     dim = length(ci_vector)
     function mymatvec(v)
         iters += 1
@@ -64,6 +64,11 @@ function tucker_ci_solve(ci_vector::CompressedTuckerState, cluster_ops, clustere
     nr = size(v0)[2]
    
 
+    cache=true
+    if cache
+        @time cache_hamiltonian(vec, vec, cluster_ops, clustered_ham)
+    end
+
 
     #cache_hamiltonian(ci_vector, ci_vector, cluster_ops, clustered_ham)
     
@@ -77,8 +82,8 @@ function tucker_ci_solve(ci_vector::CompressedTuckerState, cluster_ops, clustere
     
     println(" Memory used by cache: ", mem_used_by_cache(clustered_ham))
 
-    ##flush term cache
-    #flush_cache(clustered_ham)
+    #flush term cache
+    flush_cache(clustered_ham)
 
     return e,vec
 end
@@ -207,6 +212,7 @@ function tucker_cepa_solve(ref_vector::CompressedTuckerState, cepa_vector::Compr
         orth_add!(sig, tmp)
         return get_vector(sig)
     end
+    
     dim = length(x_vector)
     Axx = LinearMap(mymatvec, dim, dim)
     #Axx = LinearMap(mymatvec, dim, dim; issymmetric=true, ismutating=false, ishermitian=true)
@@ -214,6 +220,10 @@ function tucker_cepa_solve(ref_vector::CompressedTuckerState, cepa_vector::Compr
     #flush term cache
     println(" Now flushing:")
     flush_cache(clustered_ham)
+
+    if cache
+        @time cache_hamiltonian(x_vector, x_vector, cluster_ops, clustered_ham)
+    end
    
     println(" Start CEPA iterations with dimension = ", length(x_vector))
     x, solver = cg!(get_vector(x_vector), Axx,bv,log=true, maxiter=max_iter, verbose=verbose, abstol=tol)
@@ -509,147 +519,6 @@ end
 
 
 """
-H0 = either 1 body H or sum of CMF hamiltonians
-H1 = H - H0
-X  = projection onto orthogonal space from |0>
-
-In the compressed basis, our H0 is not diagonal,
-so we solve for the |1> iteratively
-
-(H0 - E0) |1> = - X * H1|0>
-              = - X * H|0> + X*H0|0>
-              = - H|0> + |0><0|H|0> + H0|0> - |0><0|H0|0>
-              = - H|0> + |0>E_ref + H0|0> - |0>E0
-              = - H|0> +  H0|0> + |0>(E_ref - E0)
-              = b
-
-E0 = <0|H0|0>
-E_ref = <0|H|0>
-
-"""
-function hylleraas_compressed_mp2a(sig_in::CompressedTuckerState, ref::CompressedTuckerState,
-            cluster_ops, clustered_ham; tol=1e-6, nbody=4, max_iter=40, verbose=1, do_pt = true, thresh=1e-8)
-#={{{=#
-    
-#
-    @printf(" Length of input FOIS: %i\n", length(sig_in)) 
-    
-    # 
-    # get H|0>
-    @printf(" Build exact <X|V|0>\n")
-    sig = deepcopy(sig_in)
-    sig = compress(sig, thresh=thresh)
-    @printf(" Length of input FOIS: %i\n", length(sig)) 
-    project_out!(sig, ref, thresh=thresh)
-    zero!(sig)
-    build_sigma!(sig, ref, cluster_ops, clustered_ham)
-    sig = compress(sig, thresh=thresh)
-    #scale!(sig, -1.0)
-    
-    # (H0 - E0) |1> = X H |0>
-
-    e2 = 0.0
-   
-    # 
-    # get E_ref = <0|H|0>
-    tmp = deepcopy(ref)
-    zero!(tmp)
-    build_sigma!(tmp, ref, cluster_ops, clustered_ham)
-    e_ref = nonorth_dot(ref, tmp)
-    @printf(" <0|H|0> 0 : %12.8f\n",e_ref)
-
-
-    # 
-    # get E0 = <0|H0|0>
-    tmp = deepcopy(ref)
-    zero!(tmp)
-    build_sigma!(tmp, ref, cluster_ops, clustered_ham, nbody=1)
-    e0 = orth_dot(ref,tmp)
-    @printf(" <0|sig>  : %12.8f\n",nonorth_dot(ref,sig))
-    @printf(" <0|H0|0>  : %12.8f\n",e0)
-
-
-    @printf(" Length of FOIS      : %i\n", length(sig)) 
-    
-   
-    @printf(" Project out reference\n")
-    #sig = compress(sig, thresh=thresh)
-    @printf(" <0|sig>  : %12.8f\n",nonorth_dot(ref,sig))
-    @printf(" Length of FOIS      : %i\n", length(sig)) 
-   
-    b = -get_vector(sig)
-    
-    #
-    # Get Overlap <X|A>C(A)
-    Sx = deepcopy(sig)
-    zero!(Sx)
-    for (fock,tconfigs) in Sx 
-        for (tconfig, tuck) in tconfigs
-            if haskey(ref, fock)
-                if haskey(ref[fock], tconfig)
-                    ref_tuck = ref[fock][tconfig]
-                    # Cr(i,j,k...) Ur(Ii) Ur(Jj) ...
-                    # Ux(Ii') Ux(Jj') ...
-                    #
-                    # Cr(i,j,k...) S(ii') S(jj')...
-                    overlaps = []
-                    for i in 1:length(Sx.clusters)
-                        push!(overlaps, ref_tuck.factors[i]' * tuck.factors[i])
-                    end
-                    Sx[fock][tconfig].core .= transform_basis(ref_tuck.core, overlaps)
-                end
-            end
-        end
-    end
-
-    b .= b .+ get_vector(Sx)*e_ref
-
-    
-    function mymatvec(x)
-
-        xr = deepcopy(sig)
-        xl = deepcopy(sig)
-        set_vector!(xr,x)
-        zero!(xl)
-        build_sigma!(xl, xr, cluster_ops, clustered_ham, nbody=1)
-
-        # subtract off -E0|1>
-        #
-        scale!(xr,-e0)
-        orth_add!(xl,xr)
-
-        return get_vector(xl)
-    end
-
-    dim = length(b)
-    Axx = LinearMap(mymatvec, dim, dim)
-
-
-    x_vector = zeros(dim)
-    x, solver = cg!(x_vector, Axx, b, log=true, maxiter=max_iter, verbose=true, abstol=tol)
-
-    psi1 = deepcopy(sig)
-    set_vector!(psi1,x_vector)
-    
-    SxC = orth_dot(Sx,psi1)
-    @printf(" <A|X>C(X) = %12.8f\n", SxC)
-   
-    tmp = deepcopy(ref)
-    zero!(tmp)
-    build_sigma!(tmp,psi1, cluster_ops, clustered_ham)
-    ecorr = nonorth_dot(tmp,ref)
-    @printf(" <1|1> = %12.8f\n", orth_dot(psi1,psi1))
-    @printf(" <0|H|1> = %12.8f\n", ecorr)
-    length(ecorr) == 1 || error(" Dimension Error", ecorr)
-    ecorr = ecorr[1]
-
-    @printf(" E(PT2)  = %12.8f\n", (e_ref + ecorr)/(1+SxC))
-
-    return psi1, (ecorr+e_ref)/(1+SxC) 
-
-end#=}}}=#
-
-"""
     hylleraas_compressed_mp2(sig_in::CompressedTuckerState, ref::CompressedTuckerState,
             cluster_ops, clustered_ham;
             H0 = "Hcmf", tol=1e-6, nbody=4, max_iter=40, verbose=1, do_pt = true, thresh=1e-8)
@@ -752,7 +621,7 @@ function hylleraas_compressed_mp2(sig_in::CompressedTuckerState, ref::Compressed
         xl = deepcopy(sig)
         set_vector!(xr,x)
         zero!(xl)
-        build_sigma!(xl, xr, cluster_ops, clustered_ham_0)
+        build_sigma!(xl, xr, cluster_ops, clustered_ham_0, cache=true)
 
         # subtract off -E0|1>
         #
@@ -767,9 +636,15 @@ function hylleraas_compressed_mp2(sig_in::CompressedTuckerState, ref::Compressed
     Axx = LinearMap(mymatvec, dim, dim)
 
     @printf(" Norm of b         : %18.12f\n", sum(b.*b))
+    flush_cache(clustered_ham_0)
+    
+    @time cache_hamiltonian(sig, sig, cluster_ops, clustered_ham_0)
+    #@time cache_hamiltonian(sig, sig, cluster_ops, clustered_ham_0, nbody=1)
 
     x_vector = zeros(dim)
     @time x, solver = cg!(x_vector, Axx, b, log=true, maxiter=max_iter, verbose=true, abstol=tol)
+    
+    flush_cache(clustered_ham_0)
 
     psi1 = deepcopy(sig)
     set_vector!(psi1,x_vector)
@@ -818,6 +693,7 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
         max_number=nothing, 
         nbody=4, 
         do_pt=false) where {T,N}
+    flush(stdout)
     println(" Compute the 1st order wavefunction for CompressedTuckerState. nbody = ", nbody)
 #={{{=#
     #
@@ -913,7 +789,9 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
                         sig_tuck = form_sigma_block_expand(term, cluster_ops,
                                                                 sig_fock, sig_tconfig,
                                                                 ket_fock, ket_tconfig, ket_tuck,
-                                                                max_number=max_number)
+                                                                max_number=max_number,
+                                                                prescreen=thresh)
+
                        
                         sig_tuck = compress(sig_tuck, thresh=thresh)
 
@@ -1129,12 +1007,71 @@ end
     
 
 
+function do_fois_pt2(ref::CompressedTuckerState, cluster_ops, clustered_ham;
+            H0          = "Hcmf",
+            max_iter    = 50,
+            nbody       = 4,
+            thresh_foi  = 1e-6,
+            tol         = 1e-5,
+            verbose     = true)
+    @printf("\n-------------------------------------------------------\n")
+    @printf(" Do Hylleraas PT2\n")
+    @printf("   H0                      = %-s\n", H0)
+    @printf("   thresh_foi              = %-8.1e\n", thresh_foi)
+    @printf("   nbody                   = %-i\n", nbody)
+    @printf("\n")
+    @printf("   Length of Reference     = %-i\n", length(ref))
+    @printf("\n-------------------------------------------------------\n")
+
+    # 
+    # Solve variationally in reference space
+    ref_vec = deepcopy(ref)
+    @printf(" Solve zeroth-order problem. Dimension = %10i\n", length(ref_vec))
+    @time e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, tol=tol)
+
+    #
+    # Get First order wavefunction
+    println()
+    println(" Compute FOIS. Reference space dim = ", length(ref_vec))
+    @time pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+
+    project_out!(pt1_vec, ref)
+
+    # 
+    # Compress FOIS
+    norm1 = orth_dot(pt1_vec, pt1_vec)
+    dim1 = length(pt1_vec)
+    pt1_vec = compress(pt1_vec, thresh=thresh_foi)
+    norm2 = orth_dot(pt1_vec, pt1_vec)
+    dim2 = length(pt1_vec)
+    @printf(" FOIS Compressed from:     %8i → %8i (thresh = %8.1e)\n", dim1, dim2, thresh_foi)
+    @printf(" Norm of |1>:              %8.1e → %8.1e (thresh = %8.1e)\n", norm1, norm2, thresh_foi)
+    @printf(" Overlap between <1|0>:    %8.1e\n", nonorth_dot(pt1_vec, ref_vec, verbose=0))
+
+    # 
+    # Solve for first order wavefunction 
+    println(" Compute PT vector. Reference space dim = ", length(ref_vec))
+    pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol, max_iter=max_iter, H0=H0)
+    @printf(" E(Ref)      = %12.8f\n", e0[1])
+    @printf(" E(PT2) tot  = %12.8f\n", e_pt2)
+    return e_pt2, pt1_vec 
+end
+    
+
+
 function do_fois_cepa(ref::CompressedTuckerState, cluster_ops, clustered_ham;
             max_iter    = 20,
             nbody       = 4,
             thresh_foi  = 1e-6,
             tol         = 1e-5,
             verbose     = true)
+    @printf("\n-------------------------------------------------------\n")
+    @printf(" Do CEPA\n")
+    @printf("   thresh_foi              = %-8.1e\n", thresh_foi)
+    @printf("   nbody                   = %-i\n", nbody)
+    @printf("\n")
+    @printf("   Length of Reference     = %-i\n", length(ref))
+    @printf("\n-------------------------------------------------------\n")
 
     # 
     # Solve variationally in reference space

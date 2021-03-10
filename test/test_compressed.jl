@@ -7,7 +7,7 @@ using HDF5
 using Random
 using PyCall
 
-@testset "CompressedTuckerState" begin
+#@testset "CompressedTuckerState" begin
     atoms = []
 
     r = 1
@@ -124,11 +124,17 @@ using PyCall
 
     e_cepa, v_cepa = FermiCG.do_fois_cepa(ref_vec, cluster_ops, clustered_ham, thresh_foi=1e-8, max_iter=50, tol=1e-8)
     @test isapprox(e_cepa[1], -18.330092885975663, atol=1e-8)
+    
+    #e_cepa, v_cepa = FermiCG.do_fois_cepa(v_var, cluster_ops, clustered_ham, thresh_foi=1e-10, max_iter=50, tol=1e-8)
+    #@test isapprox(e_cepa[1], -18.330092885975663, atol=1e-8)
+    
+    e_pt, v_pt = FermiCG.do_fois_pt2(ref_vec, cluster_ops, clustered_ham, thresh_foi=1e-8, max_iter=50, tol=1e-8)
+    @test isapprox(e_pt, -18.32863783512617, atol=1e-8)
 
     e_ci, v_ci = FermiCG.tucker_ci_solve(v_cepa, cluster_ops, clustered_ham)
     @test isapprox(e_ci[1], -18.330044872505518, atol=1e-8)
 
-    v_pt, e_pt = FermiCG.hylleraas_compressed_mp2(v_cepa, ref_vec, cluster_ops, clustered_ham; tol=1e-8, max_iter=100, H0="Hcmf", verbose=1)
-    @test isapprox(e_pt, -18.32863783512617, atol=1e-8)
-end
+    #v_pt, e_pt = FermiCG.hylleraas_compressed_mp2(v_cepa, ref_vec, cluster_ops, clustered_ham; tol=1e-8, max_iter=100, H0="Hcmf", verbose=1)
+    #@test isapprox(e_pt, -18.32863783512617, atol=1e-8)
+#end
 

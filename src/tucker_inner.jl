@@ -4,7 +4,7 @@ using BenchmarkTools
 """
     build_sigma!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham)
 """
-function build_sigma!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; nbody=4, cache=false)
+function build_sigma_serial!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; nbody=4, cache=false)
     #={{{=#
 
     for (fock_bra, configs_bra) in sigma_vector
@@ -40,27 +40,83 @@ function build_sigma!(sigma_vector::CompressedTuckerState, ci_vector::Compressed
 end
 
 
-function cache_hamiltonian(bra::CompressedTuckerState, ket::CompressedTuckerState, cluster_ops, clustered_ham)
+"""
+    build_sigma!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham)
+"""
+function cache_hamiltonian(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; nbody=4)
+    #={{{=#
     
-    for (ftrans,terms) in clustered_ham
-        for term in terms
-            for (fock_ket, configs_ket) in ket
-                fock_bra = [fock_ket.config...]
-                for (cii,ci) in enumerate(term.clusters)
-                    fock_bra[ci.idx] = ftrans[cii]
-                end
-                fock_bra = TransferConfig(fock_bra)
-                
-                for (config_ket, tuck_ket) in configs_ket
-                    for (config_bra, tuck_bra) in ket[fock_bra]
+    return
+
+
+    println(" Cache hamiltonian terms")
     
+    for (fock_bra, configs_bra) in sigma_vector
+        for (fock_ket, configs_ket) in ci_vector
+            fock_trans = fock_bra - fock_ket
+
+            # check if transition is connected by H
+            haskey(clustered_ham, fock_trans) == true || continue
+
+            for (config_bra, coeff_bra) in configs_bra
+                for (config_ket, coeff_ket) in configs_ket
+
+
+                    for term in clustered_ham[fock_trans]
+
+                        length(term.clusters) <= nbody || continue
+                    
+                        check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
+                        
                         cache_key = OperatorConfig((fock_bra, fock_ket, config_bra, config_ket))
                         term.cache[cache_key] = build_dense_H_term(term, cluster_ops, 
-                                                                    fock_bra, bra, tuck_bra, 
-                                                                    fock_ket, ket, tuck_ket)
+                                                                   fock_bra, config_bra, coeff_bra, 
+                                                                   fock_ket, config_ket, coeff_ket)
+
                     end
                 end
             end
+        end
+    end
+    return
+    #=}}}=#
+end
+
+function cache_hamiltonian_not_working(bra::CompressedTuckerState, ket::CompressedTuckerState, cluster_ops, clustered_ham; nbody=4)
+    println(" Cache hamiltonian terms")
+   
+    for (ftrans,terms) in clustered_ham
+        for term in terms
+               
+            length(term.clusters) <= nbody || continue
+
+            for (fock_ket, configs_ket) in ket
+                fock_bra = [fock_ket.config...]
+                for (cii,ci) in enumerate(term.clusters)
+                    fock_bra[ci.idx] = (fock_ket[ci.idx][1] + ftrans[cii][1], fock_ket[ci.idx][2] + ftrans[cii][2])
+                end
+                fock_bra = FockConfig(fock_bra)
+
+                haskey(bra.data, fock_bra) == true || continue
+
+                for (config_ket, tuck_ket) in configs_ket
+                    for (config_bra, tuck_bra) in bra[fock_bra]
+                        
+                        check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
+
+                        cache_key = OperatorConfig((fock_bra, fock_ket, config_bra, config_ket))
+
+                        term.cache[cache_key] = build_dense_H_term(term, cluster_ops, 
+                                                                   fock_bra, config_bra, tuck_bra, 
+                                                                   fock_ket, config_ket, tuck_ket)
+                    end
+                end
+            end
+        end
+    end
+    for (ftrans,terms) in clustered_ham
+        for term in terms
+            #println(" # of cached: ", length(keys(term.cache)))
         end
     end
 end
@@ -69,13 +125,14 @@ end
 """
     build_sigma_parallel!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham)
 """
-function abuild_sigma!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; nbody=4, cache=false)
+function build_sigma!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; nbody=4, cache=false)
     #={{{=#
 
     jobs = []
+    output = [[] for i in 1:Threads.nthreads()]
     for (fock_bra, configs_bra) in sigma_vector
         for (config_bra, tuck_bra) in configs_bra
-            push!(jobs, (fock_bra, config_bra))
+            push!(jobs, [fock_bra, config_bra])
         end
     end
    
@@ -101,21 +158,37 @@ function abuild_sigma!(sigma_vector::CompressedTuckerState, ci_vector::Compresse
                     check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
 
                     # these methods dispatched on type of term
-                    coeff_bra.core .= form_sigma_block!(term, cluster_ops, fock_bra, config_bra,
+                    #coeff_bra.core .= form_sigma_block!(term, cluster_ops, fock_bra, config_bra,
+                    #                              fock_ket, config_ket,
+                    #                              coeff_bra, coeff_ket,
+                    #                              cache=cache)
+                    out = form_sigma_block!(term, cluster_ops, fock_bra, config_bra,
                                                   fock_ket, config_ket,
                                                   coeff_bra, coeff_ket,
                                                   cache=cache)
+
+                    push!(output[Threads.threadid()], (fock_bra, config_bra, out))
 
 
                 end
             end
         end
     end
-    
+   
     Threads.@threads for job in jobs
         do_job(job)
     end
 
+    flush(stdout)
+
+    for tid in output
+        for out in tid
+            fock_bra = out[1]
+            config_bra = out[2]
+            core = out[3]
+            sigma_vector[fock_bra][config_bra].core .+= core
+        end
+    end
     return
     #=}}}=#
 end
@@ -143,12 +216,16 @@ function form_sigma_block!(term::C,
     op = Array{Float64}[]
     cache_key = OperatorConfig((fock_bra, fock_ket, bra, ket))
     if cache && haskey(term.cache, cache_key)
+    #if cache 
        
+
         #
         # read the dense H term
         op = term.cache[cache_key]
     
     else
+
+        #cache == false || println(" couldn't find:", cache_key)
 
         #
         # build the dense H term
