@@ -8,9 +8,11 @@ abstract type SparseIndex end
 @inline Base.length(a::SparseIndex) = length(a.config)
 @inline Base.getindex(s::SparseIndex, i) = s.config[i]
 @inline Base.hash(a::SparseIndex) = a.hash
+@inline Base.isequal(x::SparseIndex, y::SparseIndex) = isequal(x.hash, y.hash) 
+Base.:(==)(x::SparseIndex, y::SparseIndex) = x.hash == y.hash 
 #@inline Base.hash(a::SparseIndex) = hash(a.config)
-@inline Base.isequal(x::SparseIndex, y::SparseIndex) = isequal(x.config, y.config) 
-Base.:(==)(x::SparseIndex, y::SparseIndex) = x.config == y.config 
+#@inline Base.isequal(x::SparseIndex, y::SparseIndex) = isequal(x.config, y.config) 
+#Base.:(==)(x::SparseIndex, y::SparseIndex) = x.config == y.config 
 Base.iterate(conf::SparseIndex, state=1) = iterate(conf.config, state)
 
 struct ClusterConfig{N} <: SparseIndex
@@ -39,6 +41,7 @@ struct OperatorConfig{N,T} <: SparseIndex
 end
 
 
+#@inline Base.hash(a::FockConfig) = a.hash
 TransferConfig(in::NTuple{N,Tuple{Int16,Int16}}) where N = TransferConfig{N}(in,hash(in))
 FockConfig(in::NTuple{N,Tuple{Int16,Int16}}) where N = FockConfig{N}(in,hash(in))
 ClusterConfig(in::NTuple{N,Int16}) where N = ClusterConfig{N}(in,hash(in))
