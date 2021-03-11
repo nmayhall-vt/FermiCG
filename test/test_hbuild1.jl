@@ -56,8 +56,8 @@ end
     mf = FermiCG.pyscf_do_scf(mol)
     nbas = size(mf.mo_coeff)[1]
     ints = FermiCG.pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
-    #e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,na,nb,conv_tol=1e-10,max_cycle=100)
-    #@printf(" FCI Energy: %12.8f\n", e_fci)
+    e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,na,nb,conv_tol=1e-10,max_cycle=100)
+    @printf(" FCI Energy: %12.8f\n", e_fci)
    
     C = mf.mo_coeff
     Cl = FermiCG.localize(mf.mo_coeff,"lowdin",mf)
