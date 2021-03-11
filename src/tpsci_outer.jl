@@ -97,10 +97,9 @@ function build_full_H(ci_vector::ClusteredState, cluster_ops, clustered_ham::Clu
                     check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
                     
                     me = FermiCG.contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
-#                    if term isa ClusteredTerm2B
-#                        @btime FermiCG.contract_matrix_element($term, $cluster_ops, $fock_bra, $config_bra, $fock_ket, $config_ket)
-#                        error("huh")
-#                    end
+                    #if term isa ClusteredTerm2B
+                    #    @btime FermiCG.contract_matrix_element($term, $cluster_ops, $fock_bra, $config_bra, $fock_ket, $config_ket)
+                    #end
                     Hrow[ket_idx] += me 
                     #H[job[1],ket_idx] += me 
                 end

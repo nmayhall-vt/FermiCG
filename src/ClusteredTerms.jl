@@ -183,7 +183,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
 #={{{=#
             # instead of forming p'q and p'q'sr just precontract and keep them in 
             # ClusterOps
-            term = ClusteredTerm1B(("H",), ((0,0),), (ci,), zeros(1,1),Dict())
+            term = ClusteredTerm1B(("H",), TransferConfig([(0,0),]), (ci,), zeros(1,1),Dict())
             push!(terms[zero_fock],term)
 #=}}}=#
         end
@@ -256,7 +256,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
                             end
                         end
 
-                        clusteredterm = ClusteredTerm2B((oper1,oper2), (Tuple(fock1),Tuple(fock2)), (ci, cj), h, Dict())
+                        clusteredterm = ClusteredTerm2B((oper1,oper2), TransferConfig([Tuple(fock1),Tuple(fock2)]), (ci, cj), h, Dict())
                         #display(clusteredterm)
                         focktrans = replace(zero_fock, (ci.idx, cj.idx), (fock1, fock2))
 #                        focktrans = [zero_fock...]

@@ -98,7 +98,7 @@ end
     #@printf(" Energy: %18.12f\n",real(e[1]))
     
 
-    H = FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
+    @time H = FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
     #@profilehtml H = FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
     #@time H = FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
     #@btime FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)

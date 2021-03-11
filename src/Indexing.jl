@@ -7,8 +7,8 @@ abstract type SparseIndex end
 
 @inline Base.length(a::SparseIndex) = length(a.config)
 @inline Base.getindex(s::SparseIndex, i) = s.config[i]
-@inline Base.hash(a::SparseIndex) = a.hash
-#@inline Base.hash(a::SparseIndex) = hash(a.config)
+#@inline Base.hash(a::SparseIndex) = a.hash
+@inline Base.hash(a::SparseIndex) = hash(a.config)
 @inline Base.isequal(x::SparseIndex, y::SparseIndex) = isequal(x.config, y.config) 
 Base.:(==)(x::SparseIndex, y::SparseIndex) = x.config == y.config 
 Base.iterate(conf::SparseIndex, state=1) = iterate(conf.config, state)
@@ -38,12 +38,19 @@ struct OperatorConfig{N,T} <: SparseIndex
     hash::UInt64
 end
 
+
+TransferConfig(in::NTuple{N,Tuple{Int16,Int16}}) where N = TransferConfig{N}(in,hash(in))
+FockConfig(in::NTuple{N,Tuple{Int16,Int16}}) where N = FockConfig{N}(in,hash(in))
+ClusterConfig(in::NTuple{N,Int16}) where N = ClusterConfig{N}(in,hash(in))
+TuckerConfig(in::NTuple{N,UnitRange{Int}}) where N = TuckerConfig{N}(in,hash(in))
+
+
+
 function Base.convert(::Type{NTuple{N,Int16}}, in::Vector{Int64}) where {N}
     return ntuple(i -> convert(Int16, in[i]), length(in))
 end
-
-function Base.convert(::NTuple{N,Tuple{Int16,Int16}}, in::Vector{Tuple{Int64,Int64}}) where {N}
-    return ntuple(i -> Tuple(convert.(Int16, in[i])), length(in))
+function Base.convert(::Type{NTuple{N,Tuple{Int16,Int16}}}, in::Vector{Tuple{Int64,Int64}}) where {N}
+    return ntuple(i -> Tuple(convert.(Int16, in[i])), N)
 end
 
 ClusterConfig(in::Vector{T}) where T = convert(ClusterConfig{length(in)}, in)
@@ -61,23 +68,23 @@ Return total dimension of space indexed by `tc`
 dim(tc::TuckerConfig) = prod(size(tc)) 
 
 function Base.convert(::Type{ClusterConfig{N}}, in::Vector{T}) where {T,N} 
-    return ClusterConfig{length(in)}(ntuple(i -> convert(Int16, in[i]), length(in)))
+    return ClusterConfig(ntuple(i -> convert(Int16, in[i]), length(in)))
 end
 
 function Base.convert(::Type{FockConfig{N}}, in::Vector) where {N}
-    return FockConfig{length(in)}(ntuple(i -> Tuple(convert.(Int16, in[i])), length(in)))
+    return FockConfig(ntuple(i -> Tuple(convert.(Int16, in[i])), length(in)))
 end
 
 function Base.convert(::Type{TransferConfig{N}}, in::Vector{Tuple{T,T}}) where {T,N}
-    return TransferConfig{length(in)}(ntuple(i -> convert(Tuple{Int16,Int16}, in[i]), length(in)))
+    return TransferConfig(ntuple(i -> convert(Tuple{Int16,Int16}, in[i]), length(in)))
 end
 
-function Base.convert(::Type{TransferConfig{N}}, in::NTuple{M,Tuple{T,T}}) where {T,N,M}
-    return TransferConfig{length(in)}(ntuple(i -> convert(Tuple{Int16,Int16}, in[i]), length(in)))
+function Base.convert(::Type{TransferConfig{N}}, in::NTuple{M,Tuple{Int64,Int64}}) where {N,M}
+    return TransferConfig(ntuple(i -> convert(Tuple{Int16,Int16}, in[i]), length(in)))
 end
 
 function Base.convert(::Type{TuckerConfig{N}}, in::Vector{UnitRange{T}}) where {T,N}
-    return TuckerConfig{length(in)}(ntuple(i -> in[i], length(in)))
+    return TuckerConfig(ntuple(i -> in[i], length(in)))
 end
 
 function replace(tc::TransferConfig, idx, fock)
@@ -97,7 +104,7 @@ end
 Add a `FockConfig` to a `TransferConfig` to get a new `FockConfig`
 """
 function Base.:(+)(x::FockConfig{N}, y::TransferConfig{N}) where N
-    return FockConfig{N}(Tuple( (x[i][1] + y[i][1], x[i][2] + y[i][2]) for i in 1:N))
+    return FockConfig(Tuple( (x[i][1] + y[i][1], x[i][2] + y[i][2]) for i in 1:N))
 end
 
 """
@@ -106,7 +113,7 @@ end
 Subtract two `FockConfig`'s, returning a `TransferConfig`
 """
 function Base.:-(a::FockConfig{N}, b::FockConfig{N}) where N
-    return TransferConfig{N}(Tuple( (a[i][1]-b[i][1], a[i][2]-b[i][2]) for i in 1:N))
+    return TransferConfig(Tuple( (a[i][1]-b[i][1], a[i][2]-b[i][2]) for i in 1:N))
 end
 """
     dim(fc::FockConfig, no)
