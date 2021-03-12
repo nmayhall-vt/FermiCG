@@ -138,5 +138,33 @@ end
 #=}}}=#
 
 
-function matvec(ci_vector::ClusteredState, cluster_ops, clustered_ham)
+function matvec(ci_vector::ClusteredState, cluster_ops, clustered_ham; thresh=1e-9, nbody=4)
+    sig = deepcopy(ci_vector)
+    zero!(sig)
+    clusters = ci_vector.clusters
+    for (fock_ket, configs_ket) in ci_vector.data
+        for (ftrans, terms) in clustered_ham
+            fock_bra = ftrans  + fock_ket
+            
+            #
+            # check to make sure this fock config doesn't have negative or too many electrons in any cluster
+            good = true
+            for (fi,f) in fock_bra
+                f[1] >= 0 || good = false
+                f[2] >= 0 || good = false
+                f[1] <= length(clusters[fi]) || good = false
+                f[2] <= length(clusters[fi]) || good = false
+            end
+            good == true || continue
+
+            for term in terms
+
+                length(term.clusters) <= nbody || continue
+
+                for (config_ket, coeff_ket) in configs_ket
+                end
+            end
+        end
+    end
+    return sig
 end
