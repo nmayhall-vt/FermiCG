@@ -30,8 +30,6 @@ function contract_matrix_element(   term::ClusteredTerm1B,
     return cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][bra[c1.idx],ket[c1.idx]]
 end
 #=}}}=#
-
-
 """
     contract_matrix_element(   term::ClusteredTerm2B, 
                                     cluster_ops::Vector{ClusterOps},
@@ -115,8 +113,6 @@ function contract_matrix_element(   term::ClusteredTerm2B,
     return state_sign * mat_elem
 end
 #=}}}=#
-
-
 """
     contract_matrix_element(   term::ClusteredTerm3B, 
                                     cluster_ops::Vector{ClusterOps},
@@ -169,8 +165,6 @@ function contract_matrix_element(   term::ClusteredTerm3B,
     return state_sign * mat_elem
 end
 #=}}}=#
-
-
 """
     contract_matrix_element(   term::ClusteredTerm4B, 
                                     cluster_ops::Vector{ClusterOps},
@@ -340,6 +334,54 @@ function _contract(ints,gamma1::Array{T,3}, gamma2::Array{T,3}, gamma3::Array{T,
         end
     end
     return mat_elem
+end
+#=}}}=#
+
+
+
+
+
+"""
+    contract_matvec(    term::ClusteredTerm2B, 
+                        cluster_ops::Vector{ClusterOps},
+                        fock_bra, fock_ket, ket)
+"""
+function contract_matvec(   term::ClusteredTerm2B, 
+                                    cluster_ops::Vector{ClusterOps},
+                                    fock_bra::FockConfig, 
+                                    fock_ket::FockConfig, conf_ket::ClusterConfig, coef_ket::SVector{R,T}) where {R,T}
+#={{{=#
+    c1 = term.clusters[1]
+    c2 = term.clusters[2]
+
+    # 
+    # determine sign from rearranging clusters if odd number of operators
+    state_sign = compute_terms_state_sign(term, fock_ket) 
+        
+
+    #
+    # <:|p'|J> h(pq) <:|q|L>
+
+    #@tensor begin
+    #    mat_elem = gamma1[p] * term.ints[p,q] * gamma2[q]
+    #end
+    #mat_elem = _contract(term.ints, gamma1, gamma2)
+    
+    @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,:,conf_ket[c1.idx]]
+    @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,:,conf_ket[c2.idx]]
+    #new_confs = [T(0)]
+    #if size(term.ints,1) > size(term.ints,2)
+    display(size(term.ints))    
+    display(size(gamma1))    
+    @tensor begin
+        new_confs[q,I] := term.ints[p,q]' * gamma1[p,I]
+        #new_confs[I,J] = new_confs[q,I]' * gamma2[q,J]
+    end
+    
+    if state_sign == -1
+        new_confs .= -new_confs
+    end 
+    return new_confs 
 end
 #=}}}=#
 

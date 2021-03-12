@@ -107,7 +107,7 @@ end
     display(size(v))
     display(size(ci_vector))
     FermiCG.set_vector!(ci_vector, v)
-    sig = matvec(ci_vector, cluster_ops, clustered_ham)
+    sig = FermiCG.matvec(ci_vector, cluster_ops, clustered_ham)
     
 
     #FermiCG.set_vector!(ci_vector, F.vectors[:,1])

@@ -87,6 +87,7 @@ Add a `FockConfig` to a `TransferConfig` to get a new `FockConfig`
 function Base.:(+)(x::FockConfig{N}, y::TransferConfig{N}) where N
     return FockConfig{N}( Tuple( (x[i][1] + y[i][1], x[i][2] + y[i][2]) for i in 1:N) )
 end
+Base.:(+)(x::TransferConfig{N}, y::FockConfig{N}) where N = y + x
 
 """
     Base.:-(a::FockConfig, b::FockConfig)

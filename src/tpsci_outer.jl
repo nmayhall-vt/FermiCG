@@ -144,23 +144,27 @@ function matvec(ci_vector::ClusteredState, cluster_ops, clustered_ham; thresh=1e
     clusters = ci_vector.clusters
     for (fock_ket, configs_ket) in ci_vector.data
         for (ftrans, terms) in clustered_ham
-            fock_bra = ftrans  + fock_ket
+            fock_bra = ftrans + fock_ket
             
             #
             # check to make sure this fock config doesn't have negative or too many electrons in any cluster
-            for (fi,f) in fock_bra
+            for (fi,f) in enumerate(fock_bra)
                 f[1] >= 0 || continue 
                 f[2] >= 0 || continue 
                 f[1] <= length(clusters[fi]) || continue 
                 f[2] <= length(clusters[fi]) || continue
             end
 
-            haskey(sig, fock_bra) || add_fockspace(sig, fock_bra)
+            haskey(sig, fock_bra) || add_fockconfig!(sig, fock_bra)
             for term in terms
 
                 length(term.clusters) <= nbody || continue
 
                 for (config_ket, coeff_ket) in configs_ket
+                    if term isa ClusteredTerm2B
+                        display(coeff_ket)
+                        sig_i = FermiCG.contract_matvec(term, cluster_ops, fock_bra, fock_ket, config_ket, coeff_ket)
+                    end
                 end
             end
         end
