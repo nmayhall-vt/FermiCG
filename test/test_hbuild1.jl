@@ -110,7 +110,8 @@ end
     FermiCG.set_vector!(ci_vector, v)
     sig1 = FermiCG.matvec(ci_vector, cluster_ops, clustered_ham, root=1)
     #sig2 = FermiCG.matvec(ci_vector, cluster_ops, clustered_ham, root=2)
-   
+
+
     @printf(" Energy: %18.12f\n",FermiCG.dot(sig1,sig1))
     @printf(" Energy: %18.12f\n",FermiCG.dot(ci_vector,sig1))
 
