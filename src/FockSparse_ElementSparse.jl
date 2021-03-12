@@ -11,8 +11,6 @@ struct ClusteredState{T,N,R} <: AbstractState
     data::OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, SVector{R,T}}}
 end
 Base.haskey(ts::ClusteredState, i) = return haskey(ts.data,i)
-Base.getindex(ts::ClusteredState, i) = return ts.data[i]
-Base.setindex!(ts::ClusteredState, i, j) = return ts.data[j] = i
 Base.iterate(ts::ClusteredState, state=1) = iterate(ts.data, state)
 
 """
@@ -53,12 +51,12 @@ end
 """
     get_vector(s::ClusteredState)
 """
-function get_vector(s::ClusteredState)
+function get_vector(s::ClusteredState; root=1)
     v = zeros(length(s))
-    idx = 0
+    idx = 1
     for (fock, configs) in s
         for (config, coeff) in configs
-            v[idx] = coeff
+            v[idx] = coeff[1]
             idx += 1
         end
     end
@@ -121,7 +119,7 @@ end
 
 Pretty print
 """
-function print_configs(s::ClusteredState; thresh=1e-3)
+function print_configs(s::ClusteredState; thresh=1e-3, root=1)
     #display(keys(s.data))
     idx = 1
     for (fock,configs) in s.data
@@ -135,7 +133,7 @@ function print_configs(s::ClusteredState; thresh=1e-3)
             for c in config
                 @printf("%3i",c)
             end
-            @printf(":%12.8f\n",value)
+            @printf(":%12.8f\n",value[1])
             idx += 1
         end
     end

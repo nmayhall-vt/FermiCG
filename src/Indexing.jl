@@ -13,6 +13,7 @@ Base.:(==)(x::SparseIndex, y::SparseIndex) = x.config == y.config
 Base.iterate(conf::SparseIndex, state=1) = iterate(conf.config, state)
 
 struct ClusterConfig{N} <: SparseIndex
+    #config::SVector{N,Int16}  
     config::NTuple{N,Int16}  
 end
 
@@ -75,6 +76,14 @@ function replace(tc::TransferConfig, idx, fock)
         new[idx[i]] = (convert(Int16, fock[i][1]), convert(Int16, fock[i][2])) 
     end
     return TransferConfig(new)
+end
+function replace(cc::ClusterConfig{N}, idx, conf) where N
+    new = [cc.config...]
+    #length(idx) == length(conf) || error("wrong dimensions")
+    for i in 1:length(idx)
+        new[idx[i]] = convert(Int16, conf[i])
+    end
+    return ClusterConfig(new)
 end
 
 

@@ -138,7 +138,7 @@ end
 #=}}}=#
 
 
-function matvec(ci_vector::ClusteredState, cluster_ops, clustered_ham; thresh=1e-9, nbody=4)
+function matvec(ci_vector::ClusteredState, cluster_ops, clustered_ham; thresh=1e-9, nbody=4, root=1)
     sig = deepcopy(ci_vector)
     zero!(sig)
     clusters = ci_vector.clusters
@@ -148,26 +148,25 @@ function matvec(ci_vector::ClusteredState, cluster_ops, clustered_ham; thresh=1e
             
             #
             # check to make sure this fock config doesn't have negative or too many electrons in any cluster
-            for (fi,f) in enumerate(fock_bra)
-                f[1] >= 0 || continue 
-                f[2] >= 0 || continue 
-                f[1] <= length(clusters[fi]) || continue 
-                f[2] <= length(clusters[fi]) || continue
-            end
-
+            all(min(f...) >= 0 for f in fock_bra) || continue 
+            all(max(f...) <= length(clusters[fi]) for (fi,f) in enumerate(fock_bra)) || continue 
+        
             haskey(sig, fock_bra) || add_fockconfig!(sig, fock_bra)
             for term in terms
 
                 length(term.clusters) <= nbody || continue
 
                 for (config_ket, coeff_ket) in configs_ket
-                    if term isa ClusteredTerm2B
-                        display(coeff_ket)
-                        sig_i = FermiCG.contract_matvec(term, cluster_ops, fock_bra, fock_ket, config_ket, coeff_ket)
-                    end
+                    sig_i = FermiCG.contract_matvec(term, cluster_ops, fock_bra, fock_ket, config_ket, coeff_ket[root], thresh=thresh)
+                    #if term isa ClusteredTerm1B
+                    #    @btime sig_i = FermiCG.contract_matvec($term, $cluster_ops, $fock_bra, $fock_ket, $config_ket, $coeff_ket[$root], thresh=$thresh)
+                    #end
+                    sig[fock_bra] = merge(+, sig[fock_bra], sig_i)
                 end
             end
         end
     end
+
+    #display(sig)
     return sig
 end
