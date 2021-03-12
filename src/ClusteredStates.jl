@@ -7,7 +7,7 @@ using LinearAlgebra
 
 Pretty print
 """
-function Base.display(s::ClusteredState; thresh=1e-3)
+function Base.display(s::ClusteredState; thresh=1e-3, root=1)
     @printf(" --------------------------------------------------\n")
     @printf(" ---------- Fockspaces in state ------: Dim = %5i  \n",length(s))
     @printf(" --------------------------------------------------\n")
@@ -18,7 +18,7 @@ function Base.display(s::ClusteredState; thresh=1e-3)
     for (fock,configs) in s.data
         prob = 0
         for (config, coeff) in configs 
-            prob += coeff*coeff 
+            prob += coeff[root]*coeff[root] 
         end
         if prob > thresh
             @printf(" %-20.3f%-20i", prob,length(s.data[fock]))
@@ -40,8 +40,6 @@ function print_configs(s::ClusteredState; thresh=1e-3)
     #display(keys(s.data))
     idx = 1
     for (fock,configs) in s.data
-        #display(s.clusters)
-        #display(s.data)
         length(s.clusters) == length(fock) || throw(Exception)
         length(s.data[fock]) > 0 || continue
         @printf(" Dim %4i fock_space: ",length(s.data[fock]))
@@ -59,16 +57,34 @@ function print_configs(s::ClusteredState; thresh=1e-3)
 end
 
 """
-    norm(s::ClusteredState)
+    norm(s::ClusteredState, root)
 """
-function LinearAlgebra.norm(s::ClusteredState)
+function LinearAlgebra.norm(s::ClusteredState, root)
     norm = 0
     for (fock,configs) in s.data
         for (config,coeff) in configs
-            norm += coeff*coeff
+            norm += coeff[root]*coeff[root]
         end
     end
     return sqrt(norm)
+end
+
+"""
+    norm(s::ClusteredState{T,N,R}, root) where {T,N,R}
+"""
+function norm(s::ClusteredState{T,N,R}, root) where {T,N,R}
+    norms = zeros(T,R)
+    for (fock,configs) in s.data
+        for (config,coeff) in configs
+            for r in 1:R
+                norms[r] += coeff[r]*coeff[r]
+            end
+        end
+    end
+    for r in 1:R
+        norms[r] = sqrt(norms[r])
+    end
+    return norms
 end
 
 """
@@ -139,7 +155,7 @@ end
 For each fock space sector defined, add all possible basis states
 - `basis::Vector{ClusterBasis}` 
 """
-function expand_each_fock_space!(s::ClusteredState, bases::Vector{ClusterBasis})
+function expand_each_fock_space!(s::ClusteredState{T,N,R}, bases::Vector{ClusterBasis}) where {T,N,R}
     # {{{
     println("\n Make each Fock-Block the full space")
     # create full space for each fock block defined
@@ -158,7 +174,7 @@ function expand_each_fock_space!(s::ClusteredState, bases::Vector{ClusterBasis})
             #
             # this is not ideal - need to find a way to directly create key
             config = ClusterConfig(collect(newconfig))
-            s.data[fblock][config] = 0
+            s.data[fblock][config] = zeros(SVector{R,T}) 
             #s.data[fblock][[i for i in newconfig]] = 0
         end
     end

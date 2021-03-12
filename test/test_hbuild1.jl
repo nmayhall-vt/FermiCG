@@ -84,7 +84,7 @@ end
 
     cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
 
-    ci_vector = FermiCG.ClusteredState(clusters)
+    ci_vector = FermiCG.ClusteredState(clusters, nroots = 2)
 
     FermiCG.expand_to_full_space!(ci_vector, cluster_bases, na, nb)
     
@@ -101,9 +101,11 @@ end
     #@profilehtml H = FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
     @time H = FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
     #@btime FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
-    e,v = Arpack.eigs(H, nev = 1, which=:SR)
+    e,v = Arpack.eigs(H, nev = 2, which=:SR)
     @printf(" Energy: %18.12f\n",real(e[1]))
 
+    display(size(v))
+    display(size(ci_vector))
     FermiCG.set_vector!(ci_vector, v)
     sig = matvec(ci_vector, cluster_ops, clustered_ham)
     
