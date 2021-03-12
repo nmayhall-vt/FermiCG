@@ -1,12 +1,14 @@
+using StaticArrays
+
 """
     clusters::Vector{Cluster}
-    data::OrderedDict{FockConfig,OrderedDict{ClusterConfig,Float64}}
+    data::OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, Vector{T}}}
 
 This represents an arbitrarily sparse state. E.g., used in TPSCI
 """
-struct ClusteredState{T,N} <: AbstractState 
+struct ClusteredState{T,N,R} <: AbstractState 
     clusters::Vector{Cluster}
-    data::OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, T}}
+    data::OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, SVector{R,T}}}
 end
 
 """
@@ -15,9 +17,9 @@ end
 Constructor
 - `clusters::Vector{Cluster}`
 """
-function ClusteredState(clusters; T=Float64)
+function ClusteredState(clusters; T=Float64, nroots=1)
     N = length(clusters)
-    return ClusteredState{T,N}(clusters,OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, T}}())
+    return ClusteredState{T,N,nroots}(clusters,OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, SVector{nroots,T}}}())
 end
 
 """
@@ -53,6 +55,9 @@ function Base.length(s::ClusteredState)
     end
     return l
 end
+"""
+    get_vector(s::ClusteredState)
+"""
 function get_vector(s::ClusteredState)
     v = zeros(length(s))
     idx = 0
@@ -63,4 +68,25 @@ function get_vector(s::ClusteredState)
         end
     end
     return v
+end
+"""
+    set_vector!(s::ClusteredState)
+"""
+function set_vector!(ts::ClusteredState, v)
+
+    #length(size(v)) == 1 || error(" Only takes vectors", size(v))
+    nbasis = size(v)[1]
+
+    idx = 1
+    for (fock, tconfigs) in ts
+        for (tconfig, tuck) in tconfigs
+            dims = size(tuck)
+
+            dim1 = prod(dims)
+            ts[fock][tconfig].core .= reshape(v[idx:idx+dim1-1], size(tuck.core))
+            idx += dim1
+        end
+    end
+    nbasis == idx-1 || error("huh?", nbasis, " ", idx)
+    return
 end

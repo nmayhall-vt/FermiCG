@@ -148,15 +148,14 @@ function matvec(ci_vector::ClusteredState, cluster_ops, clustered_ham; thresh=1e
             
             #
             # check to make sure this fock config doesn't have negative or too many electrons in any cluster
-            good = true
             for (fi,f) in fock_bra
-                f[1] >= 0 || good = false
-                f[2] >= 0 || good = false
-                f[1] <= length(clusters[fi]) || good = false
-                f[2] <= length(clusters[fi]) || good = false
+                f[1] >= 0 || continue 
+                f[2] >= 0 || continue 
+                f[1] <= length(clusters[fi]) || continue 
+                f[2] <= length(clusters[fi]) || continue
             end
-            good == true || continue
 
+            haskey(sig, fock_bra) || add_fockspace(sig, fock_bra)
             for term in terms
 
                 length(term.clusters) <= nbody || continue

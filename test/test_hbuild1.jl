@@ -103,7 +103,9 @@ end
     #@btime FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
     e,v = Arpack.eigs(H, nev = 1, which=:SR)
     @printf(" Energy: %18.12f\n",real(e[1]))
-   
+
+    FermiCG.set_vector!(ci_vector, v)
+    sig = matvec(ci_vector, cluster_ops, clustered_ham)
     
 
     #FermiCG.set_vector!(ci_vector, F.vectors[:,1])
