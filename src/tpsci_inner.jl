@@ -372,7 +372,7 @@ function contract_matvec(   term::ClusteredTerm1B,
 
     newI = 1:size(new_coeffs,1)
 
-    out = OrderedDict{ClusterConfig, SVector{1,T}}()
+    out = OrderedDict{ClusterConfig, MVector{1,T}}()
 
     _collect_significant!(out, conf_ket, new_coeffs, c1.idx,  newI,  thresh)
             
@@ -418,7 +418,7 @@ function contract_matvec(   term::ClusteredTerm2B,
     # tmp(q,I)   = h(p,q)' * gamma1(p,I)
     # new_coeffs(I,J) = tmp(q,I)' * gamma2(q,J)
     #
-    new_coeffs = term.ints' * gamma1
+    new_coeffs = term.ints' * gamma1 * coef_ket
     new_coeffs = new_coeffs' * gamma2
     #@tensor begin
     #    new_confs[q,I] := term.ints[p,q] * gamma1[p,I]
@@ -427,17 +427,18 @@ function contract_matvec(   term::ClusteredTerm2B,
 
     
     if state_sign == -1
+        #new_coeffs *= -1.0
         new_coeffs .= -new_coeffs
     end 
 
     newI = 1:size(new_coeffs,1)
     newJ = 1:size(new_coeffs,2)
 
-    out = OrderedDict{ClusterConfig, SVector{1,T}}()
+    out = OrderedDict{ClusterConfig, MVector{1,T}}()
 
 #    a = (4,5,6,7,8,89)
 #    b = [4,5,6,7,8,89]
-#    c = SVector{6}(b)
+#    c = MVector{6}(b)
 #
 #    @btime hash($a)
 #    @btime hash($b)
@@ -481,7 +482,7 @@ function contract_matvec(   term::ClusteredTerm3B,
 
     new_coeffs = []
     @tensor begin
-        new_coeffs[p,q,M] := term.ints[p,q,r]  * gamma3[r,M]
+        new_coeffs[p,q,M] := term.ints[p,q,r]  * gamma3[r,M] #* coef_ket
         new_coeffs[p,L,M] := new_coeffs[p,q,M] * gamma2[q,L]
         new_coeffs[J,L,M] := new_coeffs[p,L,M] * gamma1[p,J]
     end
@@ -495,9 +496,16 @@ function contract_matvec(   term::ClusteredTerm3B,
     newJ = 1:size(new_coeffs,2)
     newK = 1:size(new_coeffs,3)
 
-    out = OrderedDict{ClusterConfig, SVector{1,T}}()
+    out = OrderedDict{ClusterConfig, MVector{1,T}}()
+    
+#    if fock_bra[c3.idx][1] == 0 &&  fock_bra[c3.idx][2] == 0 && size(new_coeffs,3) != 1
+#        display(fock_bra[c3.idx])
+#        display(size(gamma3))
+#        println()
+#        error("hh")
+#    end
 
-    _collect_significant!(out, conf_ket, new_coeffs, c1.idx, c2.idx, c2.idx, newI, newJ, newK, thresh)
+    _collect_significant!(out, conf_ket, new_coeffs, c1.idx, c2.idx, c3.idx, newI, newJ, newK, thresh)
             
 
     return out 
@@ -510,7 +518,8 @@ function _collect_significant!(out, conf_ket, new_coeffs, c1idx, newI, thresh)
     N = length(conf_ket)
     #test = Dict()
     cket = [conf_ket.config...]
-    @inbounds for I::Int16 in newI
+    #@inbounds for I::Int16 in newI
+    for I::Int16 in newI
         if abs(new_coeffs[I]) > thresh
             cket[c1idx] = I
             out[ClusterConfig{N}(tuple(cket...))] = [new_coeffs[I]]
@@ -524,7 +533,8 @@ function _collect_significant!(out, conf_ket, new_coeffs, c1idx, c2idx, newI, ne
     N = length(conf_ket)
     #test = Dict()
     cket = [conf_ket.config...]
-    @inbounds for J::Int16 in newJ
+    #@inbounds for J::Int16 in newJ
+    for J::Int16 in newJ
         cket[c2idx] = J
         for I::Int16 in newI
             if abs(new_coeffs[I,J]) > thresh
@@ -556,7 +566,7 @@ function _collect_significant!(out, conf_ket, new_coeffs, c1idx, c2idx, c3idx, n
             for I::Int16 in newI
                 if abs(new_coeffs[I,J]) > thresh
                     cket[c1idx] = I
-                    out[ClusterConfig{N}(tuple(cket...))] = [new_coeffs[I,J]]
+                    out[ClusterConfig{N}(tuple(cket...))] = [new_coeffs[I,J,K]]
                 end
             end
         end

@@ -93,7 +93,8 @@ function build_full_H(ci_vector::ClusteredState, cluster_ops, clustered_ham::Clu
                 ket_idx <= job[1] || continue
 
                 for term in clustered_ham[fock_trans]
-                        
+                       
+                    length(term.clusters) <= 2 || continue
                     check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
                     
                     me = FermiCG.contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
@@ -142,10 +143,11 @@ function matvec(ci_vector::ClusteredState, cluster_ops, clustered_ham; thresh=1e
     sig = deepcopy(ci_vector)
     zero!(sig)
     clusters = ci_vector.clusters
+    #sig = ClusteredState(clusters)
     for (fock_ket, configs_ket) in ci_vector.data
         for (ftrans, terms) in clustered_ham
             fock_bra = ftrans + fock_ket
-            
+           
             #
             # check to make sure this fock config doesn't have negative or too many electrons in any cluster
             all(min(f...) >= 0 for f in fock_bra) || continue 
@@ -162,11 +164,17 @@ function matvec(ci_vector::ClusteredState, cluster_ops, clustered_ham; thresh=1e
                     #    @btime sig_i = FermiCG.contract_matvec($term, $cluster_ops, $fock_bra, $fock_ket, $config_ket, $coeff_ket[$root], thresh=$thresh)
                     #end
                     sig[fock_bra] = merge(+, sig[fock_bra], sig_i)
+                    #for (config,coeff) in sig_i
+                    #    #display(coeff[1])
+                    #    #display(sig[fock_bra][config][1])
+                    #    sig[fock_bra][config][1] += coeff[1]
+                    #    #sig[fock_bra][config] = sig[fock_bra][config] + coeff
+                    #end
                 end
             end
         end
     end
 
-    #display(sig)
+    display(sig)
     return sig
 end

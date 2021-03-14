@@ -8,7 +8,7 @@ This represents an arbitrarily sparse state. E.g., used in TPSCI
 """
 struct ClusteredState{T,N,R} <: AbstractState 
     clusters::Vector{Cluster}
-    data::OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, SVector{R,T}}}
+    data::OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, MVector{R,T}}}
 end
 Base.haskey(ts::ClusteredState, i) = return haskey(ts.data,i)
 Base.iterate(ts::ClusteredState, state=1) = iterate(ts.data, state)
@@ -21,14 +21,14 @@ Constructor
 """
 function ClusteredState(clusters; T=Float64, nroots=1)
     N = length(clusters)
-    return ClusteredState{T,N,nroots}(clusters,OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, SVector{nroots,T}}}())
+    return ClusteredState{T,N,nroots}(clusters,OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, MVector{nroots,T}}}())
 end
 
 """
     add_fockconfig!(s::ClusteredState, fock::FockConfig)
 """
 function add_fockconfig!(s::ClusteredState{T,N,R}, fock::FockConfig{N}) where {T<:Number,N,R}
-    s.data[fock] = OrderedDict{ClusterConfig{N}, SVector{R,T}}(ClusterConfig([1 for i in 1:N]) => zeros(SVector{R,T}))
+    s.data[fock] = OrderedDict{ClusterConfig{N}, MVector{R,T}}(ClusterConfig([1 for i in 1:N]) => zeros(MVector{R,T}))
 end
 
 """
@@ -76,7 +76,7 @@ function set_vector!(ts::ClusteredState{T,N,R}, v::Matrix{T}) where {T,N,R}
     idx = 1
     for (fock, tconfigs) in ts.data
         for (tconfig, coeffs) in tconfigs
-            ts[fock][tconfig] = SVector{R}(v[idx,:])
+            ts[fock][tconfig] = MVector{R}(v[idx,:])
             idx += 1
         end
     end
@@ -225,7 +225,7 @@ set all elements to zero
 function zero!(s::ClusteredState{T,N,R}) where {T,N,R}
     for (fock,configs) in s.data
         for (config,coeffs) in configs                
-            s.data[fock][config] = zeros(SVector{R,T})
+            s.data[fock][config] = zeros(MVector{R,T})
         end
     end
 end

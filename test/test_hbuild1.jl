@@ -108,11 +108,27 @@ end
     display(size(v))
     display(size(ci_vector))
     FermiCG.set_vector!(ci_vector, v)
-    sig1 = FermiCG.matvec(ci_vector, cluster_ops, clustered_ham, root=1)
+    println(" Norm: ", FermiCG.dot(ci_vector, ci_vector))
+    sig1 = FermiCG.matvec(ci_vector, cluster_ops, clustered_ham, root=1, nbody=2, thresh=-1)
     #sig2 = FermiCG.matvec(ci_vector, cluster_ops, clustered_ham, root=2)
+    #display(ci_vector,thresh=-1)
+    #display(sig1,thresh=-1)
+    
+    sig2 = deepcopy(sig1)
+    FermiCG.set_vector!(sig2, H*v)
 
+    ftest = FermiCG.FockConfig([(2,1),(1,2),(0,0)])
+    ftest = FermiCG.FockConfig([(2,1),(0,1),(1,1)])
+    ftest = FermiCG.FockConfig([(1,1),(1,1),(1,1)])
+    for c in keys(sig2[ftest])
+        display(sig2[ftest][c][1])
+        display(sig1[ftest][c][1])
+    println()
+    end
+    
 
-    @printf(" Energy: %18.12f\n",FermiCG.dot(sig1,sig1))
+    @printf(" sigsig  %18.12f\n",FermiCG.dot(sig2,sig2))
+    @printf(" sigsig  %18.12f\n",FermiCG.dot(sig1,sig1))
     @printf(" Energy: %18.12f\n",FermiCG.dot(ci_vector,sig1))
 
 
@@ -120,7 +136,7 @@ end
     #display(ci_vector)
     println()
     
-    
+   
     #@test isapprox(F.values[1], -5.066833300762457, atol=1e-10)
     
     #maximum(abs.(H-H')) < 1e-14 || error("Hamiltonian not symmetric: ",maximum(abs.(H-H'))); 
