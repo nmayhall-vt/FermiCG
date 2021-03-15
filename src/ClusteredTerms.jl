@@ -3,9 +3,12 @@ using InteractiveUtils
 
 
 """
-	ops::Vector{String}
-	delta::Vector{Int}
-	ints
+    ops::Tuple{String}
+    delta::TransferConfig{1}
+    parity::Tuple{Int}
+    clusters::Tuple{Cluster}
+    ints::Array{Float64}
+    cache::Dict
 
 
 input:
@@ -22,12 +25,14 @@ input:
 		active: list of clusters which have non-identity operators
 			this includes fock-diagonal couplings,
 			e.g., ["Aa","","Bb"] would have active = [0,2]
+- parity: does each operator have even or odd number of second quantized operators 
 """
 abstract type ClusteredTerm end
 
 struct ClusteredTerm1B <: ClusteredTerm
     ops::Tuple{String}
     delta::TransferConfig{1}
+    parity::Tuple{Int}
     clusters::Tuple{Cluster}
     ints::Array{Float64}
     cache::Dict
@@ -37,6 +42,7 @@ struct ClusteredTerm2B <: ClusteredTerm
     ops::Tuple{String,String}
     #delta::Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}}
     delta::TransferConfig{2}
+    parity::Tuple{Int,Int}
     #active::Vector{Int16}
     clusters::Tuple{Cluster,Cluster}
     ints::Array{Float64}
@@ -46,6 +52,7 @@ end
 struct ClusteredTerm3B <: ClusteredTerm
     ops::Tuple{String,String,String}
     delta::TransferConfig{3}
+    parity::Tuple{Int,Int,Int}
     #active::Vector{Int16}
     clusters::Tuple{Cluster,Cluster,Cluster}
     ints::Array{Float64}
@@ -55,6 +62,7 @@ end
 struct ClusteredTerm4B <: ClusteredTerm
     ops::Tuple{String,String,String,String}
     delta::TransferConfig{4}
+    parity::Tuple{Int,Int,Int,Int}
     clusters::Tuple{Cluster,Cluster,Cluster,Cluster}
     ints::Array{Float64}
     cache::Dict
@@ -183,7 +191,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
 #={{{=#
             # instead of forming p'q and p'q'sr just precontract and keep them in 
             # ClusterOps
-            term = ClusteredTerm1B(("H",), ((0,0),), (ci,), zeros(1,1),Dict())
+            term = ClusteredTerm1B(("H",), ((0,0),), (0,), (ci,), zeros(1,1),Dict())
             push!(terms[zero_fock],term)
 #=}}}=#
         end
@@ -256,7 +264,17 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
                             end
                         end
 
-                        clusteredterm = ClusteredTerm2B((oper1,oper2), (Tuple(fock1),Tuple(fock2)), (ci, cj), h, Dict())
+                        parity1 = 0
+                        parity2 = 0
+                        if length(oper1)%2 != 0
+                            parity1 = 1
+                        end
+                        if length(oper2)%2 != 0
+                            parity2 = 1
+                        end
+                        parity = (parity1, parity2)
+
+                        clusteredterm = ClusteredTerm2B((oper1,oper2), (Tuple(fock1),Tuple(fock2)), parity, (ci, cj), h, Dict())
                         #display(clusteredterm)
                         focktrans = replace(zero_fock, (ci.idx, cj.idx), (fock1, fock2))
 #                        focktrans = [zero_fock...]
@@ -409,7 +427,17 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
                        
                         vcurr = copy(reshape(vcurr,newshape...))
 
-                        clusteredterm = ClusteredTerm2B((oper1,oper2), (Tuple(fock1),Tuple(fock2)), (ci, cj), vcurr, Dict())
+                        parity1 = 0
+                        parity2 = 0
+                        if length(oper1)%2 != 0
+                            parity1 = 1
+                        end
+                        if length(oper2)%2 != 0
+                            parity2 = 1
+                        end
+                        parity = (parity1, parity2)
+                        
+                        clusteredterm = ClusteredTerm2B((oper1,oper2), (Tuple(fock1),Tuple(fock2)), parity, (ci, cj), vcurr, Dict())
                         #display(clusteredterm)
                         focktrans = replace(zero_fock, (ci.idx, cj.idx), (fock1, fock2))
                         if haskey(terms,focktrans)
@@ -556,8 +584,22 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
                             vcurr = copy(reshape(vcurr,newshape...))
 
                             #core,factors = tucker_decompose(vcurr)
+                            
+                            parity1 = 0
+                            parity2 = 0
+                            parity3 = 0
+                            if length(oper1)%2 != 0
+                                parity1 = 1
+                            end
+                            if length(oper2)%2 != 0
+                                parity2 = 1
+                            end
+                            if length(oper3)%2 != 0
+                                parity3 = 1
+                            end
+                            parity = (parity1, parity2, parity3)
 
-                            clusteredterm = ClusteredTerm3B((oper1,oper2,oper3), (Tuple(fock1),Tuple(fock2),Tuple(fock3)), (ci, cj, ck), vcurr, Dict())
+                            clusteredterm = ClusteredTerm3B((oper1,oper2,oper3), (Tuple(fock1),Tuple(fock2),Tuple(fock3)), parity, (ci, cj, ck), vcurr, Dict())
                             #display(clusteredterm)
                             focktrans = replace(zero_fock, (ci.idx, cj.idx, ck.idx), (fock1, fock2, fock3))
                             if haskey(terms,focktrans)
@@ -663,7 +705,26 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
                                     end
                                 end
 
-                                clusteredterm = ClusteredTerm4B((oper1,oper2,oper3,oper4), (Tuple(fock1),Tuple(fock2),Tuple(fock3),Tuple(fock4)), (ci, cj, ck, cl), v, Dict())
+                            
+                                parity1 = 0
+                                parity2 = 0
+                                parity3 = 0
+                                parity4 = 0
+                                if length(oper1)%2 != 0
+                                    parity1 = 1
+                                end
+                                if length(oper2)%2 != 0
+                                    parity2 = 1
+                                end
+                                if length(oper3)%2 != 0
+                                    parity3 = 1
+                                end
+                                if length(oper4)%2 != 0
+                                    parity4 = 1
+                                end
+                                parity = (parity1, parity2, parity3, parity4)
+                                
+                                clusteredterm = ClusteredTerm4B((oper1,oper2,oper3,oper4), (Tuple(fock1),Tuple(fock2),Tuple(fock3),Tuple(fock4)), parity, (ci, cj, ck, cl), v, Dict())
                                 focktrans = replace(zero_fock, (ci.idx, cj.idx, ck.idx, cl.idx), (fock1, fock2, fock3, fock4))
                                 if haskey(terms,focktrans)
                                     push!(terms[focktrans], clusteredterm)
@@ -869,7 +930,7 @@ function compute_terms_state_sign(term::ClusteredTerm, fock_ket::FockConfig)
     # determine sign from rearranging clusters if odd number of operators
     state_sign = 1
     for (oi,o) in enumerate(term.ops)
-        if length(o) % 2 != 0  #only count electrons if operator is odd
+        if term.parity[oi] == 1  #only count electrons if operator is odd
             n_elec_hopped = 0
             for ci in 1:term.clusters[oi].idx-1
                 n_elec_hopped += fock_ket[ci][1] + fock_ket[ci][2]
@@ -906,7 +967,7 @@ function extract_1body_operator(clustered_ham::ClusteredOperator; op_string="H")
         for term in terms
             if term isa ClusteredTerm1B
                 
-                term2 = ClusteredTerm1B((op_string,), term.delta, term.clusters, term.ints, term.cache)
+                term2 = ClusteredTerm1B((op_string,), term.delta, term.parity, term.clusters, term.ints, term.cache)
                 if haskey(out, ftrans)
                     push!(out[ftrans], term2)
                 else

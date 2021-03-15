@@ -360,12 +360,8 @@ function contract_matvec(   term::ClusteredTerm1B,
     #
     # <:|p'|J> h(pq) <:|q|L>
 
-    new_coeffs = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,conf_ket[c1.idx]] * coef_ket
+    new_coeffs = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,conf_ket[c1.idx]] * coef_ket * state_sign
     
-    if state_sign == -1
-        #new_coeffs .= -new_coeffs
-    end 
-
     newI = 1:size(new_coeffs,1)
 
     out = OrderedDict{ClusterConfig, MVector{1,T}}()
