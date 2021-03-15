@@ -150,8 +150,10 @@ function matvec(ci_vector::ClusteredState, cluster_ops, clustered_ham; thresh=1e
            
             #
             # check to make sure this fock config doesn't have negative or too many electrons in any cluster
-            all(min(f...) >= 0 for f in fock_bra) || continue 
-            all(max(f...) <= length(clusters[fi]) for (fi,f) in enumerate(fock_bra)) || continue 
+            all(f[1] >= 0 for f in fock_bra) || continue 
+            all(f[2] >= 0 for f in fock_bra) || continue 
+            all(f[1] <= length(clusters[fi]) for (fi,f) in enumerate(fock_bra)) || continue 
+            all(f[2] <= length(clusters[fi]) for (fi,f) in enumerate(fock_bra)) || continue 
         
             haskey(sig, fock_bra) || add_fockconfig!(sig, fock_bra)
             for term in terms

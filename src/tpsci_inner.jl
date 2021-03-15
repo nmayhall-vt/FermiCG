@@ -50,8 +50,6 @@ function contract_matrix_element(   term::ClusteredTerm2B,
     # determine sign from rearranging clusters if odd number of operators
     state_sign = compute_terms_state_sign(term, fock_ket) 
         
-
-    #
     # <I|p'|J> h(pq) <K|q|L>
     #@views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
     #@views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
@@ -358,16 +356,14 @@ function contract_matvec(   term::ClusteredTerm1B,
     # determine sign from rearranging clusters if odd number of operators
     state_sign = compute_terms_state_sign(term, fock_ket) 
         
-
+    
     #
     # <:|p'|J> h(pq) <:|q|L>
-
-    @views gamma1 = 
 
     new_coeffs = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,conf_ket[c1.idx]] * coef_ket
     
     if state_sign == -1
-        new_coeffs .= -new_coeffs
+        #new_coeffs .= -new_coeffs
     end 
 
     newI = 1:size(new_coeffs,1)
@@ -399,17 +395,10 @@ function contract_matvec(   term::ClusteredTerm2B,
     # 
     # determine sign from rearranging clusters if odd number of operators
     state_sign = compute_terms_state_sign(term, fock_ket) 
-        
+  
 
     #
     # <:|p'|J> h(pq) <:|q|L>
-
-    #@tensor begin
-    #    mat_elem = gamma1[p] * term.ints[p,q] * gamma2[q]
-    #end
-    #mat_elem = _contract(term.ints, gamma1, gamma2)
-   
-    #display(fock_bra)
     @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,:,conf_ket[c1.idx]]
     @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,:,conf_ket[c2.idx]]
     
@@ -420,14 +409,10 @@ function contract_matvec(   term::ClusteredTerm2B,
     #
     new_coeffs = term.ints' * gamma1 * coef_ket
     new_coeffs = new_coeffs' * gamma2
-    #@tensor begin
-    #    new_confs[q,I] := term.ints[p,q] * gamma1[p,I]
-    #    new_confs[I,J] := new_confs[q,I] * gamma2[q,J]
-    #end
 
+        
     
-    if state_sign == -1
-        #new_coeffs *= -1.0
+    if state_sign < 0
         new_coeffs .= -new_coeffs
     end 
 
@@ -436,15 +421,6 @@ function contract_matvec(   term::ClusteredTerm2B,
 
     out = OrderedDict{ClusterConfig, MVector{1,T}}()
 
-#    a = (4,5,6,7,8,89)
-#    b = [4,5,6,7,8,89]
-#    c = MVector{6}(b)
-#
-#    @btime hash($a)
-#    @btime hash($b)
-#    @btime hash($c)
-    #@btime hash((4,5,6,7,8,89))
-    #@btime hash([4,5,6,7,8,89])
     #@btime _collect_significant!($out, $conf_ket, $new_coeffs, $c1.idx, $c2.idx, $newI, $newJ, $thresh)
     _collect_significant!(out, conf_ket, new_coeffs, c1.idx, c2.idx, newI, newJ, thresh)
             
@@ -534,12 +510,12 @@ function _collect_significant!(out, conf_ket, new_coeffs, c1idx, c2idx, newI, ne
     #test = Dict()
     cket = [conf_ket.config...]
     #@inbounds for J::Int16 in newJ
-    for J::Int16 in newJ
-        cket[c2idx] = J
-        for I::Int16 in newI
-            if abs(new_coeffs[I,J]) > thresh
-                cket[c1idx] = I
-                out[ClusterConfig{N}(tuple(cket...))] = [new_coeffs[I,J]]
+    for j::Int16 in newJ
+        cket[c2idx] = j
+        for i::Int16 in newI
+            if abs(new_coeffs[i,j]) > thresh
+                cket[c1idx] = i
+                out[ClusterConfig{N}(tuple(cket...))] = [new_coeffs[i,j]]
                 #test[ClusterConfig{N}(tuple(cket...))] = [new_coeffs[I,J]]
                 
                 #conf_new = replace(conf_ket, (c1idx, c2idx), (I,J))

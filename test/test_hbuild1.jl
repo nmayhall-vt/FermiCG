@@ -117,9 +117,10 @@ end
     sig2 = deepcopy(sig1)
     FermiCG.set_vector!(sig2, H*v)
 
-    ftest = FermiCG.FockConfig([(2,1),(1,2),(0,0)])
     ftest = FermiCG.FockConfig([(2,1),(0,1),(1,1)])
-    ftest = FermiCG.FockConfig([(1,1),(1,1),(1,1)])
+    ftest = FermiCG.FockConfig([(0,0),(1,2),(2,1)])
+    ftest = FermiCG.FockConfig([(2,2),(0,0),(1,1)])
+    ftest = FermiCG.FockConfig([(1,2),(2,1),(0,0)])
     for c in keys(sig2[ftest])
         display(sig2[ftest][c][1])
         display(sig1[ftest][c][1])
