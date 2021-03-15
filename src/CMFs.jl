@@ -310,7 +310,7 @@ function cmf_ci(mol::Molecule, C::Matrix, clusters::Vector{Cluster}, fspace::Vec
         e_curr, rdm1a_curr, rdm1b_curr, rdm1_dict, rdm2_dict = cmf_ci_iteration(mol, C, rdm1a, rdm1b, clusters, fspace, verbose=verbose)
         append!(energies,e_curr)
         error = (rdm1a_curr+rdm1b_curr) - (rdm1a+rdm1b)
-        d_err = norm(error)
+        d_err = LinearAlgebra.norm(error)
         e_err = e_curr-e_prev
         if verbose>0
             @printf(" CMF-CI Energy: %12.8f | Change: RDM: %6.1e Energy %6.1e\n\n", e_curr, d_err, e_err)

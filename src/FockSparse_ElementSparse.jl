@@ -153,9 +153,9 @@ function LinearAlgebra.norm(s::ClusteredState, root)
 end
 
 """
-    norm(s::ClusteredState{T,N,R}, root) where {T,N,R}
+    norm(s::ClusteredState{T,N,R}) where {T,N,R}
 """
-function norm(s::ClusteredState{T,N,R}, root) where {T,N,R}
+function LinearAlgebra.norm(s::ClusteredState{T,N,R}) where {T,N,R}
     norms = zeros(T,R)
     for (fock,configs) in s.data
         for (config,coeff) in configs
