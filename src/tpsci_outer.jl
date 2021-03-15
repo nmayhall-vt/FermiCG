@@ -94,7 +94,7 @@ function build_full_H(ci_vector::ClusteredState, cluster_ops, clustered_ham::Clu
 
                 for term in clustered_ham[fock_trans]
                        
-                    length(term.clusters) <= 2 || continue
+                    #length(term.clusters) <= 2 || continue
                     check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
                     
                     me = FermiCG.contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
@@ -139,7 +139,15 @@ end
 #=}}}=#
 
 
-function matvec(ci_vector::ClusteredState, cluster_ops, clustered_ham; thresh=1e-9, nbody=4, root=1)
+"""
+    open_matvec(ci_vector::ClusteredState, cluster_ops, clustered_ham; thresh=1e-9, nbody=4)
+
+Compute the action of the Hamiltonian on a tpsci state vector. Open here, means that we access the full FOIS 
+(restricted only by thresh), instead of the action of H on v within a subspace of configurations. 
+This is essentially used for computing a PT correction outside of the subspace, or used for searching in TPSCI.
+"""
+function open_matvec(ci_vector::ClusteredState, cluster_ops, clustered_ham; thresh=1e-9, nbody=4)
+#={{{=#
     sig = deepcopy(ci_vector)
     zero!(sig)
     clusters = ci_vector.clusters
@@ -161,9 +169,9 @@ function matvec(ci_vector::ClusteredState, cluster_ops, clustered_ham; thresh=1e
                 length(term.clusters) <= nbody || continue
 
                 for (config_ket, coeff_ket) in configs_ket
-                    sig_i = FermiCG.contract_matvec(term, cluster_ops, fock_bra, fock_ket, config_ket, coeff_ket[root], thresh=thresh)
-                    #if term isa ClusteredTerm1B
-                    #    @btime sig_i = FermiCG.contract_matvec($term, $cluster_ops, $fock_bra, $fock_ket, $config_ket, $coeff_ket[$root], thresh=$thresh)
+                    sig_i = FermiCG.contract_matvec(term, cluster_ops, fock_bra, fock_ket, config_ket, coeff_ket, thresh=thresh)
+                    #if term isa ClusteredTerm2B
+                    #    @btime sig_i = FermiCG.contract_matvec($term, $cluster_ops, $fock_bra, $fock_ket, $config_ket, $coeff_ket, thresh=$thresh)
                     #end
                     sig[fock_bra] = merge(+, sig[fock_bra], sig_i)
                     #for (config,coeff) in sig_i
@@ -180,3 +188,6 @@ function matvec(ci_vector::ClusteredState, cluster_ops, clustered_ham; thresh=1e
     display(sig)
     return sig
 end
+#=}}}=#
+
+

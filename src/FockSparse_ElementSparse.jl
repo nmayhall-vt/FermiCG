@@ -191,7 +191,22 @@ end
 """
     dot(v1::ClusteredState,v2::ClusteredState; r1=1, r2=1)
 """
-function dot(v1::ClusteredState{T,N,R},v2::ClusteredState{T,N,R}; r1=1, r2=1) where {T,N,R}
+function dot(v1::ClusteredState{T,N,1},v2::ClusteredState{T,N,1}) where {T,N}
+    d = T(0)
+    for (fock,configs) in v1.data
+        haskey(v2.data, fock) || continue
+        for (config,coeff) in configs
+            haskey(v2.data[fock], config) || continue
+            d += coeff[1] * v2.data[fock][config][1]
+        end
+    end
+    return d
+end
+    
+"""
+    dot(v1::ClusteredState,v2::ClusteredState; r1=1, r2=1)
+"""
+function dot(v1::ClusteredState{T,N,R}, v2::ClusteredState{T,N,R}, r1, r2) where {T,N,R}
     d = T(0)
     for (fock,configs) in v1.data
         haskey(v2.data, fock) || continue

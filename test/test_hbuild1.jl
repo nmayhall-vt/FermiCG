@@ -73,7 +73,7 @@ end
     
 
     max_roots = 400
-    nroots = 1
+    nroots = 2
 
     clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
     
@@ -103,35 +103,53 @@ end
     @time H = FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
     #@btime FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
     e,v = Arpack.eigs(H, nev = nroots, which=:SR)
-    @printf(" Energy: %18.12f\n",real(e[1]))
+    for ei in e
+        @printf(" Energy: %18.12f\n",real(ei))
+    end
 
     display(size(v))
     display(size(ci_vector))
     FermiCG.set_vector!(ci_vector, v)
-    println(" Norm: ", FermiCG.dot(ci_vector, ci_vector))
-    sig1 = FermiCG.matvec(ci_vector, cluster_ops, clustered_ham, root=1, nbody=2, thresh=-1)
-    #sig2 = FermiCG.matvec(ci_vector, cluster_ops, clustered_ham, root=2)
+    
+    println(" Overlaps")
+    for i in 1:nroots
+        for j in i:nroots
+            d = FermiCG.dot(ci_vector, ci_vector, i, j)
+            @printf(" %4i,%4i = %18.12f\n", i, j, d)
+
+        end
+    end
+
+    sig1 = FermiCG.open_matvec(ci_vector, cluster_ops, clustered_ham, nbody=3, thresh=-1)
+    println(" root1")
+    display(ci_vector,root=1)
+    println(" root2")
+    display(ci_vector,root=2)
     #display(ci_vector,thresh=-1)
     #display(sig1,thresh=-1)
-    
+   
     sig2 = deepcopy(sig1)
     FermiCG.set_vector!(sig2, H*v)
+    println(" <i|H|j>")
+    for i in 1:nroots
+        for j in i:nroots
+            d = FermiCG.dot(sig2, ci_vector, i, j)
+            @printf(" %4i,%4i = %18.12f\n", i, j, d)
 
-    ftest = FermiCG.FockConfig([(2,1),(0,1),(1,1)])
-    ftest = FermiCG.FockConfig([(0,0),(1,2),(2,1)])
-    ftest = FermiCG.FockConfig([(2,2),(0,0),(1,1)])
-    ftest = FermiCG.FockConfig([(1,2),(2,1),(0,0)])
-    for c in keys(sig2[ftest])
-        display(sig2[ftest][c][1])
-        display(sig1[ftest][c][1])
-    println()
+        end
     end
-    
 
-    @printf(" sigsig  %18.12f\n",FermiCG.dot(sig2,sig2))
-    @printf(" sigsig  %18.12f\n",FermiCG.dot(sig1,sig1))
-    @printf(" Energy: %18.12f\n",FermiCG.dot(ci_vector,sig1))
+    println(" <i|H|j>")
+    for i in 1:nroots
+        for j in i:nroots
+            d = FermiCG.dot(sig1, ci_vector, i, j)
+            @printf(" %4i,%4i = %18.12f\n", i, j, d)
 
+        end
+    end
+
+    display(size(sig1))
+    display(size(sig2))
 
     #FermiCG.set_vector!(ci_vector, F.vectors[:,1])
     #display(ci_vector)
