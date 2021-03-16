@@ -137,6 +137,97 @@ function build_full_H(ci_vector::ClusteredState, cluster_ops, clustered_ham::Clu
 end
 #=}}}=#
 
+"""
+"""
+function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; nbody=4, H0="Hcmf", thresh_foi=1e-8, verbose=1) where {T,N,R}
+    #={{{=#
+
+    e2 = zeros(T,R)
+    
+    println()
+    println(" Compute FOIS vector")
+    @time sig1 = open_matvec(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+
+    clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = H0) 
+    
+    project_out!(sig1, ci_vector)
+    
+
+    println()
+    println(" Compute diagonal")
+    @time Hd = compute_diagonal(sig1, cluster_ops, clustered_ham_0)
+    
+
+    println()
+    println(" Compute <0|H0|0>")
+    E0 = compute_expectation_value(ci_vector, cluster_ops, clustered_ham_0)
+    display(E0)
+    
+    println()
+    println(" Compute <0|H|0>")
+    Evar = compute_expectation_value(ci_vector, cluster_ops, clustered_ham)
+    display(Evar)
+
+    #E0 = v'* build_full_H(ci_vector, cluster_ops, clustered_ham_0) * v
+    
+
+
+    println()
+    @printf(" %5s %12s %12s\n", "Root", "E(0)", "E(2)") 
+    for r in 1:R
+        denom = 1.0 ./ (E0[r] .- Hd)  
+        v1 = denom .* get_vector(sig1, root=r)
+        e2 = sum(get_vector(sig1, root=r) .* v1)
+   
+        @printf(" %5s %12.8f %12.8f\n",r, e[r], e[r] + e2)
+    end
+
+    display(e2)
+    return e2 
+end
+#=}}}=#
+
+"""
+"""
+function compute_expectation_value(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; nbody=4) where {T,N,R}
+    #={{{=#
+
+    out = zeros(T,R)
+
+    for (fock_bra, configs_bra) in ci_vector.data
+        for (config_bra, coeff_bra) in configs_bra
+
+            for (fock_ket, configs_ket) in ci_vector.data
+                fock_trans = fock_bra - fock_ket
+
+                # check if transition is connected by H
+                if haskey(clustered_ham, fock_trans) == false
+                    continue
+                end
+
+                for (config_ket, coeff_ket) in configs_ket
+
+                    me = 0.0
+                    for term in clustered_ham[fock_trans]
+
+                        length(term.clusters) <= nbody || continue
+                        check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
+
+                        me = FermiCG.contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
+                    end
+
+                    out += coeff_bra .* coeff_ket .* me
+
+                end
+
+            end
+        end
+    end
+
+    return out 
+end
+#=}}}=#
+
 
 """
     open_matvec(ci_vector::ClusteredState, cluster_ops, clustered_ham; thresh=1e-9, nbody=4)
@@ -189,7 +280,11 @@ end
 #=}}}=#
 
 
+"""
+    compute_diagonal(vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
 
+Form the diagonal of the hamiltonan, `clustered_ham`, in the basis defined by `vector`
+"""
 function compute_diagonal(vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
     Hd = zeros(size(vector)[1])
     idx = 0
@@ -198,8 +293,7 @@ function compute_diagonal(vector::ClusteredState{T,N,R}, cluster_ops, clustered_
         for (config_bra, coeff_bra) in configs_bra
             idx += 1
             for term in clustered_ham[zero_trans]
-
-                Hd[idx] = FermiCG.contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_bra, config_bra)
+                Hd[idx] += FermiCG.contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_bra, config_bra)
             end
         end
     end

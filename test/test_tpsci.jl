@@ -6,6 +6,7 @@ using Profile
 using HDF5
 using Random
 using PyCall
+using Arpack
 
 #@testset "CompressedTuckerState" begin
     atoms = []
@@ -141,25 +142,9 @@ using PyCall
     for r in 1:nroots
         display(ci_vector, root=r)
     end
-
-    @time sig1 = FermiCG.open_matvec(ci_vector, cluster_ops, clustered_ham, nbody=3, thresh=1e-5)
-    FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
     
-    clustered_ham_0 = FermiCG.extract_1body_operator(clustered_ham, op_string = "Hcmf") 
-    E0 = v'* FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham_0) * v
-    
-    FermiCG.project_out!(sig1, ci_vector)
-    @time Hd = FermiCG.compute_diagonal(sig1, cluster_ops, clustered_ham_0)
+    @time FermiCG.compute_pt2(ci_vector, cluster_ops, clustered_ham, thresh_foi=1e-5)
 
-
-    @printf(" %5s %12s %12s\n", "Root", "E(0)", "E(2)") 
-    for r in 1:nroots
-        denom = 1.0 ./ (E0[r,r] .- Hd)  
-        v1 = denom .* FermiCG.get_vector(sig1, root=r)
-        e2 = sum(FermiCG.get_vector(sig1, root=r) .* v1)
-   
-        @printf(" %5s %12.8f %12.8f\n",r, e[r], e[r] + e2)
-    end
     
     #ci_vector[ref_fock][]
 #end

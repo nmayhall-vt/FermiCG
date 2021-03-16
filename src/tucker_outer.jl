@@ -1035,18 +1035,19 @@ function do_fois_pt2(ref::CompressedTuckerState, cluster_ops, clustered_ham;
     println(" Compute FOIS. Reference space dim = ", length(ref_vec))
     @time pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
 
+    @printf(" Nick: %12.8f\n", sqrt(orth_dot(pt1_vec,pt1_vec)))
     project_out!(pt1_vec, ref)
 
     # 
     # Compress FOIS
-    norm1 = orth_dot(pt1_vec, pt1_vec)
+    norm1 = sqrt(orth_dot(pt1_vec, pt1_vec))
     dim1 = length(pt1_vec)
     pt1_vec = compress(pt1_vec, thresh=thresh_foi)
-    norm2 = orth_dot(pt1_vec, pt1_vec)
+    norm2 = sqrt(orth_dot(pt1_vec, pt1_vec))
     dim2 = length(pt1_vec)
     @printf(" FOIS Compressed from:     %8i → %8i (thresh = %8.1e)\n", dim1, dim2, thresh_foi)
-    @printf(" Norm of |1>:              %8.1e → %8.1e (thresh = %8.1e)\n", norm1, norm2, thresh_foi)
-    @printf(" Overlap between <1|0>:    %8.1e\n", nonorth_dot(pt1_vec, ref_vec, verbose=0))
+    @printf(" Norm of |1>:              %12.8f → %12.8f (thresh = %8.1e)\n", norm1, norm2, thresh_foi)
+    @printf(" Overlap between <1|0>:    %12.1e\n", nonorth_dot(pt1_vec, ref_vec, verbose=0))
 
     # 
     # Solve for first order wavefunction 
