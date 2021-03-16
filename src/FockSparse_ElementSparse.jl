@@ -49,7 +49,7 @@ function Base.length(s::ClusteredState)
     return l
 end
 """
-    get_vector(s::ClusteredState)
+    get_vector(s::ClusteredState; root=1)
 """
 function get_vector(s::ClusteredState; root=1)
     v = zeros(length(s))
@@ -57,6 +57,20 @@ function get_vector(s::ClusteredState; root=1)
     for (fock, configs) in s
         for (config, coeff) in configs
             v[idx] = coeff[root]
+            idx += 1
+        end
+    end
+    return v
+end
+"""
+    get_vectors(s::ClusteredState)
+"""
+function get_vectors(s::ClusteredState{T,N,R}) where {T,N,R}
+    v = zeros(T,length(s), R)
+    idx = 1
+    for (fock, configs) in s
+        for (config, coeff) in configs
+            v[idx,:] .= coeff[:]
             idx += 1
         end
     end
@@ -253,7 +267,7 @@ function clip!(s::ClusteredState; thresh=1e-5)
 #={{{=#
     for (fock,configs) in s.data
         for (config,coeff) in configs      
-            if abs(coeff) < thresh
+            if all(abs(c) < thresh for c in coeff)
                 delete!(s.data[fock], config)
             end
         end
@@ -261,3 +275,26 @@ function clip!(s::ClusteredState; thresh=1e-5)
     prune_empty_fock_spaces!(s)
 end
 #=}}}=#
+
+"""
+    add!(s1::ClusteredState, s2::ClusteredState)
+
+Add coeffs in `s2` to `s1`
+"""
+function add!(s1::ClusteredState, s2::ClusteredState)
+    #={{{=#
+    for (fock,configs) in s2
+        if haskey(s1, fock)
+            for (config,coeffs) in configs
+                if haskey(s1[fock], config)
+                    s1[fock][config] .+= s2[fock][config]
+                else
+                    s1[fock][config] = s2[fock][config]
+                end
+            end
+        else
+            s1[fock] = s2[fock]
+        end
+    end
+    #=}}}=#
+end

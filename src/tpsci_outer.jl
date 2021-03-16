@@ -146,16 +146,16 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
     
     println()
     println(" Compute FOIS vector")
-    @time sig1 = open_matvec(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+    @time sig = open_matvec(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
 
     clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = H0) 
     
-    project_out!(sig1, ci_vector)
+    project_out!(sig, ci_vector)
     
 
     println()
     println(" Compute diagonal")
-    @time Hd = compute_diagonal(sig1, cluster_ops, clustered_ham_0)
+    @time Hd = compute_diagonal(sig, cluster_ops, clustered_ham_0)
     
 
     println()
@@ -170,19 +170,22 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
     #E0 = v'* build_full_H(ci_vector, cluster_ops, clustered_ham_0) * v
     
 
+    sig_v = get_vectors(sig)
+    v_pt  = zeros(size(sig_v))
 
     println()
     @printf(" %5s %12s %12s\n", "Root", "E(0)", "E(2)") 
     for r in 1:R
         denom = 1.0 ./ (E0[r] .- Hd)  
-        v1 = denom .* get_vector(sig1, root=r)
-        e2 = sum(get_vector(sig1, root=r) .* v1)
+        v_pt[:,r] .= denom .* sig_v[:,r] 
+        e2[r] = sum(sig_v[:,r] .* v_pt[:,r])
    
-        @printf(" %5s %12.8f %12.8f\n",r, Evar[r], Evar[r] + e2)
+        @printf(" %5s %12.8f %12.8f\n",r, Evar[r], Evar[r] + e2[r])
     end
 
-    display(e2)
-    return e2 
+    set_vector!(sig,v_pt)
+
+    return e2, sig 
 end
 #=}}}=#
 
@@ -262,7 +265,11 @@ function open_matvec(ci_vector::ClusteredState, cluster_ops, clustered_ham; thre
                     #if term isa ClusteredTerm2B
                     #    @btime sig_i = FermiCG.contract_matvec($term, $cluster_ops, $fock_bra, $fock_ket, $config_ket, $coeff_ket, thresh=$thresh)
                     #end
-                    sig[fock_bra] = merge(+, sig[fock_bra], sig_i)
+                    #typeof(sig_i) == typeof(sig[fock_bra]) || println(typeof(sig_i), "\n",  typeof(sig[fock_bra]), "\n")
+                    
+                    merge!(+, sig[fock_bra], sig_i)
+                    #sig[fock_bra] = merge(+, sig[fock_bra], sig_i)
+                    
                     #for (config,coeff) in sig_i
                     #    #display(coeff[1])
                     #    #display(sig[fock_bra][config][1])

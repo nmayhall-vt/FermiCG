@@ -27,6 +27,8 @@ using Arpack
     push!(atoms,Atom(12,"H",[0, 5*a, 11*r]))
 
 
+    clusters    = [(1:2),(3:4),(5:6),(7:8),(9:12)]
+    init_fspace = [(1,1),(1,1),(1,1),(1,1),(2,2)]
     clusters    = [(1:4),(5:8),(9:12)]
     init_fspace = [(2,2),(2,2),(2,2)]
     na = 6
@@ -36,14 +38,31 @@ using Arpack
     basis = "sto-3g"
     mol     = Molecule(0,1,atoms,basis)
 
-    nroots = 2
+    nroots = 1
 
     # get integrals
     mf = FermiCG.pyscf_do_scf(mol)
     nbas = size(mf.mo_coeff)[1]
     ints = FermiCG.pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
-    e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints, na, nb, conv_tol=1e-10,max_cycle=100, nroots=nroots)
-    e_fci = -18.33022092
+	
+    @printf(" Do FCI\n")
+    pyscf = pyimport("pyscf")
+    pyscf.lib.num_threads(1)
+	fci = pyimport("pyscf.fci")
+	cisolver = pyscf.fci.direct_spin1.FCI()
+	cisolver.max_cycle = 200 
+	cisolver.conv_tol = 1e-8
+	nelec = na + nb
+	norb = size(ints.h1,1)
+	#e_fci, v_fci = cisolver.kernel(ints.h1, ints.h2, norb, nelec, ecore=0, nroots =nroots)
+
+    e_fci = [-18.33022092,
+             -18.05457644]
+
+    for i in 1:length(e_fci)
+        @printf(" %4i %12.8f %12.8f\n", i, e_fci[i], e_fci[i]+ints.h0)
+    end
+
 
     # localize orbitals
     C = mf.mo_coeff
@@ -113,38 +132,63 @@ using Arpack
     FermiCG.add_fockconfig!(ci_vector, ref_fock)
     
     #1 e hops
-    focks1e = []
-    for ci in clusters
-        for cj in clusters
-            tmp = [ref_fock.config...]
-            tmp[ci.idx] = (tmp[ci.idx][1] + 1, tmp[ci.idx][2])
-            tmp[cj.idx] = (tmp[cj.idx][1] - 1, tmp[cj.idx][2])
-            push!(focks1e, FermiCG.FockConfig(tmp))
-            tmp = [ref_fock.config...]
-            tmp[ci.idx] = (tmp[ci.idx][1], tmp[ci.idx][2] + 1)
-            tmp[cj.idx] = (tmp[cj.idx][1], tmp[cj.idx][2] - 1)
-            push!(focks1e, FermiCG.FockConfig(tmp))
+    if false
+        focks1e = []
+        for ci in clusters
+            for cj in clusters
+                tmp = [ref_fock.config...]
+                tmp[ci.idx] = (tmp[ci.idx][1] + 1, tmp[ci.idx][2])
+                tmp[cj.idx] = (tmp[cj.idx][1] - 1, tmp[cj.idx][2])
+                push!(focks1e, FermiCG.FockConfig(tmp))
+                tmp = [ref_fock.config...]
+                tmp[ci.idx] = (tmp[ci.idx][1], tmp[ci.idx][2] + 1)
+                tmp[cj.idx] = (tmp[cj.idx][1], tmp[cj.idx][2] - 1)
+                push!(focks1e, FermiCG.FockConfig(tmp))
+            end
+        end
+
+        for fock in focks1e
+            FermiCG.add_fockconfig!(ci_vector, fock)
         end
     end
 
-    for fock in focks1e
-        FermiCG.add_fockconfig!(ci_vector, fock)
+
+    thresh_cipsi = 1e-3
+    thresh_foi = 1e-8
+    for it in 1:4
+        println()
+        println(" ===================================================================")
+        @printf("     Selected CI Iteration: %4i epsilon: %12.8f\n", it,thresh_cipsi)
+        println(" ===================================================================")
+
+        @time H = FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
+        if length(ci_vector) > 1000
+            e,v = Arpack.eigs(H, nev = nroots, which=:SR)
+            for ei in e
+                @printf(" Energy: %18.12f\n",real(ei))
+            end
+        else
+            F = eigen(H)
+            e = F.values[1:nroots]
+            v = F.vectors[:,1:nroots]
+        end
+
+        FermiCG.set_vector!(ci_vector, v)
+        for r in 1:nroots
+            display(ci_vector, root=r)
+        end
+
+        @time e_pt, v_pt = FermiCG.compute_pt2(ci_vector, cluster_ops, clustered_ham, thresh_foi=thresh_foi)
+
+
+        l1 = length(v_pt)
+        FermiCG.clip!(v_pt, thresh=thresh_cipsi)
+        l2 = length(v_pt)
+        @printf(" Length of FOIS %8i → %8i \n", l1, l2)
+
+        FermiCG.add!(ci_vector, v_pt)
+
     end
-
-
-    @time H = FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
-    e,v = Arpack.eigs(H, nev = nroots, which=:SR)
-    for ei in e
-        @printf(" Energy: %18.12f\n",real(ei))
-    end
-
-    FermiCG.set_vector!(ci_vector, v)
-    for r in 1:nroots
-        display(ci_vector, root=r)
-    end
-    
-    @time FermiCG.compute_pt2(ci_vector, cluster_ops, clustered_ham, thresh_foi=1e-5)
-
     
     #ci_vector[ref_fock][]
 #end
