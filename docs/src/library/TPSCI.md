@@ -1,11 +1,11 @@
 ```@index
-Pages = ["Tucker.md"]
+Pages = ["TPSCI.md"]
 ```
 
-# Tucker 
+# TPSCI 
 ```@autodocs
 Modules = [FermiCG]
-Pages   = ["tucker_inner.jl","tucker_outer.jl"]
+Pages   = ["tpsci_inner.jl","tpsci_outer.jl"]
 Order   = [:type, :function]
 Depth	= 2
 ```

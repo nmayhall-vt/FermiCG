@@ -15,18 +15,19 @@ pages = [
 #        "Private" => "library/internals.md",
 #        "Function index" => "library/function_index.md",
 #        ],
-     "Functions" => Any[
-            "FermiCG" => "library/FermiCG.md",
-            "CMF" => "library/CMFs.md",
-            "Hamiltonians" => "library/Hamiltonians.md",
-            "Clusters" => "library/Clusters.md",
-            "ClusteredTerms" => "library/ClusteredTerms.md",
-            "ClusteredStates" => "library/ClusteredStates.md",
-            "Tucker" => "library/Tucker.md",
-            "PyscfFunctions" => "library/PyscfFunctions.md",
-            "StringCI" => "library/StringCI.md",
-            "Utils" => "library/Utils.md",
-        ],
+"Functions" => Any[
+                   "FermiCG" => "library/FermiCG.md",
+                   "CMF" => "library/CMFs.md",
+                   "Hamiltonians" => "library/Hamiltonians.md",
+                   "Clusters" => "library/Clusters.md",
+                   "ClusteredTerms" => "library/ClusteredTerms.md",
+                   "States" => "library/States.md",
+                   "TPSCI" => "library/TPSCI.md",
+                   "Tucker" => "library/Tucker.md",
+                   "PyscfFunctions" => "library/PyscfFunctions.md",
+                   "StringCI" => "library/StringCI.md",
+                   "Utils" => "library/Utils.md",
+                  ],
 ]
 
 #####

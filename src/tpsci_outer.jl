@@ -111,14 +111,13 @@ function build_full_H(ci_vector::ClusteredState, cluster_ops, clustered_ham::Clu
     end
 
     # because @threads divides evenly the loop, let's distribute thework more fairly
-    mid = length(jobs) ÷ 2
-    r = collect(1:length(jobs))
-    perm = [r[1:mid] reverse(r[mid+1:end])]'[:]
-    #display(perm)
-    jobs = jobs[perm]
-    Threads.@threads for job in jobs
-    #Threads.@threads for job in shuffle(jobs)
+    #mid = length(jobs) ÷ 2
+    #r = collect(1:length(jobs))
+    #perm = [r[1:mid] reverse(r[mid+1:end])]'[:]
+    #jobs = jobs[perm]
+    
     #for job in jobs
+    Threads.@threads for job in jobs
         do_job(job)
         #@btime $do_job($job)
     end
@@ -185,9 +184,115 @@ function open_matvec(ci_vector::ClusteredState, cluster_ops, clustered_ham; thre
         end
     end
 
-    display(sig)
     return sig
 end
 #=}}}=#
 
 
+
+function compute_diagonal(vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
+    Hd = zeros(size(vector)[1])
+    idx = 0
+    zero_trans = TransferConfig([(0,0) for i in 1:N])
+    for (fock_bra, configs_bra) in vector.data
+        for (config_bra, coeff_bra) in configs_bra
+            idx += 1
+            for term in clustered_ham[zero_trans]
+
+                Hd[idx] = FermiCG.contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_bra, config_bra)
+            end
+        end
+    end
+    return Hd
+end
+
+"""
+    expand_each_fock_space!(s::ClusteredState, bases)
+
+For each fock space sector defined, add all possible basis states
+- `basis::Vector{ClusterBasis}` 
+"""
+function expand_each_fock_space!(s::ClusteredState{T,N,R}, bases::Vector{ClusterBasis}) where {T,N,R}
+    # {{{
+    println("\n Make each Fock-Block the full space")
+    # create full space for each fock block defined
+    for (fblock,configs) in s.data
+        #println(fblock)
+        dims::Vector{UnitRange{Int16}} = []
+        #display(fblock)
+        for c in s.clusters
+            # get number of vectors for current fock space
+            dim = size(bases[c.idx][fblock[c.idx]], 2)
+            push!(dims, 1:dim)
+        end
+        for newconfig in product(dims...)
+            #display(newconfig)
+            #println(typeof(newconfig))
+            #
+            # this is not ideal - need to find a way to directly create key
+            config = ClusterConfig(collect(newconfig))
+            s.data[fblock][config] = zeros(SVector{R,T}) 
+            #s.data[fblock][[i for i in newconfig]] = 0
+        end
+    end
+end
+# }}}
+
+"""
+    expand_to_full_space(s::ClusteredState, bases)
+
+Define all possible fock space sectors and add all possible basis states
+- `basis::Vector{ClusterBasis}` 
+- `na`: Number of alpha electrons total
+- `nb`: Number of alpha electrons total
+"""
+function expand_to_full_space!(s::AbstractState, bases::Vector{ClusterBasis}, na, nb)
+    # {{{
+    println("\n Expand to full space")
+    ns = []
+
+    for c in s.clusters
+        nsi = []
+        for (fspace,basis) in bases[c.idx]
+            push!(nsi,fspace)
+        end
+        push!(ns,nsi)
+    end
+    for newfock in product(ns...)
+        nacurr = 0
+        nbcurr = 0
+        for c in newfock
+            nacurr += c[1]
+            nbcurr += c[2]
+        end
+        if (nacurr == na) && (nbcurr == nb)
+            config = FockConfig(collect(newfock))
+            add_fockconfig!(s,config) 
+        end
+    end
+    expand_each_fock_space!(s,bases)
+
+    return
+end
+# }}}
+
+
+
+
+"""
+    project_out!(v::ClusteredState, w::ClusteredState)
+
+Project w out of v 
+|v'> = |v> - |w><w|v>
+"""
+function project_out!(v::ClusteredState, w::ClusteredState)
+    for (fock,configs) in v.data 
+        for (config, coeff) in configs
+            if haskey(w, fock)
+                if haskey(w[fock], config)
+                    delete!(v.data[fock], config)
+                end
+            end
+        end
+    end
+end

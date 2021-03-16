@@ -56,7 +56,7 @@ function get_vector(s::ClusteredState; root=1)
     idx = 1
     for (fock, configs) in s
         for (config, coeff) in configs
-            v[idx] = coeff[1]
+            v[idx] = coeff[root]
             idx += 1
         end
     end
@@ -86,13 +86,14 @@ end
 
 
 """
-    Base.display(s::ClusteredState; thresh=1e-3)
+    Base.display(s::ClusteredState; thresh=1e-3, root=1)
 
 Pretty print
 """
 function Base.display(s::ClusteredState; thresh=1e-3, root=1)
     @printf(" --------------------------------------------------\n")
     @printf(" ---------- Fockspaces in state ------: Dim = %5i  \n",length(s))
+    @printf(" ----------                root ------:     = %5i  \n",root)
     @printf(" --------------------------------------------------\n")
     @printf(" Printing contributions greater than: %f", thresh)
     @printf("\n")
