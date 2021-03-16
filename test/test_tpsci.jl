@@ -8,7 +8,7 @@ using Random
 using PyCall
 using Arpack
 
-#@testset "CompressedTuckerState" begin
+@testset "tpsci" begin
     atoms = []
 
     r = 1
@@ -38,7 +38,7 @@ using Arpack
     basis = "sto-3g"
     mol     = Molecule(0,1,atoms,basis)
 
-    nroots = 1
+    nroots = 4
 
     # get integrals
     mf = FermiCG.pyscf_do_scf(mol)
@@ -56,8 +56,13 @@ using Arpack
 	norb = size(ints.h1,1)
 	#e_fci, v_fci = cisolver.kernel(ints.h1, ints.h2, norb, nelec, ecore=0, nroots =nroots)
 
-    e_fci = [-18.33022092,
-             -18.05457644]
+    #e_fci = [-18.33022092,
+    #         -18.05457644]
+    e_fci  = [-18.33022092,
+              -18.05457645,
+              -18.02913047,
+              -17.99661027
+             ]
 
     for i in 1:length(e_fci)
         @printf(" %4i %12.8f %12.8f\n", i, e_fci[i], e_fci[i]+ints.h0)
@@ -132,7 +137,7 @@ using Arpack
     FermiCG.add_fockconfig!(ci_vector, ref_fock)
     
     #1 e hops
-    if false
+    if true 
         focks1e = []
         for ci in clusters
             for cj in clusters
@@ -155,41 +160,18 @@ using Arpack
 
     thresh_cipsi = 1e-3
     thresh_foi = 1e-8
-    for it in 1:4
-        println()
-        println(" ===================================================================")
-        @printf("     Selected CI Iteration: %4i epsilon: %12.8f\n", it,thresh_cipsi)
-        println(" ===================================================================")
 
-        @time H = FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
-        if length(ci_vector) > 1000
-            e,v = Arpack.eigs(H, nev = nroots, which=:SR)
-            for ei in e
-                @printf(" Energy: %18.12f\n",real(ei))
-            end
-        else
-            F = eigen(H)
-            e = F.values[1:nroots]
-            v = F.vectors[:,1:nroots]
-        end
+    e0, e2, v0, v1 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, 
+                                        thresh_cipsi=1e-3, thresh_foi=1e-6, thresh_asci=1e-2);
 
-        FermiCG.set_vector!(ci_vector, v)
-        for r in 1:nroots
-            display(ci_vector, root=r)
-        end
-
-        @time e_pt, v_pt = FermiCG.compute_pt2(ci_vector, cluster_ops, clustered_ham, thresh_foi=thresh_foi)
+    ref = [-18.329833158828205,
+           -18.054673303059687,
+           -18.02861399010862,
+           -17.995734573996003
+          ]
 
 
-        l1 = length(v_pt)
-        FermiCG.clip!(v_pt, thresh=thresh_cipsi)
-        l2 = length(v_pt)
-        @printf(" Length of FOIS %8i → %8i \n", l1, l2)
-
-        FermiCG.add!(ci_vector, v_pt)
-
-    end
+    @test isapprox(abs.(ref), abs.(e0+e2), atol=1e-8)
     
-    #ci_vector[ref_fock][]
-#end
+end
 

@@ -8,7 +8,7 @@
 #    dim = length(ci_vector)
 #    H = zeros(dim, dim)
 #
-#    zero_fock = FermiCG.TransferConfig([(0,0) for i in ci_vector.clusters])
+#    zero_fock = TransferConfig([(0,0) for i in ci_vector.clusters])
 #    bra_idx = 0
 #    for (fock_bra, configs_bra) in ci_vector.data
 #        for (config_bra, coeff_bra) in configs_bra
@@ -32,7 +32,7 @@
 #                    
 #                        check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
 #                        
-#                        me = FermiCG.contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
+#                        me = contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
 #                        H[bra_idx, ket_idx] += me 
 #                    end
 #
@@ -47,6 +47,98 @@
 ##=}}}=#
 
 
+function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
+    thresh_cipsi = 1e-2,
+    thresh_foi   = 1e-6,
+    thresh_asci  = 1e-2,
+    max_iter     = 10,
+    conv_thresh  = 1e-4) where {T,N,R}
+
+    vec_var = deepcopy(ci_vector)
+    vec_pt = deepcopy(ci_vector)
+    zero!(vec_pt)
+    e0 = zeros(T,R) 
+    e2 = zeros(T,R) 
+    e0_last = zeros(T,R)
+
+    println(" ci_vector     :", size(ci_vector) ) 
+    println(" thresh_cipsi  :", thresh_cipsi ) 
+    println(" thresh_foi    :", thresh_foi   ) 
+    println(" thresh_asci   :", thresh_asci  ) 
+    println(" max_iter      :", max_iter     ) 
+    println(" conv_thresh   :", conv_thresh  ) 
+    for it in 1:max_iter
+
+        it == 1 || add!(vec_var, vec_pt)
+        it == 1 || clip!(vec_var, thresh=thresh_cipsi*10)
+
+        println()
+        println(" ===================================================================")
+        @printf("     Selected CI Iteration: %4i epsilon: %12.8f\n", it,thresh_cipsi)
+        println(" ===================================================================")
+
+        @printf(" Build Hamiltonian matrix with dimension: %5i\n", length(vec_var))
+        @time H = build_full_H(vec_var, cluster_ops, clustered_ham)
+        if length(vec_var) > 1000
+            e0,v = Arpack.eigs(H, nev = R, which=:SR)
+            for ei in e0
+                @printf(" Energy: %18.12f\n",real(ei))
+            end
+        else
+            F = eigen(H)
+            e0 = F.values[1:R]
+            v = F.vectors[:,1:R]
+        end
+
+        set_vector!(vec_var, v)
+        for r in 1:R
+            display(vec_var, root=r)
+        end
+
+        vec_asci = deepcopy(vec_var)
+        l1 = length(vec_asci)
+        clip!(vec_asci, thresh=thresh_asci)
+        l2 = length(vec_asci)
+        @printf(" Length of ASCI vector %8i → %8i \n", l1, l2)
+        @time e2, vec_pt = compute_pt2(vec_asci, cluster_ops, clustered_ham, thresh_foi=thresh_foi)
+
+
+        l1 = length(vec_pt)
+        clip!(vec_pt, thresh=thresh_cipsi)
+        l2 = length(vec_pt)
+        @printf(" Length of PT1  vector %8i → %8i \n", l1, l2)
+        #add!(vec_var, vec_pt)
+
+        if maximum(abs.(e0_last .- e0)) < conv_thresh
+            print_tpsci_iter(vec_var, it, e0, e0+e2, true)
+            break
+        else
+            print_tpsci_iter(vec_var, it, e0, e0+e2, false)
+            e0_last .= e0
+        end
+    end
+    return e0, e2, vec_var, vec_pt 
+end
+
+function print_tpsci_iter(ci_vector::ClusteredState{T,N,R}, it, e0, e2, converged) where {T,N,R}
+#={{{=#
+    if converged 
+        @printf("*TPSCI Iter %-3i Dim: %-6i", it, length(ci_vector))
+    else
+        @printf(" TPSCI Iter %-3i Dim: %-6i", it, length(ci_vector))
+    end
+    @printf(" E(var): ")
+    for i in 1:R
+        @printf("%13.8f ", e0[i])
+    end
+    @printf(" E(pt2): ")
+    for i in 1:R
+        @printf("%13.8f ", e2[i])
+    end
+    println()
+end
+#=}}}=#
+
 """
     build_full_H(ci_vector::ClusteredState, cluster_ops, clustered_ham::ClusteredOperator)
 
@@ -59,7 +151,7 @@ function build_full_H(ci_vector::ClusteredState, cluster_ops, clustered_ham::Clu
 
     jobs = []
 
-    zero_fock = FermiCG.TransferConfig([(0,0) for i in ci_vector.clusters])
+    zero_fock = TransferConfig([(0,0) for i in ci_vector.clusters])
     bra_idx = 0
     N = length(ci_vector.clusters)
     
@@ -97,9 +189,9 @@ function build_full_H(ci_vector::ClusteredState, cluster_ops, clustered_ham::Clu
                     #length(term.clusters) <= 2 || continue
                     check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
                     
-                    me = FermiCG.contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
+                    me = contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
                     #if term isa ClusteredTerm4B
-                    #    @btime FermiCG.contract_matrix_element($term, $cluster_ops, $fock_bra, $config_bra, $fock_ket, $config_ket)
+                    #    @btime contract_matrix_element($term, $cluster_ops, $fock_bra, $config_bra, $fock_ket, $config_ket)
                     #end
                     Hrow[ket_idx] += me 
                     #H[job[1],ket_idx] += me 
@@ -139,7 +231,11 @@ end
 
 """
 """
-function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; nbody=4, H0="Hcmf", thresh_foi=1e-8, verbose=1) where {T,N,R}
+function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; 
+        nbody=4, 
+        H0="Hcmf", 
+        thresh_foi=1e-8, 
+        verbose=1) where {T,N,R}
     #={{{=#
 
     e2 = zeros(T,R)
@@ -167,7 +263,6 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
     println(" Compute <0|H|0>")
     Evar = compute_expectation_value(ci_vector, cluster_ops, clustered_ham)
     [@printf(" %4i %12.8f\n", i, Evar[i]) for i in 1:length(Evar)]
-    #E0 = v'* build_full_H(ci_vector, cluster_ops, clustered_ham_0) * v
     
 
     sig_v = get_vectors(sig)
@@ -215,7 +310,7 @@ function compute_expectation_value(ci_vector::ClusteredState{T,N,R}, cluster_ops
                         length(term.clusters) <= nbody || continue
                         check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
 
-                        me += FermiCG.contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
+                        me += contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
                     end
 
                     out += coeff_bra .* coeff_ket .* me
@@ -261,9 +356,10 @@ function open_matvec(ci_vector::ClusteredState, cluster_ops, clustered_ham; thre
                 length(term.clusters) <= nbody || continue
 
                 for (config_ket, coeff_ket) in configs_ket
-                    sig_i = FermiCG.contract_matvec(term, cluster_ops, fock_bra, fock_ket, config_ket, coeff_ket, thresh=thresh)
+                    
+                    sig_i = contract_matvec(term, cluster_ops, fock_bra, fock_ket, config_ket, coeff_ket, thresh=thresh)
                     #if term isa ClusteredTerm2B
-                    #    @btime sig_i = FermiCG.contract_matvec($term, $cluster_ops, $fock_bra, $fock_ket, $config_ket, $coeff_ket, thresh=$thresh)
+                    #    @btime sig_i = contract_matvec($term, $cluster_ops, $fock_bra, $fock_ket, $config_ket, $coeff_ket, thresh=$thresh)
                     #end
                     #typeof(sig_i) == typeof(sig[fock_bra]) || println(typeof(sig_i), "\n",  typeof(sig[fock_bra]), "\n")
                     
@@ -299,7 +395,7 @@ function compute_diagonal(vector::ClusteredState{T,N,R}, cluster_ops, clustered_
         for (config_bra, coeff_bra) in configs_bra
             idx += 1
             for term in clustered_ham[zero_trans]
-                Hd[idx] += FermiCG.contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_bra, config_bra)
+                Hd[idx] += contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_bra, config_bra)
             end
         end
     end
