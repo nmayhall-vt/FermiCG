@@ -161,13 +161,12 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
     println()
     println(" Compute <0|H0|0>")
     E0 = compute_expectation_value(ci_vector, cluster_ops, clustered_ham_0)
-    display(E0)
+    [@printf(" %4i %12.8f\n", i, E0[i]) for i in 1:length(E0)]
     
     println()
     println(" Compute <0|H|0>")
     Evar = compute_expectation_value(ci_vector, cluster_ops, clustered_ham)
-    display(Evar)
-
+    [@printf(" %4i %12.8f\n", i, Evar[i]) for i in 1:length(Evar)]
     #E0 = v'* build_full_H(ci_vector, cluster_ops, clustered_ham_0) * v
     
 
@@ -179,7 +178,7 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
         v1 = denom .* get_vector(sig1, root=r)
         e2 = sum(get_vector(sig1, root=r) .* v1)
    
-        @printf(" %5s %12.8f %12.8f\n",r, e[r], e[r] + e2)
+        @printf(" %5s %12.8f %12.8f\n",r, Evar[r], Evar[r] + e2)
     end
 
     display(e2)
@@ -195,16 +194,16 @@ function compute_expectation_value(ci_vector::ClusteredState{T,N,R}, cluster_ops
     out = zeros(T,R)
 
     for (fock_bra, configs_bra) in ci_vector.data
-        for (config_bra, coeff_bra) in configs_bra
 
-            for (fock_ket, configs_ket) in ci_vector.data
-                fock_trans = fock_bra - fock_ket
+        for (fock_ket, configs_ket) in ci_vector.data
+            fock_trans = fock_bra - fock_ket
 
-                # check if transition is connected by H
-                if haskey(clustered_ham, fock_trans) == false
-                    continue
-                end
+            # check if transition is connected by H
+            if haskey(clustered_ham, fock_trans) == false
+                continue
+            end
 
+            for (config_bra, coeff_bra) in configs_bra
                 for (config_ket, coeff_ket) in configs_ket
 
                     me = 0.0
@@ -213,7 +212,7 @@ function compute_expectation_value(ci_vector::ClusteredState{T,N,R}, cluster_ops
                         length(term.clusters) <= nbody || continue
                         check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
 
-                        me = FermiCG.contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
+                        me += FermiCG.contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
                     end
 
                     out += coeff_bra .* coeff_ket .* me

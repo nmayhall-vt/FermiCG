@@ -36,12 +36,13 @@ using Arpack
     basis = "sto-3g"
     mol     = Molecule(0,1,atoms,basis)
 
+    nroots = 2
 
     # get integrals
     mf = FermiCG.pyscf_do_scf(mol)
     nbas = size(mf.mo_coeff)[1]
     ints = FermiCG.pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
-    #e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints, na, nb, conv_tol=1e-10,max_cycle=100, nroots=1)
+    e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints, na, nb, conv_tol=1e-10,max_cycle=100, nroots=nroots)
     e_fci = -18.33022092
 
     # localize orbitals
@@ -105,7 +106,6 @@ using Arpack
     FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
 
 
-    nroots = 2
 
     ci_vector = FermiCG.ClusteredState(clusters, nroots=nroots)
  
