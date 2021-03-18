@@ -395,3 +395,175 @@ def get_eff_for_casci(n_start,n_stop,h,g):
     return const, eff
 # }}}
 
+
+def get_pi_space(mol,mf,cas_norb,cas_nel,local=True):
+# {{{
+    from pyscf import mcscf, mo_mapping, lo, ao2mo
+    # find the 2pz orbitals using mo_mapping
+    ao_labels = ['C 2pz']
+    pop = mo_mapping.mo_comps(ao_labels, mol, mf.mo_coeff)
+    cas_list = np.sort(pop.argsort()[-cas_norb:])  #take the 2z orbitals and resort in MO order
+    print('Population for pz orbitals', pop[cas_list])
+    mo_occ = np.where(mf.mo_occ>0)[0]
+    focc_list = list(set(mo_occ)-set(cas_list))
+    focc = len(focc_list)
+
+    # localize the active space
+    if local:
+        cl_a = lo.Boys(mol, mf.mo_coeff[:, cas_list]).kernel(verbose=4)
+        C = mf.mo_coeff 
+        C[:,cas_list] = cl_a
+    else:
+        C = mf.mo_coeff
+        mo_energy = mf.mo_energy[cas_list]
+
+        if mol.symmetry == True:
+            from pyscf import symm
+            mo = symm.symmetrize_orb(mol, C[:,cas_list])
+            osym = symm.label_orb_symm(mol, mol.irrep_name, mol.symm_orb, mo)
+            #symm.addons.symmetrize_space(mol, mo, s=None, check=True, tol=1e-07)
+            for i in range(len(osym)):
+                print("%4d %8s %16.8f"%(i+1,osym[i],mo_energy[i]))
+
+    # reorder the orbitals to get docc,active,vir ordering  (Note:sort mo takes orbital ordering from 1)
+    mycas = mcscf.CASCI(mf, cas_norb, cas_nel)
+    C = mycas.sort_mo(cas_list+1,mo_coeff=C)
+
+    # Get the active space integrals and the frozen core energy
+    h, ecore = mycas.get_h1eff(C)
+    g = ao2mo.kernel(mol,C[:,focc:focc+cas_norb], aosym = 's4', compact = False).reshape(4*((cas_norb),))
+    C = C[:,focc:focc+cas_norb]  #only carrying the active sapce orbs
+    return h,ecore,g,C
+# }}}
+
+def get_ao_space(mol,mf,cas_norb,cas_nel,ao_label,local=False):
+# {{{
+    from pyscf import mcscf, mo_mapping, lo, ao2mo
+    # find the 2pz orbitals using mo_mapping
+    pop = mo_mapping.mo_comps(ao_labels, mol, mf.mo_coeff)
+    cas_list = np.sort(pop.argsort()[-cas_norb:])  #take the 2z orbitals and resort in MO order
+    print('Population for pz orbitals', pop[cas_list])
+    mo_occ = np.where(mf.mo_occ>0)[0]
+    focc_list = list(set(mo_occ)-set(cas_list))
+    focc = len(focc_list)
+
+    # localize the active space
+    if local:
+        cl_a = lo.Boys(mol, mf.mo_coeff[:, cas_list]).kernel(verbose=4)
+        C = mf.mo_coeff 
+        C[:,cas_list] = cl_a
+    else:
+        C = mf.mo_coeff
+        mo_energy = mf.mo_energy[cas_list]
+
+        if mol.symmetry == True:
+            from pyscf import symm
+            mo = symm.symmetrize_orb(mol, C[:,cas_list])
+            osym = symm.label_orb_symm(mol, mol.irrep_name, mol.symm_orb, mo)
+            #symm.addons.symmetrize_space(mol, mo, s=None, check=True, tol=1e-07)
+            for i in range(len(osym)):
+                print("%4d %8s %16.8f"%(i+1,osym[i],mo_energy[i]))
+
+    # reorder the orbitals to get docc,active,vir ordering  (Note:sort mo takes orbital ordering from 1)
+    mycas = mcscf.CASCI(mf, cas_norb, cas_nel)
+    C = mycas.sort_mo(cas_list+1,mo_coeff=C)
+
+    # Get the active space integrals and the frozen core energy
+    h, ecore = mycas.get_h1eff(C)
+    g = ao2mo.kernel(mol,C[:,focc:focc+cas_norb], aosym = 's4', compact = False).reshape(4*((cas_norb),))
+    C = C[:,focc:focc+cas_norb]  #only carrying the active sapce orbs
+    return h,ecore,g,C
+# }}}
+
+def get_pi_space_local_split(mol,mf,cas_norb,cas_nel):
+# {{{
+    from pyscf import mcscf, mo_mapping, lo, ao2mo
+    # find the 2pz orbitals using mo_mapping
+    ao_labels = ['C 2pz']
+    pop = mo_mapping.mo_comps(ao_labels, mol, mf.mo_coeff)
+    cas_list = np.sort(pop.argsort()[-cas_norb:])  #take the 2z orbitals and resort in MO order
+    print('Population for pz orbitals', pop[cas_list])
+    mo_occ = np.where(mf.mo_occ>0)[0]
+    focc_list = list(set(mo_occ)-set(cas_list))
+
+    mo_vir = np.where(mf.mo_occ==0)[0]
+    fvir_list = list(set(mo_vir)-set(cas_list))
+    focc = len(focc_list)
+    # localize the active space
+
+    C = mf.mo_coeff
+    ##### New stuff
+    occ_l = cas_list[:cas_norb//2]
+    occ_v = cas_list[cas_norb//2:]
+
+    if 0:
+        boys = lo.Boys(mol, mf.mo_coeff[:,occ_l])
+        #boys.init_guess = None
+        cl_a = boys.kernel()
+
+        boys = lo.Boys(mol, mf.mo_coeff[:,occ_v])
+        #boys.init_guess = None
+        cl_b = boys.kernel()
+    else:
+        cl_a = lo.Boys(mol, mf.mo_coeff[:, occ_l]).kernel(verbose=4)
+        cl_b = lo.Boys(mol, mf.mo_coeff[:, occ_v]).kernel(verbose=4)
+
+    C[:,occ_l] = cl_a
+    C[:,occ_v] = cl_b
+
+
+    # reorder the orbitals to get docc,active,vir ordering  (Note:sort mo takes orbital ordering from 1)
+    mycas = mcscf.CASCI(mf, cas_norb, cas_nel)
+    C = mycas.sort_mo(cas_list+1,mo_coeff=C)
+    # Get the active space integrals and the frozen core energy
+    h, ecore = mycas.get_h1eff(C)
+    g = ao2mo.kernel(mol,C[:,focc:focc+cas_norb], aosym = 's4', compact = False).reshape(4*((cas_norb),))
+    C = C[:,focc:focc+cas_norb]  #only carrying the active sapce orbs
+    return h,ecore,g,C
+# }}}
+
+def kekule_type_order(mol,h,g,C):
+# {{{
+    cas_norb = h.shape[0]
+    mc = mulliken_ordering(mol, h.shape[0], C) # Reorder orbitals to same order as C atoms
+    mc[abs(mc) < 0.2] = 0
+    print(mc)
+    atom_list = []
+    for i in range(0,cas_norb):
+        #print(mc[:,i])
+        idx = np.array(np.where(mc[:,i]> 0.2)).tolist()
+        print(i,idx)
+        atom_list.append(idx[0])
+
+    print(atom_list)
+
+    blocks = []
+    occ_list = []
+    vir_list = []
+    for i in range(0,cas_norb//2):
+        for j in range(cas_norb//2,cas_norb):
+            if atom_list[i] == atom_list[j]:
+                blocks.append([i,j])
+                occ_list.append(i)
+                vir_list.append(j)
+
+    print(blocks)
+    print("Occ list:",occ_list)
+    print("Vir list:",vir_list)
+
+    idx = cp.deepcopy(occ_list)
+    idx.extend(vir_list)
+
+    # Reorder 
+    h,g = reorder_integrals(idx,h,g)
+    C = C[:,idx] # make sure u reorder this too
+    #molden.from_mo(mol, 'cas.molden', C)
+    #print(h)
+
+    #dm_aa = np.zeros_like(h)
+    #dm_bb = np.zeros_like(h)
+    #for i in range(cas_nel//2):
+    #    dm_aa[i,i] = 1
+    #    dm_bb[i,i] = 1
+    return h,g,C
+    # }}}
