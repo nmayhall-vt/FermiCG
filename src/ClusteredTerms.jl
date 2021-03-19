@@ -747,6 +747,85 @@ end
 
 
 """
+    extract_S2(clusters)
+
+Form a clustered operator type for the S^2 operator
+"""
+function extract_S2(clusters)
+            #={{{=#
+
+    norb = 0
+    for ci in clusters
+        norb += length(ci)
+    end
+
+    terms = ClusteredOperator() 
+    n_clusters = length(clusters)
+    ops_a = Array{String}(undef,n_clusters)
+    ops_b = Array{String}(undef,n_clusters)
+    fill!(ops_a,"")
+    fill!(ops_b,"")
+  
+    zero_fock = TransferConfig([(0,0) for i in clusters])
+    terms[zero_fock] = Vector{ClusteredTerm}()
+    for ci in clusters
+        fock1 = (0,0)
+        clusteredterm = ClusteredTerm1B(("S2",), (fock1,), (0,), (ci, ), ones(1,1), Dict())
+
+        focktrans = replace(zero_fock, (ci.idx,), (fock1,))
+        if haskey(terms,focktrans)
+            push!(terms[focktrans], clusteredterm)
+        else
+            terms[focktrans] = [clusteredterm]
+        end
+        
+        for cj in clusters
+            i = ci.idx
+            j = cj.idx
+
+            i < j || continue
+
+
+            fock1 = (1,-1)
+            fock2 = (-1,1)
+            clusteredterm = ClusteredTerm2B(("S+","S-"), (fock1,fock2), (0,0), (ci, cj), ones(length(ci),length(cj)), Dict())
+
+            focktrans = replace(zero_fock, (ci.idx, cj.idx), (fock1, fock2))
+            if haskey(terms,focktrans)
+                push!(terms[focktrans], clusteredterm)
+            else
+                terms[focktrans] = [clusteredterm]
+            end
+            
+            fock1 = (-1,1)
+            fock2 = (1,-1)
+            clusteredterm = ClusteredTerm2B(("S-","S+"), (fock1,fock2), (0,0), (ci, cj), ones(length(ci),length(cj)), Dict())
+
+            focktrans = replace(zero_fock, (ci.idx, cj.idx), (fock1, fock2))
+            if haskey(terms,focktrans)
+                push!(terms[focktrans], clusteredterm)
+            else
+                terms[focktrans] = [clusteredterm]
+            end
+            
+            fock1 = (0,0)
+            fock2 = (0,0)
+            clusteredterm = ClusteredTerm2B(("Sz","Sz"), (fock1,fock2), (0,0), (ci, cj), 2*ones(1,1), Dict())
+
+            focktrans = replace(zero_fock, (ci.idx, cj.idx), (fock1, fock2))
+            if haskey(terms,focktrans)
+                push!(terms[focktrans], clusteredterm)
+            else
+                terms[focktrans] = [clusteredterm]
+            end
+        end
+    end
+    return terms
+end
+#=}}}=#
+
+
+"""
     unique!(clustered_ham::ClusteredOperator)
 
 combine terms to keep only unique operators

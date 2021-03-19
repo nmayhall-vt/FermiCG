@@ -170,6 +170,10 @@ using Arpack
            -17.995734573996003
           ]
 
+    clustered_S2 = FermiCG.extract_S2(clusters)
+    S2 = FermiCG.compute_expectation_value(v0, cluster_ops, clustered_ham)
+
+    display(S2)
 
     @test isapprox(abs.(ref), abs.(e0+e2), atol=1e-8)
     

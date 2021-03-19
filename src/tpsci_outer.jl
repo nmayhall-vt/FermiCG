@@ -60,6 +60,8 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
     e0 = zeros(T,R) 
     e2 = zeros(T,R) 
     e0_last = zeros(T,R)
+    
+    clustered_S2 = extract_S2(ci_vector.clusters)
 
     println(" ci_vector     :", size(ci_vector) ) 
     println(" thresh_cipsi  :", thresh_cipsi ) 
@@ -89,8 +91,14 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
             e0 = F.values[1:R]
             v = F.vectors[:,1:R]
         end
-
         set_vector!(vec_var, v)
+        
+        s2 = compute_expectation_value(vec_var, cluster_ops, clustered_S2)
+        @printf(" %5s %12s %12s\n", "Root", "Energy", "S2") 
+        for r in 1:R
+            @printf(" %5s %12.8f %12.8f\n",r, e0[r], abs(s2[r]))
+        end
+
         for r in 1:R
             display(vec_var, root=r)
         end
@@ -110,17 +118,17 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
         #add!(vec_var, vec_pt)
 
         if maximum(abs.(e0_last .- e0)) < conv_thresh
-            print_tpsci_iter(vec_var, it, e0, e0+e2, true)
+            print_tpsci_iter(vec_var, it, e0, true)
             break
         else
-            print_tpsci_iter(vec_var, it, e0, e0+e2, false)
+            print_tpsci_iter(vec_var, it, e0, false)
             e0_last .= e0
         end
     end
     return e0, e2, vec_var, vec_pt 
 end
 
-function print_tpsci_iter(ci_vector::ClusteredState{T,N,R}, it, e0, e2, converged) where {T,N,R}
+function print_tpsci_iter(ci_vector::ClusteredState{T,N,R}, it, e0, converged) where {T,N,R}
 #={{{=#
     if converged 
         @printf("*TPSCI Iter %-3i Dim: %-6i", it, length(ci_vector))
@@ -131,10 +139,10 @@ function print_tpsci_iter(ci_vector::ClusteredState{T,N,R}, it, e0, e2, converge
     for i in 1:R
         @printf("%13.8f ", e0[i])
     end
-    @printf(" E(pt2): ")
-    for i in 1:R
-        @printf("%13.8f ", e2[i])
-    end
+#    @printf(" E(pt2): ")
+#    for i in 1:R
+#        @printf("%13.8f ", e2[i])
+#    end
     println()
 end
 #=}}}=#
@@ -243,26 +251,24 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
     println()
     println(" Compute FOIS vector")
     @time sig = open_matvec(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+    println(" Length of FOIS vector: ", length(sig))
 
     clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = H0) 
     
     project_out!(sig, ci_vector)
     
 
-    println()
     println(" Compute diagonal")
     @time Hd = compute_diagonal(sig, cluster_ops, clustered_ham_0)
     
 
-    println()
     println(" Compute <0|H0|0>")
     E0 = compute_expectation_value(ci_vector, cluster_ops, clustered_ham_0)
-    [@printf(" %4i %12.8f\n", i, E0[i]) for i in 1:length(E0)]
+    #[@printf(" %4i %12.8f\n", i, E0[i]) for i in 1:length(E0)]
     
-    println()
     println(" Compute <0|H|0>")
     Evar = compute_expectation_value(ci_vector, cluster_ops, clustered_ham)
-    [@printf(" %4i %12.8f\n", i, Evar[i]) for i in 1:length(Evar)]
+    #[@printf(" %4i %12.8f\n", i, Evar[i]) for i in 1:length(Evar)]
     
 
     sig_v = get_vectors(sig)

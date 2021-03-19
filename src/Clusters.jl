@@ -296,7 +296,7 @@ function compute_cluster_ops(cluster_bases::Vector{ClusterBasis},ints)
     for ci in clusters
         cb = cluster_bases[ci.idx]
         
-        cluster_ops[ci.idx]["H"] = FermiCG.tdm_H(cb, subset(ints, ci.orb_list)) 
+        cluster_ops[ci.idx]["H"] = FermiCG.tdm_H(cb, subset(ints, ci.orb_list), verbose=0) 
 
         cluster_ops[ci.idx]["A"], cluster_ops[ci.idx]["a"] = FermiCG.tdm_A(cb,"alpha") 
         cluster_ops[ci.idx]["B"], cluster_ops[ci.idx]["b"] = FermiCG.tdm_A(cb,"beta")
@@ -313,6 +313,62 @@ function compute_cluster_ops(cluster_bases::Vector{ClusterBasis},ints)
         cluster_ops[ci.idx]["ABb"], cluster_ops[ci.idx]["Bba"] = FermiCG.tdm_ABa(cb,"beta")
         #cluster_ops[ci.idx]["ABa"], cluster_ops[ci.idx]["Aba"], cluster_ops[ci.idx]["BAa"], cluster_ops[ci.idx]["Aab"] = FermiCG.tdm_ABa(cb,"alpha")
         #cluster_ops[ci.idx]["ABb"], cluster_ops[ci.idx]["Bba"], cluster_ops[ci.idx]["BAb"], cluster_ops[ci.idx]["Bab"] = FermiCG.tdm_ABa(cb,"beta")
+       
+        # spin operators
+        
+        #
+        # S+
+        op = Dict{Tuple,Array}()
+        for (fock,mat) in cluster_ops[ci.idx]["Ab"]
+            dims = size(mat)
+            op[fock] = zeros(dims[2:4]...)
+            for j in 1:dims[4]
+                for i in 1:dims[3]
+                    for p in 1:dims[2]
+                        op[fock][p,i,j] = mat[p,p,i,j]
+                    end
+                end
+            end
+        end
+        cluster_ops[ci.idx]["S+"] = op
+        
+        #
+        # S-
+        op = Dict{Tuple,Array}()
+        for (fock,mat) in cluster_ops[ci.idx]["Ba"]
+            dims = size(mat)
+            op[fock] = zeros(dims[2:4]...)
+            for j in 1:dims[4]
+                for i in 1:dims[3]
+                    for p in 1:dims[2]
+                        op[fock][p,i,j] = mat[p,p,i,j]
+                    end
+                end
+            end
+        end
+        cluster_ops[ci.idx]["S-"] = op
+        
+        #
+        # Sz
+        op = Dict{Tuple,Array}()
+        #
+        # loop over fock-space transitions
+        for (fock,basis) in cb
+            focktrans = (fock,fock)
+
+            sz = (fock[1] - fock[2]) / 2.0
+            op[focktrans] = sz*Matrix(1.0I, size(cb[fock],2), size(cb[fock],2))
+            op[focktrans] = reshape(op[focktrans],1,size(op[focktrans],1),size(op[focktrans],2))
+
+        end
+        cluster_ops[ci.idx]["Sz"] = op
+
+
+        #
+        # S2
+        cluster_ops[ci.idx]["S2"] = FermiCG.tdm_S2(cb, subset(ints, ci.orb_list), verbose=0) 
+
+
 
         to_delete = [
                      #"AAa",
@@ -359,6 +415,7 @@ function compute_cluster_ops(cluster_bases::Vector{ClusterBasis},ints)
         # reshape data into 3index quantities: e.g., (pqr, I, J)
         for opstring in keys(cluster_ops[ci.idx])
             opstring != "H" || continue
+            opstring != "S2" || continue
             for ftrans in keys(cluster_ops[ci.idx][opstring])
                 data = cluster_ops[ci.idx][opstring][ftrans]
                 dim1 = prod(size(data)[1:(length(size(data))-2)])
@@ -435,6 +492,34 @@ function tdm_H(cb::ClusterBasis, ints; verbose=0)
         Hmap = StringCI.get_map(ints, problem)
 
         dicti[focktrans] = cb[fock]' * Matrix((Hmap * cb[fock]))
+
+        if verbose > 0
+            for e in 1:size(cb[fock],2)
+                @printf(" %4i %12.8f\n", e, dicti[focktrans][e,e])
+            end
+        end
+    end
+    return dicti
+#=}}}=#
+end
+"""
+"""
+function tdm_S2(cb::ClusterBasis, ints; verbose=0)
+#={{{=#
+    verbose == 0 || println("")
+    verbose == 0 || display(cb.cluster)
+    norbs = length(cb.cluster)
+
+    dicti = Dict{Tuple,Array}()
+    #
+    # loop over fock-space transitions
+    verbose == 0 || display(cb.cluster)
+    for (fock,basis) in cb
+        focktrans = (fock,fock)
+        problem = StringCI.FCIProblem(norbs, fock[1], fock[2])
+        verbose == 0 || display(problem)
+
+        dicti[focktrans] = cb[fock]' * (StringCI.build_S2_matrix(problem) * cb[fock])
 
         if verbose > 0
             for e in 1:size(cb[fock],2)
