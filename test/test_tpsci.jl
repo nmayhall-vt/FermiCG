@@ -8,7 +8,7 @@ using Random
 using PyCall
 using Arpack
 
-@testset "tpsci" begin
+#@testset "tpsci" begin
     atoms = []
 
     r = 1
@@ -38,7 +38,7 @@ using Arpack
     basis = "sto-3g"
     mol     = Molecule(0,1,atoms,basis)
 
-    nroots = 4
+    nroots = 1
 
     # get integrals
     mf = FermiCG.pyscf_do_scf(mol)
@@ -158,11 +158,11 @@ using Arpack
     end
 
 
-    thresh_cipsi = 1e-3
+    thresh_cipsi = 1e-4
     thresh_foi = 1e-8
 
     e0, e2, v0, v1 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, 
-                                        thresh_cipsi=1e-3, thresh_foi=1e-6, thresh_asci=1e-2);
+                                        thresh_cipsi=thresh_cipsi, thresh_foi=1e-6, thresh_asci=1e-2);
 
     ref = [-18.329833158828205,
            -18.054673303059687,
@@ -175,7 +175,21 @@ using Arpack
 
     display(S2)
 
-    @test isapprox(abs.(ref), abs.(e0+e2), atol=1e-8)
+    #@test isapprox(abs.(ref), abs.(e0+e2), atol=1e-8)
+   
+
+    rotations = FermiCG.hosvd(v0, cluster_ops)
+    for ci in clusters
+        FermiCG.rotate!(cluster_ops[ci.idx], rotations[ci.idx])
+        FermiCG.rotate!(cluster_bases[ci.idx], rotations[ci.idx])
+        FermiCG.check_basis_orthogonality(cluster_bases[ci.idx])
+    end
+
+    #cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
+    #FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
     
-end
+    e0a, e2a, v0a, v1a = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, 
+                                        thresh_cipsi=thresh_cipsi, thresh_foi=1e-6, thresh_asci=1e-2);
+
+#end
 

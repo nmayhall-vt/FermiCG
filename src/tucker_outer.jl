@@ -899,6 +899,7 @@ function solve_for_compressed_space(input_vec::CompressedTuckerState, cluster_op
     e_var  = 0.0
     e_pt2  = 0.0
     ref_vec = deepcopy(input_vec)
+    clustered_S2 = extract_S2(input_vec.clusters)
 
     for iter in 1:max_iter
         println(" --------------------------------------------------------------------")
@@ -928,6 +929,11 @@ function solve_for_compressed_space(input_vec::CompressedTuckerState, cluster_op
         if iter == 1
             e_last = e0
         end
+        
+        tmp = deepcopy(ref_vec)
+        zero!(tmp)
+        build_sigma!(tmp, ref_vec, cluster_ops, clustered_S2)
+        @printf(" <S^2> = %12.8f\n", orth_dot(tmp,ref_vec))
    
         #
         # Get First order wavefunction
@@ -974,6 +980,11 @@ function solve_for_compressed_space(input_vec::CompressedTuckerState, cluster_op
         normalize!(var_vec)
         @printf(" Solve in compressed FOIS. Dimension =   %10i\n", length(var_vec))
         @time e_var, var_vec = tucker_ci_solve(var_vec, cluster_ops, clustered_ham, tol=tol_ci)
+        
+        tmp = deepcopy(var_vec)
+        zero!(tmp)
+        build_sigma!(tmp, var_vec, cluster_ops, clustered_S2)
+        @printf(" <S^2> = %12.8f\n", orth_dot(tmp,var_vec))
 
 #        #
 #        # Compress Variational Wavefunction

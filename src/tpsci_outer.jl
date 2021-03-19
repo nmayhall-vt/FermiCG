@@ -498,3 +498,156 @@ function project_out!(v::ClusteredState, w::ClusteredState)
         end
     end
 end
+
+
+
+"""
+    hosvd(ci_vector::ClusteredState, cluster_ops; hshift=1e-8, truncate=-1)
+
+Peform HOSVD aka Tucker Decomposition of ClusteredState
+"""
+function hosvd(ci_vector::ClusteredState{T,N,R}, cluster_ops; hshift=1e-8, truncate=-1) where {T,N,R}
+#={{{=#
+   
+    cluster_rotations = []
+    for ci in ci_vector.clusters
+        println()
+        println(" --------------------------------------------------------")
+        println(" Density matrix: Cluster ", ci.idx)
+        println()
+        println(" Compute BRDM")
+        println(" Hshift = ",hshift)
+        
+        dims = Dict()
+        for (fock, mat) in cluster_ops[1]["H"]
+            dims[fock[1]] = size(mat,1)
+        end
+        
+        rdms = build_brdm(ci_vector, ci, dims)
+        norm = 0
+        entropy = 0
+        rotations = Dict{Tuple,Matrix{T}}() 
+        for (fspace,rdm) in rdms
+            fspace_norm = 0
+            fspace_entropy = 0
+            @printf(" Diagonalize RDM for Cluster %2i in Fock space: ",ci.idx)
+            println(fspace)
+            F = eigen(Symmetric(rdm))
+
+            idx = sortperm(F.values, rev=true) 
+            n = F.values[idx]
+            U = F.vectors[:,idx]
+
+
+            # Either truncate the unoccupied cluster states, or remix them with a hamiltonian to be unique
+            if truncate < 0
+                remix = []
+                for ni in 1:length(n)
+                    if n[ni] < 1e-8
+                        push!(remix, ni)
+                    end
+                end
+                U2 = U[:,remix]
+                Hlocal = U2' * cluster_ops[ci.idx]["H"][(fspace,fspace)] * U2
+                
+                F = eigen(Symmetric(Hlocal))
+                n2 = F.values
+                U2 = U2 * F.vectors
+                
+                U[:,remix] .= U2[:,:]
+            
+            else
+                keep = []
+                for ni in 1:length(n) 
+                    if abs(n[ni]) > truncate
+                        push!(keep, ni)
+                    end
+                end
+                @printf(" Truncated Tucker space. Starting: %5i Ending: %5i\n" ,length(n), length(keep))
+                U = U[:,keep]
+            end
+        
+
+           
+            
+            n = diag(U' * rdm * U)
+            Elocal = diag(U' * cluster_ops[ci.idx]["H"][(fspace,fspace)] * U)
+            
+            norm += sum(n)
+            fspace_norm = sum(n)
+            @printf("                 %4s:    %12s    %12s\n", "","Population","Energy")
+            for (ni_idx,ni) in enumerate(n)
+                if abs(ni/norm) > 1e-16
+                    fspace_entropy -= ni*log(ni/norm)/norm
+                    entropy -=  ni*log(ni)
+                    @printf("   Rotated State %4i:    %12.8f    %12.8f\n", ni_idx,ni,Elocal[ni_idx])
+                end
+           end
+           @printf("   ----\n")
+           @printf("   Entanglement entropy:  %12.8f\n" ,fspace_entropy) 
+           @printf("   Norm:                  %12.8f\n" ,fspace_norm) 
+
+           #
+           # let's just be careful that our vectors remain orthogonal
+           F = svd(U)
+           U = F.U * F.Vt
+           check_orthogonality(U) 
+           rotations[fspace] = U
+        end
+        @printf(" Final entropy:.... %12.8f\n",entropy)
+        @printf(" Final norm:....... %12.8f\n",norm)
+        @printf(" --------------------------------------------------------\n")
+
+        flush(stdout) 
+
+        #ci.rotate_basis(rotations)
+        #ci.check_basis_orthogonality()
+        push!(cluster_rotations, rotations)
+    end
+    return cluster_rotations
+end
+#=}}}=#
+
+
+
+
+"""
+    build_brdm(ci_vector::ClusteredState, ci, dims)
+    
+Build block reduced density matrix for `Cluster`,  `ci`
+- `ci_vector::ClusteredState` = input state
+- `ci` = Cluster type for whihch we want the BRDM
+- `dims` = list of dimensions for each fock sector
+"""
+function build_brdm(ci_vector::ClusteredState, ci, dims)
+    # {{{
+    rdms = OrderedDict()
+    for (fspace, configs) in ci_vector.data
+        curr_dim = dims[fspace[ci.idx]]
+        rdm = zeros(curr_dim,curr_dim)
+        for (configi,coeffi) in configs
+            for cj in 1:curr_dim
+
+                configj = [configi...]
+                configj[ci.idx] = cj
+                configj = ClusterConfig(configj)
+
+                if haskey(configs, configj)
+                    rdm[configi[ci.idx],cj] += sum(coeffi.*configs[configj])
+                end
+            end
+        end
+
+
+        if haskey(rdms, fspace[ci.idx]) 
+            rdms[fspace[ci.idx]] += rdm 
+        else
+            rdms[fspace[ci.idx]] = rdm 
+        end
+
+    end
+    return rdms
+end
+# }}}
+
+

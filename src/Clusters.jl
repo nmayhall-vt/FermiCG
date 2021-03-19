@@ -908,3 +908,108 @@ function add_cmf_operators!(ops::Vector{ClusterOps}, bases::Vector{ClusterBasis}
     end
     return 
 end
+    
+"""
+    rotate!(cb::ClusterBasis, U::Dict{Tuple,Matrix{T}}) where {T} 
+
+Rotate `cb` by unitary matrices in `U`
+"""
+function rotate!(cb::ClusterBasis,U::Dict{Tuple,Matrix{T}}) where {T} 
+#={{{=#
+    for (fspace,mat) in U
+        cb[fspace] .= cb[fspace] * mat
+    end
+end
+#=}}}=#
+
+    
+"""
+    rotate!(ops::ClusterOps, U::Dict{Tuple,Matrix{T}}) where {T} 
+
+Rotate `ops` by unitary matrices in `U`
+"""
+function rotate!(ops::ClusterOps,U::Dict{Tuple,Matrix{T}}) where T
+#={{{=#
+    for (op,fspace_deltas) in ops
+        #println(" Rotate ", op)
+        for (fspace_delta,tdm) in fspace_deltas
+            fspace_l = fspace_delta[1]
+            fspace_r = fspace_delta[2]
+
+            if haskey(U, fspace_l)==true && haskey(U, fspace_r)==true
+                Ul = U[fspace_l]
+                Ur = U[fspace_r]
+                if length(size(tdm)) == 2
+                    @tensoropt tmp[q,s] := Ul[p,q] * Ur[r,s] * tdm[p,r]
+                    ops[op][fspace_delta] = tmp 
+                elseif length(size(tdm)) == 3
+                    @tensoropt tmp[p,s,t] := Ul[q,s] * Ur[r,t] * tdm[p,q,r]
+                    ops[op][fspace_delta] = tmp 
+                elseif length(size(tdm)) == 4
+                    @tensoropt tmp[p,q,t,u] := Ul[r,t] * Ur[s,u] * tdm[p,q,r,s]
+                    ops[op][fspace_delta] = tmp 
+                elseif length(size(tdm)) == 5
+                    @tensoropt  tmp[p,q,r,u,v] := Ul[s,u] * Ur[t,v] * tdm[p,q,r,s,t]
+                    ops[op][fspace_delta] = tmp 
+                else
+                    error("Wrong dimension")
+                end
+
+            elseif haskey(U, fspace_l)==true && haskey(U, fspace_r)==false
+                Ul = U[fspace_l]
+                if length(size(tdm)) == 2
+                    @tensoropt tmp[q,r] := Ul[p,q] * tdm[p,r]
+                    ops[op][fspace_delta] = tmp 
+                elseif length(size(tdm)) == 3
+                    @tensoropt tmp[p,s,r] := Ul[q,s] * tdm[p,q,r]
+                    ops[op][fspace_delta] = tmp 
+                elseif length(size(tdm)) == 4
+                    @tensoropt tmp[p,q,t,s] := Ul[r,t] * tdm[p,q,r,s]
+                    ops[op][fspace_delta] = tmp 
+                elseif length(size(tdm)) == 5
+                    @tensoropt tmp[p,q,r,u,t] := Ul[s,u] * tdm[p,q,r,s,t]
+                    ops[op][fspace_delta] = tmp 
+                else
+                    error("Wrong dimension")
+                end
+
+            elseif haskey(U, fspace_l)==false && haskey(U, fspace_r)==true
+                Ur = U[fspace_r]
+                if length(size(tdm)) == 2
+                    @tensoropt tmp[p,s] := Ur[r,s] * tdm[p,r]
+                    ops[op][fspace_delta] = tmp 
+                elseif length(size(tdm)) == 3
+                    @tensoropt tmp[p,q,t] := Ur[r,t] * tdm[p,q,r]
+                    ops[op][fspace_delta] = tmp 
+                elseif length(size(tdm)) == 4
+                    @tensoropt tmp[p,q,r,u] := Ur[s,u] * tdm[p,q,r,s]
+                    ops[op][fspace_delta] = tmp 
+                elseif length(size(tdm)) == 5
+                    @tensoropt tmp[p,q,r,s,v] := Ur[t,v] * tdm[p,q,r,s,t]
+                    ops[op][fspace_delta] = tmp 
+                else
+                    error("Wrong dimension")
+                end
+            end
+        end
+    end
+end
+#=}}}=#
+
+function check_basis_orthogonality(basis::ClusterBasis; thresh=1e-13)
+    for (fspace,mat) in basis
+        if check_orthogonality(mat,thresh=thresh) == false
+            println(" Cluster:", basis.cluster)
+            println(" Fockspace:", fspace)
+        end
+    end
+end
+
+function check_orthogonality(mat; thresh=1e-13)
+    Id = mat' * mat
+    if maximum(abs.(I-Id)) > thresh 
+        @warn("problem with orthogonality ", maximum(abs.(I-Id)))
+        return false
+    end
+    return true
+end
