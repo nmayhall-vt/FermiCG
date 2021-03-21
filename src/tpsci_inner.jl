@@ -430,9 +430,18 @@ function contract_matvec(   term::ClusteredTerm2B,
     
 
     out = OrderedDict{ClusterConfig{N}, MVector{R,T}}()
+    out2 = OrderedDict{ClusterConfig{N}, MVector{R,T}}()
+    #out2 = OrderedDict{NTuple{N,Int16}, MVector{R,T}}()
 
-    #@btime _collect_significant!($out, $conf_ket, $new_coeffs, $c1.idx, $c2.idx, $newI, $newJ, $thresh)
-    #_collect_significant!(out, conf_ket, coeffs, c1.idx, c2.idx, newI, newJ, thresh)
+    #sizehint!(out2,prod(size(new_coeffs)))
+
+    #@btime _collect_significant2!($out2, $conf_ket, $new_coeffs, $coef_ket, $c1.idx, $c2.idx, $newI, $newJ, $thresh)
+    #display(size(new_coeffs))
+    #display(size(coef_ket))
+    #@btime _collect_significant!($out2, $conf_ket, $new_coeffs, $coef_ket, $c1.idx, $c2.idx, $newI, $newJ, $thresh)
+    #@code_warntype _collect_significant!(out2, conf_ket, new_coeffs, coef_ket, c1.idx, c2.idx, newI, newJ, thresh)
+    #display(length(out2))
+    #error("huh")
     _collect_significant!(out, conf_ket, new_coeffs, coef_ket, c1.idx, c2.idx, newI, newJ, thresh)
             
 
@@ -569,11 +578,12 @@ end
 function _collect_significant!(out, conf_ket, new_coeffs, coeff, c1idx, newI, thresh) 
     #={{{=#
     N = length(conf_ket)
-    cket = [conf_ket.config...]
+    cket = MVector{N,Int16}([conf_ket.config...])
+     cket = [conf_ket.config...]
     for i::Int16 in newI
         if any((abs(new_coeffs[i]*s) > thresh for s in coeff))
             cket[c1idx] = i
-            out[ClusterConfig{N}(tuple(cket...))] = new_coeffs[i]*coeff 
+            out[ClusterConfig(cket)] = new_coeffs[i]*coeff 
         end
     end
 end
@@ -582,13 +592,15 @@ end
 function _collect_significant!(out, conf_ket, new_coeffs, coeff, c1idx, c2idx, newI, newJ, thresh) 
 #={{{=#
     N = length(conf_ket)
-    cket = [conf_ket.config...]
+    R = length(coeff)
+    cket = MVector{N,Int16}([conf_ket.config...])
+    #cket = [conf_ket.config...]
     for j::Int16 in newJ
         cket[c2idx] = j
         for i::Int16 in newI
             if any((abs(new_coeffs[i,j]*s) > thresh for s in coeff))
                 cket[c1idx] = i
-                out[ClusterConfig{N}(tuple(cket...))] = new_coeffs[i,j]*coeff 
+                out[ClusterConfig(cket)] = new_coeffs[i,j]*coeff 
             end
         end
     end
@@ -598,7 +610,8 @@ end
 function _collect_significant!(out, conf_ket, new_coeffs, coeff, c1idx, c2idx, c3idx, newI, newJ, newK, thresh) 
     #={{{=#
     N = length(conf_ket)
-    cket = [conf_ket.config...]
+    cket = MVector{N,Int16}([conf_ket.config...])
+    #cket = [conf_ket.config...]
     for k::Int16 in newK
         cket[c3idx] = k
         for j::Int16 in newJ
@@ -606,7 +619,8 @@ function _collect_significant!(out, conf_ket, new_coeffs, coeff, c1idx, c2idx, c
             for i::Int16 in newI
                 if any((abs(new_coeffs[i,j,k]*s) > thresh for s in coeff))
                     cket[c1idx] = i
-                    out[ClusterConfig{N}(tuple(cket...))] = new_coeffs[i,j,k]*coeff 
+                    out[ClusterConfig(cket)] = new_coeffs[i,j,k]*coeff 
+                    #out[ClusterConfig{N}(tuple(cket...))] = new_coeffs[i,j,k]*coeff 
                 end
             end
         end
@@ -617,7 +631,8 @@ end
 function _collect_significant!(out, conf_ket, new_coeffs, coeff, c1idx, c2idx, c3idx, c4idx, newI, newJ, newK, newL, thresh) 
     #={{{=#
     N = length(conf_ket)
-    cket = [conf_ket.config...]
+    cket = MVector{N,Int16}([conf_ket.config...])
+    #cket = [conf_ket.config...]
     for l::Int16 in newL
         cket[c4idx] = l
         for k::Int16 in newK
@@ -627,7 +642,7 @@ function _collect_significant!(out, conf_ket, new_coeffs, coeff, c1idx, c2idx, c
                 for i::Int16 in newI
                     if any((abs(new_coeffs[i,j,k,l]*s) > thresh for s in coeff))
                         cket[c1idx] = i
-                        out[ClusterConfig{N}(tuple(cket...))] = new_coeffs[i,j,k,l]*coeff 
+                        out[ClusterConfig(cket)] = new_coeffs[i,j,k,l]*coeff 
                     end
                 end
             end

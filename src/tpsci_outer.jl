@@ -47,13 +47,23 @@
 ##=}}}=#
 
 
+"""
+    tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
+                thresh_cipsi = 1e-2,
+                thresh_foi   = 1e-6,
+                thresh_asci  = 1e-2,
+                max_iter     = 10,
+                conv_thresh  = 1e-4) where {T,N,R}
+
+Run TPSCI 
+"""
 function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
     thresh_cipsi = 1e-2,
     thresh_foi   = 1e-6,
     thresh_asci  = 1e-2,
     max_iter     = 10,
     conv_thresh  = 1e-4) where {T,N,R}
-
+#={{{=#
     vec_var = deepcopy(ci_vector)
     vec_pt = deepcopy(ci_vector)
     zero!(vec_pt)
@@ -127,6 +137,8 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
     end
     return e0, e2, vec_var, vec_pt 
 end
+#=}}}=#
+
 
 function print_tpsci_iter(ci_vector::ClusteredState{T,N,R}, it, e0, converged) where {T,N,R}
 #={{{=#
@@ -339,12 +351,13 @@ Compute the action of the Hamiltonian on a tpsci state vector. Open here, means 
 (restricted only by thresh), instead of the action of H on v within a subspace of configurations. 
 This is essentially used for computing a PT correction outside of the subspace, or used for searching in TPSCI.
 """
-function open_matvec(ci_vector::ClusteredState, cluster_ops, clustered_ham; thresh=1e-9, nbody=4)
+function open_matvec(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 #={{{=#
     sig = deepcopy(ci_vector)
     zero!(sig)
     clusters = ci_vector.clusters
     #sig = ClusteredState(clusters)
+    #sig = OrderedDict{FockConfig{N}, OrderedDict{NTuple{N,Int16}, MVector{T} }}()
     for (fock_ket, configs_ket) in ci_vector.data
         for (ftrans, terms) in clustered_ham
             fock_bra = ftrans + fock_ket
@@ -356,6 +369,9 @@ function open_matvec(ci_vector::ClusteredState, cluster_ops, clustered_ham; thre
             all(f[1] <= length(clusters[fi]) for (fi,f) in enumerate(fock_bra)) || continue 
             all(f[2] <= length(clusters[fi]) for (fi,f) in enumerate(fock_bra)) || continue 
         
+            #if haskey(sig, fock_bra) == false
+            #    sig[fock_bra] = OrderedDict{NTuple{N,Int16}, MVector{T}}()
+            #end
             haskey(sig, fock_bra) || add_fockconfig!(sig, fock_bra)
             for term in terms
 
@@ -387,6 +403,84 @@ function open_matvec(ci_vector::ClusteredState, cluster_ops, clustered_ham; thre
 end
 #=}}}=#
 
+
+"""
+    open_matvec(ci_vector::ClusteredState, cluster_ops, clustered_ham; thresh=1e-9, nbody=4)
+
+Compute the action of the Hamiltonian on a tpsci state vector. Open here, means that we access the full FOIS 
+(restricted only by thresh), instead of the action of H on v within a subspace of configurations. 
+This is essentially used for computing a PT correction outside of the subspace, or used for searching in TPSCI.
+"""
+function open_matvec_parallel(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
+#={{{=#
+    sig = deepcopy(ci_vector)
+    zero!(sig)
+    clusters = ci_vector.clusters
+    #sig = ClusteredState(clusters)
+    #sig = OrderedDict{FockConfig{N}, OrderedDict{NTuple{N,Int16}, MVector{T} }}()
+
+    jobs = Dict{FockConfig{N},Vector{Tuple}}()
+
+    for (fock_ket, configs_ket) in ci_vector.data
+        for (ftrans, terms) in clustered_ham
+            fock_bra = ftrans + fock_ket
+
+            #
+            # check to make sure this fock config doesn't have negative or too many electrons in any cluster
+            all(f[1] >= 0 for f in fock_bra) || continue 
+            all(f[2] >= 0 for f in fock_bra) || continue 
+            all(f[1] <= length(clusters[fi]) for (fi,f) in enumerate(fock_bra)) || continue 
+            all(f[2] <= length(clusters[fi]) for (fi,f) in enumerate(fock_bra)) || continue 
+           
+            job_input = (terms, fock_ket, configs_ket)
+            if haskey(jobs, fock_bra)
+                push!(jobs[fock_bra], job_input)
+            else
+                jobs[fock_bra] = [job_input]
+            end
+            
+        end
+    end
+
+    jobs_vec = []
+    for (fock_bra, job) in jobs
+        push!(jobs_vec, (fock_bra, job))
+    end
+
+    println(" Number of jobs:    ", length(jobs))
+    println(" Number of threads: ", Threads.nthreads())
+    BLAS.set_num_threads(1)
+    Threads.@threads for job in jobs_vec
+    #for job in jobs_vec
+        fock_bra = job[1]
+        sigi = open_matvec_job(job[2], fock_bra, cluster_ops, nbody, thresh, N, R, T)
+        sig[fock_bra] = sigi
+    end
+    BLAS.set_num_threads(Threads.nthreads())
+    return sig
+end
+#=}}}=#
+
+function open_matvec_job(job, fock_bra, cluster_ops, nbody, thresh, N, R, T)
+    sigfock = OrderedDict{ClusterConfig{N}, MVector{R, T} }()
+
+    for jobi in job 
+
+        terms, fock_ket, configs_ket = jobi
+
+        for term in terms
+
+            length(term.clusters) <= nbody || continue
+
+            for (config_ket, coeff_ket) in configs_ket
+
+                sig_i = contract_matvec(term, cluster_ops, fock_bra, fock_ket, config_ket, coeff_ket, thresh=thresh)
+                merge!(+, sigfock, sig_i)
+            end
+        end
+    end
+    return sigfock
+end
 
 """
     compute_diagonal(vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}

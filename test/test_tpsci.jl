@@ -38,7 +38,7 @@ using Arpack
     basis = "sto-3g"
     mol     = Molecule(0,1,atoms,basis)
 
-    nroots = 1
+    nroots = 4
 
     # get integrals
     mf = FermiCG.pyscf_do_scf(mol)
@@ -158,11 +158,8 @@ using Arpack
     end
 
 
-    thresh_cipsi = 1e-4
-    thresh_foi = 1e-8
-
     e0, e2, v0, v1 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, 
-                                        thresh_cipsi=thresh_cipsi, thresh_foi=1e-6, thresh_asci=1e-2);
+                                        thresh_cipsi=1e-4, thresh_foi=1e-6, thresh_asci=1e-2);
 
     ref = [-18.329833158828205,
            -18.054673303059687,
@@ -188,8 +185,11 @@ using Arpack
     #cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
     #FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
     
+    thresh_cipsi = 1e-4
+    thresh_foi = 1e-8
+    
     e0a, e2a, v0a, v1a = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, 
-                                        thresh_cipsi=thresh_cipsi, thresh_foi=1e-6, thresh_asci=1e-2);
+                                        thresh_cipsi=1e-4, thresh_foi=1e-6, thresh_asci=1e-2);
 
 #end
 

@@ -35,7 +35,9 @@ end
 
 
 
-ClusterConfig(in::Vector{T}) where T = convert(ClusterConfig{length(in)}, in)
+@inline ClusterConfig(in::AbstractArray{T,1}) where T = ClusterConfig{length(in)}(ntuple(i -> convert(Int16, in[i]), length(in)))
+@inline ClusterConfig(in::AbstractArray{Int16,1}) = ClusterConfig{length(in)}(ntuple(i -> in[i], length(in)))
+
 TransferConfig(in::Vector{Tuple{T,T}}) where T = convert(TransferConfig{length(in)}, in)
 FockConfig(in::Vector{Tuple{T,T}}) where T = convert(FockConfig{length(in)}, in)
 TuckerConfig(in::Vector{T}) where T = convert(TuckerConfig{length(in)}, in)
@@ -48,10 +50,6 @@ Base.:(==)(x::TuckerConfig, y::TuckerConfig) = all(x.config .== y.config)
 Return total dimension of space indexed by `tc`
 """
 dim(tc::TuckerConfig) = prod(size(tc)) 
-
-function Base.convert(::Type{ClusterConfig{N}}, in::Vector{T}) where {T,N} 
-    return ClusterConfig{length(in)}(ntuple(i -> convert(Int16, in[i]), length(in)))
-end
 
 function Base.convert(::Type{FockConfig{N}}, in::Vector) where {N}
     return FockConfig{length(in)}(ntuple(i -> Tuple(convert.(Int16, in[i])), length(in)))
