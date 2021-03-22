@@ -8,7 +8,7 @@ using Random
 using PyCall
 using Arpack
 
-#@testset "tpsci" begin
+@testset "tpsci" begin
     atoms = []
 
     r = 1
@@ -159,7 +159,7 @@ using Arpack
 
 
     e0, e2, v0, v1 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, 
-                                        thresh_cipsi=1e-4, thresh_foi=1e-6, thresh_asci=1e-2);
+                                        thresh_cipsi=1e-3, thresh_foi=1e-6, thresh_asci=1e-2);
 
     ref = [-18.329833158828205,
            -18.054673303059687,
@@ -172,7 +172,7 @@ using Arpack
 
     display(S2)
 
-    #@test isapprox(abs.(ref), abs.(e0+e2), atol=1e-8)
+    @test isapprox(abs.(ref), abs.(e0+e2), atol=1e-8)
    
 
     rotations = FermiCG.hosvd(v0, cluster_ops)
@@ -185,11 +185,15 @@ using Arpack
     #cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
     #FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
     
-    thresh_cipsi = 1e-4
-    thresh_foi = 1e-8
     
     e0a, e2a, v0a, v1a = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, 
-                                        thresh_cipsi=1e-4, thresh_foi=1e-6, thresh_asci=1e-2);
+                                        thresh_cipsi=1e-3, thresh_foi=1e-6, thresh_asci=1e-2);
 
-#end
+    ref = [-18.32519617,  
+           -18.04757949,  
+           -18.02204597,  
+           -17.98871359]
+    
+    @test isapprox(abs.(ref), abs.(e0a), atol=1e-8)
+end
 

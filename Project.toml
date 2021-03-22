@@ -47,6 +47,7 @@ StatProfilerHTML = "a8a75453-ed82-57c9-9e16-4cd1196ecbf5"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 TensorOperations = "6aa20fa7-93e2-5fca-9bc0-fbd0db3c71a2"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+ThreadPools = "b189fb0b-2eb5-4ed4-bc0c-d34c51242431"
 TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
 
 [compat]

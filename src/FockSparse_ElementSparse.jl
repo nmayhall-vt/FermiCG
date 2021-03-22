@@ -11,7 +11,8 @@ struct ClusteredState{T,N,R} <: AbstractState
     data::OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, MVector{R,T}}}
 end
 Base.haskey(ts::ClusteredState, i) = return haskey(ts.data,i)
-Base.iterate(ts::ClusteredState, state=1) = iterate(ts.data, state)
+#Base.iterate(ts::ClusteredState, state=1) = iterate(ts.data, state)
+#Base.eltype(::Type{ClusteredState{T,N,R}}) where {T,N,R} = OrderedDict{ClusterConfig{N}, MVector{R,T}} 
 
 """
     ClusteredState(clusters)
@@ -19,9 +20,9 @@ Base.iterate(ts::ClusteredState, state=1) = iterate(ts.data, state)
 Constructor
 - `clusters::Vector{Cluster}`
 """
-function ClusteredState(clusters; T=Float64, nroots=1)
+function ClusteredState(clusters; T=Float64, R=1)
     N = length(clusters)
-    return ClusteredState{T,N,nroots}(clusters,OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, MVector{nroots,T}}}())
+    return ClusteredState{T,N,R}(clusters,OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, MVector{R,T}}}())
 end
 
 """
@@ -54,7 +55,7 @@ end
 function get_vector(s::ClusteredState; root=1)
     v = zeros(length(s))
     idx = 1
-    for (fock, configs) in s
+    for (fock, configs) in s.data
         for (config, coeff) in configs
             v[idx] = coeff[root]
             idx += 1
@@ -68,7 +69,7 @@ end
 function get_vectors(s::ClusteredState{T,N,R}) where {T,N,R}
     v = zeros(T,length(s), R)
     idx = 1
-    for (fock, configs) in s
+    for (fock, configs) in s.data
         for (config, coeff) in configs
             v[idx,:] .= coeff[:]
             idx += 1
@@ -239,12 +240,20 @@ end
 remove fock_spaces that don't have any configurations 
 """
 function prune_empty_fock_spaces!(s::ClusteredState)
-    keylist = keys(s.data)
+    keylist = [keys(s.data)...]
     for fock in keylist
         if length(s[fock]) == 0
             delete!(s.data, fock)
         end
     end
+#    # I'm not sure why this is necessary
+#    idx = 0
+#    for (fock,configs) in s.data
+#        for (config, coeffs) in s.data[fock]
+#            idx += 1
+#        end
+#    end
+    return 
 end
 
 """
@@ -283,7 +292,7 @@ Add coeffs in `s2` to `s1`
 """
 function add!(s1::ClusteredState, s2::ClusteredState)
     #={{{=#
-    for (fock,configs) in s2
+    for (fock,configs) in s2.data
         if haskey(s1, fock)
             for (config,coeffs) in configs
                 if haskey(s1[fock], config)

@@ -527,7 +527,7 @@ end
                         cluster_ops::Vector{ClusterOps},
                         fock_bra, fock_ket, ket)
 """
-function contract_matvec(   term::ClusteredTerm4B, 
+function contract_matvec_M4(   term::ClusteredTerm4B, 
                                     cluster_ops::Vector{ClusterOps},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
@@ -653,6 +653,132 @@ end
 
 
 
+#############################################################################################################################################
+#       M^2 memory versions
+#############################################################################################################################################
+"""
+    contract_matvec(    term::ClusteredTerm4B, 
+                        cluster_ops::Vector{ClusterOps},
+                        fock_bra, fock_ket, ket)
+
+This version should only use M^2N^2 storage, and n^5 scaling n={MN}
+"""
+function contract_matvec(   term::ClusteredTerm4B, 
+                                    cluster_ops::Vector{ClusterOps},
+                                    fock_bra::FockConfig{N}, 
+                                    fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
+                                    thresh=1e-9) where {T,R,N}
+#={{{=#
+    c1 = term.clusters[1]
+    c2 = term.clusters[2]
+    c3 = term.clusters[3]
+    c4 = term.clusters[4]
+
+    # 
+    # determine sign from rearranging clusters if odd number of operators
+    state_sign = compute_terms_state_sign(term, fock_ket) 
+    
+
+
+    #
+    # <I|p'|_> h(pqrs) <J|q|_> <K|r|_> <L|s|_>
+    #
+    # X(p,q,K,L) = h(pqrs) <K|r|_> <L|s|_>
+    #
+    #
+    @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,:,conf_ket[c1.idx]]
+    @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,:,conf_ket[c2.idx]]
+    @views gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,:,conf_ket[c3.idx]]
+    @views gamma4 = cluster_ops[c4.idx][term.ops[4]][(fock_bra[c4.idx],fock_ket[c4.idx])][:,:,conf_ket[c4.idx]]
+    
+
+    XpqKL = []
+    @tensoropt begin
+        XpqKL[p,q,K,L] := term.ints[p,q,r,s]  * gamma3[r,K]  * gamma4[s,L] #* coef_ket
+    end
+
+    
+    if state_sign < 0
+        XpqKL .= -XpqKL
+    end 
+
+    # preallocate tmp arrays
+    scra = zeros(size(gamma1,1), size(gamma2,2))
+    scr1 = zeros(size(gamma1,1), size(gamma2,2))
+    scr2 = zeros(size(gamma1,2), size(gamma2,2))
+    
+    cket = MVector{N,Int16}([conf_ket.config...])
+    out = OrderedDict{ClusterConfig{N}, MVector{R,T}}()
+   
+    newI = size(gamma1,2)
+    newJ = size(gamma2,2)
+
+    for l::Int16 in 1:size(XpqKL,4)
+        cket[c4.idx] = l
+        for k::Int16 in 1:size(XpqKL,3)
+            cket[c3.idx] = k
+           
+            #
+            # tmp1(p,J) = Xpq * g2(q,J)
+            #@views scr1 = XpqKL[:,:,k,l] * gamma2
+            @views BLAS.gemm!('N','N', 1.0, XpqKL[:,:,k,l], gamma2, 1.0, scr1)
+            #BLAS.gemm!('N','N', 1.0, XpqKL[:,:,k,l], gamma2, 1.0, scr1)
+            
+            #_test1!(scr1, XpqKL, gamma2, k, l)
+            #@btime _test2!($scra, $XpqKL, $gamma2, $k, $l)
+            #@views scr1 .= XpqKL[:,:,k,l] * gamma2
+            
+            #
+            # tmp2(I,J) = g1(p,I) * tmp(p,J)
+            #scr2 .= gamma1'*scr1
+            BLAS.gemm!('T','N', 1.0, gamma1, scr1, 1.0, scr2)
+
+            _collect_significant2!(out, newI, newJ, scr2, coef_ket, cket, thresh, c1.idx, c2.idx)
+        end
+    end
+
+
+
+    
+    #_collect_significant!(out, conf_ket, new_coeffs, coef_ket, c1.idx, c2.idx, c3.idx, c4.idx, newI, newJ, newK, newL, thresh)
+
+    return out 
+end
+#=}}}=#
+function _test2!(scr1, XpqKL, gamma2, k, l)
+    @views BLAS.gemm!('N','N', 1.0, XpqKL[:,:,k,l], gamma2, 1.0, scr1)
+    #@views scr1 = XpqKL[:,:,k,l] * gamma2
+end
+function _test1!(scr1, XpqKL, gamma2, k, l)
+#={{{=#
+    Xshift = size(XpqKL,1)*size(XpqKL,2)*(k-1) + size(XpqKL,1)*size(XpqKL,2)*size(XpqKL,3)*(l-1)
+    np = size(XpqKL,1)
+    nq = size(XpqKL,2)
+    nJ = size(gamma2,2)
+    @inbounds for j in 1:nJ
+        scrshift = np*(j-1)
+        gshift = nq*(j-1)
+        for p in 1:np
+
+            @simd for q in 1:nq
+                scr1[p + scrshift] += XpqKL[p + np*(q-1) + Xshift] * gamma2[q + gshift]
+            end
+        end
+    end
+end
+#=}}}=#
+
+function _collect_significant2!(out, newI, newJ, scr2, coef_ket, cket, thresh, c1idx, c2idx)
+    for j::Int16 in newJ 
+        cket[c2idx] = j
+        for i::Int16 in 1:newI
+            if any((abs(scr2[i,j]*s) > thresh for s in coef_ket))
+                cket[c1idx] = i
+                out[ClusterConfig(cket)] = scr2[i,j]*coef_ket
+            end
+        end
+    end
+end
 
 #############################################################################################################################################
 # under construction
