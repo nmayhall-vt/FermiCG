@@ -179,10 +179,10 @@ using StaticArrays
     e0, e2, v0, v1 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, 
                                         thresh_cipsi=1e-3, thresh_foi=1e-6, thresh_asci=1e-2);
 
-    ref = [-18.32497870,
-           -18.04460377,
-           -18.01942797,
-           -17.98849320]
+    ref = [-18.32983268907018,
+           -18.05273493473686,
+           -18.02737336416847,
+           -17.995438987323247]
 
     @test isapprox(abs.(ref), abs.(e0), atol=1e-6)
    

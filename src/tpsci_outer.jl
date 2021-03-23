@@ -122,6 +122,21 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
         l1 = length(vec_asci)
         clip!(vec_asci, thresh=thresh_asci)
         l2 = length(vec_asci)
+        #do_asci_rediag = true 
+        #if do_asci_rediag
+        #    println(" Re-diagonalize in ASCI subspace:")
+        #    @time Hasci = build_full_H_parallel(vec_asci, cluster_ops, clustered_ham)
+        #    F = eigen(Hasci)
+        #    e0_asci = F.values[1:R]
+        #    v_asci = F.vectors[:,1:R]
+        #    set_vector!(vec_asci, v_asci)
+        #
+        #    s2_asci = compute_expectation_value(vec_asci, cluster_ops, clustered_S2)
+        #    @printf(" %5s %12s %12s\n", "Root", "Energy", "S2") 
+        #    for r in 1:R
+        #        @printf(" %5s %12.8f %12.8f\n",r, e0_asci[r], abs(s2_asci[r]))
+        #    end
+        #end
         @printf(" Length of ASCI vector %8i → %8i \n", l1, l2)
         @time e2, vec_pt = compute_pt2(vec_asci, cluster_ops, clustered_ham, thresh_foi=thresh_foi)
         flush(stdout)
