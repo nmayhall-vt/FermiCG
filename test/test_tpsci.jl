@@ -131,7 +131,7 @@ using Arpack
 
 
 
-    ci_vector = FermiCG.ClusteredState(clusters, nroots=nroots)
+    ci_vector = FermiCG.ClusteredState(clusters, R=nroots)
  
     ref_fock = FermiCG.FockConfig(init_fspace)
     FermiCG.add_fockconfig!(ci_vector, ref_fock)

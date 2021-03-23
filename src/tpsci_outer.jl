@@ -83,23 +83,23 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
     println(" conv_thresh   :", conv_thresh  ) 
     for it in 1:max_iter
 
-        if it > 1
-            var_clip = thresh_cipsi/10
-            l1 = length(vec_var)
-            clip!(vec_var, thresh=thresh_cipsi/10)
-            l2 = length(vec_var)
-            println(" Clip values > %5.1e            %6i → %6i\n", var_clip, l1, l2)
-            
-            l1 = length(vec_var)
-            add!(vec_var, vec_pt)
-            l2 = length(vec_var)
-            println(" Add pt vector to current space %6i → %6i\n", l1, l2)
-        end
-
         println()
         println(" ===================================================================")
         @printf("     Selected CI Iteration: %4i epsilon: %12.8f\n", it,thresh_cipsi)
         println(" ===================================================================")
+
+        if it > 1
+            var_clip = thresh_cipsi/10
+            l1 = length(vec_var)
+            clip!(vec_var, thresh=var_clip)
+            l2 = length(vec_var)
+            @printf(" Clip values > %8.1e         %6i → %6i\n", var_clip, l1, l2)
+            
+            l1 = length(vec_var)
+            add!(vec_var, vec_pt)
+            l2 = length(vec_var)
+            @printf(" Add pt vector to current space %6i → %6i\n", l1, l2)
+        end
 
         @printf(" Build Hamiltonian matrix with dimension: %5i\n", length(vec_var))
         flush(stdout)
@@ -107,9 +107,6 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
         @time H = build_full_H_parallel(vec_var, cluster_ops, clustered_ham)
         if length(vec_var) > 1000
             e0,v = Arpack.eigs(H, nev = R, which=:SR)
-            for ei in e0
-                @printf(" Energy: %18.12f\n",real(ei))
-            end
         else
             F = eigen(H)
             e0 = F.values[1:R]
