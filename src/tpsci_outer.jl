@@ -83,8 +83,18 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
     println(" conv_thresh   :", conv_thresh  ) 
     for it in 1:max_iter
 
-        it == 1 || add!(vec_var, vec_pt)
-        it == 1 || clip!(vec_var, thresh=thresh_cipsi/10)
+        if it > 1
+            var_clip = thresh_cipsi/10
+            l1 = length(vec_var)
+            clip!(vec_var, thresh=thresh_cipsi/10)
+            l2 = length(vec_var)
+            println(" Clip values > %5.1e            %6i → %6i\n", var_clip, l1, l2)
+            
+            l1 = length(vec_var)
+            add!(vec_var, vec_pt)
+            l2 = length(vec_var)
+            println(" Add pt vector to current space %6i → %6i\n", l1, l2)
+        end
 
         println()
         println(" ===================================================================")
