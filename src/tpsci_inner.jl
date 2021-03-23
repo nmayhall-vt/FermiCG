@@ -705,9 +705,9 @@ function contract_matvec(   term::ClusteredTerm3B,
     cket = MVector{N,Int16}([conf_ket.config...])
     out = OrderedDict{ClusterConfig{N}, MVector{R,T}}()
    
-    newI = 1:size(gamma1,2)
-    newJ = 1:size(gamma2,2)
-    newK = 1:size(gamma3,2)
+    newI = UnitRange{Int16}(1,size(gamma1,2))
+    newJ = UnitRange{Int16}(1,size(gamma2,2))
+    newK = UnitRange{Int16}(1,size(gamma3,2))
 
 
 #    scr1 = zeros(size(gamma1,2))
@@ -790,10 +790,10 @@ function contract_matvec(   term::ClusteredTerm4B,
     cket = MVector{N,Int16}([conf_ket.config...])
     out = OrderedDict{ClusterConfig{N}, MVector{R,T}}()
    
-    newI = 1:size(gamma1,2)
-    newJ = 1:size(gamma2,2)
-    newK = 1:size(gamma3,2)
-    newL = 1:size(gamma4,2)
+    newI = UnitRange{Int16}(1,size(gamma1,2))
+    newJ = UnitRange{Int16}(1,size(gamma2,2))
+    newK = UnitRange{Int16}(1,size(gamma3,2))
+    newL = UnitRange{Int16}(1,size(gamma4,2))
 
     for l::Int16 in newL 
         cket[c4.idx] = l
@@ -858,10 +858,24 @@ function _collect_significant2!(out, newI, scr2, coef_ket, cket, thresh, c1idx)
 end
 
 function _collect_significant2!(out, newI, newJ, scr2, coef_ket, cket, thresh, c1idx, c2idx)
-    for j::Int16 in newJ 
+    thresh_curr = thresh / maximum(abs.(coef_ket))
+    #@inbounds for ij in findall(>(thresh_curr), abs.(scr2))
+    #            
+    #    cket[c1idx] = ij[1]
+    #    cket[c2idx] = ij[2]
+    #            
+    #    out[ClusterConfig(cket)] = scr2[ij]*coef_ket
+    #end
+
+    nI = length(newI)
+    @inbounds for j::Int16 in newJ 
         cket[c2idx] = j
-        for i::Int16 in newI
-            if any((abs(scr2[i,j]*s) > thresh for s in coef_ket))
+        @fastmath @simd for i in newI 
+            #if any((abs(scr2[i,j]*s) > thresh for s in coef_ket))
+            #if abs(scr2[i + shift]) > thresh_curr
+            #if (scr2[i + shift] > thresh_curr) || (scr2[i + shift] < -thresh_curr)
+            #if Base.lt(Base.Forward, thresh_curr, scr2[i,j]) || Base.lt(Base.Forward, scr2[i,j], -thresh_curr) 
+            if (scr2[i,j] > thresh_curr) || (scr2[i,j] < -thresh_curr)
                 cket[c1idx] = i
                 out[ClusterConfig(cket)] = scr2[i,j]*coef_ket
             end

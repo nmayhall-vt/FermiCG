@@ -92,6 +92,7 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
         println(" ===================================================================")
 
         @printf(" Build Hamiltonian matrix with dimension: %5i\n", length(vec_var))
+        flush(stdout)
         #@time H = build_full_H(vec_var, cluster_ops, clustered_ham)
         @time H = build_full_H_parallel(vec_var, cluster_ops, clustered_ham)
         if length(vec_var) > 1000
@@ -116,12 +117,14 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
             display(vec_var, root=r)
         end
 
+        flush(stdout)
         vec_asci = deepcopy(vec_var)
         l1 = length(vec_asci)
         clip!(vec_asci, thresh=thresh_asci)
         l2 = length(vec_asci)
         @printf(" Length of ASCI vector %8i → %8i \n", l1, l2)
         @time e2, vec_pt = compute_pt2(vec_asci, cluster_ops, clustered_ham, thresh_foi=thresh_foi)
+        flush(stdout)
 
 
         l1 = length(vec_pt)
