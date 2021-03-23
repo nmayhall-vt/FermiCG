@@ -737,6 +737,7 @@ function contract_matvec(   term::ClusteredTerm3B,
     return out 
 end
 #=}}}=#
+
 """
     contract_matvec(    term::ClusteredTerm4B, 
                         cluster_ops::Vector{ClusterOps},
@@ -748,7 +749,7 @@ function contract_matvec(   term::ClusteredTerm4B,
                                     cluster_ops::Vector{ClusterOps},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
-                                    thresh=1e-9) where {T,R,N}
+                                    thresh=1e-9, do_prescreen=true) where {T,R,N}
 #={{{=#
     c1 = term.clusters[1]
     c2 = term.clusters[2]
@@ -772,6 +773,40 @@ function contract_matvec(   term::ClusteredTerm4B,
     @views gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,:,conf_ket[c3.idx]]
     @views gamma4 = cluster_ops[c4.idx][term.ops[4]][(fock_bra[c4.idx],fock_ket[c4.idx])][:,:,conf_ket[c4.idx]]
     
+    newI = UnitRange{Int16}(1,size(gamma1,2))
+    newJ = UnitRange{Int16}(1,size(gamma2,2))
+    newK = UnitRange{Int16}(1,size(gamma3,2))
+    newL = UnitRange{Int16}(1,size(gamma4,2))
+
+    if do_prescreen
+        ints_max = sum(abs.(term.ints)) * maximum(abs.(coef_ket))
+        newI = Vector{Int16}() 
+        newJ = Vector{Int16}() 
+        newK = Vector{Int16}() 
+        newL = Vector{Int16}() 
+        for i in 1:size(gamma1,2)
+            maximum(abs.(gamma1[:,i]))*ints_max < thresh || push!(newI, i)
+        end
+        for i in 1:size(gamma2,2)
+            maximum(abs.(gamma2[:,i]))*ints_max < thresh || push!(newJ, i)
+        end
+        for i in 1:size(gamma3,2)
+            maximum(abs.(gamma3[:,i]))*ints_max < thresh || push!(newK, i)
+        end
+        for i in 1:size(gamma4,2)
+            maximum(abs.(gamma4[:,i]))*ints_max < thresh || push!(newL, i)
+        end
+
+        #@views gamma1 = gamma1[:,newI]
+        #@views gamma2 = gamma2[:,newJ]
+        #@views gamma3 = gamma3[:,newK]
+        #@views gamma4 = gamma4[:,newL]
+        gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,newI,conf_ket[c1.idx]]
+        gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,newJ,conf_ket[c2.idx]]
+        gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,newK,conf_ket[c3.idx]]
+        gamma4 = cluster_ops[c4.idx][term.ops[4]][(fock_bra[c4.idx],fock_ket[c4.idx])][:,newL,conf_ket[c4.idx]]
+
+    end
 
     XpqKL = []
     @tensoropt begin
@@ -789,22 +824,32 @@ function contract_matvec(   term::ClusteredTerm4B,
     
     cket = MVector{N,Int16}([conf_ket.config...])
     out = OrderedDict{ClusterConfig{N}, MVector{R,T}}()
+    #sizehint!(out,prod([size(gamma1,2),size(gamma2,2),size(gamma3,2),size(gamma4,2)]))
    
-    newI = UnitRange{Int16}(1,size(gamma1,2))
-    newJ = UnitRange{Int16}(1,size(gamma2,2))
-    newK = UnitRange{Int16}(1,size(gamma3,2))
-    newL = UnitRange{Int16}(1,size(gamma4,2))
+    #newI = UnitRange{Int16}(1,size(gamma1,2))
+    #newJ = UnitRange{Int16}(1,size(gamma2,2))
+    #newK = UnitRange{Int16}(1,size(gamma3,2))
+    #newL = UnitRange{Int16}(1,size(gamma4,2))
 
-    for l::Int16 in newL 
-        cket[c4.idx] = l
-        for k::Int16 in newK
-            cket[c3.idx] = k
+    for l::Int16 in 1:length(newL)
+        cket[c4.idx] = newL[l]
+        for k::Int16 in 1:length(newK)
+            cket[c3.idx] = newK[k]
            
+            if do_prescreen
+                sum(abs.(XpqKL[:,:,k,l]))*maximum(abs.(coef_ket)) > thresh || continue
+            end
+
             #
             # tmp1(p,J) = Xpq * g2(q,J)
             #@views scr1 = XpqKL[:,:,k,l] * gamma2
-            @views BLAS.gemm!('N','N', 1.0, XpqKL[:,:,k,l], gamma2, 0.0, scr1)
+            #BLAS.gemm!('N','N', 1.0, XpqKL[:,:,k,l], gamma2, 0.0, scr1)
+            BLAS.gemm!('N','N', 1.0, XpqKL[:,:,k,l], gamma2, 0.0, scr1)
             #BLAS.gemm!('N','N', 1.0, XpqKL[:,:,k,l], gamma2, 1.0, scr1)
+            
+            if do_prescreen
+                sum(abs.(scr1))*maximum(abs.(coef_ket)) > thresh || continue
+            end
             
             #_test1!(scr1, XpqKL, gamma2, k, l)
             #@btime _test2!($scra, $XpqKL, $gamma2, $k, $l)
@@ -823,65 +868,62 @@ function contract_matvec(   term::ClusteredTerm4B,
 end
 #=}}}=#
 
-function _test2!(scr1, XpqKL, gamma2, k, l)
-    @views BLAS.gemm!('N','N', 1.0, XpqKL[:,:,k,l], gamma2, 1.0, scr1)
-    #@views scr1 = XpqKL[:,:,k,l] * gamma2
-end
-
-function _test1!(scr1, XpqKL, gamma2, k, l)
-#={{{=#
-    Xshift = size(XpqKL,1)*size(XpqKL,2)*(k-1) + size(XpqKL,1)*size(XpqKL,2)*size(XpqKL,3)*(l-1)
-    np = size(XpqKL,1)
-    nq = size(XpqKL,2)
-    nJ = size(gamma2,2)
-    @inbounds for j in 1:nJ
-        scrshift = np*(j-1)
-        gshift = nq*(j-1)
-        for p in 1:np
-
-            @simd for q in 1:nq
-                scr1[p + scrshift] += XpqKL[p + np*(q-1) + Xshift] * gamma2[q + gshift]
-            end
-        end
-    end
-end
-#=}}}=#
-
-
-function _collect_significant2!(out, newI, scr2, coef_ket, cket, thresh, c1idx)
-    for i::Int16 in newI
-        if any((abs(scr2[i]*s) > thresh for s in coef_ket))
-            cket[c1idx] = i
-            out[ClusterConfig(cket)] = scr2[i]*coef_ket
-        end
-    end
-end
+#function _test2!(scr1, XpqKL, gamma2, k, l)
+#    @views BLAS.gemm!('N','N', 1.0, XpqKL[:,:,k,l], gamma2, 1.0, scr1)
+#    #@views scr1 = XpqKL[:,:,k,l] * gamma2
+#end
+#
+#function _test1!(scr1, XpqKL, gamma2, k, l)
+##={{{=#
+#    Xshift = size(XpqKL,1)*size(XpqKL,2)*(k-1) + size(XpqKL,1)*size(XpqKL,2)*size(XpqKL,3)*(l-1)
+#    np = size(XpqKL,1)
+#    nq = size(XpqKL,2)
+#    nJ = size(gamma2,2)
+#    @inbounds for j in 1:nJ
+#        scrshift = np*(j-1)
+#        gshift = nq*(j-1)
+#        for p in 1:np
+#
+#            @simd for q in 1:nq
+#                scr1[p + scrshift] += XpqKL[p + np*(q-1) + Xshift] * gamma2[q + gshift]
+#            end
+#        end
+#    end
+#end
+##=}}}=#
+#
+#
+#function _collect_significant2!(out, newI, scr2, coef_ket, cket, thresh, c1idx)
+#    for i::Int16 in newI
+#        if any((abs(scr2[i]*s) > thresh for s in coef_ket))
+#            cket[c1idx] = i
+#            out[ClusterConfig(cket)] = scr2[i]*coef_ket
+#        end
+#    end
+#end
 
 function _collect_significant2!(out, newI, newJ, scr2, coef_ket, cket, thresh, c1idx, c2idx)
     thresh_curr = thresh / maximum(abs.(coef_ket))
-    #@inbounds for ij in findall(>(thresh_curr), abs.(scr2))
-    #            
+
+    #@inbounds for ij in findall(x->(x>thresh_curr) || (x<-thresh_curr), scr2)
     #    cket[c1idx] = ij[1]
     #    cket[c2idx] = ij[2]
-    #            
     #    out[ClusterConfig(cket)] = scr2[ij]*coef_ket
     #end
 
     nI = length(newI)
-    @inbounds for j::Int16 in newJ 
-        cket[c2idx] = j
-        @fastmath @simd for i in newI 
-            #if any((abs(scr2[i,j]*s) > thresh for s in coef_ket))
-            #if abs(scr2[i + shift]) > thresh_curr
-            #if (scr2[i + shift] > thresh_curr) || (scr2[i + shift] < -thresh_curr)
-            #if Base.lt(Base.Forward, thresh_curr, scr2[i,j]) || Base.lt(Base.Forward, scr2[i,j], -thresh_curr) 
+    nJ = length(newJ)
+    @inbounds for j::Int16 in 1:nJ 
+        cket[c2idx] = newJ[j]
+        @fastmath @simd for i in 1:nI
             if (scr2[i,j] > thresh_curr) || (scr2[i,j] < -thresh_curr)
-                cket[c1idx] = i
+                cket[c1idx] = newI[i]
                 out[ClusterConfig(cket)] = scr2[i,j]*coef_ket
             end
         end
     end
 end
+
 
 #############################################################################################################################################
 # under construction

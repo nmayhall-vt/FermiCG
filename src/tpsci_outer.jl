@@ -84,7 +84,7 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
     for it in 1:max_iter
 
         it == 1 || add!(vec_var, vec_pt)
-        it == 1 || clip!(vec_var, thresh=thresh_cipsi*10)
+        it == 1 || clip!(vec_var, thresh=thresh_cipsi/10)
 
         println()
         println(" ===================================================================")
