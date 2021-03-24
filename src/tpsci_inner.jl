@@ -778,7 +778,33 @@ function contract_matvec(   term::ClusteredTerm4B,
     newK = UnitRange{Int16}(1,size(gamma3,2))
     newL = UnitRange{Int16}(1,size(gamma4,2))
 
+    out = OrderedDict{ClusterConfig{N}, MVector{R,T}}()
+    
     if do_prescreen
+
+        #
+        #   max(H_IJKL) <= sum_pqrs abs(V(pqrs)) max(g1(p)_I) max(g2(q)_J) max(g3(r)_K) max(g4(s)_L) * max(abs(coeffs))
+
+        up_bound = 0
+        for p in 1:length(size(term.ints,1))
+            pmax = maximum(abs.(gamma1[p,:]))
+            for q in 1:length(size(term.ints,2))
+                qmax = maximum(abs.(gamma2[q,:]))
+                for r in 1:length(size(term.ints,3))
+                    rmax = maximum(abs.(gamma3[r,:]))
+                    for s in 1:length(size(term.ints,4))
+                        smax = maximum(abs.(gamma4[s,:]))
+
+                        up_bound += maximum(abs.(coef_ket)) * abs(term.ints[p,q,r,s]) * pmax * qmax * rmax * smax
+                    end
+                end
+            end
+        end
+
+        if up_bound < thresh
+            return out
+        end
+
         ints_max = sum(abs.(term.ints)) * maximum(abs.(coef_ket))
         newI = Vector{Int16}() 
         newJ = Vector{Int16}() 
@@ -823,7 +849,6 @@ function contract_matvec(   term::ClusteredTerm4B,
     scr2 = zeros(size(gamma1,2), size(gamma2,2))
     
     cket = MVector{N,Int16}([conf_ket.config...])
-    out = OrderedDict{ClusterConfig{N}, MVector{R,T}}()
     #sizehint!(out,prod([size(gamma1,2),size(gamma2,2),size(gamma3,2),size(gamma4,2)]))
    
     #newI = UnitRange{Int16}(1,size(gamma1,2))

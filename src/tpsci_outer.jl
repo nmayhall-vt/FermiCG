@@ -89,11 +89,11 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
         println(" ===================================================================")
 
         if it > 1
-            var_clip = thresh_cipsi/10
-            l1 = length(vec_var)
-            clip!(vec_var, thresh=var_clip)
-            l2 = length(vec_var)
-            @printf(" Clip values > %8.1e         %6i → %6i\n", var_clip, l1, l2)
+            #var_clip = thresh_cipsi/10
+            #l1 = length(vec_var)
+            #clip!(vec_var, thresh=var_clip)
+            #l2 = length(vec_var)
+            #@printf(" Clip values > %8.1e         %6i → %6i\n", var_clip, l1, l2)
             
             l1 = length(vec_var)
             add!(vec_var, vec_pt)
@@ -290,6 +290,7 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
     
     println()
     println(" Compute FOIS vector")
+    norms = norm(ci_vector)
     @time sig = open_matvec_parallel(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
     #@btime sig = open_matvec_parallel($ci_vector, $cluster_ops, $clustered_ham, nbody=$nbody, thresh=$thresh_foi)
     #@time sig = open_matvec(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
@@ -319,11 +320,11 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
     println()
     @printf(" %5s %12s %12s\n", "Root", "E(0)", "E(2)") 
     for r in 1:R
-        denom = 1.0 ./ (E0[r] .- Hd)  
+        denom = 1.0 ./ (E0[r]/(norms[r]*norms[r]) .- Hd)  
         v_pt[:,r] .= denom .* sig_v[:,r] 
         e2[r] = sum(sig_v[:,r] .* v_pt[:,r])
    
-        @printf(" %5s %12.8f %12.8f\n",r, Evar[r], Evar[r] + e2[r])
+        @printf(" %5s %12.8f %12.8f\n",r, Evar[r]/norms[r], Evar[r]/(norms[r]*norms[r]) + e2[r])
     end
 
     set_vector!(sig,v_pt)
