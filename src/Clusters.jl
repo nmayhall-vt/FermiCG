@@ -1,5 +1,6 @@
 using Arpack 
 using StaticArrays
+using LinearAlgebra
 
 """
     idx::Int
@@ -823,3 +824,224 @@ function add_cmf_operators!(ops::Vector{ClusterOps}, bases::Vector{ClusterBasis}
     end
     return 
 end
+
+
+
+
+
+"""
+	form_schmidt_basis
+thresh_orb      :   threshold for determining how many bath orbitals to include
+thresh_schmidt  :   threshold for determining how many singular vectors to include for cluster basis
+
+Returns new basis for the cluster
+"""
+function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db, thresh_orb=1e-8, thresh_schmidt=1e-3, thresh_ci=1e-6,do_embedding=true)
+
+    @printf("Form Schmidt-style basis for Cluster %4i\n",ci.idx)
+    D = Da + Db 
+
+    # Form the exchange matrix
+    K = zeros(size(ints.h1))
+    @tensor begin
+	K[q,r]  = ints.h2[p,q,r,s] * D[p,s]
+    end
+
+    no = size(ints.h1,1)
+    ci_no = length(ci.orb_list)
+
+
+    na_tot = Int(round(tr(Da)))
+    nb_tot = Int(round(tr(Db)))
+    println(" Number of electrons in full system:")
+    @printf("  α: %12.8f  β:%12.8f \n ",na_tot,nb_tot)
+
+    active = ci.orb_list
+
+    backgr = Vector{Int}()
+    for i in 1:no
+    	println(i)
+    	if !(i in active)
+    	    append!(backgr,i)
+        end
+    end
+
+    println("active",active)
+    println("backgr",backgr)
+
+    K2 = zeros((ci_no,no-ci_no))
+
+    for (pi,p) in enumerate(active)
+    	for (qi,q) in enumerate(backgr)
+	    K2[pi,qi] = K[p,q]
+	end
+    end
+
+    println("The exchange matrix")
+    display(K2)
+    F = svd(K2,full=true)
+
+    @printf("\nSing. Val.\n")
+    nkeep = 0
+    for si in F.S
+    	@printf("%16.12f\n",si)
+        if si > thresh_orb
+            nkeep += 1
+        end
+    end
+
+    C = zeros(size(ints.h1))
+    for (pi,p) in enumerate(active)
+    	for (qi,q) in enumerate(active)
+	    if pi==qi
+	        C[p,qi] = 1
+	    end
+	end
+    end
+
+    display(C)
+
+    display(F.Vt)
+    display(F.U)
+    for (pi,p) in enumerate(backgr)
+    	for (qi,q) in enumerate(backgr)
+	    C[p,qi+length(active)] = F.Vt[qi,pi]
+	end
+    end
+    display(C)
+
+    Cfrag = C[:,1:ci_no]
+    Cbath = C[:,ci_no+1:ci_no+nkeep]
+    Cenvt = C[:,ci_no+nkeep+1:end]
+    
+    @printf("Cfrag\n")
+    display(Cfrag)
+    @printf(" NElec: %12.8f\n",(tr(Cfrag'*(Da+Db)*Cfrag)))
+    @printf("Cbath\n")
+    display(Cbath)
+    @printf(" NElec: %12.8f\n",(tr(Cbath'*(Da+Db)*Cbath)))
+    @printf("Cenv\n")
+    display(Cenvt)
+    @printf(" NElec: %12.8f\n",(tr(Cenvt'*(Da+Db)*Cenvt)))
+
+    K2 = C'* K * C
+    Da2 = C'* Da * C
+    Db2 = C'* Db * C
+
+    na = tr(Da2[1:ci_no+nkeep,1:ci_no+nkeep])
+    nb = tr(Db2[1:ci_no+nkeep,1:ci_no+nkeep])
+
+    println(" Number of electrons in Fragment+Bath system:")
+    @printf("  α: %12.8f  β:%12.8f \n ",na,nb)
+
+    denvt_a = Cenvt*Cenvt'*Da*Cenvt*Cenvt'
+    denvt_b = Cenvt*Cenvt'*Db*Cenvt*Cenvt'
+    println(denvt_a)
+
+    na_env = tr(denvt_a)
+    nb_env = tr(denvt_b)
+
+    println(" Number of electrons in Environment system:")
+    @printf("  α: %12.8f  β:%12.8f \n ",na_env,nb_env)
+
+    na_envt = Int(round(tr(Cenvt'*Da*Cenvt)))
+    nb_envt = Int(round(tr(Cenvt'*Db*Cenvt)))
+
+
+    println(" Number of electrons in Environment system:")
+    @printf("  α: %12.8f  β:%12.8f \n ",na_envt,nb_envt)
+    #display(Da)
+
+    # rotate integrals to current subspace basis
+    denvt_a = C'*denvt_a*C
+    denvt_b = C'*denvt_b*C
+    ints2 = orbital_rotation(ints, C)
+
+    display(denvt_a)
+    denvt_a[abs.(denvt_a) .< 1e-15] .= 0
+    denvt_b[abs.(denvt_b) .< 1e-15] .= 0
+    display(denvt_a)
+
+    # find closest idempotent density for the environment
+    if do_embedding
+        if size(Cenvt,2)>0
+
+	    #eigenvalue 
+	    EIG = eigen(denvt_a)
+	    U = EIG.vectors
+	    n = EIG.values
+
+	    U = U[:, sortperm(n,rev=true)]
+	    n = n[sortperm(n,rev=true)]
+	    println(n)
+	    display(U)
+
+            for i in 1:nkeep
+                @assert(n[i]>1e-14)
+	    end
+
+            denvt_a = U[:,1:na_envt] * U[:,1:na_envt]'
+
+	    EIG = eigen(denvt_b)
+	    U = EIG.vectors
+	    n = EIG.values
+
+	    U = U[:, sortperm(n,rev=true)]
+	    n = n[sortperm(n,rev=true)]
+
+            for i in 1:nkeep
+                @assert(n[i]>1e-14)
+	    end
+
+            denvt_b = U[:,1:nb_envt] * U[:,1:nb_envt]'
+
+	end
+        #form ints in the cluster 
+	no_range = collect(1:size(Cfrag,2)+size(Cbath,2))
+	println(size(Cfrag,2))
+	println(size(Cbath,2))
+	println(no_range)
+	println(collect(1:size(Cfrag,2)+size(Cbath,2)))
+	display(denvt_b)
+	display(denvt_a)
+        #ints_i = form_casci_eff_ints(ints2,collect(1:size(Cfrag,2)+size(Cbath,2)), denvt_a, denvt_b)
+        ints2 = subset(ints2,collect(1:size(Cfrag,2)+size(Cbath,2)), denvt_a, denvt_b)
+        display(ints2.h1)
+        display(ints2.h0)
+        exit()
+
+    else
+        denvt_a *= 0 
+        denvt_b *= 0 
+        ints2 = form_casci_eff_ints(ints2,collect(1:size(Cfrag,2)+size(Cbath,2)), denvt_a, denvt_b)
+
+    end
+
+
+    return
+
+    println(" Number of electrons in Environment system:")
+    @printf("  α: %12.8f  β:%12.8f \n ",tr(denvt_a),tr(denvt_b))
+
+    na_actv = na_tot - na_envt
+    nb_actv = nb_tot - nb_envt
+    println(" Number of electrons in Fragment+Bath system:")
+    @printf("  α: %12.8f  β:%12.8f \n ",na_actv,nb_actv)
+
+    norb2 = size(ints2.h1,1)
+    problem = FermiCG.StringCI.FCIProblem(norb2, na_actv, nb_actv)
+    Hmat = FermiCG.StringCI.build_H_matrix(ints2, problem)
+    EIG = eigen(Hmat)
+    v = EIG.vectors
+    e = EIG.values
+
+    #dim1 = Int(sqrt(size(v,1)))
+    v = v[:,1]
+    #v = reshape(v, (dim1,dim1))
+
+    basis = FermiCG.StringCI.svd_state(v,problem,length(active),nkeep,thresh_schmidt)
+
+
+    return
+end
+

@@ -4,6 +4,8 @@ using Parameters
 using Profile
 using LinearMaps
 using BenchmarkTools
+using OrderedCollections
+using PyCall
 
 
 
@@ -1087,6 +1089,99 @@ function build_S2_matrix(P::FCIProblem)
         incr!(ket_b)
     end
     return S2
+end
+#=}}}=#
+
+
+"""
+    svd_state(prb::FCIProblem)
+- `prb`: FCIProblem just defines the current CI problem (i.e., fock sector)
+"""
+function svd_state(v,P::FCIProblem,norbs1,norbs2,svd_thresh)
+
+    #={{{=#
+    println(norbs1)
+    println(norbs2)
+    println(P.no)
+    @assert(norbs1+norbs2 ==P.no)
+
+    vector = OrderedDict{Tuple{UInt8,UInt8},Float64}()
+    vector = OrderedDict()
+    #   Create ci_strings
+    ket_a = DeterminantString(P.no, P.na)
+    ket_b = DeterminantString(P.no, P.nb)
+
+    v = reshape(v,(ket_a.max, ket_b.max))
+    display(v)
+    @assert(size(v,1) == ket_a.max)
+    @assert(size(v,2) == ket_b.max)
+
+    #fock_labels_a = [Nothing for i in 1:ket_a.max]
+    #fock_labels_b = [Nothing for i in 1:ket_b.max]
+
+    #fock_labels_a = zeros{Int}(ket_a.max)
+    #fock_labels_a = Array{Int}(ket_a.max)
+    #fock_labels_a = Array{Int}(missing, ket_a.max)
+    #fock_labels_b = zeros(ket_b.max)
+
+    fock_labels_a = Array{Int,1}(undef,ket_a.max)
+    fock_labels_b = Array{Int,1}(undef,ket_b.max)
+
+    println(fock_labels_a)
+
+    bisect = pyimport("bisect")
+    for I in 1:ket_a.max
+        fock_labels_a[I] = bisect.bisect(ket_a.config,norbs1)
+        incr!(ket_a)
+    end
+
+    for I in 1:ket_b.max
+        fock_labels_b[I] = bisect.bisect(ket_b.config,norbs1)
+        incr!(ket_b)
+    end
+
+    println(fock_labels_a)
+    println(fock_labels_b)
+
+    for I in 1:ket_a.max
+    	for J in 1:ket_b.max
+	    println(fock_labels_a[I],fock_labels_b[J],v[I,J])
+	    println()
+	    try
+	        append!(vector[fock_labels_a[I],fock_labels_b[J]],v[I,J])
+	    catch
+	        vector[fock_labels_a[I],fock_labels_a[J]] = [v[I,J]]
+	    end
+	end
+    end
+    println(vector)
+
+    for (fock,fvec)  in vector
+        println()
+        println("Prepare Fock Space:  ",fock)
+
+        ket_a1 = DeterminantString(norbs1, fock[1])
+        ket_b1 = DeterminantString(norbs1, fock[2])
+
+        ket_a2 = DeterminantString(norbs2, fock[1])
+        ket_b2 = DeterminantString(norbs2, fock[2])
+
+        #when swapping alpha2 and beta1 do we flip sign?
+        sign = 1
+        if (P.na-fock[1]%2)==1 && fock[2]%2==1
+	    sign = -1
+	end
+        @printf(" Dimensions: %5i x %-5i \n",ket_a1.max*ket_b1.max, ket_a2.max*ket_b2.max)
+
+        norm_curr = fvec' * fvec
+        @printf(" Norm: %12.8f\n",sqrt(norm_curr))
+
+        #fvec.shape = (ket_a1.max, ket_a2.max, ket_b1.max, ket_b2.max)
+
+        #norm += norm_curr
+    end
+
+    return
 end
 #=}}}=#
 
