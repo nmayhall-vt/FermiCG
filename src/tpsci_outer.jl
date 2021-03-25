@@ -89,11 +89,11 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
         println(" ===================================================================")
 
         if it > 1
-            #var_clip = thresh_cipsi/10
-            #l1 = length(vec_var)
-            #clip!(vec_var, thresh=var_clip)
-            #l2 = length(vec_var)
-            #@printf(" Clip values > %8.1e         %6i → %6i\n", var_clip, l1, l2)
+            var_clip = thresh_cipsi/10
+            l1 = length(vec_var)
+            clip!(vec_var, thresh=var_clip)
+            l2 = length(vec_var)
+            @printf(" Clip values > %8.1e         %6i → %6i\n", var_clip, l1, l2)
             
             l1 = length(vec_var)
             add!(vec_var, vec_pt)

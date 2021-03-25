@@ -667,7 +667,7 @@ function contract_matvec(   term::ClusteredTerm3B,
                                     cluster_ops::Vector{ClusterOps},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
-                                    thresh=1e-9) where {T,R,N}
+                                    thresh=1e-9, prescreen=true) where {T,R,N}
 #={{{=#
     c1 = term.clusters[1]
     c2 = term.clusters[2]
@@ -709,6 +709,14 @@ function contract_matvec(   term::ClusteredTerm3B,
     newJ = UnitRange{Int16}(1,size(gamma2,2))
     newK = UnitRange{Int16}(1,size(gamma3,2))
 
+    if prescreen
+        up_bound = upper_bound(term.ints, gamma1, gamma2, gamma3, c=maximum(abs.(coef_ket)))
+        if up_bound < thresh
+            return out
+        end
+        #newI, newJ, newK = upper_bound2(term.ints, gamma1, gamma2, gamma3, thresh, c=maximum(abs.(coef_ket)))
+        #minimum(length.([newI,newJ,newK])) > 0 || return out
+    end
 
 #    scr1 = zeros(size(gamma1,2))
 #    for k::Int16 in newK 
@@ -749,7 +757,7 @@ function contract_matvec(   term::ClusteredTerm4B,
                                     cluster_ops::Vector{ClusterOps},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
-                                    thresh=1e-9, do_prescreen=true) where {T,R,N}
+                                    thresh=1e-9, prescreen=true) where {T,R,N}
 #={{{=#
     c1 = term.clusters[1]
     c2 = term.clusters[2]
@@ -780,48 +788,21 @@ function contract_matvec(   term::ClusteredTerm4B,
 
     out = OrderedDict{ClusterConfig{N}, MVector{R,T}}()
     
-    if do_prescreen
+    if prescreen
 
         #
         #   max(H_IJKL) <= sum_pqrs abs(V(pqrs)) max(g1(p)_I) max(g2(q)_J) max(g3(r)_K) max(g4(s)_L) * max(abs(coeffs))
 
-        up_bound = 0
-        for p in 1:length(size(term.ints,1))
-            pmax = maximum(abs.(gamma1[p,:]))
-            for q in 1:length(size(term.ints,2))
-                qmax = maximum(abs.(gamma2[q,:]))
-                for r in 1:length(size(term.ints,3))
-                    rmax = maximum(abs.(gamma3[r,:]))
-                    for s in 1:length(size(term.ints,4))
-                        smax = maximum(abs.(gamma4[s,:]))
+        up_bound = upper_bound(term.ints, gamma1, gamma2, gamma3, gamma4, c=maximum(abs.(coef_ket)))
+        #@btime up_bound = upper_bound($term.ints, $gamma1, $gamma2, $gamma3, $gamma4, c=maximum(abs.($coef_ket)))
+        up_bound > thresh || return out
 
-                        up_bound += maximum(abs.(coef_ket)) * abs(term.ints[p,q,r,s]) * pmax * qmax * rmax * smax
-                    end
-                end
-            end
-        end
+        #
+        # screen phase 2: ignore indices for each cluster which will produce discarded terms
 
-        if up_bound < thresh
-            return out
-        end
+        newI, newJ, newK, newL = upper_bound2(term.ints, gamma1, gamma2, gamma3, gamma4, thresh, c=maximum(abs.(coef_ket)))
 
-        ints_max = sum(abs.(term.ints)) * maximum(abs.(coef_ket))
-        newI = Vector{Int16}() 
-        newJ = Vector{Int16}() 
-        newK = Vector{Int16}() 
-        newL = Vector{Int16}() 
-        for i in 1:size(gamma1,2)
-            maximum(abs.(gamma1[:,i]))*ints_max < thresh || push!(newI, i)
-        end
-        for i in 1:size(gamma2,2)
-            maximum(abs.(gamma2[:,i]))*ints_max < thresh || push!(newJ, i)
-        end
-        for i in 1:size(gamma3,2)
-            maximum(abs.(gamma3[:,i]))*ints_max < thresh || push!(newK, i)
-        end
-        for i in 1:size(gamma4,2)
-            maximum(abs.(gamma4[:,i]))*ints_max < thresh || push!(newL, i)
-        end
+        minimum(length.([newI,newJ,newK,newL])) > 0 || return out
 
         #@views gamma1 = gamma1[:,newI]
         #@views gamma2 = gamma2[:,newJ]
@@ -856,14 +837,26 @@ function contract_matvec(   term::ClusteredTerm4B,
     #newK = UnitRange{Int16}(1,size(gamma3,2))
     #newL = UnitRange{Int16}(1,size(gamma4,2))
 
+
+
+    g2max = zeros(size(gamma2,1))
+    for q in 1:size(gamma2,1)
+        g2max[q] = maximum(abs.(gamma2[q,:]))* maximum(abs.(coef_ket))
+    end
+
     for l::Int16 in 1:length(newL)
         cket[c4.idx] = newL[l]
         for k::Int16 in 1:length(newK)
             cket[c3.idx] = newK[k]
            
-            if do_prescreen
-                sum(abs.(XpqKL[:,:,k,l]))*maximum(abs.(coef_ket)) > thresh || continue
-            end
+#            if prescreen
+#                #isum(abs.(XpqKL[:,:,k,l]))*maximum(abs.(coef_ket)) > thresh || continue
+#                upper_bound(XpqKL[:,:,k,l]', gamma2, c=maximum(abs.(coef_ket))) > thresh || continue
+#                #bound = 0
+#                #for q in 1:size(gamma2,1)
+#                #    bound += maximum(abs.(XpqKL[:,q,k,l])) * g2max[q]
+#                #end
+#            end
 
             #
             # tmp1(p,J) = Xpq * g2(q,J)
@@ -872,8 +865,8 @@ function contract_matvec(   term::ClusteredTerm4B,
             BLAS.gemm!('N','N', 1.0, XpqKL[:,:,k,l], gamma2, 0.0, scr1)
             #BLAS.gemm!('N','N', 1.0, XpqKL[:,:,k,l], gamma2, 1.0, scr1)
             
-            if do_prescreen
-                sum(abs.(scr1))*maximum(abs.(coef_ket)) > thresh || continue
+            if prescreen
+                upper_bound(gamma1,scr1, c=maximum(abs.(coef_ket))) > thresh || continue
             end
             
             #_test1!(scr1, XpqKL, gamma2, k, l)
@@ -948,6 +941,351 @@ function _collect_significant2!(out, newI, newJ, scr2, coef_ket, cket, thresh, c
         end
     end
 end
+
+
+
+"""
+Return upper bound on the size of matrix elements resulting from matrix multiply 
+
+V[I,J] =  g1[i,I] * g2[i,J] * c 
+
+max(|V|) <= sum_i max|g1[i,:]| * max|g2[i,:]| * |c|
+"""
+function upper_bound(g1, g2; c::Float64=1.0)
+#={{{=#
+    bound = 0
+    n1 = size(g1,1) 
+    n2 = size(g2,1) 
+    n1 == n2 || throw(DimensionMismatch)
+
+    absc = abs(c)
+    @inbounds @simd for p in 1:n1
+        pmax = maximum(abs.(g1[p,:]))
+        qmax = maximum(abs.(g2[p,:]))
+        bound += pmax * qmax * absc
+    end
+
+    return bound
+end
+#=}}}=#
+
+"""
+Return upper bound on the size of tensor elements resulting from the following contraction
+
+V[I,J] = v[i,j] * g1[i,I] * g2[j,J] 
+
+max(|V|) <= sum_ij |v[ij]| * |g1[i,:]|_8 * |g2[j,:]|_8 * |c|
+"""
+function upper_bound(v::Array{Float64,2}, g1, g2; c::Float64=1.0)
+    #={{{=#
+    bound = 0
+    n1 = size(g1,1) 
+    n2 = size(g2,1) 
+
+    pmax = zeros(n1)
+    qmax = zeros(n2)
+    for p in 1:n1
+        pmax[p] = maximum(abs.(g1[p,:]))
+    end
+    for p in 1:n2
+        qmax[p] = maximum(abs.(g2[p,:]))
+    end
+
+    tmp = 0.0
+    for q in 1:n2
+        tmp = abs(c) * qmax[q]  
+        @inbounds @simd for p in 1:n1
+            bound += tmp * abs(v[p,q]) * pmax[p]
+        end
+    end
+
+    return bound
+end
+#=}}}=#
+
+"""
+Return upper bound on the size of tensor elements resulting from the following contraction
+
+V[I,J,K] = v[i,j,k] * g1[i,I] * g2[j,J] * g3[k,K] 
+
+max(|V|) <= sum_ijk |v[ijk]| * |g1[i,:]|_8 * |g2[j,:]|_8 * |g3[k,:]|_8 * |c|
+"""
+function upper_bound(v::Array{Float64,3}, g1, g2, g3; c::Float64=1.0)
+#={{{=#
+    bound = 0
+    n1 = size(g1,1) 
+    n2 = size(g2,1) 
+    n3 = size(g3,1) 
+
+    pmax = zeros(n1)
+    qmax = zeros(n2)
+    rmax = zeros(n3)
+    for p in 1:n1
+        pmax[p] = maximum(abs.(g1[p,:]))
+    end
+    for p in 1:n2
+        qmax[p] = maximum(abs.(g2[p,:]))
+    end
+    for p in 1:n3
+        rmax[p] = maximum(abs.(g3[p,:]))
+    end
+    
+    tmp = 0.0
+    @inbounds for r in 1:n3
+        for q in 1:n2
+            tmp = abs(c) * qmax[q] * rmax[r] 
+            @simd for p in 1:n1
+                bound += tmp * abs(v[p,q,r]) * pmax[p]
+            end
+        end
+    end
+
+    return bound
+end
+#=}}}=#
+
+"""
+Return upper bound on the size of tensor elements resulting from the following contraction
+
+V[I,J,K,L] = v[i,j,k,l] * g1[i,I] * g2[j,J] * g3[k,K] * g4[l,L]
+
+max(|V|) <= sum_ijkl |v[ijkl]| * |g1[i,:]|_8 * |g2[j,:]|_8 * |g3[k,:]|_8 * |g4[l,:]|_8
+"""
+function upper_bound(v::Array{Float64,4}, g1, g2, g3, g4; c::Float64=1.0)
+    #={{{=#
+        bound = 0
+        n1 = size(g1,1) 
+        n2 = size(g2,1) 
+        n3 = size(g3,1) 
+        n4 = size(g4,1) 
+    
+        pmax = zeros(n1)
+        qmax = zeros(n2)
+        rmax = zeros(n3)
+        smax = zeros(n4)
+        for p in 1:n1
+            pmax[p] = maximum(abs.(g1[p,:]))
+        end
+        for p in 1:n2
+            qmax[p] = maximum(abs.(g2[p,:]))
+        end
+        for p in 1:n3
+            rmax[p] = maximum(abs.(g3[p,:]))
+        end
+        for p in 1:n4
+            smax[p] = maximum(abs.(g4[p,:]))
+        end
+        
+        tmp = 0.0
+        @inbounds for s in 1:n4
+            for r in 1:n3
+                for q in 1:n2
+                    tmp = abs(c) * qmax[q] * rmax[r] * smax[s] 
+                    @simd for p in 1:n1
+                        bound += tmp * abs(v[p,q,r,s]) * pmax[p]
+                    end
+                end
+            end
+        end
+    return bound
+end
+#=}}}=#
+
+
+        
+"""
+max(H_IJ(K)|_K <= sum_r (sum_pq vpqrs max(g1[p,:]) * max(g2[q,:]) * |c| ) * |g3(r,K)|
+"""
+function upper_bound2(v::Array{Float64,3}, g1, g2, g3, thresh; c::Float64=1.0)
+    #={{{=#
+        newI = Vector{Int16}() 
+        newJ = Vector{Int16}() 
+        newK = Vector{Int16}() 
+       
+        n1 = size(v,1)
+        n2 = size(v,2)
+        n3 = size(v,3)
+
+        n1 == size(g1,1) || throw(DimensionMismatch)
+        n2 == size(g2,1) || throw(DimensionMismatch)
+        n3 == size(g3,1) || throw(DimensionMismatch)
+        
+
+        pmax = zeros(n1)
+        qmax = zeros(n2)
+        rmax = zeros(n3)
+        for p in 1:n1
+            pmax[p] = maximum(abs.(g1[p,:]))
+        end
+        for p in 1:n2
+            qmax[p] = maximum(abs.(g2[p,:]))
+        end
+        for p in 1:n3
+            rmax[p] = maximum(abs.(g3[p,:]))
+        end
+
+
+        mI = zeros(size(g1,2))
+        @inbounds for r in 1:n3
+            for q in 1:n2
+                for p in 1:n1
+                    @. mI += abs(v[p,q,r]) * abs.(g1[p,:]) * qmax[q] * rmax[r] * abs(c) 
+                end
+            end
+        end
+
+        mJ = zeros(size(g2,2))
+        @inbounds for r in 1:n3
+            for q in 1:n2
+                for p in 1:n1
+                    @. mJ += abs(v[p,q,r]) * pmax[p] * abs.(g2[q,:]) * rmax[r] * abs(c) 
+                end
+            end
+        end
+
+        mK = zeros(size(g3,2))
+        @inbounds for r in 1:n3
+            for q in 1:n2
+                for p in 1:n1
+                    @. mK += abs(v[p,q,r]) * pmax[p] * qmax[q] * abs.(g3[r,:]) * abs(c) 
+                end
+            end
+        end
+
+        for I in 1:size(g1,2)
+            if abs(mI[I]) > thresh
+                push!(newI,I)
+            end
+        end
+
+        for J in 1:size(g2,2)
+            if abs(mJ[J]) > thresh
+                push!(newJ,J)
+            end
+        end
+
+        for K in 1:size(g3,2)
+            if abs(mK[K]) > thresh
+                push!(newK,K)
+            end
+        end
+
+    return newI, newJ, newK
+end
+#=}}}=#
+
+
+"""
+max(H_IJK(L)|_L <= sum_s (sum_pqr vpqrs max(g1[p,:]) * max(g2[q,:]) * max(g3[r,:]) * |c| ) * |g4(s,L)|
+"""
+function upper_bound2(v::Array{Float64,4}, g1, g2, g3, g4, thresh; c::Float64=1.0)
+    #={{{=#
+        newI = Vector{Int16}() 
+        newJ = Vector{Int16}() 
+        newK = Vector{Int16}() 
+        newL = Vector{Int16}() 
+       
+        n1 = size(v,1)
+        n2 = size(v,2)
+        n3 = size(v,3)
+        n4 = size(v,4)
+
+        n1 == size(g1,1) || throw(DimensionMismatch)
+        n2 == size(g2,1) || throw(DimensionMismatch)
+        n3 == size(g3,1) || throw(DimensionMismatch)
+        n4 == size(g4,1) || throw(DimensionMismatch)
+        
+
+        pmax = zeros(n1)
+        qmax = zeros(n2)
+        rmax = zeros(n3)
+        smax = zeros(n4)
+        for p in 1:n1
+            pmax[p] = maximum(abs.(g1[p,:]))
+        end
+        for p in 1:n2
+            qmax[p] = maximum(abs.(g2[p,:]))
+        end
+        for p in 1:n3
+            rmax[p] = maximum(abs.(g3[p,:]))
+        end
+        for p in 1:n4
+            smax[p] = maximum(abs.(g4[p,:]))
+        end
+        
+
+
+        mI = zeros(size(g1,2))
+        @inbounds for s in 1:n4
+            for r in 1:n3
+                for q in 1:n2
+                    for p in 1:n1
+                        @. mI += abs(v[p,q,r,s]) * abs.(g1[p,:]) * qmax[q] * rmax[r] * smax[s] * abs(c) 
+                    end
+                end
+            end
+        end
+
+        mJ = zeros(size(g2,2))
+        @inbounds for s in 1:n4
+            for r in 1:n3
+                for q in 1:n2
+                    for p in 1:n1
+                        @. mJ += abs(v[p,q,r,s]) * pmax[p] * abs.(g2[q,:]) * rmax[r] * smax[s] * abs(c) 
+                    end
+                end
+            end
+        end
+
+        mK = zeros(size(g3,2))
+        @inbounds for s in 1:n4
+            for r in 1:n3
+                for q in 1:n2
+                    for p in 1:n1
+                        @. mK += abs(v[p,q,r,s]) * pmax[p] * qmax[q] * abs.(g3[r,:]) * smax[s] * abs(c) 
+                    end
+                end
+            end
+        end
+
+        mL = zeros(size(g4,2))
+        @inbounds for s in 1:n4
+            for r in 1:n3
+                for q in 1:n2
+                    for p in 1:n1
+                        @. mL += abs(v[p,q,r,s]) * pmax[p] * qmax[q] * rmax[r] * abs.(g4[s,:]) * abs(c) 
+                    end
+                end
+            end
+        end
+
+        for I in 1:size(g1,2)
+            if abs(mI[I]) > thresh
+                push!(newI,I)
+            end
+        end
+
+        for J in 1:size(g2,2)
+            if abs(mJ[J]) > thresh
+                push!(newJ,J)
+            end
+        end
+
+        for K in 1:size(g3,2)
+            if abs(mK[K]) > thresh
+                push!(newK,K)
+            end
+        end
+
+        for L in 1:size(g4,2)
+            if abs(mL[L]) > thresh
+                push!(newL,L)
+            end
+        end
+
+    return newI, newJ, newK, newL 
+end
+#=}}}=#
 
 
 #############################################################################################################################################
