@@ -849,14 +849,14 @@ function contract_matvec(   term::ClusteredTerm4B,
         for k::Int16 in 1:length(newK)
             cket[c3.idx] = newK[k]
            
-#            if prescreen
-#                #isum(abs.(XpqKL[:,:,k,l]))*maximum(abs.(coef_ket)) > thresh || continue
-#                upper_bound(XpqKL[:,:,k,l]', gamma2, c=maximum(abs.(coef_ket))) > thresh || continue
-#                #bound = 0
-#                #for q in 1:size(gamma2,1)
-#                #    bound += maximum(abs.(XpqKL[:,q,k,l])) * g2max[q]
-#                #end
-#            end
+            if prescreen
+                #isum(abs.(XpqKL[:,:,k,l]))*maximum(abs.(coef_ket)) > thresh || continue
+                upper_bound(XpqKL[:,:,k,l]', gamma2, c=maximum(abs.(coef_ket))) > thresh || continue
+                #bound = 0
+                #for q in 1:size(gamma2,1)
+                #    bound += maximum(abs.(XpqKL[:,q,k,l])) * g2max[q]
+                #end
+            end
 
             #
             # tmp1(p,J) = Xpq * g2(q,J)
@@ -1213,14 +1213,15 @@ function upper_bound2(v::Array{Float64,4}, g1, g2, g3, g4, thresh; c::Float64=1.
             smax[p] = maximum(abs.(g4[p,:]))
         end
         
-
+        tmp = 0.0
 
         mI = zeros(size(g1,2))
         @inbounds for s in 1:n4
             for r in 1:n3
                 for q in 1:n2
+                    tmp = qmax[q] * rmax[r] * smax[s] * abs(c) 
                     for p in 1:n1
-                        @. mI += abs(v[p,q,r,s]) * abs.(g1[p,:]) * qmax[q] * rmax[r] * smax[s] * abs(c) 
+                        @. mI += abs(v[p,q,r,s]) * abs.(g1[p,:]) * tmp  
                     end
                 end
             end
@@ -1229,9 +1230,10 @@ function upper_bound2(v::Array{Float64,4}, g1, g2, g3, g4, thresh; c::Float64=1.
         mJ = zeros(size(g2,2))
         @inbounds for s in 1:n4
             for r in 1:n3
-                for q in 1:n2
-                    for p in 1:n1
-                        @. mJ += abs(v[p,q,r,s]) * pmax[p] * abs.(g2[q,:]) * rmax[r] * smax[s] * abs(c) 
+                for p in 1:n1
+                    tmp = pmax[p] * rmax[r] * smax[s] * abs(c)
+                    for q in 1:n2
+                        @. mJ += abs(v[p,q,r,s]) * abs.(g2[q,:])  * tmp
                     end
                 end
             end
@@ -1239,21 +1241,23 @@ function upper_bound2(v::Array{Float64,4}, g1, g2, g3, g4, thresh; c::Float64=1.
 
         mK = zeros(size(g3,2))
         @inbounds for s in 1:n4
-            for r in 1:n3
-                for q in 1:n2
-                    for p in 1:n1
-                        @. mK += abs(v[p,q,r,s]) * pmax[p] * qmax[q] * abs.(g3[r,:]) * smax[s] * abs(c) 
+            for q in 1:n2
+                for p in 1:n1
+                    tmp = pmax[p] * qmax[q] * smax[s] * abs(c)
+                    for r in 1:n3
+                        @. mK += abs(v[p,q,r,s]) * abs.(g3[r,:]) * tmp 
                     end
                 end
             end
         end
 
         mL = zeros(size(g4,2))
-        @inbounds for s in 1:n4
-            for r in 1:n3
-                for q in 1:n2
-                    for p in 1:n1
-                        @. mL += abs(v[p,q,r,s]) * pmax[p] * qmax[q] * rmax[r] * abs.(g4[s,:]) * abs(c) 
+        @inbounds for r in 1:n3
+            for q in 1:n2
+                for p in 1:n1
+                    tmp =  pmax[p] * qmax[q] * rmax[r] * abs(c) 
+                    for s in 1:n4
+                        @. mL += abs(v[p,q,r,s]) * abs.(g4[s,:]) * tmp
                     end
                 end
             end

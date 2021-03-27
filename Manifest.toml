@@ -1038,6 +1038,12 @@ git-tree-sha1 = "9a336dee51d20d1ed890c4a8dca636e86e2b76ca"
 uuid = "36c8627f-9965-5494-a995-c6b170f724f3"
 version = "1.42.4+10"
 
+[[ParallelUtilities]]
+deps = ["DataStructures", "Distributed", "OffsetArrays", "ProgressMeter", "Reexport"]
+git-tree-sha1 = "b5e3f0ae68af53990780d7fdeb23efe86baff303"
+uuid = "fad6cfc8-4f83-11e9-06cc-151124046ad0"
+version = "0.7.7"
+
 [[Parameters]]
 deps = ["OrderedCollections", "UnPack"]
 git-tree-sha1 = "2276ac65f1e236e0a6ea70baff3f62ad4c625345"
@@ -1133,6 +1139,12 @@ deps = ["Cairo", "Colors", "FileIO", "FlameGraphs", "Graphics", "Gtk", "GtkReact
 git-tree-sha1 = "caa269e6f86900de232dffaf7e66edfe9414b007"
 uuid = "c46f51b8-102a-5cf2-8d2c-8597cb0e0da7"
 version = "0.6.9"
+
+[[ProgressMeter]]
+deps = ["Distributed", "Printf"]
+git-tree-sha1 = "6e9c89cba09f6ef134b00e10625590746ba1e036"
+uuid = "92933f4c-e287-5a05-a399-4b506db050ca"
+version = "1.5.0"
 
 [[ProtoBuf]]
 git-tree-sha1 = "51b74991da46594fb411a715e7e092bef50b99ff"

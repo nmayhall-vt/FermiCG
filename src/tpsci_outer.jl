@@ -1,3 +1,4 @@
+using Distributed
 using ThreadPools
 
 """
@@ -291,6 +292,7 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
     println()
     println(" Compute FOIS vector")
     norms = norm(ci_vector)
+    #@time sig = open_matvec_thread(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
     @time sig = open_matvec_parallel(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
     #@btime sig = open_matvec_parallel($ci_vector, $cluster_ops, $clustered_ham, nbody=$nbody, thresh=$thresh_foi)
     #@time sig = open_matvec(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
@@ -436,7 +438,7 @@ end
 
 
 """
-    open_matvec_parallel(ci_vector::ClusteredState, cluster_ops, clustered_ham; thresh=1e-9, nbody=4)
+    open_matvec_thread(ci_vector::ClusteredState, cluster_ops, clustered_ham; thresh=1e-9, nbody=4)
 
 Compute the action of the Hamiltonian on a tpsci state vector. Open here, means that we access the full FOIS 
 (restricted only by thresh), instead of the action of H on v within a subspace of configurations. 
@@ -445,7 +447,7 @@ This is essentially used for computing a PT correction outside of the subspace, 
 This parallellizes over FockConfigs in the output state, so it's not the most fine-grained, but it avoids data races in 
 filling the final vector
 """
-function open_matvec_parallel(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
+function open_matvec_thread(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 #={{{=#
     sig = deepcopy(ci_vector)
     zero!(sig)
@@ -535,6 +537,201 @@ function _open_matvec_job(job, fock_bra, cluster_ops, nbody, thresh, N, R, T)
     return sigfock
 end
 #=}}}=#
+
+"""
+    open_matvec_parallel(ci_vector::ClusteredState, cluster_ops, clustered_ham; thresh=1e-9, nbody=4)
+
+Compute the action of the Hamiltonian on a tpsci state vector. Open here, means that we access the full FOIS 
+(restricted only by thresh), instead of the action of H on v within a subspace of configurations. 
+This is essentially used for computing a PT correction outside of the subspace, or used for searching in TPSCI.
+
+This parallellizes over FockConfigs in the output state, so it's not the most fine-grained, but it avoids data races in 
+filling the final vector
+"""
+function open_matvec_parallel(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
+#={{{=#
+    
+    sig = deepcopy(ci_vector)
+    zero!(sig)
+    clusters = ci_vector.clusters
+    jobs = Dict{FockConfig{N},Vector{Tuple}}()
+   
+    println(" Copy data to each worker")
+    @sync for pid in procs()
+        @spawnat pid eval(:(ci_vector = deepcopy($ci_vector)))
+        @spawnat pid eval(:(sig_job = ClusteredState($clusters, R=$R)))
+        @spawnat pid eval(:(cluster_ops = $cluster_ops))
+        @spawnat pid eval(:(clusters = $clusters))
+        @spawnat pid eval(:(thresh = $thresh))
+    end
+    flush(stdout)
+
+    println(" Collect jobs")
+    @time for (fock_ket, configs_ket) in ci_vector.data
+        for (ftrans, terms) in clustered_ham
+            fock_bra = ftrans + fock_ket
+
+            #
+            # check to make sure this fock config doesn't have negative or too many electrons in any cluster
+            all(f[1] >= 0 for f in fock_bra) || continue 
+            all(f[2] >= 0 for f in fock_bra) || continue 
+            all(f[1] <= length(clusters[fi]) for (fi,f) in enumerate(fock_bra)) || continue 
+            all(f[2] <= length(clusters[fi]) for (fi,f) in enumerate(fock_bra)) || continue 
+           
+            job_input = (terms, fock_ket, configs_ket)
+            if haskey(jobs, fock_bra)
+                push!(jobs[fock_bra], job_input)
+            else
+                jobs[fock_bra] = [job_input]
+            end
+            
+        end
+    end
+
+    jobs_vec = []
+    for (fock_bra, job) in jobs
+        push!(jobs_vec, (fock_bra, job))
+    end
+
+    jobs_out = Dict{Int, ClusteredState{T,N,R}}()
+    for pid in procs()
+        jobs_out[pid] = ClusteredState(clusters, T=T, R=R)
+    end
+
+
+    println(" Number of jobs:    ", length(jobs))
+   
+
+    #@sync @distributed for job in jobs_vec
+   
+    futures = []
+
+    println(" Compute all jobs")
+    @time @sync begin
+        for job in jobs_vec
+            fock_bra = job[1]
+            future_sigi = @spawnat :any _open_matvec_job_parallel(job[2], fock_bra, nbody, thresh, N, R, T)
+            #jobs_out[myid()][fock_bra] = sigi
+            push!(futures, future_sigi)
+        end
+    end
+
+    println(" Combine results")
+    flush(stdout)
+    @time for pid in procs()
+        add!(sig, @fetchfrom pid sig_job)
+    end
+
+    #BLAS.set_num_threads(Threads.nthreads())
+    return sig
+end
+#=}}}=#
+
+function _open_matvec_job_parallel(job, fock_bra, nbody, thresh, N, R, T)
+#={{{=#
+    #sigfock = OrderedDict{ClusterConfig{N}, MVector{R, T} }()
+
+    #sig = ClusteredState(clusters,R=R)
+    add_fockconfig!(sig_job, fock_bra)
+
+    for jobi in job 
+
+        terms, fock_ket, configs_ket = jobi
+
+        for term in terms
+
+            length(term.clusters) <= nbody || continue
+
+            for (config_ket, coeff_ket) in configs_ket
+
+                sig_i = contract_matvec(term, cluster_ops, fock_bra, fock_ket, config_ket, coeff_ket, thresh=thresh)
+                #if term isa ClusteredTerm4B
+                #    @btime sig_i = contract_matvec($term, $cluster_ops, $fock_bra, $fock_ket, $config_ket, $coeff_ket, thresh=$thresh)
+                #    error("here")
+                #end
+                merge!(+, sig_job[fock_bra], sig_i)
+            end
+        end
+    end
+    return 
+end
+#=}}}=#
+
+"""
+"""
+function open_matvec_parallel2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
+#={{{=#
+    sig = deepcopy(ci_vector)
+    zero!(sig)
+    clusters = ci_vector.clusters
+
+    println(" create empty sig vector on each worker")
+    @sync for pid in procs()
+        @spawnat pid eval(:(ci_vector = deepcopy($ci_vector)))
+        @spawnat pid eval(:(sig_job = ClusteredState($clusters, R=$R)))
+        @spawnat pid eval(:(cluster_ops = $cluster_ops))
+        @spawnat pid eval(:(clusters = $clusters))
+        @spawnat pid eval(:(thresh = $thresh))
+    end
+    println("done")
+    flush(stdout)
+
+
+    #jobs = Vector{Tuple{TransferConfig{N}, ClusteredTerm}}()
+    #println(" Number of jobs: ", length(jobs))
+
+   
+    println(" Compute all jobs")
+    futures = []
+    @time @sync for (ftrans, terms) in clustered_ham
+        for term in terms
+            length(term.clusters) <= nbody || continue
+
+            future = @spawnat :any _do_job(ftrans, term)
+            #future = do_job(ftrans, term)
+            push!(futures, future)
+        end
+    end
+
+    println(" combine results")
+    flush(stdout)
+    @time @sync for pid in procs()
+        add!(sig, @fetchfrom pid sig_job)
+    end
+
+#    n = length(futures)
+#    @elapsed while n > 0 # print out results
+#        add!(sig, take!(futures))
+#        n = n - 1
+#    end
+
+    return sig
+end
+#=}}}=#
+
+function _do_job(ftrans, term)
+    for (fock_ket, configs_ket) in ci_vector.data
+        fock_bra = ftrans + fock_ket
+
+        #
+        # check to make sure this fock config doesn't have negative or too many electrons in any cluster
+        all(f[1] >= 0 for f in fock_bra) || continue 
+        all(f[2] >= 0 for f in fock_bra) || continue 
+        all(f[1] <= length(clusters[fi]) for (fi,f) in enumerate(fock_bra)) || continue 
+        all(f[2] <= length(clusters[fi]) for (fi,f) in enumerate(fock_bra)) || continue 
+
+        haskey(sig_job, fock_bra) || add_fockconfig!(sig_job, fock_bra)
+
+
+        for (config_ket, coeff_ket) in configs_ket
+
+            sig_i = contract_matvec(term, cluster_ops, fock_bra, fock_ket, config_ket, coeff_ket, thresh=thresh)
+
+            merge!(+, sig_job[fock_bra], sig_i)
+        end
+    end
+    return 
+end
 
 
 """

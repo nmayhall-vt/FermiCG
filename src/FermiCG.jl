@@ -65,4 +65,6 @@ export Molecule
 export Atom
 export Cluster
 export ClusterBasis
+export ClusteredState
+
 end
