@@ -27,10 +27,10 @@ using Arpack
     push!(atoms,Atom(12,"H",[0, 5*a, 11*r]))
 
 
-    clusters    = [(1:2),(3:4),(5:6),(7:8),(9:12)]
-    init_fspace = [(1,1),(1,1),(1,1),(1,1),(2,2)]
     clusters    = [(1:4),(5:8),(9:12)]
     init_fspace = [(2,2),(2,2),(2,2)]
+    clusters    = [(1:2),(3:4),(5:6),(7:8),(9:12)]
+    init_fspace = [(1,1),(1,1),(1,1),(1,1),(2,2)]
     na = 6
     nb = 6
 
@@ -172,28 +172,28 @@ using Arpack
 
     display(S2)
 
-    @test isapprox(abs.(ref), abs.(e0+e2), atol=1e-8)
+    #@test isapprox(abs.(ref), abs.(e0+e2), atol=1e-8)
    
 
-#    rotations = FermiCG.hosvd(v0, cluster_ops)
-#    for ci in clusters
-#        FermiCG.rotate!(cluster_ops[ci.idx], rotations[ci.idx])
-#        FermiCG.rotate!(cluster_bases[ci.idx], rotations[ci.idx])
-#        FermiCG.check_basis_orthogonality(cluster_bases[ci.idx])
-#    end
-#
-#    #cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
-#    #FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
-#    
-#    
-#    e0a, e2a, v0a, v1a = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, 
-#                                        thresh_cipsi=1e-3, thresh_foi=1e-8, thresh_asci=1e-2);
-#
-#    ref = [-18.32519617,  
-#           -18.04757949,  
-#           -18.02204597,  
-#           -17.98871359]
-#    
-#    @test isapprox(abs.(ref), abs.(e0a), atol=1e-8)
+    rotations = FermiCG.hosvd(v0, cluster_ops)
+    for ci in clusters
+        FermiCG.rotate!(cluster_ops[ci.idx], rotations[ci.idx])
+        FermiCG.rotate!(cluster_bases[ci.idx], rotations[ci.idx])
+        FermiCG.check_basis_orthogonality(cluster_bases[ci.idx])
+    end
+
+    #cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
+    #FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
+    
+    
+    e0a, e2a, v0a, v1a = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, 
+                                        thresh_cipsi=1e-3, thresh_foi=1e-8, thresh_asci=1e-2);
+
+    ref = [-18.32519617,  
+           -18.04757949,  
+           -18.02204597,  
+           -17.98871359]
+    
+    #@test isapprox(abs.(ref), abs.(e0a), atol=1e-8)
 end
 

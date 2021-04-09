@@ -65,7 +65,8 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
     thresh_foi   = 1e-6,
     thresh_asci  = 1e-2,
     max_iter     = 10,
-    conv_thresh  = 1e-4) where {T,N,R}
+    conv_thresh  = 1e-4,
+    matvec       = 1) where {T,N,R}
 #={{{=#
     vec_var = deepcopy(ci_vector)
     vec_pt = deepcopy(ci_vector)
@@ -146,7 +147,7 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
         #    end
         #end
         @printf(" Length of ASCI vector %8i → %8i \n", l1, l2)
-        @time e2, vec_pt = compute_pt2(vec_asci, cluster_ops, clustered_ham, thresh_foi=thresh_foi)
+        @time e2, vec_pt = compute_pt2(vec_asci, cluster_ops, clustered_ham, thresh_foi=thresh_foi, matvec=matvec)
         flush(stdout)
 
 
@@ -284,23 +285,35 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
         nbody=4, 
         H0="Hcmf", 
         thresh_foi=1e-8, 
-        verbose=1) where {T,N,R}
+        verbose=1,
+        matvec=1) where {T,N,R}
     #={{{=#
 
     e2 = zeros(T,R)
     
     println()
+    norms = norm(ci_vector);
+    println(" Norms of input states")
+    display(norms)
     println(" Compute FOIS vector")
-    norms = norm(ci_vector)
-    #@time sig = open_matvec_thread(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
-    @time sig = open_matvec_parallel(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+
+    if matvec == 1
+        @time sig = open_matvec_thread(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+    elseif matvec == 2
+        @time sig = open_matvec(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+    elseif matvec == 3
+        @time sig = open_matvec_thread2(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+    else
+        error("wrong matvec")
+    end
+    #@time sig = open_matvec_parallel(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
     #@btime sig = open_matvec_parallel($ci_vector, $cluster_ops, $clustered_ham, nbody=$nbody, thresh=$thresh_foi)
-    #@time sig = open_matvec(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
     println(" Length of FOIS vector: ", length(sig))
 
     clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = H0) 
     
     project_out!(sig, ci_vector)
+    println(" Length of FOIS vector: ", length(sig))
     
 
     println(" Compute diagonal")
@@ -495,7 +508,8 @@ function open_matvec_thread(ci_vector::ClusteredState{T,N,R}, cluster_ops, clust
    
 
     #for job in jobs_vec
-    @qthreads for job in jobs_vec
+    #@qthreads for job in jobs_vec
+    Threads.@threads for job in jobs_vec
         fock_bra = job[1]
         sigi = _open_matvec_job(job[2], fock_bra, cluster_ops, nbody, thresh, N, R, T)
         tmp = jobs_out[Threads.threadid()]
@@ -503,6 +517,7 @@ function open_matvec_thread(ci_vector::ClusteredState{T,N,R}, cluster_ops, clust
     end
 
     for threadid in 1:Threads.nthreads()
+        #display(size(jobs_out[threadid]))
         add!(sig, jobs_out[threadid])
     end
 
@@ -526,7 +541,7 @@ function _open_matvec_job(job, fock_bra, cluster_ops, nbody, thresh, N, R, T)
             for (config_ket, coeff_ket) in configs_ket
 
                 sig_i = contract_matvec(term, cluster_ops, fock_bra, fock_ket, config_ket, coeff_ket, thresh=thresh)
-                #if term isa ClusteredTerm4B
+                #if term isa ClusteredTerm2B
                 #    @btime sig_i = contract_matvec($term, $cluster_ops, $fock_bra, $fock_ket, $config_ket, $coeff_ket, thresh=$thresh)
                 #    error("here")
                 #end
@@ -865,7 +880,8 @@ function hosvd(ci_vector::ClusteredState{T,N,R}, cluster_ops; hshift=1e-8, trunc
         println(" Hshift = ",hshift)
         
         dims = Dict()
-        for (fock, mat) in cluster_ops[1]["H"]
+        for (fock, mat) in cluster_ops[ci.idx]["H"]
+            fock[1] == fock[2] || error("?")
             dims[fock[1]] = size(mat,1)
         end
         

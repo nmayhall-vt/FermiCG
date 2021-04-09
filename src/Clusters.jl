@@ -86,7 +86,7 @@ end
 ######################################################################################################
 struct ClusterOps
     cluster::Cluster
-    data::Dict{String,Dict{Tuple,Array}}
+    data::Dict{String,Dict{Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}},Array}}
 end
 Base.iterate(i::ClusterOps, state=1) = iterate(i.data, state)
 Base.length(i::ClusterOps) = length(co.data)
@@ -106,7 +106,7 @@ function Base.display(co::ClusterOps)
     end
 end
 function ClusterOps(ci::Cluster)
-    dic1 = Dict{Tuple,Array{Float64}}()
+    dic1 = Dict{Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}},Array{Float64}}()
     dic2 = Dict{String,typeof(dic1)}() 
     return ClusterOps(ci, dic2)
 end
