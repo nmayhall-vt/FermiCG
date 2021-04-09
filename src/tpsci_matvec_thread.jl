@@ -264,9 +264,9 @@ function _collect_significant_thread!(out, conf_ket, new_coeffs, coeff, c1idx, n
                 
             tmp = ClusterConfig(SVector(scr3))
             if haskey(out, tmp)
-                out[tmp] .+= new_coeffs[i]*coeff 
+                out[tmp] .+= new_coeffs[i].*coeff 
             else
-                out[tmp] = new_coeffs[i]*coeff 
+                out[tmp] = new_coeffs[i].*coeff 
             end
         end
     end
@@ -289,9 +289,9 @@ function _collect_significant_thread!(out, conf_ket, new_coeffs, coeff, c1idx, c
                 tmp = ClusterConfig(SVector(scr3))
                 #if haskey(out, ClusterConfig(scr3))
                 if haskey(out, tmp)
-                    out[tmp] .+= new_coeffs[i,j]*coeff 
+                    out[tmp] .+= new_coeffs[i,j].*coeff 
                 else
-                    out[tmp] = new_coeffs[i,j]*coeff 
+                    out[tmp] = new_coeffs[i,j].*coeff 
                 end
             end
         end
