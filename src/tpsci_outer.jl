@@ -507,9 +507,9 @@ function open_matvec_thread(ci_vector::ClusteredState{T,N,R}, cluster_ops, clust
     #Threads.@threads for job in jobs_vec
    
 
-    #for job in jobs_vec
+    for job in jobs_vec
     #@qthreads for job in jobs_vec
-    Threads.@threads for job in jobs_vec
+    #Threads.@threads for job in jobs_vec
         fock_bra = job[1]
         sigi = _open_matvec_job(job[2], fock_bra, cluster_ops, nbody, thresh, N, R, T)
         tmp = jobs_out[Threads.threadid()]

@@ -47,14 +47,20 @@ function open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clus
 
     scr1 = Vector{Vector{Float64}}()
     scr2 = Vector{Vector{Float64}}()
-    scr3 = Vector{MVector{N,Int16}}()
+    scr3 = Vector{Vector{Float64}}()
+    scr4 = Vector{Vector{Float64}}()
+    tmp1 = Vector{MVector{N,Int16}}()
+    tmp2 = Vector{MVector{N,Int16}}()
 
     jobs_out = Vector{ClusteredState{T,N,R}}()
     for tid in 1:Threads.nthreads()
         push!(jobs_out, ClusteredState(clusters, T=T, R=R))
         push!(scr1, zeros(1))
         push!(scr2, zeros(1))
-        push!(scr3, zeros(Int16,N))
+        push!(scr3, zeros(1))
+        push!(scr4, zeros(1))
+        push!(tmp1, zeros(Int16,N))
+        push!(tmp2, zeros(Int16,N))
     end
 
 
@@ -65,13 +71,13 @@ function open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clus
     #Threads.@threads for job in jobs_vec
    
 
-    #for job in jobs_vec
+    for job in jobs_vec
     #@qthreads for job in jobs_vec
-    @Threads.threads for job in jobs_vec
+    #@Threads.threads for job in jobs_vec
         fock_bra = job[1]
         tid = Threads.threadid()
-        _open_matvec_thread2_job(job[2], fock_bra, cluster_ops, nbody, thresh, jobs_out[tid], scr1[tid], scr2[tid], scr3[tid])
-        #@btime _open_matvec_thread2_job($job[2], $fock_bra, $cluster_ops, $nbody, $thresh, $jobs_out[$tid], $scr1[$tid], $scr2[$tid], $scr3[$tid])
+        _open_matvec_thread2_job(job[2], fock_bra, cluster_ops, nbody, thresh, 
+                                 jobs_out[tid], scr1[tid], scr2[tid], scr3[tid], scr4[tid], tmp1[tid], tmp2[tid])
     end
 
     for threadid in 1:Threads.nthreads()
@@ -83,7 +89,7 @@ function open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clus
 end
 #=}}}=#
 
-function _open_matvec_thread2_job(job, fock_bra, cluster_ops, nbody, thresh, sig, scr1, scr2, scr3)
+function _open_matvec_thread2_job(job, fock_bra, cluster_ops, nbody, thresh, sig, scr1, scr2, scr3, scr4, tmp1, tmp2)
 #={{{=#
 
     haskey(sig, fock_bra) || add_fockconfig!(sig, fock_bra)
@@ -102,14 +108,14 @@ function _open_matvec_thread2_job(job, fock_bra, cluster_ops, nbody, thresh, sig
                 #term isa ClusteredTerm2B || continue
 
                 contract_matvec_thread(term, cluster_ops, fock_bra, fock_ket, config_ket, coeff_ket, sig[fock_bra], 
-                                       scr1, scr2, scr3, thresh=thresh)
-                if term isa ClusteredTerm2B
+                                       scr1, scr2, scr3, scr4, tmp1, tmp2, thresh=thresh)
+                if term isa ClusteredTerm3B
                     #@code_lowered contract_matvec_thread(term, cluster_ops, fock_bra, fock_ket, config_ket, coeff_ket, 
                     #                              sig[fock_bra],scr1, scr2, thresh=thresh)
                     #@code_warntype contract_matvec_thread(term, cluster_ops, fock_bra, fock_ket, config_ket, coeff_ket, 
                     #                              sig[fock_bra],scr1, scr2, thresh=thresh)
                     #@btime contract_matvec_thread($term, $cluster_ops, $fock_bra, $fock_ket, $config_ket, $coeff_ket, 
-                    #                              $sig[$fock_bra],$scr1, $scr2, $scr3, thresh=$thresh)
+                    #                              $sig[$fock_bra],$scr1, $scr2, $scr3, $scr4, $tmp1, $tmp2, thresh=$thresh)
                 end
             end
         end
@@ -124,7 +130,10 @@ function contract_matvec_thread(   term::ClusteredTerm1B,
                                     cluster_ops::Vector{ClusterOps},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T},
-                                    sig, scr1::Vector{Float64}, scr2::Vector{Float64}, scr3::MVector{N,Int16};
+                                    sig, 
+                                    scr1::Vector{Float64}, scr2::Vector{Float64}, 
+                                    scr3::Vector{Float64}, scr4::Vector{Float64}, 
+                                    tmp1::MVector{N,Int16}, tmp2::MVector{N,Int16};
                                     thresh=1e-9) where {T,R,N}
 #={{{=#
     c1 = term.clusters[1]
@@ -155,7 +164,7 @@ function contract_matvec_thread(   term::ClusteredTerm1B,
     #new_coeffs = scr1
     #newI = 1:size(new_coeffs,1)
 
-    _collect_significant_thread!(sig, conf_ket, scr1, coef_ket, c1.idx,  newI,  thresh, scr3)
+    _collect_significant_thread!(sig, conf_ket, scr1, coef_ket, c1.idx,  newI,  thresh, tmp1)
     #_collect_significant_thread!(sig, conf_ket, new_coeffs, coef_ket, c1.idx,  newI,  thresh)
             
 
@@ -168,7 +177,10 @@ function contract_matvec_thread(   term::ClusteredTerm2B,
                                     cluster_ops::Vector{ClusterOps},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T},
-                                    sig, scr1::Vector{Float64}, scr2::Vector{Float64}, scr3::MVector{N,Int16};
+                                    sig, 
+                                    scr1::Vector{Float64}, scr2::Vector{Float64}, 
+                                    scr3::Vector{Float64}, scr4::Vector{Float64}, 
+                                    tmp1::MVector{N,Int16}, tmp2::MVector{N,Int16};
                                     thresh=1e-9) where {T,R,N}
 #={{{=#
 
@@ -240,29 +252,130 @@ function contract_matvec_thread(   term::ClusteredTerm2B,
     #tmp = ClusterConfig{N}(ntuple(i -> convert(Int16, scr3[i]), length(scr3)))
     #tmp2 = ntuple(i -> convert(Int16, scr3[i]), length(scr3))
 
-    _collect_significant_thread!(sig, conf_ket, new_coeffs, coef_ket, c1.idx, c2.idx, newI, newJ, thresh, scr3)
+    _collect_significant_thread!(sig, conf_ket, new_coeffs, coef_ket, c1.idx, c2.idx, newI, newJ, thresh, tmp1)
     #@btime _collect_significant_thread!($sig, $conf_ket, $new_coeffs, $coef_ket, $c1.idx, $c2.idx, $newI, $newJ, $thresh, $scr3)
 
     return 
 end
 #=}}}=#
 
+"""
+    contract_matvec(    term::ClusteredTerm4B, 
+                        cluster_ops::Vector{ClusterOps},
+                        fock_bra, fock_ket, ket)
+
+This version should only use M^2N^2 storage, and n^5 scaling n={MN}
+"""
+function contract_matvec_thread(   term::ClusteredTerm3B, 
+                                    cluster_ops::Vector{ClusterOps},
+                                    fock_bra::FockConfig{N}, 
+                                    fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T},
+                                    sig, 
+                                    scr1::Vector{Float64}, scr2::Vector{Float64}, 
+                                    scr3::Vector{Float64}, scr4::Vector{Float64}, 
+                                    tmp1::MVector{N,Int16}, tmp2::MVector{N,Int16};
+                                    thresh=1e-9, prescreen=true) where {T,R,N}
+#={{{=#
+    c1 = term.clusters[1]
+    c2 = term.clusters[2]
+    c3 = term.clusters[3]
+
+    # 
+    # determine sign from rearranging clusters if odd number of operators
+    state_sign = compute_terms_state_sign(term, fock_ket) 
+    
 
 
-function _collect_significant_thread!(out, conf_ket, new_coeffs, coeff, c1idx, newI, thresh, scr3) 
+    #
+    # h(pqr) <I|p'|_> <J|q|_> <K|r|_> 
+    #
+    # X(p,J,K) = h(pqr) <J|q|_> <K|r|_>
+    #
+    #
+    g1::Array{Float64,3} = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
+    g2::Array{Float64,3} = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])]
+    g3::Array{Float64,3} = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])]
+    @views gamma1 = g1[:,:,conf_ket[c1.idx]]
+    @views gamma2 = g2[:,:,conf_ket[c2.idx]]
+    #@views gamma3 = g3[:,:,conf_ket[c3.idx]]
+    
+    #if prescreen
+    #    up_bound = upper_bound(term.ints, gamma1, gamma2, gamma3, c=maximum(abs.(coef_ket)))
+    #    if up_bound < thresh
+    #        return out
+    #    end
+    #    #newI, newJ, newK = upper_bound2(term.ints, gamma1, gamma2, gamma3, thresh, c=maximum(abs.(coef_ket)))
+    #    #minimum(length.([newI,newJ,newK])) > 0 || return out
+    #end
+    
+    newI = UnitRange{Int16}(1,size(g1,2))
+    newJ = UnitRange{Int16}(1,size(g2,2))
+    newK = UnitRange{Int16}(1,size(g3,2))
+
+    # 
+    # for K in G3
+    #   scr1(p,q) = h(p,q,r) * G3(r;K)          N^3M^1
+    #   scr2(p,J) = scr1(p,q) * G2(q,J)
+    #   scr3(I,J) = G1(p,I)' * scr2(p,J)
+    #
+    #   collect(scr3(I,J))
+
+
+    np = size(term.ints,1)
+    nq = size(term.ints,2)
+    nr = size(term.ints,3)
+    nI = length(newI) 
+    nJ = length(newJ) 
+    nK = length(newK) 
+    
+    resize!(scr1, np*nq)
+    resize!(scr2, np*nJ)
+    resize!(scr3, nI*nJ)
+    
+    scr2 = reshape2(scr2, (np,nJ))
+    scr3 = reshape2(scr3, (nI,nJ))
+  
+    
+    v = reshape2(term.ints, (np*nq,nr))
+
+
+
+    tmp1 .= conf_ket.config
+
+    for K::Int16 in newK 
+   
+        @views gamma3 = g3[:,K,conf_ket[c3.idx]]
+    
+        tmp1[c3.idx] = K
+                
+        tmp_conf = ClusterConfig(SVector(tmp1))
+    
+        mul!(scr1, v, gamma3)
+        mul!(scr2, reshape2(scr1, (np,nq)), gamma2)
+        mul!(scr3, gamma1', scr2)
+        if state_sign < 0
+            scr3 .= -scr3
+        end 
+        
+        _collect_significant_thread!(sig, tmp_conf, scr3, coef_ket, c1.idx, c2.idx, newI, newJ, thresh, tmp2)
+    end
+
+    #display(del)
+    #error("huh")
+    return 
+end
+#=}}}=#
+
+
+function _collect_significant_thread!(out, conf_ket, new_coeffs, coeff, c1idx, newI, thresh, tmp1) 
     #={{{=#
-    N = length(conf_ket)
-    #cket = MVector{N,Int16}([conf_ket.config...])
-    #cket = [conf_ket.config...]
-    tmp = deepcopy(conf_ket)
-    scr3 .= conf_ket.config
+    tmp1 .= conf_ket.config
     thresh_curr = thresh / maximum(abs.(coeff))
     for i::Int16 in newI
-       # if any((abs(new_coeffs[i]*s) > thresh for s in coeff))
         if (new_coeffs[i] > thresh_curr) || (new_coeffs[i] < -thresh_curr)
-            scr3[c1idx] = i
+            tmp1[c1idx] = i
                 
-            tmp = ClusterConfig(SVector(scr3))
+            tmp = ClusterConfig(SVector(tmp1))
             if haskey(out, tmp)
                 out[tmp] .+= new_coeffs[i].*coeff 
             else
@@ -273,21 +386,16 @@ function _collect_significant_thread!(out, conf_ket, new_coeffs, coeff, c1idx, n
 end
 #=}}}=#
 
-function _collect_significant_thread!(out, conf_ket, new_coeffs, coeff, c1idx, c2idx, newI, newJ, thresh, scr3) 
+function _collect_significant_thread!(out, conf_ket, new_coeffs, coeff, c1idx, c2idx, newI, newJ, thresh, tmp1) 
 #={{{=#
-    N = length(conf_ket)
-    R = length(coeff)
-    tmp = deepcopy(conf_ket)
-    scr3 .= conf_ket.config
-    #cket = MVector{N,Int16}([conf_ket.config...])
+    tmp1 .= conf_ket.config
     thresh_curr = thresh / maximum(abs.(coeff))
     for j::Int16 in newJ
-        scr3[c2idx] = j
+        tmp1[c2idx] = j
         for i::Int16 in newI
             if (new_coeffs[i,j] > thresh_curr) || (new_coeffs[i,j] < -thresh_curr)
-                scr3[c1idx] = i
-                tmp = ClusterConfig(SVector(scr3))
-                #if haskey(out, ClusterConfig(scr3))
+                tmp1[c1idx] = i
+                tmp = ClusterConfig(SVector(tmp1))
                 if haskey(out, tmp)
                     out[tmp] .+= new_coeffs[i,j].*coeff 
                 else

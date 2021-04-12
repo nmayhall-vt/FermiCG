@@ -709,14 +709,14 @@ function contract_matvec(   term::ClusteredTerm3B,
     newJ = UnitRange{Int16}(1,size(gamma2,2))
     newK = UnitRange{Int16}(1,size(gamma3,2))
 
-    if prescreen
-        up_bound = upper_bound(term.ints, gamma1, gamma2, gamma3, c=maximum(abs.(coef_ket)))
-        if up_bound < thresh
-            return out
-        end
-        #newI, newJ, newK = upper_bound2(term.ints, gamma1, gamma2, gamma3, thresh, c=maximum(abs.(coef_ket)))
-        #minimum(length.([newI,newJ,newK])) > 0 || return out
-    end
+    #if prescreen
+    #    up_bound = upper_bound(term.ints, gamma1, gamma2, gamma3, c=maximum(abs.(coef_ket)))
+    #    if up_bound < thresh
+    #        return out
+    #    end
+    #    #newI, newJ, newK = upper_bound2(term.ints, gamma1, gamma2, gamma3, thresh, c=maximum(abs.(coef_ket)))
+    #    #minimum(length.([newI,newJ,newK])) > 0 || return out
+    #end
 
 #    scr1 = zeros(size(gamma1,2))
 #    for k::Int16 in newK 
@@ -728,7 +728,8 @@ function contract_matvec(   term::ClusteredTerm3B,
 #            _collect_significant2!(out, newI, scr1, coef_ket, cket, thresh, c1.idx)
 #        end
 #    end
-    
+   
+    #del = 0.0
     scr1 = zeros(size(gamma1,2),size(gamma2,2))
     for k::Int16 in newK 
         cket[c3.idx] = k
@@ -737,10 +738,15 @@ function contract_matvec(   term::ClusteredTerm3B,
         @views BLAS.gemm!('T', 'N', 1.0, gamma1, XpJK[:,:,k], 0.0, scr1)
         #@btime @views BLAS.gemm!('T', 'N', 1.0, $gamma1, $XpJK[:,:,$k], 0.0, $scr1)
         #@views scr1 = gamma1' * XpJK[:,:,k]
+
+        #del += sum(abs.(scr1))
+
         _collect_significant2!(out, newI, newJ, scr1, coef_ket, cket, thresh, c1.idx, c2.idx)
         #@btime _collect_significant2!($out, $newI, $newJ, $scr1, $coef_ket, $cket, $thresh, $c1.idx, $c2.idx)
 
     end
+    #display(del)
+    #error("huh")
 
     return out 
 end
