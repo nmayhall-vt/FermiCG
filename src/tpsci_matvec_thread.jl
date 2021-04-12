@@ -221,14 +221,10 @@ function contract_matvec_thread(   term::ClusteredTerm2B,
     mul!(scr2, scr1', gamma2)
     new_coeffs = scr2
   
-    if state_sign < 0
-        new_coeffs .= -new_coeffs
-    end 
-
     newI = 1:size(new_coeffs,1)
     newJ = 1:size(new_coeffs,2)
 
-    _collect_significant_thread!(sig, conf_ket, new_coeffs, coef_ket, c1.idx, c2.idx, newI, newJ, thresh, tmp1)
+    _collect_significant_thread!(sig, conf_ket, new_coeffs, coef_ket, c1.idx, c2.idx, newI, newJ, thresh, tmp1, state_sign)
     #@btime _collect_significant_thread!($sig, $conf_ket, $new_coeffs, $coef_ket, $c1.idx, $c2.idx, $newI, $newJ, $thresh, $scr3)
 
     return 
@@ -326,11 +322,7 @@ function contract_matvec_thread(   term::ClusteredTerm3B,
         mul!(scr2, reshape2(scr1, (np,nq)), gamma2)
         mul!(scr3, gamma1', scr2)
         
-        if state_sign < 0
-            scr3 .= -scr3
-        end 
-        
-        _collect_significant_thread!(sig, tmp_conf, scr3, coef_ket, c1.idx, c2.idx, newI, newJ, thresh, tmp2)
+        _collect_significant_thread!(sig, tmp_conf, scr3, coef_ket, c1.idx, c2.idx, newI, newJ, thresh, tmp2, state_sign)
     end
 
     return 
@@ -442,11 +434,7 @@ function contract_matvec_thread(   term::ClusteredTerm4B,
             mul!(scr3, reshape2(scr2, (np,nq)), gamma2)
             mul!(scr4, gamma1', scr3)
 
-            if state_sign < 0
-                scr4 .= -scr4
-            end 
-
-            _collect_significant_thread!(sig, tmp_conf, scr4, coef_ket, c1.idx, c2.idx, newI, newJ, thresh, tmp2)
+            _collect_significant_thread!(sig, tmp_conf, scr4, coef_ket, c1.idx, c2.idx, newI, newJ, thresh, tmp2, state_sign)
         end
     end
 
@@ -474,7 +462,7 @@ function _collect_significant_thread!(out, conf_ket, new_coeffs, coeff, c1idx, n
 end
 #=}}}=#
 
-function _collect_significant_thread!(out, conf_ket, new_coeffs, coeff, c1idx, c2idx, newI, newJ, thresh, tmp1) 
+function _collect_significant_thread!(out, conf_ket, new_coeffs, coeff, c1idx, c2idx, newI, newJ, thresh, tmp1, sign) 
 #={{{=#
     tmp1 .= conf_ket.config
     thresh_curr = thresh / maximum(abs.(coeff))
@@ -485,9 +473,21 @@ function _collect_significant_thread!(out, conf_ket, new_coeffs, coeff, c1idx, c
                 tmp1[c1idx] = i
                 tmp = ClusterConfig(SVector(tmp1))
                 if haskey(out, tmp)
-                    out[tmp] .+= new_coeffs[i,j].*coeff 
+                    if sign == 1
+                        out[tmp] .+= new_coeffs[i,j] .* coeff
+                    elseif sign == -1
+                        out[tmp] .-= new_coeffs[i,j] .* coeff
+                    else
+                        error(" only 1 or -1")
+                    end
                 else
-                    out[tmp] = new_coeffs[i,j].*coeff 
+                    if sign == 1
+                        out[tmp] = new_coeffs[i,j].*coeff 
+                    elseif sign == -1
+                        out[tmp] = -new_coeffs[i,j].*coeff 
+                    else
+                        error(" only 1 or -1")
+                    end
                 end
             end
         end
