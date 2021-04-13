@@ -235,6 +235,17 @@ function dot(v1::ClusteredState{T,N,R}, v2::ClusteredState{T,N,R}, r1, r2) where
 end
     
 """
+    dot(v1::ClusteredState,v2::ClusteredState; r1=1, r2=1)
+"""
+function orth!(v1::ClusteredState{T,N,R}) where {T,N,R}
+    d = T(0)
+    F = svd(get_vectors(v1))
+
+    set_vector!(v1, F.U*F.Vt)
+    return 
+end
+    
+"""
     prune_empty_fock_spaces!(s::ClusteredState)
         
 remove fock_spaces that don't have any configurations 

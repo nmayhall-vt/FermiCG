@@ -55,10 +55,10 @@ function open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clus
     jobs_out = Vector{ClusteredState{T,N,R}}()
     for tid in 1:Threads.nthreads()
         push!(jobs_out, ClusteredState(clusters, T=T, R=R))
-        push!(scr1, zeros(1))
-        push!(scr2, zeros(1))
-        push!(scr3, zeros(1))
-        push!(scr4, zeros(1))
+        push!(scr1, zeros(1000))
+        push!(scr2, zeros(1000))
+        push!(scr3, zeros(1000))
+        push!(scr4, zeros(1000))
         push!(tmp1, zeros(Int16,N))
         push!(tmp2, zeros(Int16,N))
     end
@@ -66,21 +66,24 @@ function open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clus
 
 
     println(" Number of jobs:    ", length(jobs_vec))
-    #println(" Number of threads: ", Threads.nthreads())
+    println(" Number of threads: ", Threads.nthreads())
     BLAS.set_num_threads(1)
     #Threads.@threads for job in jobs_vec
-   
+  
+    flush(stdout)
 
-    for job in jobs_vec
+    #for job in jobs_vec
     #@qthreads for job in jobs_vec
-    #@Threads.threads for job in jobs_vec
+    @time @Threads.threads for job in jobs_vec
         fock_bra = job[1]
         tid = Threads.threadid()
         _open_matvec_thread2_job(job[2], fock_bra, cluster_ops, nbody, thresh, 
                                  jobs_out[tid], scr1[tid], scr2[tid], scr3[tid], scr4[tid], tmp1[tid], tmp2[tid])
     end
 
-    for threadid in 1:Threads.nthreads()
+    println(" Now collect thread results")
+    flush(stdout)
+    @time for threadid in 1:Threads.nthreads()
         add!(sig, jobs_out[threadid])
     end
 
@@ -265,16 +268,18 @@ function contract_matvec_thread(   term::ClusteredTerm3B,
     g3::Array{Float64,3} = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])]
     @views gamma1 = g1[:,:,conf_ket[c1.idx]]
     @views gamma2 = g2[:,:,conf_ket[c2.idx]]
-    #@views gamma3 = g3[:,:,conf_ket[c3.idx]]
+    @views gamma3 = g3[:,:,conf_ket[c3.idx]]
     
-    #if prescreen
-    #    up_bound = upper_bound(term.ints, gamma1, gamma2, gamma3, c=maximum(abs.(coef_ket)))
-    #    if up_bound < thresh
-    #        return out
-    #    end
+    if prescreen
+        up_bound = upper_bound_thread(term.ints, gamma1, gamma2, gamma3,
+                              scr1, scr2, scr3,
+                              c=maximum(abs.(coef_ket)))
+        if up_bound < thresh
+            return 
+        end
     #    #newI, newJ, newK = upper_bound2(term.ints, gamma1, gamma2, gamma3, thresh, c=maximum(abs.(coef_ket)))
     #    #minimum(length.([newI,newJ,newK])) > 0 || return out
-    #end
+    end
     
     newI = UnitRange{Int16}(1,size(g1,2))
     newJ = UnitRange{Int16}(1,size(g2,2))
@@ -321,6 +326,11 @@ function contract_matvec_thread(   term::ClusteredTerm3B,
         mul!(scr1, v, gamma3)
         mul!(scr2, reshape2(scr1, (np,nq)), gamma2)
         mul!(scr3, gamma1', scr2)
+            
+        if prescreen
+            #@btime upper_bound_thread($gamma1, $scr2, c=maximum(abs.($coef_ket))) 
+            upper_bound_thread(gamma1, scr2, c=maximum(abs.(coef_ket))) > thresh || continue
+        end
         
         _collect_significant_thread!(sig, tmp_conf, scr3, coef_ket, c1.idx, c2.idx, newI, newJ, thresh, tmp2, state_sign)
     end
@@ -365,15 +375,17 @@ function contract_matvec_thread(   term::ClusteredTerm4B,
     g4::Array{Float64,3} = cluster_ops[c4.idx][term.ops[4]][(fock_bra[c4.idx],fock_ket[c4.idx])]
     @views gamma1 = g1[:,:,conf_ket[c1.idx]]
     @views gamma2 = g2[:,:,conf_ket[c2.idx]]
+    @views gamma3 = g3[:,:,conf_ket[c3.idx]]
+    @views gamma4 = g4[:,:,conf_ket[c4.idx]]
     
-    #if prescreen
-    #    up_bound = upper_bound(term.ints, gamma1, gamma2, gamma3, c=maximum(abs.(coef_ket)))
-    #    if up_bound < thresh
-    #        return out
-    #    end
-    #    #newI, newJ, newK = upper_bound2(term.ints, gamma1, gamma2, gamma3, thresh, c=maximum(abs.(coef_ket)))
-    #    #minimum(length.([newI,newJ,newK])) > 0 || return out
-    #end
+    if prescreen
+        up_bound = upper_bound_thread(term.ints, gamma1, gamma2, gamma3, gamma4,
+                              scr1, scr2, scr3, scr4,
+                              c=maximum(abs.(coef_ket)))
+        if up_bound < thresh
+            return 
+        end
+    end
     
     newI = UnitRange{Int16}(1,size(g1,2))
     newJ = UnitRange{Int16}(1,size(g2,2))
@@ -433,6 +445,10 @@ function contract_matvec_thread(   term::ClusteredTerm4B,
             mul!(scr2, reshape2(scr1, (np*nq,nr)), gamma3)
             mul!(scr3, reshape2(scr2, (np,nq)), gamma2)
             mul!(scr4, gamma1', scr3)
+            if prescreen
+                #@btime upper_bound_thread($gamma1, $scr2, c=maximum(abs.($coef_ket))) 
+                upper_bound_thread(gamma1, scr3, c=maximum(abs.(coef_ket))) > thresh || continue
+            end
 
             _collect_significant_thread!(sig, tmp_conf, scr4, coef_ket, c1.idx, c2.idx, newI, newJ, thresh, tmp2, state_sign)
         end
@@ -466,10 +482,12 @@ function _collect_significant_thread!(out, conf_ket, new_coeffs, coeff, c1idx, c
 #={{{=#
     tmp1 .= conf_ket.config
     thresh_curr = thresh / maximum(abs.(coeff))
-    for j::Int16 in newJ
+
+    @inbounds for j::Int16 in newJ
         tmp1[c2idx] = j
         for i::Int16 in newI
-            if (new_coeffs[i,j] > thresh_curr) || (new_coeffs[i,j] < -thresh_curr)
+            if abs(new_coeffs[i,j]) > thresh_curr
+            #if (new_coeffs[i,j] > thresh_curr) || (new_coeffs[i,j] < -thresh_curr)
                 tmp1[c1idx] = i
                 tmp = ClusterConfig(SVector(tmp1))
                 if haskey(out, tmp)
@@ -495,3 +513,135 @@ function _collect_significant_thread!(out, conf_ket, new_coeffs, coeff, c1idx, c
 end
 #=}}}=#
 
+"""
+Return upper bound on the size of matrix elements resulting from matrix multiply 
+
+V[I,J] =  g1[i,I] * g2[i,J] * c 
+
+max(|V|) <= sum_i max|g1[i,:]| * max|g2[i,:]| * |c|
+"""
+function upper_bound_thread(g1, g2; c::Float64=1.0)
+#={{{=#
+    bound::Float64 = 0.0
+    n1 = size(g1,1) 
+    n2 = size(g2,1) 
+    n1 == n2 || throw(DimensionMismatch)
+
+    absc = abs(c)
+    @inbounds @simd for p in 1:n1
+        @views pmax = maximum(abs, g1[p,:])
+        @views qmax = maximum(abs, g2[p,:])
+        bound += pmax * qmax
+    end
+    bound *= absc
+    return bound
+end
+#=}}}=#
+
+"""
+Return upper bound on the size of tensor elements resulting from the following contraction
+
+V[I,J,K] = v[i,j,k] * g1[i,I] * g2[j,J] * g3[k,K] 
+
+max(|V|) <= sum_ijk |v[ijk]| * |g1[i,:]|_8 * |g2[j,:]|_8 * |g3[k,:]|_8 
+"""
+function upper_bound_thread(v::Array{Float64,3}, g1, g2, g3, scr1, scr2, scr3; c::Float64=1.0)
+    #={{{=#
+        bound = 0
+        n1 = size(g1,1) 
+        n2 = size(g2,1) 
+        n3 = size(g3,1) 
+   
+        resize!(scr1, n1)
+        resize!(scr2, n2)
+        resize!(scr3, n3)
+        pmax = scr1 
+        qmax = scr2
+        rmax = scr3
+
+        fill!(pmax, 0.0)
+        fill!(qmax, 0.0)
+        fill!(rmax, 0.0)
+        
+        for p in 1:n1
+            @views pmax[p] = maximum(abs(i) for i in g1[p,:])
+            #@views pmax[p] = maximum(abs.(g1[p,:]))
+        end
+        for p in 1:n2
+            @views qmax[p] = maximum(abs(i) for i in g2[p,:])
+        end
+        for p in 1:n3
+            @views rmax[p] = maximum(abs(i) for i in g3[p,:])
+        end
+        
+        tmp = 0.0
+        @inbounds for r in 1:n3
+            for q in 1:n2
+                tmp = abs(c) * qmax[q] * rmax[r] 
+                @simd for p in 1:n1
+                    bound += tmp * abs(v[p,q,r]) * pmax[p]
+                end
+            end
+        end
+    return bound
+end
+#=}}}=#
+
+
+"""
+Return upper bound on the size of tensor elements resulting from the following contraction
+
+V[I,J,K,L] = v[i,j,k,l] * g1[i,I] * g2[j,J] * g3[k,K] * g4[l,L]
+
+max(|V|) <= sum_ijkl |v[ijkl]| * |g1[i,:]|_8 * |g2[j,:]|_8 * |g3[k,:]|_8 * |g4[l,:]|_8
+"""
+function upper_bound_thread(v::Array{Float64,4}, g1, g2, g3, g4, scr1, scr2, scr3, scr4; c::Float64=1.0)
+    #={{{=#
+        bound = 0
+        n1 = size(g1,1) 
+        n2 = size(g2,1) 
+        n3 = size(g3,1) 
+        n4 = size(g4,1) 
+   
+        resize!(scr1, n1)
+        resize!(scr2, n2)
+        resize!(scr3, n3)
+        resize!(scr4, n4)
+        pmax = scr1 
+        qmax = scr2
+        rmax = scr3
+        smax = scr4
+
+        fill!(pmax, 0.0)
+        fill!(qmax, 0.0)
+        fill!(rmax, 0.0)
+        fill!(smax, 0.0)
+        
+        for p in 1:n1
+            @views pmax[p] = maximum(abs(i) for i in g1[p,:])
+            #@views pmax[p] = maximum(abs.(g1[p,:]))
+        end
+        for p in 1:n2
+            @views qmax[p] = maximum(abs(i) for i in g2[p,:])
+        end
+        for p in 1:n3
+            @views rmax[p] = maximum(abs(i) for i in g3[p,:])
+        end
+        for p in 1:n4
+            @views smax[p] = maximum(abs(i) for i in g4[p,:])
+        end
+        
+        tmp = 0.0
+        @inbounds for s in 1:n4
+            for r in 1:n3
+                for q in 1:n2
+                    tmp = abs(c) * qmax[q] * rmax[r] * smax[s] 
+                    @simd for p in 1:n1
+                        bound += tmp * abs(v[p,q,r,s]) * pmax[p]
+                    end
+                end
+            end
+        end
+    return bound
+end
+#=}}}=#

@@ -66,6 +66,7 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
     thresh_asci  = 1e-2,
     max_iter     = 10,
     conv_thresh  = 1e-4,
+    nbody        = 4,
     matvec       = 1) where {T,N,R}
 #={{{=#
     vec_var = deepcopy(ci_vector)
@@ -147,7 +148,7 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
         #    end
         #end
         @printf(" Length of ASCI vector %8i → %8i \n", l1, l2)
-        @time e2, vec_pt = compute_pt2(vec_asci, cluster_ops, clustered_ham, thresh_foi=thresh_foi, matvec=matvec)
+        @time e2, vec_pt = compute_pt2(vec_asci, cluster_ops, clustered_ham, thresh_foi=thresh_foi, matvec=matvec, nbody=nbody)
         flush(stdout)
 
 
@@ -286,7 +287,7 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
         H0="Hcmf", 
         thresh_foi=1e-8, 
         verbose=1,
-        matvec=1) where {T,N,R}
+        matvec=3) where {T,N,R}
     #={{{=#
 
     e2 = zeros(T,R)
@@ -298,9 +299,9 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
     println(" Compute FOIS vector")
 
     if matvec == 1
-        @time sig = open_matvec_thread(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
-    elseif matvec == 2
         @time sig = open_matvec(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+    elseif matvec == 2
+        @time sig = open_matvec_thread(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
     elseif matvec == 3
         @time sig = open_matvec_thread2(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
     else
@@ -507,9 +508,9 @@ function open_matvec_thread(ci_vector::ClusteredState{T,N,R}, cluster_ops, clust
     #Threads.@threads for job in jobs_vec
    
 
-    for job in jobs_vec
+    #for job in jobs_vec
     #@qthreads for job in jobs_vec
-    #Threads.@threads for job in jobs_vec
+    Threads.@threads for job in jobs_vec
         fock_bra = job[1]
         sigi = _open_matvec_job(job[2], fock_bra, cluster_ops, nbody, thresh, N, R, T)
         tmp = jobs_out[Threads.threadid()]
