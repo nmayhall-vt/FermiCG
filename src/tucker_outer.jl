@@ -128,7 +128,7 @@ Ax=b
 After solving, the Energy can be obtained as:
 E = (Eref + Hax*Cx) / (1 + Sax*Cx)
 """
-function tucker_cepa_solve(ref_vector::CompressedTuckerState, cepa_vector::CompressedTuckerState, cluster_ops, clustered_ham; tol=1e-5, cache=true, max_iter=30, verbose=false)
+function tucker_cepa_solve(ref_vector::CompressedTuckerState, cepa_vector::CompressedTuckerState, cluster_ops, clustered_ham, cepa_shift="cepa", cepa_mit = 50; tol=1e-5, cache=true, max_iter=30, verbose=false)
 #={{{=#
 
     sig = deepcopy(ref_vector)
@@ -139,6 +139,7 @@ function tucker_cepa_solve(ref_vector::CompressedTuckerState, cepa_vector::Compr
     e0 = e0[1]
     @printf(" Reference Energy: %12.8f\n",e0)
 
+    n_clusters = length(cepa_vector.clusters)
 
     x_vector = deepcopy(cepa_vector)
     a_vector = deepcopy(ref_vector)
@@ -195,69 +196,101 @@ function tucker_cepa_solve(ref_vector::CompressedTuckerState, cepa_vector::Compr
     @printf(" Norm of Sx overlap: %18.12f\n", orth_dot(Sx,Sx))
     @printf(" Norm of b         : %18.12f\n", sum(bv.*bv))
 
-    bv .= bv .+ get_vector(Sx)*e0
 
-    @printf(" Norm of b         : %18.12f\n", sum(bv.*bv))
+    Ec = 0
+    Ecepa = 0
+    for it in 1:cepa_mit 
 
-    function mymatvec(v)
-        set_vector!(x_vector, v)
-        #@printf(" Overlap between <1|0>:          %8.1e\n", nonorth_dot(x_vector, ref_vector, verbose=0))
+    	bv = -get_vector(b)
+        #n_clusters = 8
+    	if cepa_shift == "cepa"
+	    shift = 0.0
+	elseif cepa_shift == "acpf"
+
+	    shift = Ec * 2.0 / n_clusters
+	elseif cepa_shift == "aqcc"
+	    shift = (1.0 - (n_clusters-3.0)*(n_clusters - 2.0)/(n_clusters * ( n_clusters-1.0) )) * Ec
+	elseif cepa_shift == "cisd"
+	    shift = Ec
+	else
+	    println()
+	    println("NYI: cepa_shift is not available:",cepa_shift)
+	    println()
+	    exit()
+	end
+	eshift = e0+shift
+        bv .= bv .+ get_vector(Sx)* (eshift)
+
+        function mymatvec(v)
+            set_vector!(x_vector, v)
+            #@printf(" Overlap between <1|0>:          %8.1e\n", nonorth_dot(x_vector, ref_vector, verbose=0))
+            sig = deepcopy(x_vector)
+            zero!(sig)
+            #build_sigma!(sig, x_vector, cluster_ops, clustered_ham, cache=false)
+            build_sigma!(sig, x_vector, cluster_ops, clustered_ham, cache=cache)
+
+            tmp = deepcopy(x_vector)
+            scale!(tmp, -eshift)
+            orth_add!(sig, tmp)
+            return get_vector(sig)
+        end
+
+        @printf(" Norm of b         : %18.12f\n", sum(bv.*bv))
+        
+        dim = length(x_vector)
+        Axx = LinearMap(mymatvec, dim, dim)
+        #Axx = LinearMap(mymatvec, dim, dim; issymmetric=true, ismutating=false, ishermitian=true)
+
+        #flush term cache
+        println(" Now flushing:")
+        flush_cache(clustered_ham)
+
+        if cache
+            @time cache_hamiltonian(x_vector, x_vector, cluster_ops, clustered_ham)
+        end
+       
+        println(" Start CEPA iterations with dimension = ", length(x_vector))
+        x, solver = cg!(get_vector(x_vector), Axx,bv,log=true, maxiter=max_iter, verbose=verbose, abstol=tol)
+        
+        #flush term cache
+        println(" Now flushing:")
+        flush_cache(clustered_ham)
+
+        set_vector!(x_vector, x)
+
+        SxC = nonorth_dot(Sx,x_vector)
+        @printf(" <A|X>C(X) = %18.12e\n", SxC)
+
+        sig = deepcopy(ref_vector)
+        zero!(sig)
+        build_sigma!(sig,x_vector, cluster_ops, clustered_ham)
+        ecorr = nonorth_dot(sig,ref_vector)
+        @printf(" Cepa: %18.12f\n", ecorr)
+        
         sig = deepcopy(x_vector)
         zero!(sig)
-        #build_sigma!(sig, x_vector, cluster_ops, clustered_ham, cache=false)
-        build_sigma!(sig, x_vector, cluster_ops, clustered_ham, cache=cache)
+        build_sigma!(sig,ref_vector, cluster_ops, clustered_ham)
+        ecorr = nonorth_dot(sig,x_vector)
+        @printf(" Cepa: %18.12f\n", ecorr)
+        
+        length(ecorr) == 1 || error(" Dimension Error", ecorr)
+        ecorr = ecorr[1]
+        @printf(" <1|1> = %18.12f\n", orth_dot(x_vector,x_vector))
+        @printf(" <1|1> = %18.12f\n", sum(x.*x))
 
-        tmp = deepcopy(x_vector)
-        scale!(tmp, -e0)
-        orth_add!(sig, tmp)
-        return get_vector(sig)
+        @printf(" E(CEPA) = %18.12f\n", (e0 + ecorr)/(1+SxC))
+	Ecepa = (e0 + ecorr)/(1+SxC)
+        @printf(" %s %18.12f\n",cepa_shift, (e0 + ecorr)/(1+SxC))
+        @printf("Iter: %4d        %18.12f %18.12f \n",it,Ec ,Ecepa-e0)
+	if abs(Ec - (Ecepa-e0)) < 1e-6
+            @printf(" Converged %s %18.12f\n",cepa_shift, (e0 + ecorr)/(1+SxC))
+	    break
+	end
+	Ec = Ecepa - e0
     end
-    
-    dim = length(x_vector)
-    Axx = LinearMap(mymatvec, dim, dim)
-    #Axx = LinearMap(mymatvec, dim, dim; issymmetric=true, ismutating=false, ishermitian=true)
-
-    #flush term cache
-    println(" Now flushing:")
-    flush_cache(clustered_ham)
-
-    if cache
-        @time cache_hamiltonian(x_vector, x_vector, cluster_ops, clustered_ham)
-    end
-   
-    println(" Start CEPA iterations with dimension = ", length(x_vector))
-    x, solver = cg!(get_vector(x_vector), Axx,bv,log=true, maxiter=max_iter, verbose=verbose, abstol=tol)
-    
-    #flush term cache
-    println(" Now flushing:")
-    flush_cache(clustered_ham)
-
-    set_vector!(x_vector, x)
-
-    SxC = nonorth_dot(Sx,x_vector)
-    @printf(" <A|X>C(X) = %18.12e\n", SxC)
-
-    sig = deepcopy(ref_vector)
-    zero!(sig)
-    build_sigma!(sig,x_vector, cluster_ops, clustered_ham)
-    ecorr = nonorth_dot(sig,ref_vector)
-    @printf(" Cepa: %18.12f\n", ecorr)
-    
-    sig = deepcopy(x_vector)
-    zero!(sig)
-    build_sigma!(sig,ref_vector, cluster_ops, clustered_ham)
-    ecorr = nonorth_dot(sig,x_vector)
-    @printf(" Cepa: %18.12f\n", ecorr)
-    
-    length(ecorr) == 1 || error(" Dimension Error", ecorr)
-    ecorr = ecorr[1]
-    @printf(" <1|1> = %18.12f\n", orth_dot(x_vector,x_vector))
-    @printf(" <1|1> = %18.12f\n", sum(x.*x))
-
-    @printf(" E(CEPA) = %18.12f\n", (e0 + ecorr)/(1+SxC))
 
     #x, info = linsolve(Hmap,zeros(size(v0)))
-    return (ecorr+e0)/(1+SxC), x_vector 
+    return Ecepa, x_vector 
 end#=}}}=#
 
 """
@@ -1068,14 +1101,71 @@ function do_fois_pt2(ref::CompressedTuckerState, cluster_ops, clustered_ham;
     @printf(" E(PT2) tot  = %12.8f\n", e_pt2)
     return e_pt2, pt1_vec 
 end
+
+function do_fois_ci(ref::CompressedTuckerState, cluster_ops, clustered_ham;
+            H0          = "Hcmf",
+            max_iter    = 50,
+            nbody       = 4,
+            thresh_foi  = 1e-6,
+            tol         = 1e-5,
+            verbose     = true)
+    @printf("\n-------------------------------------------------------\n")
+    @printf(" Do CI in FOIS\n")
+    @printf("   H0                      = %-s\n", H0)
+    @printf("   thresh_foi              = %-8.1e\n", thresh_foi)
+    @printf("   nbody                   = %-i\n", nbody)
+    @printf("\n")
+    @printf("   Length of Reference     = %-i\n", length(ref))
+    @printf("\n-------------------------------------------------------\n")
+
+    # 
+    # Solve variationally in reference space
+    ref_vec = deepcopy(ref)
+    @printf(" Solve zeroth-order problem. Dimension = %10i\n", length(ref_vec))
+    @time e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, tol=tol)
+
+    #
+    # Get First order wavefunction
+    println()
+    println(" Compute FOIS. Reference space dim = ", length(ref_vec))
+    @time pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+
+    @printf(" Nick: %12.8f\n", sqrt(orth_dot(pt1_vec,pt1_vec)))
+    project_out!(pt1_vec, ref)
+
+    # 
+    # Compress FOIS
+    norm1 = sqrt(orth_dot(pt1_vec, pt1_vec))
+    dim1 = length(pt1_vec)
+    pt1_vec = compress(pt1_vec, thresh=thresh_foi)
+    norm2 = sqrt(orth_dot(pt1_vec, pt1_vec))
+    dim2 = length(pt1_vec)
+    @printf(" FOIS Compressed from:     %8i → %8i (thresh = %8.1e)\n", dim1, dim2, thresh_foi)
+    @printf(" Norm of |1>:              %12.8f → %12.8f (thresh = %8.1e)\n", norm1, norm2, thresh_foi)
+    @printf(" Overlap between <1|0>:    %12.1e\n", nonorth_dot(pt1_vec, ref_vec, verbose=0))
+
+    nonorth_add!(ref_vec, pt1_vec)
+    # 
+    # Solve for first order wavefunction 
+    println(" Compute CI energy in the space = ", length(ref_vec))
+    pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol, max_iter=max_iter, H0=H0)
+    eci, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, tol=tol)
+    @printf(" E(Ref)      = %12.8f\n", e0[1])
+    @printf(" E(CI) tot  = %12.8f\n", eci[1])
+    return eci[1], ref_vec 
+end
+    
     
 
 
 function do_fois_cepa(ref::CompressedTuckerState, cluster_ops, clustered_ham;
             max_iter    = 20,
+	    cepa_shift  = "cepa",
+	    cepa_mit    = 30,
             nbody       = 4,
             thresh_foi  = 1e-6,
             tol         = 1e-5,
+	    compress_type= "matvec",
             verbose     = true)
     @printf("\n-------------------------------------------------------\n")
     @printf(" Do CEPA\n")
@@ -1083,6 +1173,8 @@ function do_fois_cepa(ref::CompressedTuckerState, cluster_ops, clustered_ham;
     @printf("   nbody                   = %-i\n", nbody)
     @printf("\n")
     @printf("   Length of Reference     = %-i\n", length(ref))
+    @printf("   Calculation type        = %s\n", cepa_shift)
+    @printf("   Compression type        = %s\n", compress_type)
     @printf("\n-------------------------------------------------------\n")
 
     # 
@@ -1100,11 +1192,13 @@ function do_fois_cepa(ref::CompressedTuckerState, cluster_ops, clustered_ham;
 
     project_out!(pt1_vec, ref)
 
-#    #
-#    # 
-#    println()
-#    println(" Compute PT vector. Reference space dim = ", length(ref_vec))
-#    pt1_vec = hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol, do_pt=do_pt)
+    if compress_type == "pt_vec"
+	println()
+	println(" Compute PT vector. Reference space dim = ", length(ref_vec))
+	pt1_vec, e_pt2 = hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol, do_pt=true)
+    end
+
+    display(pt1_vec)
 
     # 
     # Compress FOIS
@@ -1123,7 +1217,7 @@ function do_fois_cepa(ref::CompressedTuckerState, cluster_ops, clustered_ham;
     cepa_vec = deepcopy(pt1_vec)
     zero!(cepa_vec)
     println(" Do CEPA: Dim = ", length(cepa_vec))
-    @time e_cepa, x_cepa = tucker_cepa_solve(ref_vec, cepa_vec, cluster_ops, clustered_ham, tol=tol, max_iter=max_iter, verbose=verbose)
+    @time e_cepa, x_cepa = tucker_cepa_solve(ref_vec, cepa_vec, cluster_ops, clustered_ham, cepa_shift, cepa_mit,tol=tol, max_iter=max_iter, verbose=verbose)
 
     @printf(" E(cepa) corr =                 %12.8f\n", e_cepa)
     @printf(" X(cepa) norm =                 %12.8f\n", sqrt(orth_dot(x_cepa, x_cepa)))
