@@ -67,5 +67,7 @@ export Atom
 export Cluster
 export ClusterBasis
 export ClusteredState
+export ClusterConfig 
+export FockConfig 
 
 end

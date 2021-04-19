@@ -35,9 +35,10 @@ end
 """
     getindex(s::ClusteredState, fock::Vector{Tuple{T,T}}) where T<:Integer
 """
-Base.getindex(s::ClusteredState, fock::Vector{Tuple{T,T}}) where T<:Integer = s.data[fock]
-Base.getindex(s::ClusteredState, fock) = s.data[fock]
-Base.setindex!(s::ClusteredState, a, b) = s.data[b] = a
+#Base.getindex(s::ClusteredState, fock::Vector{Tuple{T,T}}) where T<:Integer = s.data[fock]
+@inline Base.getindex(s::ClusteredState, fock) = s.data[fock]
+@inline Base.setindex!(s::ClusteredState, a, b) = s.data[b] = a
+
 
 function Base.size(s::ClusteredState{T,N,R}) where {T,N,R}
     return length(s),R
@@ -91,7 +92,8 @@ function set_vector!(ts::ClusteredState{T,N,R}, v::Matrix{T}) where {T,N,R}
     idx = 1
     for (fock, tconfigs) in ts.data
         for (tconfig, coeffs) in tconfigs
-            ts[fock][tconfig] = MVector{R}(v[idx,:])
+            #ts[fock][tconfig] = MVector{R}(v[idx,:])
+            @views coeffs .= v[idx,:]
             idx += 1
         end
     end

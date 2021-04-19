@@ -1,4 +1,6 @@
 using ThreadPools
+
+
 """
     open_matvec_thread(ci_vector::ClusteredState, cluster_ops, clustered_ham; thresh=1e-9, nbody=4)
 
@@ -45,6 +47,11 @@ function open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clus
         push!(jobs_vec, (fock_bra, job))
     end
 
+    scr_f = Vector{Vector{Vector{Float64}} }()
+    scr_i = Vector{Vector{Vector{Int16}} }()
+    scr_m = Vector{Vector{MVector{N,Int16}} }()
+    nscr = 20 
+
     scr1 = Vector{Vector{Float64}}()
     scr2 = Vector{Vector{Float64}}()
     scr3 = Vector{Vector{Float64}}()
@@ -61,6 +68,18 @@ function open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clus
         push!(scr4, zeros(1000))
         push!(tmp1, zeros(Int16,N))
         push!(tmp2, zeros(Int16,N))
+
+        tmp = Vector{Vector{Float64}}() 
+        [push!(tmp, zeros(Float64,10000)) for i in 1:nscr]
+        push!(scr_f, tmp)
+
+        tmp = Vector{Vector{Int16}}() 
+        [push!(tmp, zeros(Int16,10000)) for i in 1:nscr]
+        push!(scr_i, tmp)
+
+        tmp = Vector{MVector{N,Int16}}() 
+        [push!(tmp, zeros(Int16,N)) for i in 1:nscr]
+        push!(scr_m, tmp)
     end
 
 
@@ -72,14 +91,15 @@ function open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clus
   
     flush(stdout)
 
-    #for job in jobs_vec
+    #@time for job in jobs_vec
     #@qthreads for job in jobs_vec
     @time @Threads.threads for job in jobs_vec
         fock_bra = job[1]
         tid = Threads.threadid()
         _open_matvec_thread2_job(job[2], fock_bra, cluster_ops, nbody, thresh, 
-                                 jobs_out[tid], scr1[tid], scr2[tid], scr3[tid], scr4[tid], tmp1[tid], tmp2[tid])
+                                 jobs_out[tid], scr_f[tid], scr_i[tid], scr_m[tid])
     end
+    flush(stdout)
 
     println(" Now collect thread results")
     flush(stdout)
@@ -92,7 +112,98 @@ function open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clus
 end
 #=}}}=#
 
-function _open_matvec_thread2_job(job, fock_bra, cluster_ops, nbody, thresh, sig, scr1, scr2, scr3, scr4, tmp1, tmp2)
+function open_matvec_serial2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
+#={{{=#
+    println(" In open_matvec_thread2\n")
+    sig = deepcopy(ci_vector)
+    zero!(sig)
+    clusters = ci_vector.clusters
+    jobs = Dict{FockConfig{N},Vector{Tuple}}()
+
+    for (fock_ket, configs_ket) in ci_vector.data
+        for (ftrans, terms) in clustered_ham
+            fock_bra = ftrans + fock_ket
+
+            #
+            # check to make sure this fock config doesn't have negative or too many electrons in any cluster
+            all(f[1] >= 0 for f in fock_bra) || continue 
+            all(f[2] >= 0 for f in fock_bra) || continue 
+            all(f[1] <= length(clusters[fi]) for (fi,f) in enumerate(fock_bra)) || continue 
+            all(f[2] <= length(clusters[fi]) for (fi,f) in enumerate(fock_bra)) || continue 
+           
+            job_input = (terms, fock_ket, configs_ket)
+            if haskey(jobs, fock_bra)
+                push!(jobs[fock_bra], job_input)
+            else
+                jobs[fock_bra] = [job_input]
+            end
+            
+        end
+    end
+
+    jobs_vec = []
+    for (fock_bra, job) in jobs
+        push!(jobs_vec, (fock_bra, job))
+    end
+
+    scr_f = Vector{Vector{Vector{Float64}} }()
+    scr_i = Vector{Vector{Vector{Int16}} }()
+    scr_m = Vector{Vector{MVector{N,Int16}} }()
+    nscr = 20 
+
+    scr1 = Vector{Vector{Float64}}()
+    scr2 = Vector{Vector{Float64}}()
+    scr3 = Vector{Vector{Float64}}()
+    scr4 = Vector{Vector{Float64}}()
+    tmp1 = Vector{MVector{N,Int16}}()
+    tmp2 = Vector{MVector{N,Int16}}()
+
+    jobs_out = Vector{ClusteredState{T,N,R}}()
+    for tid in 1:1
+        push!(jobs_out, ClusteredState(clusters, T=T, R=R))
+        push!(scr1, zeros(1000))
+        push!(scr2, zeros(1000))
+        push!(scr3, zeros(1000))
+        push!(scr4, zeros(1000))
+        push!(tmp1, zeros(Int16,N))
+        push!(tmp2, zeros(Int16,N))
+
+        tmp = Vector{Vector{Float64}}() 
+        [push!(tmp, zeros(Float64,10000)) for i in 1:nscr]
+        push!(scr_f, tmp)
+
+        tmp = Vector{Vector{Int16}}() 
+        [push!(tmp, zeros(Int16,10000)) for i in 1:nscr]
+        push!(scr_i, tmp)
+
+        tmp = Vector{MVector{N,Int16}}() 
+        [push!(tmp, zeros(Int16,N)) for i in 1:nscr]
+        push!(scr_m, tmp)
+    end
+
+
+
+    println(" Number of jobs:    ", length(jobs_vec))
+    flush(stdout)
+    @time for job in jobs_vec
+        fock_bra = job[1]
+        tid = 1
+        _open_matvec_thread2_job(job[2], fock_bra, cluster_ops, nbody, thresh, 
+                                 jobs_out[tid], scr_f[tid], scr_i[tid], scr_m[tid])
+    end
+    flush(stdout)
+
+    println(" Now collect thread results")
+    flush(stdout)
+    @time for threadid in 1:1
+        add!(sig, jobs_out[threadid])
+    end
+
+    return sig
+end
+#=}}}=#
+
+function _open_matvec_thread2_job(job, fock_bra, cluster_ops, nbody, thresh, sig, scr_f, scr_i, scr_m)
 #={{{=#
 
     haskey(sig, fock_bra) || add_fockconfig!(sig, fock_bra)
@@ -111,14 +222,12 @@ function _open_matvec_thread2_job(job, fock_bra, cluster_ops, nbody, thresh, sig
                 #term isa ClusteredTerm2B || continue
 
                 contract_matvec_thread(term, cluster_ops, fock_bra, fock_ket, config_ket, coeff_ket, sig[fock_bra], 
-                                       scr1, scr2, scr3, scr4, tmp1, tmp2, thresh=thresh)
-                if term isa ClusteredTerm4B
-                    #@code_lowered contract_matvec_thread(term, cluster_ops, fock_bra, fock_ket, config_ket, coeff_ket, 
-                    #                              sig[fock_bra],scr1, scr2, thresh=thresh)
+                                       scr_f, scr_i, scr_m, thresh=thresh)
+                if term isa ClusteredTerm3B
                     #@code_warntype contract_matvec_thread(term, cluster_ops, fock_bra, fock_ket, config_ket, coeff_ket, 
                     #                              sig[fock_bra],scr1, scr2, thresh=thresh)
                     #@btime contract_matvec_thread($term, $cluster_ops, $fock_bra, $fock_ket, $config_ket, $coeff_ket, 
-                    #                              $sig[$fock_bra],$scr1, $scr2, $scr3, $scr4, $tmp1, $tmp2, thresh=$thresh)
+                    #                              $sig[$fock_bra], $scr_f, $scr_i, $scr_m, thresh=$thresh)
                 end
             end
         end
@@ -134,9 +243,9 @@ function contract_matvec_thread(   term::ClusteredTerm1B,
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T},
                                     sig, 
-                                    scr1::Vector{Float64}, scr2::Vector{Float64}, 
-                                    scr3::Vector{Float64}, scr4::Vector{Float64}, 
-                                    tmp1::MVector{N,Int16}, tmp2::MVector{N,Int16};
+                                    scr_f::Vector{Vector{Float64}},  
+                                    scr_i::Vector{Vector{Int16}},  
+                                    scr_m::Vector{MVector{N,Int16}};  
                                     thresh=1e-9) where {T,R,N}
 #={{{=#
     c1 = term.clusters[1]
@@ -160,6 +269,7 @@ function contract_matvec_thread(   term::ClusteredTerm1B,
     
     @views gamma1 = g1[:,conf_ket[c1.idx]]
 
+    scr1 = scr_f[1]
     resize!(scr1, size(gamma1,1))
 
     scr1 .= gamma1 .* state_sign
@@ -167,7 +277,7 @@ function contract_matvec_thread(   term::ClusteredTerm1B,
     #new_coeffs = scr1
     #newI = 1:size(new_coeffs,1)
 
-    _collect_significant_thread!(sig, conf_ket, scr1, coef_ket, c1.idx,  newI,  thresh, tmp1)
+    _collect_significant_thread!(sig, conf_ket, scr1, coef_ket, c1.idx,  newI,  thresh, scr_m[1])
     #_collect_significant_thread!(sig, conf_ket, new_coeffs, coef_ket, c1.idx,  newI,  thresh)
             
 
@@ -181,9 +291,9 @@ function contract_matvec_thread(   term::ClusteredTerm2B,
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T},
                                     sig, 
-                                    scr1::Vector{Float64}, scr2::Vector{Float64}, 
-                                    scr3::Vector{Float64}, scr4::Vector{Float64}, 
-                                    tmp1::MVector{N,Int16}, tmp2::MVector{N,Int16};
+                                    scr_f::Vector{Vector{Float64}},  
+                                    scr_i::Vector{Vector{Int16}},  
+                                    scr_m::Vector{MVector{N,Int16}};  
                                     thresh=1e-9) where {T,R,N}
 #={{{=#
 
@@ -213,6 +323,9 @@ function contract_matvec_thread(   term::ClusteredTerm2B,
     @views gamma2 = g2[:,:,conf_ket[c2.idx]]
     
 
+    scr1 = scr_f[1]
+    scr2 = scr_f[2]
+
     resize!(scr1, size(term.ints,2) * size(gamma1,2))
     resize!(scr2, size(gamma1,2) * size(gamma2,2))
     
@@ -227,7 +340,7 @@ function contract_matvec_thread(   term::ClusteredTerm2B,
     newI = 1:size(new_coeffs,1)
     newJ = 1:size(new_coeffs,2)
 
-    _collect_significant_thread!(sig, conf_ket, new_coeffs, coef_ket, c1.idx, c2.idx, newI, newJ, thresh, tmp1, state_sign)
+    _collect_significant_thread!(sig, conf_ket, new_coeffs, coef_ket, c1.idx, c2.idx, newI, newJ, thresh, scr_m[1], state_sign)
     #@btime _collect_significant_thread!($sig, $conf_ket, $new_coeffs, $coef_ket, $c1.idx, $c2.idx, $newI, $newJ, $thresh, $scr3)
 
     return 
@@ -242,9 +355,9 @@ function contract_matvec_thread(   term::ClusteredTerm3B,
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T},
                                     sig, 
-                                    scr1::Vector{Float64}, scr2::Vector{Float64}, 
-                                    scr3::Vector{Float64}, scr4::Vector{Float64}, 
-                                    tmp1::MVector{N,Int16}, tmp2::MVector{N,Int16};
+                                    scr_f::Vector{Vector{Float64}},  
+                                    scr_i::Vector{Vector{Int16}},  
+                                    scr_m::Vector{MVector{N,Int16}};  
                                     thresh=1e-9, prescreen=true) where {T,R,N}
 #={{{=#
     c1 = term.clusters[1]
@@ -269,6 +382,12 @@ function contract_matvec_thread(   term::ClusteredTerm3B,
     @views gamma1 = g1[:,:,conf_ket[c1.idx]]
     @views gamma2 = g2[:,:,conf_ket[c2.idx]]
     @views gamma3 = g3[:,:,conf_ket[c3.idx]]
+   
+    scr1 = scr_f[1]
+    scr2 = scr_f[2]
+    scr3 = scr_f[3]
+    tmp1 = scr_m[1]
+    tmp2 = scr_m[2]
     
     if prescreen
         up_bound = upper_bound_thread(term.ints, gamma1, gamma2, gamma3,
@@ -312,6 +431,8 @@ function contract_matvec_thread(   term::ClusteredTerm3B,
     v = reshape2(term.ints, (np*nq,nr))
 
 
+    #a = @allocated begin
+    #end; if a > 0 println(a); error("here we are"); end
 
     tmp1 .= conf_ket.config
 
@@ -322,16 +443,18 @@ function contract_matvec_thread(   term::ClusteredTerm3B,
         tmp1[c3.idx] = K
                 
         tmp_conf = ClusterConfig(SVector(tmp1))
-    
+   
         mul!(scr1, v, gamma3)
         mul!(scr2, reshape2(scr1, (np,nq)), gamma2)
-        mul!(scr3, gamma1', scr2)
+        mul!(scr3, gamma1', scr2) 
+
             
         if prescreen
             #@btime upper_bound_thread($gamma1, $scr2, c=maximum(abs.($coef_ket))) 
-            upper_bound_thread(gamma1, scr2, c=maximum(abs.(coef_ket))) > thresh || continue
+            #upper_bound_thread(gamma1, scr2, c=maximum(abs.(coef_ket))) > thresh || continue
         end
         
+        #@btime _collect_significant_thread!($sig, $tmp_conf, $scr3, $coef_ket, $c1.idx, $c2.idx, $newI, $newJ, $thresh, $tmp2, $state_sign)
         _collect_significant_thread!(sig, tmp_conf, scr3, coef_ket, c1.idx, c2.idx, newI, newJ, thresh, tmp2, state_sign)
     end
 
@@ -347,9 +470,9 @@ function contract_matvec_thread(   term::ClusteredTerm4B,
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T},
                                     sig, 
-                                    scr1::Vector{Float64}, scr2::Vector{Float64}, 
-                                    scr3::Vector{Float64}, scr4::Vector{Float64}, 
-                                    tmp1::MVector{N,Int16}, tmp2::MVector{N,Int16};
+                                    scr_f::Vector{Vector{Float64}},  
+                                    scr_i::Vector{Vector{Int16}},  
+                                    scr_m::Vector{MVector{N,Int16}};  
                                     thresh=1e-9, prescreen=true) where {T,R,N}
 #={{{=#
     c1 = term.clusters[1]
@@ -378,6 +501,23 @@ function contract_matvec_thread(   term::ClusteredTerm4B,
     @views gamma3 = g3[:,:,conf_ket[c3.idx]]
     @views gamma4 = g4[:,:,conf_ket[c4.idx]]
     
+    np = size(term.ints,1)
+    nq = size(term.ints,2)
+    nr = size(term.ints,3)
+    ns = size(term.ints,4)
+    
+    scr1 = scr_f[1]
+    scr2 = scr_f[2]
+    scr3 = scr_f[3]
+    scr4 = scr_f[4]
+    tmp1 = scr_m[1]
+    tmp2 = scr_m[2]
+    
+    
+    newI = UnitRange{Int16}(1,size(g1,2))
+    newJ = UnitRange{Int16}(1,size(g2,2))
+    newK = UnitRange{Int16}(1,size(g3,2))
+    newL = UnitRange{Int16}(1,size(g4,2))
     if prescreen
         up_bound = upper_bound_thread(term.ints, gamma1, gamma2, gamma3, gamma4,
                               scr1, scr2, scr3, scr4,
@@ -385,12 +525,21 @@ function contract_matvec_thread(   term::ClusteredTerm4B,
         if up_bound < thresh
             return 
         end
+        #
+        # screen phase 2: ignore indices for each cluster which will produce discarded terms
+
+        newI, newJ, newK, newL = upper_bound2_thread(term.ints, gamma1, gamma2, gamma3, gamma4, 
+                                                     scr_f, scr_i, thresh, c=maximum(abs, coef_ket))
+        #@btime newI, newJ, newK, newL = upper_bound2_thread($term.ints, $gamma1, $gamma2, $gamma3, $gamma4, 
+        #                                             $scr_f, $scr_i, $thresh, c=maximum(abs, $coef_ket))
+
+        minimum(length, [newI,newJ,newK,newL]) > 0 || return
+
+        @views gamma1 = g1[:,newI,conf_ket[c1.idx]]
+        @views gamma2 = g2[:,newJ,conf_ket[c2.idx]]
+        @views gamma3 = g3[:,newK,conf_ket[c3.idx]]
+        @views gamma4 = g4[:,newL,conf_ket[c4.idx]]
     end
-    
-    newI = UnitRange{Int16}(1,size(g1,2))
-    newJ = UnitRange{Int16}(1,size(g2,2))
-    newK = UnitRange{Int16}(1,size(g3,2))
-    newL = UnitRange{Int16}(1,size(g4,2))
 
     #
     #   for L in G4
@@ -404,10 +553,6 @@ function contract_matvec_thread(   term::ClusteredTerm4B,
     #           collect(scr4(I,J))
 
 
-    np = size(term.ints,1)
-    nq = size(term.ints,2)
-    nr = size(term.ints,3)
-    ns = size(term.ints,4)
     nI = length(newI) 
     nJ = length(newJ) 
     nK = length(newK) 
@@ -483,14 +628,18 @@ function _collect_significant_thread!(out, conf_ket, new_coeffs, coeff, c1idx, c
     tmp1 .= conf_ket.config
     thresh_curr = thresh / maximum(abs.(coeff))
 
-    @inbounds for j::Int16 in newJ
-        tmp1[c2idx] = j
-        for i::Int16 in newI
+    ii::Int = 1
+    nI = length(newI)
+    nJ = length(newJ)
+    @inbounds for j::Int16 in 1:nJ 
+        tmp1[c2idx] = newJ[j]
+        for i::Int16 in 1:nI
             if abs(new_coeffs[i,j]) > thresh_curr
-            #if (new_coeffs[i,j] > thresh_curr) || (new_coeffs[i,j] < -thresh_curr)
-                tmp1[c1idx] = i
+                tmp1[c1idx] = newI[i]
                 tmp = ClusterConfig(SVector(tmp1))
+                #@btime haskey($out, $tmp)
                 if haskey(out, tmp)
+                    ii += 1
                     if sign == 1
                         out[tmp] .+= new_coeffs[i,j] .* coeff
                     elseif sign == -1
@@ -545,7 +694,7 @@ V[I,J,K] = v[i,j,k] * g1[i,I] * g2[j,J] * g3[k,K]
 
 max(|V|) <= sum_ijk |v[ijk]| * |g1[i,:]|_8 * |g2[j,:]|_8 * |g3[k,:]|_8 
 """
-function upper_bound_thread(v::Array{Float64,3}, g1, g2, g3, scr1, scr2, scr3; c::Float64=1.0)
+function upper_bound_thread(v::AbstractArray{Float64,3}, g1, g2, g3, scr1, scr2, scr3; c::Float64=1.0)
     #={{{=#
         bound = 0
         n1 = size(g1,1) 
@@ -619,7 +768,6 @@ function upper_bound_thread(v::Array{Float64,4}, g1, g2, g3, g4, scr1, scr2, scr
         
         for p in 1:n1
             @views pmax[p] = maximum(abs(i) for i in g1[p,:])
-            #@views pmax[p] = maximum(abs.(g1[p,:]))
         end
         for p in 1:n2
             @views qmax[p] = maximum(abs(i) for i in g2[p,:])
@@ -645,3 +793,149 @@ function upper_bound_thread(v::Array{Float64,4}, g1, g2, g3, g4, scr1, scr2, scr
     return bound
 end
 #=}}}=#
+
+
+"""
+max(H_IJK(L)|_L <= sum_s (sum_pqr vpqrs max(g1[p,:]) * max(g2[q,:]) * max(g3[r,:]) * |c| ) * |g4(s,L)|
+"""
+function upper_bound2_thread(v::Array{Float64,4}, g1, g2, g3, g4, 
+        scr_f::Vector{Vector{Float64}}, scr_i::Vector{Vector{Int16}}, thresh; 
+        c::Float64=1.0)
+    #={{{=#
+        
+    
+        newI = scr_i[1]
+        newJ = scr_i[2]
+        newK = scr_i[3]
+        newL = scr_i[4]
+        resize!(newI,0)
+        resize!(newJ,0)
+        resize!(newK,0)
+        resize!(newL,0)
+      
+        n1 = size(v,1)
+        n2 = size(v,2)
+        n3 = size(v,3)
+        n4 = size(v,4)
+
+        n1 == size(g1,1) || throw(DimensionMismatch)
+        n2 == size(g2,1) || throw(DimensionMismatch)
+        n3 == size(g3,1) || throw(DimensionMismatch)
+        n4 == size(g4,1) || throw(DimensionMismatch)
+       
+        pmax = scr_f[5]
+        qmax = scr_f[6]
+        rmax = scr_f[7]
+        smax = scr_f[8]
+        
+        resize!(pmax,n1)
+        resize!(qmax,n2)
+        resize!(rmax,n3)
+        resize!(smax,n4)
+
+
+        fill!(pmax, 0.0)
+        fill!(qmax, 0.0)
+        fill!(rmax, 0.0)
+        fill!(smax, 0.0)
+
+        for p in 1:n1
+            @views pmax[p] = maximum(abs, g1[p,:])
+        end
+        for p in 1:n2
+            @views qmax[p] = maximum(abs, g2[p,:])
+        end
+        for p in 1:n3
+            @views rmax[p] = maximum(abs, g3[p,:])
+        end
+        for p in 1:n4
+            @views smax[p] = maximum(abs, g4[p,:])
+        end
+        
+        tmp = 0.0
+
+        mI = scr_f[9]
+        resize!(mI,size(g1,2))
+        fill!(mI, 0.0)
+        @inbounds for s in 1:n4
+            for r in 1:n3
+                for q in 1:n2
+                    tmp = qmax[q] * rmax[r] * smax[s] * abs(c) 
+                    for p in 1:n1
+                        @views @. mI += abs(v[p,q,r,s]) * abs.(g1[p,:]) * tmp  
+                    end
+                end
+            end
+        end
+
+        mJ = scr_f[10]
+        resize!(mJ,size(g2,2))
+        fill!(mJ, 0.0)
+        @inbounds for s in 1:n4
+            for r in 1:n3
+                for p in 1:n1
+                    tmp = pmax[p] * rmax[r] * smax[s] * abs(c)
+                    for q in 1:n2
+                        @views @. mJ += abs(v[p,q,r,s]) * abs.(g2[q,:])  * tmp
+                    end
+                end
+            end
+        end
+
+        mK = scr_f[11]
+        resize!(mK,size(g3,2))
+        fill!(mK, 0.0)
+        @inbounds for s in 1:n4
+            for q in 1:n2
+                for p in 1:n1
+                    tmp = pmax[p] * qmax[q] * smax[s] * abs(c)
+                    for r in 1:n3
+                        @views @. mK += abs(v[p,q,r,s]) * abs.(g3[r,:]) * tmp 
+                    end
+                end
+            end
+        end
+
+        mL = scr_f[12]
+        resize!(mL,size(g4,2))
+        fill!(mL, 0.0)
+        @inbounds for r in 1:n3
+            for q in 1:n2
+                for p in 1:n1
+                    tmp =  pmax[p] * qmax[q] * rmax[r] * abs(c) 
+                    for s in 1:n4
+                        @views @. mL += abs(v[p,q,r,s]) * abs.(g4[s,:]) * tmp
+                    end
+                end
+            end
+        end
+
+        for I in 1:size(g1,2)
+            if abs(mI[I]) > thresh
+                push!(newI,I)
+            end
+        end
+
+        for J in 1:size(g2,2)
+            if abs(mJ[J]) > thresh
+                push!(newJ,J)
+            end
+        end
+
+        for K in 1:size(g3,2)
+            if abs(mK[K]) > thresh
+                push!(newK,K)
+            end
+        end
+
+        for L in 1:size(g4,2)
+            if abs(mL[L]) > thresh
+                push!(newL,L)
+            end
+        end
+
+    return newI, newJ, newK, newL 
+end
+#=}}}=#
+
+

@@ -1,5 +1,6 @@
 using Distributed
 using ThreadPools
+using JLD2
 
 """
     build_full_H(ci_vector::ClusteredState, cluster_ops, clustered_ham::ClusteredOperator)
@@ -64,6 +65,7 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
     thresh_cipsi = 1e-2,
     thresh_foi   = 1e-6,
     thresh_asci  = 1e-2,
+    thresh_var   = -1.0,
     max_iter     = 10,
     conv_thresh  = 1e-4,
     nbody        = 4,
@@ -92,11 +94,10 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
         println(" ===================================================================")
 
         if it > 1
-            var_clip = thresh_cipsi/10
             l1 = length(vec_var)
-            clip!(vec_var, thresh=var_clip)
+            clip!(vec_var, thresh=thresh_var)
             l2 = length(vec_var)
-            @printf(" Clip values > %8.1e         %6i → %6i\n", var_clip, l1, l2)
+            @printf(" Clip values < %8.1e         %6i → %6i\n", thresh_var, l1, l2)
             
             l1 = length(vec_var)
             add!(vec_var, vec_pt)
@@ -166,7 +167,7 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
             e0_last .= e0
         end
     end
-    return e0, e2, vec_var, vec_pt 
+    return e0, vec_var 
 end
 #=}}}=#
 
@@ -299,7 +300,8 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
     println(" Compute FOIS vector")
 
     if matvec == 1
-        @time sig = open_matvec(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+        #@time sig = open_matvec(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+        @time sig = open_matvec_serial2(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
     elseif matvec == 2
         @time sig = open_matvec_thread(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
     elseif matvec == 3
@@ -1013,4 +1015,14 @@ function build_brdm(ci_vector::ClusteredState, ci, dims)
 end
 # }}}
 
+
+
+function dump_tpsci(filename::AbstractString, ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
+    @save filename ci_vector cluster_ops clustered_ham
+end
+
+#function load_tpsci(filename::AbstractString) 
+#    a = @load filename
+#    return eval.(a)
+#end
 
