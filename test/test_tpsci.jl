@@ -48,13 +48,13 @@ using Arpack
     @printf(" Do FCI\n")
     pyscf = pyimport("pyscf")
     pyscf.lib.num_threads(1)
-	fci = pyimport("pyscf.fci")
-	cisolver = pyscf.fci.direct_spin1.FCI()
-	cisolver.max_cycle = 200 
-	cisolver.conv_tol = 1e-8
-	nelec = na + nb
-	norb = size(ints.h1,1)
-	#e_fci, v_fci = cisolver.kernel(ints.h1, ints.h2, norb, nelec, ecore=0, nroots =nroots)
+    fci = pyimport("pyscf.fci")
+    cisolver = pyscf.fci.direct_spin1.FCI()
+    cisolver.max_cycle = 200 
+    cisolver.conv_tol = 1e-8
+    nelec = na + nb
+    norb = size(ints.h1,1)
+    #e_fci, v_fci = cisolver.kernel(ints.h1, ints.h2, norb, nelec, ecore=0, nroots =nroots)
 
     #e_fci = [-18.33022092,
     #         -18.05457644]
@@ -131,50 +131,75 @@ using Arpack
 
 
 
+    if true 
+
+        ci_vector = FermiCG.ClusteredState(clusters, R=nroots)
+
+        ref_fock = FermiCG.FockConfig(init_fspace)
+        FermiCG.add_fockconfig!(ci_vector, ref_fock)
+
+        #1 e hops
+        if false 
+
+            focks1e = []
+
+            for ci in clusters
+
+                for cj in clusters
+                    tmp = [ref_fock.config...]
+                    tmp[ci.idx] = (tmp[ci.idx][1] + 1, tmp[ci.idx][2])
+                    tmp[cj.idx] = (tmp[cj.idx][1] - 1, tmp[cj.idx][2])
+                    push!(focks1e, FermiCG.FockConfig(tmp))
+                    tmp = [ref_fock.config...]
+                    tmp[ci.idx] = (tmp[ci.idx][1], tmp[ci.idx][2] + 1)
+                    tmp[cj.idx] = (tmp[cj.idx][1], tmp[cj.idx][2] - 1)
+                    push!(focks1e, FermiCG.FockConfig(tmp))
+                end
+            end
+
+            for fock in focks1e
+                FermiCG.add_fockconfig!(ci_vector, fock)
+            end
+        end
+
+        e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, 
+                                  thresh_cipsi=1e-3, thresh_foi=1e-6, thresh_asci=1e-4, conv_thresh=1e-5);
+
+        ref = [-18.32973618]
+
+        clustered_S2 = FermiCG.extract_S2(clusters)
+        S2 = FermiCG.compute_expectation_value(v0, cluster_ops, clustered_S2)
+
+        display(S2)
+
+        @test isapprox(abs.(ref), abs.(e0), atol=1e-8)
+    end
+    
+    nroots = 4
+
     ci_vector = FermiCG.ClusteredState(clusters, R=nroots)
  
     ref_fock = FermiCG.FockConfig(init_fspace)
     FermiCG.add_fockconfig!(ci_vector, ref_fock)
     
-    #1 e hops
-    if false 
-        focks1e = []
-        for ci in clusters
-            for cj in clusters
-                tmp = [ref_fock.config...]
-                tmp[ci.idx] = (tmp[ci.idx][1] + 1, tmp[ci.idx][2])
-                tmp[cj.idx] = (tmp[cj.idx][1] - 1, tmp[cj.idx][2])
-                push!(focks1e, FermiCG.FockConfig(tmp))
-                tmp = [ref_fock.config...]
-                tmp[ci.idx] = (tmp[ci.idx][1], tmp[ci.idx][2] + 1)
-                tmp[cj.idx] = (tmp[cj.idx][1], tmp[cj.idx][2] - 1)
-                push!(focks1e, FermiCG.FockConfig(tmp))
-            end
-        end
-
-        for fock in focks1e
-            FermiCG.add_fockconfig!(ci_vector, fock)
-        end
-    end
-
+    #1 excitons 
+    ci_vector[ref_fock][ClusterConfig([2,1,1])] = [0,1,0,0]
+    ci_vector[ref_fock][ClusterConfig([1,2,1])] = [0,0,1,0]
+    ci_vector[ref_fock][ClusterConfig([1,1,2])] = [0,0,0,1]
 
     e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, 
-                                        thresh_cipsi=1e-3, thresh_foi=1e-6, thresh_asci=1e-4, conv_thresh=1e-5);
+                                        thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=1e-2, conv_thresh=1e-4);
 
-    ref = [-18.32973618]
+    e2, v1 = FermiCG.compute_pt2(v0, cluster_ops, clustered_ham, thresh_foi=1e-8, matvec=3)
 
-    clustered_S2 = FermiCG.extract_S2(clusters)
-    S2 = FermiCG.compute_expectation_value(v0, cluster_ops, clustered_S2)
-
-    display(S2)
-
-    @test isapprox(abs.(ref), abs.(e0), atol=1e-8)
+    println(e0+e2)
     
-    ref = [-18.329833158828205,
-           -18.054673303059687,
-           -18.02861399010862,
-           -17.995734573996003
+    ref = [-18.32932467
+           -18.05349474
+           -18.02775313
+           -17.99514933
           ]
+    @test isapprox(abs.(ref), abs.(e0+e2), atol=1e-7)
    
 
 #    rotations = FermiCG.hosvd(v0, cluster_ops)
