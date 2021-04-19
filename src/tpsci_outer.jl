@@ -291,12 +291,14 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
         matvec=3) where {T,N,R}
     #={{{=#
 
+    println()
+    println(" .............................do PT2................................")
+
     e2 = zeros(T,R)
     
-    println()
     norms = norm(ci_vector);
     println(" Norms of input states")
-    display(norms)
+    [@printf(" %12.8f\n",i) for i in norms]
     println(" Compute FOIS vector")
 
     if matvec == 1

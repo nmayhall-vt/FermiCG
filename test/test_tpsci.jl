@@ -131,46 +131,17 @@ using Arpack
 
 
 
-    if false 
+    if true 
 
         ci_vector = FermiCG.ClusteredState(clusters, R=nroots)
 
         ref_fock = FermiCG.FockConfig(init_fspace)
         FermiCG.add_fockconfig!(ci_vector, ref_fock)
 
-        #1 e hops
-        if false 
-
-            focks1e = []
-
-            for ci in clusters
-
-                for cj in clusters
-                    tmp = [ref_fock.config...]
-                    tmp[ci.idx] = (tmp[ci.idx][1] + 1, tmp[ci.idx][2])
-                    tmp[cj.idx] = (tmp[cj.idx][1] - 1, tmp[cj.idx][2])
-                    push!(focks1e, FermiCG.FockConfig(tmp))
-                    tmp = [ref_fock.config...]
-                    tmp[ci.idx] = (tmp[ci.idx][1], tmp[ci.idx][2] + 1)
-                    tmp[cj.idx] = (tmp[cj.idx][1], tmp[cj.idx][2] - 1)
-                    push!(focks1e, FermiCG.FockConfig(tmp))
-                end
-            end
-
-            for fock in focks1e
-                FermiCG.add_fockconfig!(ci_vector, fock)
-            end
-        end
-
         e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, 
                                   thresh_cipsi=1e-3, thresh_foi=1e-6, thresh_asci=1e-4, conv_thresh=1e-5);
 
         ref = [-18.32973618]
-
-        clustered_S2 = FermiCG.extract_S2(clusters)
-        S2 = FermiCG.compute_expectation_value(v0, cluster_ops, clustered_S2)
-
-        display(S2)
 
         @test isapprox(abs.(ref), abs.(e0), atol=1e-8)
     end
@@ -192,8 +163,6 @@ using Arpack
 
     e2, v1 = FermiCG.compute_pt2(v0, cluster_ops, clustered_ham, thresh_foi=1e-8, matvec=3)
 
-    println(e0+e2)
-    
     ref = [-18.32932467
            -18.05349474
            -18.02775313
@@ -213,14 +182,15 @@ using Arpack
     #FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
     
     
-    e0a, e2a, v0a, v1a = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, 
+    e0a, v0a = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, 
                                         thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=1e-2);
+    e2a, v1a = FermiCG.compute_pt2(v0a, cluster_ops, clustered_ham, thresh_foi=1e-8, matvec=3)
 
-    ref = [-18.32519617,  
-           -18.04757949,  
-           -18.02204597,  
-           -17.98871359]
+    ref = [-18.32916288
+           -18.05357935
+           -18.02800015
+           -17.99499973]
     
-    #@test isapprox(abs.(ref), abs.(e0a), atol=1e-8)
+    @test isapprox(abs.(ref), abs.(e0a+e2a), atol=1e-7)
 end
 
