@@ -131,7 +131,7 @@ using Arpack
 
 
 
-    if true 
+    if false 
 
         ci_vector = FermiCG.ClusteredState(clusters, R=nroots)
 
@@ -202,25 +202,25 @@ using Arpack
     @test isapprox(abs.(ref), abs.(e0+e2), atol=1e-7)
    
 
-#    rotations = FermiCG.hosvd(v0, cluster_ops)
-#    for ci in clusters
-#        FermiCG.rotate!(cluster_ops[ci.idx], rotations[ci.idx])
-#        FermiCG.rotate!(cluster_bases[ci.idx], rotations[ci.idx])
-#        FermiCG.check_basis_orthogonality(cluster_bases[ci.idx])
-#    end
-#
-#    #cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
-#    #FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
-#    
-#    
-#    e0a, e2a, v0a, v1a = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, 
-#                                        thresh_cipsi=1e-3, thresh_foi=1e-8, thresh_asci=1e-2);
-#
-#    ref = [-18.32519617,  
-#           -18.04757949,  
-#           -18.02204597,  
-#           -17.98871359]
-#    
-#    #@test isapprox(abs.(ref), abs.(e0a), atol=1e-8)
+    rotations = FermiCG.hosvd(v0, cluster_ops)
+    for ci in clusters
+        FermiCG.rotate!(cluster_ops[ci.idx], rotations[ci.idx])
+        FermiCG.rotate!(cluster_bases[ci.idx], rotations[ci.idx])
+        FermiCG.check_basis_orthogonality(cluster_bases[ci.idx])
+    end
+
+    #cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
+    #FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
+    
+    
+    e0a, e2a, v0a, v1a = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, 
+                                        thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=1e-2);
+
+    ref = [-18.32519617,  
+           -18.04757949,  
+           -18.02204597,  
+           -17.98871359]
+    
+    #@test isapprox(abs.(ref), abs.(e0a), atol=1e-8)
 end
 
