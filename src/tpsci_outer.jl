@@ -88,8 +88,8 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
     println(" max_iter      :", max_iter     ) 
     println(" conv_thresh   :", conv_thresh  ) 
     
-    vec_asci_old = ClusteredState(ci_vector.clusters)
-    sig = ClusteredState(ci_vector.clusters)
+    vec_asci_old = ClusteredState(ci_vector.clusters, R=R)
+    sig = ClusteredState(ci_vector.clusters, R=R)
     clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = "Hcmf") 
 
     for it in 1:max_iter
@@ -152,7 +152,7 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
         ovlps = []
         for r in 1:R
             if dot(vec_asci_old, vec_asci, r, r) < 0
-                scale!(del_v0, -1.0)
+                scale!(vec_asci, -1.0)
             end
         end
         scale!(del_v0,-1.0)

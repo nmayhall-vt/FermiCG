@@ -136,15 +136,15 @@ using Arpack
         ref_fock = FermiCG.FockConfig(init_fspace)
         FermiCG.add_fockconfig!(ci_vector, ref_fock)
 
-        @time e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, 
-                                  thresh_cipsi=1e-3, thresh_foi=1e-7, thresh_asci=1e-4, conv_thresh=1e-5);
+        @time e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=true, 
+                                  thresh_cipsi=1e-3, thresh_foi=1e-9, thresh_asci=1e-4, conv_thresh=1e-5, matvec=1);
 
         ref = [-18.32973618]
 
         @test isapprox(abs.(ref), abs.(e0), atol=1e-8)
     end
    
-    if false
+    if false 
         nroots = 4
 
         ci_vector = FermiCG.ClusteredState(clusters, R=nroots)
@@ -157,7 +157,7 @@ using Arpack
         ci_vector[ref_fock][ClusterConfig([1,2,1])] = [0,0,1,0]
         ci_vector[ref_fock][ClusterConfig([1,1,2])] = [0,0,0,1]
 
-        e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, 
+        e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=false,
                                   thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=1e-2, conv_thresh=1e-4);
 
         e2, v1 = FermiCG.compute_pt2(v0, cluster_ops, clustered_ham, thresh_foi=1e-8, matvec=3)
@@ -181,7 +181,7 @@ using Arpack
         #FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
 
 
-        e0a, v0a = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, 
+        e0a, v0a = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=false, 
                                     thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=1e-2);
         e2a, v1a = FermiCG.compute_pt2(v0a, cluster_ops, clustered_ham, thresh_foi=1e-8, matvec=3)
 

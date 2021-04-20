@@ -1005,7 +1005,7 @@ function check_basis_orthogonality(basis::ClusterBasis; thresh=1e-13)
     end
 end
 
-function check_orthogonality(mat; thresh=1e-13)
+function check_orthogonality(mat; thresh=1e-12)
     Id = mat' * mat
     if maximum(abs.(I-Id)) > thresh 
         @warn("problem with orthogonality ", maximum(abs.(I-Id)))
