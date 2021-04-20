@@ -23,7 +23,7 @@ A Julia package for course-grained electronic structure calculations
 	virtualenv -p python3 venv
 	source venv/bin/activate
 	pip install -r requirements.txt
-	cd ../
+	cd ../../
 	julia --project=./
 	julia> using Pkg; Pkg.build("PyCall")
 	```
