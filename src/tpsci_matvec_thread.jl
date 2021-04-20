@@ -103,7 +103,7 @@ function open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clus
 
     println(" Now collect thread results")
     flush(stdout)
-    @time for threadid in 1:Threads.nthreads()
+    for threadid in 1:Threads.nthreads()
         add!(sig, jobs_out[threadid])
     end
 

@@ -69,6 +69,7 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
     max_iter     = 10,
     conv_thresh  = 1e-4,
     nbody        = 4,
+    incremental  = true,
     matvec       = 1) where {T,N,R}
 #={{{=#
     vec_var = deepcopy(ci_vector)
@@ -86,6 +87,11 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
     println(" thresh_asci   :", thresh_asci  ) 
     println(" max_iter      :", max_iter     ) 
     println(" conv_thresh   :", conv_thresh  ) 
+    
+    vec_asci_old = ClusteredState(ci_vector.clusters)
+    sig = ClusteredState(ci_vector.clusters)
+    clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = "Hcmf") 
+
     for it in 1:max_iter
 
         println()
@@ -127,32 +133,76 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
         for r in 1:R
             display(vec_var, root=r)
         end
-
+        
+        # get barycentric energy <0|H0|0>
+        Efock = compute_expectation_value(vec_var, cluster_ops, clustered_ham_0)
+        #Efock = nothing
         flush(stdout)
         vec_asci = deepcopy(vec_var)
         l1 = length(vec_asci)
         clip!(vec_asci, thresh=thresh_asci)
         l2 = length(vec_asci)
-        #do_asci_rediag = true 
-        #if do_asci_rediag
-        #    println(" Re-diagonalize in ASCI subspace:")
-        #    @time Hasci = build_full_H_parallel(vec_asci, cluster_ops, clustered_ham)
-        #    F = eigen(Hasci)
-        #    e0_asci = F.values[1:R]
-        #    v_asci = F.vectors[:,1:R]
-        #    set_vector!(vec_asci, v_asci)
-        #
-        #    s2_asci = compute_expectation_value(vec_asci, cluster_ops, clustered_S2)
-        #    @printf(" %5s %12s %12s\n", "Root", "Energy", "S2") 
-        #    for r in 1:R
-        #        @printf(" %5s %12.8f %12.8f\n",r, e0_asci[r], abs(s2_asci[r]))
-        #    end
-        #end
         @printf(" Length of ASCI vector %8i → %8i \n", l1, l2)
-        @time e2, vec_pt = compute_pt2(vec_asci, cluster_ops, clustered_ham, thresh_foi=thresh_foi, matvec=matvec, nbody=nbody)
-        flush(stdout)
 
+        #
+        # |sig_i> = H|v_i> = H|v_i-1> + H ( |v_i> - |v_i-1> )
+        #                  = |sig_i-1> + H|del_i>
 
+        del_v0 = deepcopy(vec_asci_old)
+        ovlps = []
+        for r in 1:R
+            if dot(vec_asci_old, vec_asci, r, r) < 0
+                scale!(del_v0, -1.0)
+            end
+        end
+        scale!(del_v0,-1.0)
+        add!(del_v0, vec_asci)
+        println(" Norm of delta v:")
+        [@printf(" %12.8f\n",i) for i in norm(del_v0)]
+
+        vec_asci_old = deepcopy(vec_asci)
+
+        #_, vec_pt_del = compute_pt2(del_v0, cluster_ops, clustered_ham, E0=Efock, thresh_foi=thresh_foi, matvec=matvec, nbody=nbody)
+        #add!(vec_pt, vec_pt_del)
+        if incremental 
+            if matvec == 1
+                @time del_sig_it = open_matvec_serial2(del_v0, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+            elseif matvec == 2
+                @time del_sig_it = open_matvec_thread(del_v0, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+            elseif matvec == 3
+                @time del_sig_it = open_matvec_thread2(del_v0, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+            else
+                error("wrong matvec")
+            end
+            flush(stdout)
+            add!(sig, del_sig_it)
+
+            println(" Length of FOIS vector: ", length(sig))
+            project_out!(sig, vec_asci)
+            println(" Length of FOIS vector: ", length(sig))
+
+            println(" Compute diagonal")
+            @time Hd = compute_diagonal(sig, cluster_ops, clustered_ham_0)
+
+            sig_v = get_vectors(sig)
+            v_pt  = zeros(size(sig_v))
+
+            println()
+            @printf(" %5s %12s %12s\n", "Root", "E(0)", "E(2)") 
+            for r in 1:R
+                denom = 1.0 ./ (Efock[r] .- Hd)  
+                v_pt[:,r] .= denom .* sig_v[:,r] 
+                e2[r] = sum(sig_v[:,r] .* v_pt[:,r])
+
+                @printf(" %5s %12.8f %12.8f\n",r, e0[r], e0[r] + e2[r])
+            end
+
+            vec_pt = deepcopy(sig)
+            set_vector!(vec_pt,v_pt)
+        else
+            @time e2, vec_pt = compute_pt2(vec_asci, cluster_ops, clustered_ham, E0=Efock, thresh_foi=thresh_foi, matvec=matvec, nbody=nbody)
+        end
+        
         l1 = length(vec_pt)
         clip!(vec_pt, thresh=thresh_cipsi)
         l2 = length(vec_pt)
@@ -285,7 +335,8 @@ end
 """
 function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; 
         nbody=4, 
-        H0="Hcmf", 
+        H0="Hcmf",
+        E0=nothing, #pass in <0|H0|0>, or compute it
         thresh_foi=1e-8, 
         verbose=1,
         matvec=3) where {T,N,R}
@@ -320,15 +371,15 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
     project_out!(sig, ci_vector)
     println(" Length of FOIS vector: ", length(sig))
     
-
     println(" Compute diagonal")
     @time Hd = compute_diagonal(sig, cluster_ops, clustered_ham_0)
     
+    if E0 == nothing
+        println(" Compute <0|H0|0>")
+        E0 = compute_expectation_value(ci_vector, cluster_ops, clustered_ham_0)
+        #[@printf(" %4i %12.8f\n", i, E0[i]) for i in 1:length(E0)]
+    end
 
-    println(" Compute <0|H0|0>")
-    E0 = compute_expectation_value(ci_vector, cluster_ops, clustered_ham_0)
-    #[@printf(" %4i %12.8f\n", i, E0[i]) for i in 1:length(E0)]
-    
     println(" Compute <0|H|0>")
     Evar = compute_expectation_value(ci_vector, cluster_ops, clustered_ham)
     #[@printf(" %4i %12.8f\n", i, Evar[i]) for i in 1:length(Evar)]
