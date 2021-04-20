@@ -24,8 +24,11 @@ A Julia package for course-grained electronic structure calculations
 	source venv/bin/activate
 	pip install -r requirements.txt
 	cd ../../
-	julia --project=./
+	julia --project=./ -t N
 	julia> using Pkg; Pkg.build("PyCall")
 	```
-### Notes
-- Use ITensor for dense algorithm
+	where `N` = # threads. To let Julia pick, just use `-tauto`. 
+2. Run tests
+	```
+	julia> Pkg.test()
+	```
