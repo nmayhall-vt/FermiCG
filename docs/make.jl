@@ -66,7 +66,7 @@ makedocs(
 )
 
 deploydocs(
-    repo="github.com/nmayhall-vt/FermiCG.git",
+    repo="https://github.com/nmayhall-vt/FermiCG.git",
     branch = "gh-pages",
     devbranch = "main",
     push_preview = true,
