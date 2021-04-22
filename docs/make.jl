@@ -37,6 +37,7 @@ pages = [
 const EXAMPLES_DIR = joinpath(@__DIR__, "..", "examples")
 const OUTPUT_DIR   = joinpath(@__DIR__, "src/generated")
 
+
 examples = [
     "test_cmf.jl",
     "test_fci.jl",
