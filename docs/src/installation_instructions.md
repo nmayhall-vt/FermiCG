@@ -23,5 +23,3 @@ julia --project=./
 julia> using Pkg; Pkg.build("PyCall")
 ```
 
-### Notes
-- Todo: Use ITensor for dense algorithm
