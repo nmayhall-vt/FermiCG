@@ -72,7 +72,7 @@ Write MO coeffs `C` to a molden file for visualizing
 function pyscf_write_molden(molecule::Molecule, C; filename="orbitals.molden")
     pyscf = pyimport("pyscf")
     pyscf.lib.num_threads(1)
-    molden = pyimport("pyscf.molden")
+    molden = pyimport("pyscf.tools.molden")
     pymol = make_pyscf_mole(molecule)
     molden.from_mo(pymol, filename, C)
     return 1
