@@ -22,8 +22,9 @@ A Julia package for course-grained electronic structure calculations
 	virtualenv -p python3 venv
 	source venv/bin/activate
 	pip install -r requirements.txt
+	export TPSCI_PYTHON=$(which python)
 	cd ../../
-	julia --project=./ -t N
+	julia --project=./ -tauto 
 	julia> using Pkg; Pkg.build("PyCall")
 	```
 	where `N` = # threads. To let Julia pick, just use `-tauto`. 
