@@ -29,6 +29,9 @@ jobs:
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.9' # Version range or exact version of a Python version to use, using SemVer's version range syntax
       - uses: actions/cache@v1
         env:
           cache-name: cache-artifacts
@@ -44,7 +47,7 @@ jobs:
       - name: List files in the repository
         run: |
           ls ${{ github.workspace }}
-      - run: which python; cd src/python; 
+      - run: which python; python -V; cd src/python; 
       - run: pip install virtualenv; virtualenv -p python3 venv; export TPSCI_PYTHON=$(which python)
       - run: which python
       - run: cd ../../
