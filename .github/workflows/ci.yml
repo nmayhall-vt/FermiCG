@@ -44,11 +44,8 @@ jobs:
       - name: List files in the repository
         run: |
           ls ${{ github.workspace }}
-      - run: which python; cd src/python
-      - run: virtualenv -p python3 venv
-      - run: source venv/bin/activate
-      - run: pip install -r requirements.txt
-      - run: export TPSCI_PYTHON=$(which python)
+      - run: which python; cd src/python; 
+      - run: pip install virtualenv; virtualenv -p python3 venv; export TPSCI_PYTHON=$(which python)
       - run: which python
       - run: cd ../../
       - run: julia --project=./ -e "using Pkg; Pkg.test();"
