@@ -48,7 +48,8 @@ jobs:
         run: |
           ls ${{ github.workspace }}
       - run: which python; python -V; cd src/python; 
-      - run: pip install virtualenv; virtualenv -p python3 venv; source venv/bin/activate; export TPSCI_PYTHON=$(which python)
+      #- run: pip install virtualenv; virtualenv -p python3 venv; source venv/bin/activate; export TPSCI_PYTHON=$(which python)
+      - run: pip install -r requirements.txt; export TPSCI_PYTHON=$(which python)
       - run: which python
       - run: cd ../../
       - run: julia --project=./ -e "using Pkg; Pkg.test();"
