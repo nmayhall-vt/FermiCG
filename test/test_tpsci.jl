@@ -72,7 +72,7 @@ using Arpack
     # localize orbitals
     C = mf.mo_coeff
     Cl = FermiCG.localize(mf.mo_coeff,"lowdin",mf)
-    FermiCG.pyscf_write_molden(mol,Cl,filename="lowdin.molden")
+    #FermiCG.pyscf_write_molden(mol,Cl,filename="lowdin.molden")
     S = FermiCG.get_ovlp(mf)
     U =  C' * S * Cl
     println(" Rotate Integrals")
@@ -90,7 +90,7 @@ using Arpack
 
     e_cmf, U, Da, Db  = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, 
                                        max_iter_oo=40, verbose=0, gconv=1e-6, method="bfgs")
-    FermiCG.pyscf_write_molden(mol,Cl*U,filename="cmf.molden")
+    #FermiCG.pyscf_write_molden(mol,Cl*U,filename="cmf.molden")
     ints = FermiCG.orbital_rotation(ints,U)
 
     e_ref = e_cmf - ints.h0
