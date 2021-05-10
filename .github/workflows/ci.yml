@@ -47,7 +47,7 @@ jobs:
       - name: List files in the repository
         run: |
           ls ${{ github.workspace }}
-        run: |
+      - run: |
           which python; 
           python -V; 
           cd src/python; 
