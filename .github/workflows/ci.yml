@@ -57,6 +57,7 @@ jobs:
       - name: Run Julia tests
         run: |
           export TPSCI_PYTHON=$(which python)  
+          export PYTHON=$(which python)  
           echo $(which python)
           pip freeze; 
           cd ../;
