@@ -56,7 +56,8 @@ jobs:
           pip install -r requirements.txt; 
       - name: Run Julia tests
         run: |
-          export TPSCI_PYTHON=$(which python); 
+          export TPSCI_PYTHON=${{ pythonLocation }}} 
+          echo $(which python)
           pip freeze; 
           cd ../../; 
           echo "Contents of current directory:"
