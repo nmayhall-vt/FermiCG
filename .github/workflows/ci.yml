@@ -56,7 +56,7 @@ jobs:
           pip install -r requirements.txt; 
       - name: Run Julia tests
         run: |
-          export TPSCI_PYTHON=${{ pythonLocation }}} 
+          export TPSCI_PYTHON=$(which python)  
           echo $(which python)
           pip freeze; 
           cd ../../; 
