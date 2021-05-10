@@ -59,7 +59,7 @@ jobs:
           export TPSCI_PYTHON=$(which python)  
           echo $(which python)
           pip freeze; 
-          cd ../../; 
+          cd ../ 
           echo "Contents of current directory:"
           ls -al
           echo "done."
