@@ -30,7 +30,11 @@ The algorithm consists of the following steps:
       \lbrace\left|Q^n_i\right>\rbrace \xrightarrow{|c_i^{(1)}| > \epsilon}\lbrace\left|P^{n+1}_j\right>\rbrace 
       ```
 
-### Performance Considerations 
+### Tips on clustering 
+### Performance considerations 
+- Robust integral screening
+- `thresh_asci` 
+- HOSVD boot-strapping
 
 ## Index
 ```@index
