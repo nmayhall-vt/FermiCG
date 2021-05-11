@@ -27,7 +27,7 @@ A Julia package for course-grained electronic structure calculations
 	julia --project=./ -tauto 
 	julia> using Pkg; Pkg.build("PyCall")
 	```
-	where `N` = # threads. To let Julia pick, just use `-tauto`. 
+	where `-tauto` let's Julia pick the max number of threads. Use `-t N` to select `N` manually. Removing defaults to 1 thread. 
 2. Run tests
 	```
 	julia> Pkg.test()
