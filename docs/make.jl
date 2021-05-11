@@ -56,13 +56,14 @@ examples = [
 makedocs(
     modules=[FermiCG],
     authors="Nick Mayhall <nmayhall@vt.edu> and contributors",
-    repo="github.com/nmayhall-vt/FermiCG/blob/{commit}{path}#L{line}",
-    sitename="FermiCG.jl",
-    format=Documenter.HTML(;
-        prettyurls=get(ENV, "CI", "false") == "true",
-        canonical="https://nmayhall-vt.github.io/FermiCG/stable",
-        assets=String[],
-    ),
+    #repo="https://github.com/nmayhall-vt/FermiCG/blob/{commit}{path}#L{line}",
+    sitename="FermiCG",
+    #format=Documenter.HTML(;
+    #    prettyurls=get(ENV, "CI", "false") == "true",
+    #    canonical="https://nmayhall-vt.github.io/FermiCG/stable",
+    #    assets=String[],
+    #),
+    html_prettyurls = !("local" in ARGS),
     pages=pages,
 )
 
@@ -71,5 +72,6 @@ deploydocs(
     branch = "gh-pages",
     devbranch = "main",
     #push_preview = true,
+    target= "build",
     deps = Deps.pip("pygments", "mkdocs", "python-markdown-math")
 )
