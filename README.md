@@ -1,3 +1,6 @@
+<div align="left">
+  <img src="https://github.com/nmayhall-vt/FermiCG/docs/logo1.png" height="80px"/>
+</div>
 # FermiCG
 A Julia package for course-grained electronic structure calculations
 
