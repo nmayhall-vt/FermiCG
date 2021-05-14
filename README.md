@@ -1,6 +1,7 @@
 <div align="left">
-  <img src="docs/src/logo1.png" height="80px"/>
+  <img src="docs/src/logo1.png" height="60px"/>
 </div>
+
 # FermiCG
 A Julia package for course-grained electronic structure calculations
 
