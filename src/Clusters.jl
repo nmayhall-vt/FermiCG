@@ -838,7 +838,8 @@ Returns new basis for the cluster
 """
 function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db, thresh_orb=1e-8, thresh_schmidt=1e-3, thresh_ci=1e-6,do_embedding=true)
 
-    @printf("Form Schmidt-style basis for Cluster %4i\n",ci.idx)
+    println("------------------------------------------------------------")
+    @printf("Form Embedded Schmidt-style basis for Cluster %4i\n",ci.idx)
     D = Da + Db 
 
     # Form the exchange matrix
@@ -860,7 +861,6 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db, thresh_orb=1e
 
     backgr = Vector{Int}()
     for i in 1:no
-    	println(i)
     	if !(i in active)
     	    append!(backgr,i)
         end
@@ -877,7 +877,7 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db, thresh_orb=1e
 	end
     end
 
-    println("The exchange matrix")
+    println("The exchange matrix:")
     display(K2)
     F = svd(K2,full=true)
 
@@ -899,16 +899,16 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db, thresh_orb=1e
 	end
     end
 
-    display(C)
+    #display(C)
 
-    display(F.Vt)
-    display(F.U)
+    #display(F.Vt)
+    #display(F.U)
     for (pi,p) in enumerate(backgr)
     	for (qi,q) in enumerate(backgr)
 	    C[p,qi+length(active)] = F.Vt[qi,pi]
 	end
     end
-    display(C)
+    #display(C)
 
     Cfrag = C[:,1:ci_no]
     Cbath = C[:,ci_no+1:ci_no+nkeep]
@@ -916,13 +916,13 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db, thresh_orb=1e
     
     @printf("Cfrag\n")
     display(Cfrag)
-    @printf(" NElec: %12.8f\n",(tr(Cfrag'*(Da+Db)*Cfrag)))
+    @printf("\n NElec: %12.8f\n",(tr(Cfrag'*(Da+Db)*Cfrag)))
     @printf("Cbath\n")
     display(Cbath)
-    @printf(" NElec: %12.8f\n",(tr(Cbath'*(Da+Db)*Cbath)))
+    @printf("\n NElec: %12.8f\n",(tr(Cbath'*(Da+Db)*Cbath)))
     @printf("Cenv\n")
     display(Cenvt)
-    @printf(" NElec: %12.8f\n",(tr(Cenvt'*(Da+Db)*Cenvt)))
+    @printf("\n NElec: %12.8f\n",(tr(Cenvt'*(Da+Db)*Cenvt)))
 
     K2 = C'* K * C
     Da2 = C'* Da * C
@@ -936,7 +936,7 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db, thresh_orb=1e
 
     denvt_a = Cenvt*Cenvt'*Da*Cenvt*Cenvt'
     denvt_b = Cenvt*Cenvt'*Db*Cenvt*Cenvt'
-    println(denvt_a)
+    #println(denvt_a)
 
     na_env = tr(denvt_a)
     nb_env = tr(denvt_b)
@@ -957,10 +957,11 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db, thresh_orb=1e
     denvt_b = C'*denvt_b*C
     ints2 = orbital_rotation(ints, C)
 
-    display(denvt_a)
+    #avoid very zero numbers in diagonalization
     denvt_a[abs.(denvt_a) .< 1e-15] .= 0
     denvt_b[abs.(denvt_b) .< 1e-15] .= 0
-    display(denvt_a)
+    #display(denvt_a)
+    #display(denvt_a)
 
     # find closest idempotent density for the environment
     if do_embedding
@@ -973,8 +974,8 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db, thresh_orb=1e
 
 	    U = U[:, sortperm(n,rev=true)]
 	    n = n[sortperm(n,rev=true)]
-	    println(n)
-	    display(U)
+	    #println(n)
+	    #display(U)
 
             for i in 1:nkeep
                 @assert(n[i]>1e-14)
@@ -998,17 +999,10 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db, thresh_orb=1e
 	end
         #form ints in the cluster 
 	no_range = collect(1:size(Cfrag,2)+size(Cbath,2))
-	println(size(Cfrag,2))
-	println(size(Cbath,2))
-	println(no_range)
-	println(collect(1:size(Cfrag,2)+size(Cbath,2)))
-	display(denvt_b)
-	display(denvt_a)
         #ints_i = form_casci_eff_ints(ints2,collect(1:size(Cfrag,2)+size(Cbath,2)), denvt_a, denvt_b)
         ints2 = subset(ints2,collect(1:size(Cfrag,2)+size(Cbath,2)), denvt_a, denvt_b)
         display(ints2.h1)
         display(ints2.h0)
-        exit()
 
     else
         denvt_a *= 0 
@@ -1016,9 +1010,6 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db, thresh_orb=1e
         ints2 = form_casci_eff_ints(ints2,collect(1:size(Cfrag,2)+size(Cbath,2)), denvt_a, denvt_b)
 
     end
-
-
-    return
 
     println(" Number of electrons in Environment system:")
     @printf("  α: %12.8f  β:%12.8f \n ",tr(denvt_a),tr(denvt_b))
@@ -1035,13 +1026,9 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db, thresh_orb=1e
     v = EIG.vectors
     e = EIG.values
 
-    #dim1 = Int(sqrt(size(v,1)))
     v = v[:,1]
-    #v = reshape(v, (dim1,dim1))
 
     basis = FermiCG.StringCI.svd_state(v,problem,length(active),nkeep,thresh_schmidt)
-
-
-    return
+    return basis
 end
 

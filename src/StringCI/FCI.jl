@@ -1100,53 +1100,41 @@ end
 function svd_state(v,P::FCIProblem,norbs1,norbs2,svd_thresh)
 
     #={{{=#
-    println(norbs1)
-    println(norbs2)
-    println(P.no)
+
     @assert(norbs1+norbs2 ==P.no)
 
+    schmidt_basis = OrderedDict()
     vector = OrderedDict{Tuple{UInt8,UInt8},Float64}()
     vector = OrderedDict()
-    #   Create ci_strings
+
+    println("----------------------------------------")
+    println("          SVD of state")
+    println("----------------------------------------")
+
+    # Create ci_strings
     ket_a = DeterminantString(P.no, P.na)
     ket_b = DeterminantString(P.no, P.nb)
 
     v = reshape(v,(ket_a.max, ket_b.max))
-    display(v)
     @assert(size(v,1) == ket_a.max)
     @assert(size(v,2) == ket_b.max)
-
-    #fock_labels_a = [Nothing for i in 1:ket_a.max]
-    #fock_labels_b = [Nothing for i in 1:ket_b.max]
-
-    #fock_labels_a = zeros{Int}(ket_a.max)
-    #fock_labels_a = Array{Int}(ket_a.max)
-    #fock_labels_a = Array{Int}(missing, ket_a.max)
-    #fock_labels_b = zeros(ket_b.max)
 
     fock_labels_a = Array{Int,1}(undef,ket_a.max)
     fock_labels_b = Array{Int,1}(undef,ket_b.max)
 
-    println(fock_labels_a)
 
+    # Get the fock space using the bisect method in python
     bisect = pyimport("bisect")
     for I in 1:ket_a.max
         fock_labels_a[I] = bisect.bisect(ket_a.config,norbs1)
         incr!(ket_a)
     end
-
     for I in 1:ket_b.max
         fock_labels_b[I] = bisect.bisect(ket_b.config,norbs1)
         incr!(ket_b)
     end
-
-    println(fock_labels_a)
-    println(fock_labels_b)
-
     for I in 1:ket_a.max
     	for J in 1:ket_b.max
-	    println(fock_labels_a[I],fock_labels_b[J],v[I,J])
-	    println()
 	    try
 	        append!(vector[fock_labels_a[I],fock_labels_b[J]],v[I,J])
 	    catch
@@ -1154,7 +1142,6 @@ function svd_state(v,P::FCIProblem,norbs1,norbs2,svd_thresh)
 	    end
 	end
     end
-    println(vector)
 
     for (fock,fvec)  in vector
         println()
@@ -1171,17 +1158,40 @@ function svd_state(v,P::FCIProblem,norbs1,norbs2,svd_thresh)
         if (P.na-fock[1]%2)==1 && fock[2]%2==1
 	    sign = -1
 	end
+        println("sign",sign)
         @printf(" Dimensions: %5i x %-5i \n",ket_a1.max*ket_b1.max, ket_a2.max*ket_b2.max)
 
         norm_curr = fvec' * fvec
         @printf(" Norm: %12.8f\n",sqrt(norm_curr))
+	#println(size(fvec))
 
-        #fvec.shape = (ket_a1.max, ket_a2.max, ket_b1.max, ket_b2.max)
+	fvec = sign *fvec
+	fvec2 = reshape(fvec,ket_a1.max,ket_a2.max,ket_b1.max,ket_b2.max)
+	fvec3 = permutedims(fvec2, [ 1, 3, 2, 4])
+	fvec4 = reshape(fvec3,ket_a1.max*ket_b1.max,ket_a2.max*ket_b2.max)
+
+	# fvec4 is transpose of what we have in python code
+	fvec5 = fvec4'
+
+    	F = svd(fvec5,full=true)
+	nkeep = 0
+    	for (ni_idx,ni) in enumerate(F.S)
+	    if ni > svd_thresh
+	        nkeep += 1
+	    	@printf(" %5i:	   %12.8f\n",ni_idx,ni)
+	    else
+	    	@printf(" %5i:	   %12.8f\n",ni_idx,ni)
+	    end
+	end
+
+	if nkeep > 0
+	    schmidt_basis[fock] = F.U[:,1:nkeep]
+	end
 
         #norm += norm_curr
     end
 
-    return
+    return schmidt_basis
 end
 #=}}}=#
 
