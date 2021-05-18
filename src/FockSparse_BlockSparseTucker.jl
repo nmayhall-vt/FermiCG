@@ -1,0 +1,409 @@
+"""
+Represents a state in an set of abitrary (yet low-rank) subspaces of a set of FockConfigs.
+e.g. v[FockConfig][TuckerConfig] => Tucker Decomposed Tensor
+
+    clusters::Vector{Cluster}
+    data::OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker}}
+    p_spaces::Vector{ClusterSubspace}
+    q_spaces::Vector{ClusterSubspace}
+"""
+struct CompressedTuckerState{T,N} 
+    clusters::Vector{Cluster}
+    data::OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker{T,N}}}
+    p_spaces::Vector{ClusterSubspace}
+    q_spaces::Vector{ClusterSubspace}
+end
+Base.haskey(ts::CompressedTuckerState, i) = return haskey(ts.data,i)
+Base.getindex(ts::CompressedTuckerState, i) = return ts.data[i]
+Base.setindex!(ts::CompressedTuckerState, i, j) = return ts.data[j] = i
+Base.iterate(ts::CompressedTuckerState, state=1) = iterate(ts.data, state)
+normalize!(ts::CompressedTuckerState) = scale!(ts, 1/sqrt(orth_dot(ts,ts)))
+
+
+
+
+"""
+    CompressedTuckerState(ts::TuckerState; thresh=-1, max_number=nothing, verbose=0)
+
+Convert a `TuckerState` to a `CompressedTuckerState`
+Constructor
+- ts::TuckerState`
+"""
+function CompressedTuckerState(ts::TuckerState{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
+#={{{=#
+    # make all AbstractState subtypes parametric
+    nroots = nothing
+    for (fock,configs) in ts
+        for (config,coeffs) in configs
+            if nroots == nothing
+                nroots = last(size(coeffs))
+            else
+                nroots == last(size(coeffs)) || error(" mismatch in number of roots")
+            end
+        end
+    end
+
+    nroots == 1 || error(" Conversion to CompressedTuckerState can only have 1 root")
+
+    data = OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker{T,N} }}()
+    for (fock, tconfigs) in ts.data
+        for (tconfig, coeffs) in tconfigs
+
+            #
+            # Since TuckerState has extra dimension for state index, remove that
+            tuck = Tucker(reshape(coeffs,size(coeffs)[1:end-1]), thresh=thresh, max_number=max_number, verbose=verbose)
+            if length(tuck) > 0
+                if haskey(data, fock)
+                    data[fock][tconfig] = tuck
+                else
+                    data[fock] = OrderedDict(tconfig => tuck)
+                end
+            end
+        end
+    end
+    return CompressedTuckerState(ts.clusters, data, ts.p_spaces, ts.q_spaces)
+end
+#=}}}=#
+
+
+
+"""
+    compress(ts::CompressedTuckerState; thresh=-1, max_number=nothing)
+
+- `ts::TuckerState`
+- `thresh`: threshold for compression
+- `max_number`: only keep certain number of vectors per TuckerConfig
+"""
+function compress(ts::CompressedTuckerState{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
+    d = OrderedDict{FockConfig, OrderedDict{TuckerConfig, Tucker{T,N}}}() 
+    for (fock, tconfigs) in ts.data
+        for (tconfig, coeffs) in tconfigs
+            tmp = compress(ts.data[fock][tconfig], thresh=thresh, max_number=max_number)
+            if length(tmp) == 0
+                continue
+            end
+            if haskey(d, fock)
+                d[fock][tconfig] = tmp
+            else
+                d[fock] = OrderedDict(tconfig => tmp)
+            end
+        end
+    end
+    return CompressedTuckerState(ts.clusters, d, ts.p_spaces, ts.q_spaces)
+end
+
+
+"""
+    orth_add!(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
+
+Add coeffs in `ts2` to `ts1`
+
+Note: this assumes `t1` and `t2` have the same compression vectors
+"""
+function orth_add!(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
+#={{{=#
+    for (fock,configs) in ts2
+        if haskey(ts1, fock)
+            for (config,coeffs) in configs
+                if haskey(ts1[fock], config)
+                    ts1[fock][config].core .+= ts2[fock][config].core
+                else
+                    ts1[fock][config] = ts2[fock][config]
+                end
+            end
+        else
+            ts1[fock] = ts2[fock]
+        end
+    end
+#=}}}=#
+end
+
+"""
+    nonorth_add!(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
+
+Add coeffs in `ts2` to `ts1`
+
+Note: this does not assume `t1` and `t2` have the same compression vectors
+"""
+function nonorth_add!(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
+#={{{=#
+    for (fock,configs) in ts2
+        if haskey(ts1, fock)
+            for (config,coeffs) in configs
+                if haskey(ts1[fock], config)
+                    ts1[fock][config] = ts1[fock][config] + ts2[fock][config] # note this is non-trivial work here
+                else
+                    ts1[fock][config] = ts2[fock][config]
+                end
+            end
+        else
+            ts1[fock] = ts2[fock]
+        end
+    end
+#=}}}=#
+end
+
+"""
+    add_fockconfig!(s::CompressedTuckerState, fock::FockConfig)
+"""
+function add_fockconfig!(s::CompressedTuckerState{T,N}, fock::FockConfig) where {T,N}
+    s.data[fock] = OrderedDict{TuckerConfig, Tucker{T,N}}()
+end
+
+"""
+    Base.length(s::CompressedTuckerState)
+"""
+function Base.length(s::CompressedTuckerState)
+    l = 0
+    for (fock,tconfigs) in s.data
+        for (tconfig, tuck) in tconfigs
+            l += length(tuck)
+        end
+    end
+    return l
+end
+"""
+    prune_empty_fock_spaces!(s::AbstractState)
+
+remove fock_spaces that don't have any configurations
+"""
+function prune_empty_fock_spaces!(s::AbstractState)
+    focklist = keys(s.data)
+    for fock in focklist
+        if length(s.data[fock]) == 0
+            delete!(s.data, fock)
+        end
+    end
+    focklist = keys(s.data)
+    for (fock,tconfigs) in s.data
+        for (tconfig,coeff) in tconfigs
+        end
+    end
+end
+"""
+    prune_empty_TuckerConfigs!(s::T) where T<:Union{TuckerState, CompressedTuckerState}
+
+remove fock_spaces that don't have any configurations
+"""
+function prune_empty_TuckerConfigs!(s::T) where T<:Union{TuckerState, CompressedTuckerState}
+    focklist = keys(s.data)
+    for fock in focklist
+        tconflist = keys(s.data[fock])
+        for tconf in tconflist
+            if length(s.data[fock][tconf]) == 0
+                delete!(s.data[fock], tconf)
+            end
+        end
+    end
+    for (fock,tconfigs) in s.data
+        for (tconfig,coeff) in tconfigs
+        end
+    end
+    prune_empty_fock_spaces!(s)
+end
+
+
+"""
+    get_vector(s::CompressedTuckerState)
+
+Return a vector of the variables. Note that this is the core tensors being returned
+"""
+function get_vector(cts::CompressedTuckerState)
+
+    v = zeros(length(cts), 1)
+    idx = 1
+    for (fock, tconfigs) in cts
+        for (tconfig, tuck) in tconfigs
+            dims = size(tuck.core)
+
+            dim1 = prod(dims)
+            v[idx:idx+dim1-1,:] = copy(reshape(tuck.core,dim1))
+            idx += dim1
+        end
+    end
+    return v
+end
+"""
+    set_vector!(s::CompressedTuckerState)
+"""
+function set_vector!(ts::CompressedTuckerState, v)
+
+    #length(size(v)) == 1 || error(" Only takes vectors", size(v))
+    nbasis = size(v)[1]
+
+    idx = 1
+    for (fock, tconfigs) in ts
+        for (tconfig, tuck) in tconfigs
+            dims = size(tuck)
+
+            dim1 = prod(dims)
+            ts[fock][tconfig].core .= reshape(v[idx:idx+dim1-1], size(tuck.core))
+            idx += dim1
+        end
+    end
+    nbasis == idx-1 || error("huh?", nbasis, " ", idx)
+    return
+end
+"""
+    zero!(s::CompressedTuckerState)
+"""
+function zero!(s::CompressedTuckerState)
+    for (fock, tconfigs) in s
+        for (tconfig, tcoeffs) in tconfigs
+            fill!(s[fock][tconfig].core, 0.0)
+        end
+    end
+end
+
+"""
+    Base.display(s::CompressedTuckerState; thresh=1e-3)
+
+Pretty print
+"""
+function Base.display(s::CompressedTuckerState; thresh=1e-3)
+#={{{=#
+    println()
+    @printf(" --------------------------------------------------\n")
+    @printf(" ---------- # Fockspaces -------------------: %5i  \n",length(keys(s.data)))
+    @printf(" ---------- # Configs    -------------------: %5i  \n",length(s))
+    @printf(" --------------------------------------------------\n")
+    @printf(" Printing contributions greater than: %f", thresh)
+    @printf("\n")
+    @printf(" %-20s%-10s%-10s%-20s\n", "Weight", "# configs", "(full)", "(α,β)...")
+    @printf(" %-20s%-10s%-10s%-20s\n", "-------","---------", "---------", "----------")
+    for (fock,configs) in s.data
+        prob = 0
+        len = 0
+
+        lenfull = 0
+        for (config, tuck) in configs
+            prob += sum(tuck.core .* tuck.core)
+            len += length(tuck.core)
+            lenfull += prod(dims_large(tuck))
+        end
+        if prob > thresh
+        #if lenfull > 0
+            #@printf(" %-20.3f%-10i%-10i", prob,len, lenfull)
+            @printf(" %-20.3f%-10s%-10s", prob,"","")
+            for sector in fock
+                @printf("(%2i,%-2i)", sector[1],sector[2])
+            end
+            println()
+
+            #@printf("     %-16s%-20s%-20s\n", "Weight", "", "Subspaces")
+            #@printf("     %-16s%-20s%-20s\n", "-------", "", "----------")
+            for (config, tuck) in configs
+                probi = sum(tuck.core .* tuck.core)
+                @printf("     %-16.3f%-10i%-10i", probi,length(tuck.core),prod(dims_large(tuck)))
+                for range in config
+                    @printf("%7s", range)
+                end
+                println()
+            end
+            #println()
+            @printf(" %-20s%-20s%-20s\n", "---------", "", "----------")
+        end
+    end
+    print(" --------------------------------------------------\n")
+    println()
+#=}}}=#
+end
+"""
+    print_fock_occupations(s::CompressedTuckerState; thresh=1e-3)
+
+Pretty print
+"""
+function print_fock_occupations(s::CompressedTuckerState; thresh=1e-3)
+#={{{=#
+
+    println()
+    @printf(" --------------------------------------------------\n")
+    @printf(" ---------- # Fockspaces -------------------: %5i  \n",length(keys(s.data)))
+    @printf(" ---------- # Configs    -------------------: %5i  \n",length(s))
+    @printf(" --------------------------------------------------\n")
+    @printf(" Printing contributions greater than: %f", thresh)
+    @printf("\n")
+    @printf(" %-20s%-10s%-10s%-20s\n", "Weight", "# configs", "(full)", "(α,β)...")
+    @printf(" %-20s%-10s%-10s%-20s\n", "-------","---------", "---------", "----------")
+    for (fock,configs) in s.data
+        prob = 0
+        len = 0
+        lenfull = 0
+        for (config, tuck) in configs
+            prob += sum(tuck.core .* tuck.core)
+            len += length(tuck.core)
+            lenfull += prod(dims_large(tuck))
+        end
+        if prob > thresh
+            @printf(" %-20.3f%-10i%-10i", prob,len,lenfull)
+            for sector in fock
+                @printf("(%2i,%-2i)", sector[1],sector[2])
+            end
+            println()
+        end
+    end
+    print(" --------------------------------------------------\n")
+    println()
+#=}}}=#
+end
+
+
+"""
+    dot(ts1::FermiCG.CompressedTuckerState, ts2::FermiCG.CompressedTuckerState)
+
+Dot product between `ts2` and `ts1`
+
+Warning: this assumes both `ts1` and `ts2` have the same tucker factors for each `TuckerConfig`
+"""
+function orth_dot(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
+#={{{=#
+    overlap = 0.0
+    for (fock,configs) in ts2
+        haskey(ts1, fock) || continue
+        for (config,coeffs) in configs
+            haskey(ts1[fock], config) || continue
+            overlap += sum(ts1[fock][config].core .* ts2[fock][config].core)
+        end
+    end
+    return overlap
+#=}}}=#
+end
+
+
+
+"""
+    nonorth_dot(ts1::FermiCG.CompressedTuckerState, ts2::FermiCG.CompressedTuckerState; verbose=0)
+
+Dot product between 1ts2` and `ts1` where each have their own Tucker factors
+"""
+function nonorth_dot(ts1::CompressedTuckerState, ts2::CompressedTuckerState; verbose=0)
+#={{{=#
+    overlap = 0.0
+    for (fock,configs) in ts2
+        haskey(ts1, fock) || continue
+        verbose == 0 || display(fock)
+        for (config,coeffs) in configs
+            haskey(ts1[fock], config) || continue
+            verbose == 0 || display(config)
+            overlap += dot(ts1[fock][config] , ts2[fock][config])
+            verbose == 0 || display(dot(ts1[fock][config] , ts2[fock][config]))
+        end
+    end
+    return overlap
+#=}}}=#
+end
+
+"""
+    scale!(ts::FermiCG.CompressedTuckerState, a::T<:Number)
+
+Scale `ts` by a constant
+"""
+function scale!(ts::CompressedTuckerState, a::T) where T<:Number
+    #={{{=#
+    for (fock,configs) in ts
+        for (config,tuck) in configs
+            ts[fock][config].core .*= a
+        end
+    end
+    #=}}}=#
+end

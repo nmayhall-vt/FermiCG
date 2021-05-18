@@ -1,9 +1,12 @@
+<div align="left">
+  <img src="docs/src/logo1.png" height="60px"/>
+</div>
+
 # FermiCG
 A Julia package for course-grained electronic structure calculations
 
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://nmayhall-vt.github.io/FermiCG/stable)
 [![Build Status](https://github.com/nmayhall-vt/FermiCG/workflows/CI/badge.svg)](https://github.com/nmayhall-vt/FermiCG/actions)
-[![Build Status](https://travis-ci.com/nmayhall-vt/FermiCG.svg?branch=master)](https://travis-ci.com/nmayhall-vt/FermiCG)
 [![Coverage](https://codecov.io/gh/nmayhall-vt/FermiCG/branch/master/graph/badge.svg)](https://codecov.io/gh/nmayhall-vt/FermiCG)
 
 
@@ -23,9 +26,13 @@ A Julia package for course-grained electronic structure calculations
 	virtualenv -p python3 venv
 	source venv/bin/activate
 	pip install -r requirements.txt
-	cd ../
-	julia --project=./
+	export TPSCI_PYTHON=$(which python)
+	cd ../../
+	julia --project=./ -tauto 
 	julia> using Pkg; Pkg.build("PyCall")
 	```
-### Notes
-- Use ITensor for dense algorithm
+	where `-tauto` let's Julia pick the max number of threads. Use `-t N` to select `N` manually. Removing defaults to 1 thread. 
+2. Run tests
+	```
+	julia> Pkg.test()
+	```

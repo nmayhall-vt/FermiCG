@@ -20,14 +20,14 @@ push!(atoms,Atom(8,"H",[3,0,7]))
 #push!(atoms,Atom(10,"H",[0,0,9]))
 #push!(atoms,Atom(11,"H",[0,0,10]))
 #push!(atoms,Atom(12,"H",[0,0,11]))
-#basis = "6-31g"
-basis = "sto-3g"
+basis = "6-31g"
+#basis = "sto-3g"
 
-mol     = Molecule(0,1,atoms)
-mf = FermiCG.pyscf_do_scf(mol,basis)
+mol     = Molecule(0,1,atoms, basis)
+mf = FermiCG.pyscf_do_scf(mol)
 e_mf = mf.e_tot - mf.energy_nuc()
 @printf(" Mean-field energy %12.8f", e_mf)
-ints = FermiCG.pyscf_build_ints(mf.mol,mf.mo_coeff);
+ints = FermiCG.pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
 @time e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,4,4)
 # @printf(" FCI Energy: %12.8f\n", e_fci)
 

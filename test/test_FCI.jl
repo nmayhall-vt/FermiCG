@@ -15,10 +15,12 @@ using Arpack
     push!(atoms,Atom(6,"H",[0,0,5]))
     #basis = "6-31g"
     basis = "sto-3g"
-
     mol     = Molecule(0,1,atoms,basis)
-    mf = FermiCG.pyscf_do_scf(mol,basis)
-    ints = FermiCG.pyscf_build_ints(mf.mol,mf.mo_coeff);
+    
+
+    mf = FermiCG.pyscf_do_scf(mol)
+    nbas = size(mf.mo_coeff)[1]
+    ints = FermiCG.pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
     e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,3,3)
     @printf(" FCI Energy: %12.8f\n", e_fci)
 
@@ -26,12 +28,12 @@ using Arpack
     n_elec_b = 3
 
     norb = size(ints.h1)[1]
-    problem = FCIProblem(norb, n_elec_a, n_elec_b)
+    problem = FermiCG.StringCI.FCIProblem(norb, n_elec_a, n_elec_b)
 
 
     display(problem)
 
-    @time Hmat = FermiCG.build_H_matrix(ints, problem)
+    @time Hmat = FermiCG.StringCI.build_H_matrix(ints, problem)
     @time e,v = eigs(Hmat, nev = 10, which=:SR)
     e = real(e)
     for ei in e
@@ -39,3 +41,4 @@ using Arpack
     end
     @test isapprox(e[1], e_fci , atol=1e-10)
 end
+

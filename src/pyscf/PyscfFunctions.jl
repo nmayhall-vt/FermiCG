@@ -1,9 +1,9 @@
 using PyCall
 using PrettyTables
 
-pydir = joinpath(dirname(pathof(FermiCG)), "python")
-pushfirst!(PyVector(pyimport("sys")."path"), pydir)
-ENV["PYTHON"] = Sys.which("python")
+#pydir = joinpath(dirname(pathof(FermiCG)), "python")
+#pushfirst!(PyVector(pyimport("sys")."path"), pydir)
+#ENV["PYTHON"] = Sys.which("python")
 #print(ENV)
 
 """
@@ -12,14 +12,15 @@ ENV["PYTHON"] = Sys.which("python")
 Use PySCF to compute Hartree-Fock for a given molecule and basis set
 and return a PYSCF mean field object
 """
-function pyscf_do_scf(molecule::Molecule, conv_tol=1e-10)
+function pyscf_do_scf(molecule::Molecule; conv_tol=1e-10, verbose=0)
     pyscf = pyimport("pyscf")
+    pyscf.lib.num_threads(1)
     pymol = make_pyscf_mole(molecule)
 
     println(pymol.basis)
     #pymol.max_memory = 1000 # MB
     #pymol.symmetry = true
-    mf = pyscf.scf.RHF(pymol).run(conv_tol=conv_tol)
+    mf = pyscf.scf.RHF(pymol).run(conv_tol=conv_tol, verbose=verbose)
     enu = mf.energy_nuc()
     println("MO Energies")
     display(mf.mo_energy)
@@ -44,6 +45,7 @@ Create a `pyscf.gto.Mole()` object
 """
 function make_pyscf_mole(molecule::Molecule)
     pyscf = pyimport("pyscf")
+    pyscf.lib.num_threads(1)
     pymol = pyscf.gto.Mole()
     pymol.basis = molecule.basis
     geomstr = ""
@@ -69,7 +71,8 @@ Write MO coeffs `C` to a molden file for visualizing
 """
 function pyscf_write_molden(molecule::Molecule, C; filename="orbitals.molden")
     pyscf = pyimport("pyscf")
-    molden = pyimport("pyscf.molden")
+    pyscf.lib.num_threads(1)
+    molden = pyimport("pyscf.tools.molden")
     pymol = make_pyscf_mole(molecule)
     molden.from_mo(pymol, filename, C)
     return 1
@@ -87,9 +90,30 @@ Write MO coeffs `C` to a molden file for visualizing
 """
 function pyscf_write_molden(mf; filename="orbitals.molden")
     pyscf = pyimport("pyscf")
-    molden = pyimport("pyscf.molden")
+    tools = pyimport("pyscf.tools")
+    molden = pyimport("tools.molden")
     molden.from_mo(mf.mol, filename, mf.mo_coeff)
     return 1
+end
+
+
+"""
+	pyscf_build_1e(mol::Molecule)
+
+build 1 electron integrals in AO basis 
+# Arguments
+- `mol::Molecule` 
+
+returns a 2D matrix 
+"""
+function pyscf_build_1e(mol::Molecule)
+
+    pyscf = pyimport("pyscf")
+    pyscf.lib.num_threads(1)
+    # 
+    # get pyscf molecule type
+    pymol = FermiCG.make_pyscf_mole(mol)
+    return pyscf.scf.hf.get_hcore(pymol)
 end
 
 
@@ -109,6 +133,7 @@ returns a 4D tensor
 function pyscf_build_eri(mol::Molecule, c1::Matrix, c2::Matrix, c3::Matrix, c4::Matrix)
 
     pyscf = pyimport("pyscf")
+    pyscf.lib.num_threads(1)
     # 
     # get pyscf molecule type
     pymol = FermiCG.make_pyscf_mole(mol)
@@ -127,6 +152,30 @@ end
 
 
 """
+	pyscf_get_jk(mol, density)
+
+Build exchange matrix in AO basis
+
+# Arguments
+- `mol`: PySCF Molecule object
+- `density`: 1rdm density matrix for 
+
+"""
+function pyscf_get_jk(mol::Molecule, density)
+	pyscf = pyimport("pyscf")
+    pyscf.lib.num_threads(1)
+
+    # 
+    # get pyscf molecule type
+    pymol = FermiCG.make_pyscf_mole(mol)
+
+	h0 = pyscf.gto.mole.energy_nuc(pymol)
+	h  = pyscf.scf.hf.get_hcore(pymol)
+    j, k = pyscf.scf.hf.get_jk(pymol, density, hermi=1)
+    return h, j, k
+end 
+
+"""
 	pyscf_build_ints(mol, c_act, d1_embed)
 
 build 1 and 2 electron integrals using a pyscf SCF object
@@ -135,11 +184,12 @@ build 1 and 2 electron integrals using a pyscf SCF object
 - `c_act`: active space orbital MO coeffs
 - `d1_embed`: 1rdm density matrix for the frozen part in the AO basis (e.g, doccs or frozen clusters)
 
-returns an `ElectronicInts` type
+returns an `InCoreInts` type
 """
 function pyscf_build_ints(mol::Molecule, c_act, d1_embed)
 
 	pyscf = pyimport("pyscf")
+    pyscf.lib.num_threads(1)
 
 	nact = size(c_act)[2]
 	#mycas = pyscf.mcscf.CASSCF(mf, length(active), 0)
@@ -148,8 +198,17 @@ function pyscf_build_ints(mol::Molecule, c_act, d1_embed)
     pymol = FermiCG.make_pyscf_mole(mol)
 
 	h0 = pyscf.gto.mole.energy_nuc(pymol)
-	h = c_act' * pyscf.scf.hf.get_hcore(pymol) * c_act
-	j, k = pyscf.scf.hf.get_jk(pymol, d1_embed, hermi=1)
+	h  = pyscf.scf.hf.get_hcore(pymol)
+    j, k = pyscf.scf.hf.get_jk(pymol, d1_embed, hermi=1)
+	
+    # get core energy
+    #h0 = tr(d1_embed * ( h + .5*j - .5*k))
+    #mf = pyscf.scf.RHF(pymol)
+    #h0 = pyscf.scf.hf.energy_elec(mf, d1_embed)[1]
+    h0 += tr(d1_embed * ( h + .5*j - .25*k))
+
+    # now rotate to MO basis
+    h = c_act' * h * c_act
 	j = c_act' * j * c_act;
 	k = c_act' * k * c_act;
 	h2 = pyscf.ao2mo.kernel(pymol, c_act, aosym="s4",compact=false)
@@ -171,7 +230,7 @@ function pyscf_build_ints(mol::Molecule, c_act, d1_embed)
 	h1 = h + j - .5*k;
 	#display(h + j - .5*k)
 
-	h = ElectronicInts(h0, h1, h2);
+	h = InCoreInts(h0, h1, h2);
 	return h
 end
 
@@ -181,7 +240,7 @@ end
 #build 1 and 2 electron integrals using a pyscf SCF object
 #active is list of orbital indices which are active
 #
-#returns an `ElectronicInts` type
+#returns an `InCoreInts` type
 #"""
 #function pyscf_build_ints(mol, c_act)
 #
@@ -196,7 +255,7 @@ end
 #	h2 = reshape(h2, (nact, nact, nact, nact))
 #
 #	# println(size(c_act))
-#	h = ElectronicInts(h0, h1, h2);
+#	h = InCoreInts(h0, h1, h2);
 #	return h
 #end
 
@@ -209,6 +268,7 @@ Use PySCF to compute Full CI
 function pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1, verbose=1)
 	# println(" Use PYSCF to compute FCI")
 	pyscf = pyimport("pyscf")
+    pyscf.lib.num_threads(1)
 	fci = pyimport("pyscf.fci")
 	cisolver = pyscf.fci.direct_spin1.FCI()
 	cisolver.max_cycle = max_cycle
@@ -216,7 +276,9 @@ function pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1, verbose=1
 	nelec = na + nb
 	norb = size(ham.h1)[1]
 	efci, ci = cisolver.kernel(ham.h1, ham.h2, norb , nelec, ecore=0, nroots =nroots, verbose=100)
-	fci_dim = size(ci)[1]*size(ci)[2]
+    #@printf(" Length of CI Vector: %i\n", length(ci[1]))
+    #println(size(ci[1]))
+	fci_dim = size(ci,1)*size(ci,2)
 	# d1 = cisolver.make_rdm1(ci, norb, nelec)
 	d1,d2 = cisolver.make_rdm12(ci, norb, nelec)
 	# @printf(" Energy2: %12.8f\n", FermiCG.compute_energy(ham.h0, ham.h1, ham.h2, d1, d2))
@@ -238,7 +300,7 @@ function pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1, verbose=1
         @printf(" FCI:        %12.8f %12.8f \n", efci+ham.h0, efci)
     end
 
-    return efci, d1, d2
+    return efci, d1, d2, ci
 end
 
 
@@ -259,6 +321,7 @@ function localize(C::Array{Float64,2},method::String, mf)
     mf is a pyscf scf object
     """
     pyscf = pyimport("pyscf")
+    pyscf.lib.num_threads(1)
     pyscflo = pyimport("pyscf.lo")
     if lowercase(method) == "lowdin"
         Cl = mf.mol.intor("int1e_ovlp_sph")
@@ -280,3 +343,4 @@ Get overlap matrix from pyscf using mean-field object
 function get_ovlp(mf)
 		return mf.mol.intor("int1e_ovlp_sph")
 end
+

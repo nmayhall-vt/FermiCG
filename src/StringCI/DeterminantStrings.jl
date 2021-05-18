@@ -1,7 +1,9 @@
 using Printf
 using Parameters
-import Base: length, print, display
-
+using StaticArrays
+using BenchmarkTools
+using InteractiveUtils
+import Base: display
 
 
 ### 
@@ -22,16 +24,16 @@ Type to organize all the configuration DeterminantString
 """
 #struct DeterminantString
 mutable struct DeterminantString
-    no::Integer
-    ne::Integer
-    sign::Integer
-    lin_index::Integer
-    config::Array{Integer,1}
-    #ca_lookup::Array{Integer, 3}
-    max::Integer
+    no::Int
+    ne::Int
+    sign::Int
+    lin_index::Int
+    config::Array{Int,1}
+    #ca_lookup::Array{Int, 3}
+    max::Int
 end
 
-function DeterminantString(no::Integer, ne::Integer)
+function DeterminantString(no::Int, ne::Int)
     return DeterminantString(no, ne, 1, 1, Vector(1:ne), get_nchk(no,ne))
     #return DeterminantString(no, ne, 1, 1, Vector(1:ne), zeros(get_nchk(no,ne),no,no), get_nchk(no,ne))
 end
@@ -41,21 +43,64 @@ function display(d::DeterminantString)
 end
 
 
-function get_unoccupied(c::DeterminantString)
-    #=
-    return number of DeterminantStrings
-    =#
+"""
+    get_unoccupied(c::DeterminantString)
+
+get list of orbitals that are unoccupied
+"""
+@inline function get_unoccupied(c::DeterminantString)
+    unoccupied = zeros(Int, c.no-c.ne,1)
+    j = 1
+    for i in 1:c.no
+        if i in c.config
+            continue
+        end
+        unoccupied[j] = i
+        j+=1
+    end
+    return unoccupied
 end
 
-function length(c::DeterminantString)
+
+"""
+    get_unoccupied(c::DeterminantString)
+
+get list of orbitals that are unoccupied
+"""
+function get_unoccupied!(unoccupied::Array{Int,1}, c::DeterminantString)
+    j = 1
+    for i in 1:c.no
+        if i in c.config
+            continue
+        end
+        unoccupied[j] = i
+        j+=1
+    end
+end
+
+function Base.length(c::DeterminantString)
     #=
     return number of DeterminantStrings
     =#
     return c.max
 end
 
+"""
+    Base.copy!(c1::DeterminantString,c2::DeterminantString)
 
-function print(c::DeterminantString)
+copy c2 into c1
+"""
+function Base.copy!(c1::DeterminantString,c2::DeterminantString)
+    c1.config = copy(c2.config)
+    c1.no = c2.no
+    c1.ne = c2.ne
+    c1.sign = c2.sign
+    c1.lin_index = c2.lin_index
+    c1.max = c2.max
+end
+
+
+function Base.print(c::DeterminantString)
     #=
     Pretty print of an determinant DeterminantString
     =#
@@ -104,7 +149,7 @@ end
 #=}}}=#
 
 
-function incr_comb!(comb::Array{Integer,1}, Mend::Integer)
+function incr_comb!(comb::Array{Int,1}, Mend::Int)
     #=
     For a given combination, form the next combination
     =#
@@ -124,42 +169,63 @@ end
 #=}}}=#
 
 
+"""
+    calc_linear_index!(c::DeterminantString)
+
+Calculate the linear index
+"""
 function calc_linear_index!(c::DeterminantString)
-    #=
-    Return linear index for lexically ordered __config DeterminantString
-    =#
     #={{{=#
     c.lin_index = 1
     v_prev::Int = 0
 
-    for i in 1:c.ne
+    for i::Int in 1:c.ne
         v = c.config[i]
-        #todo: change mchn from function call to data lookup!
-        for j in v_prev+1:v-1
-            #print(c)
-            #print(c.no-j, " ", c.ne-i,'\n')
-            c.lin_index += get_nchk(c.no-j,c.ne-i)
+        for j::Int in v_prev+1:v-1
+            c.lin_index += StringCI.binom_coeff[c.no-j+1,c.ne-i+1]
+            #@btime $c.lin_index += $binom_coeff[$c.no-$j+1,$c.ne-$i+1]
+            #c.lin_index += get_nchk(c.no-j,c.ne-i)
         end
         v_prev = v
     end
-    return
 end
 #=}}}=#
 
 
+"""
+    calc_linear_index!(c::DeterminantString, binomcoeff::Array{Int,2})
+
+Calculate the linear index, passing in binomial coefficient matrix makes it much faster
+"""
+function calc_linear_index!(c::DeterminantString, binomcoeff::Array{Int,2})
+    #={{{=#
+    c.lin_index = 1
+    v_prev::Int = 0
+
+    for i::Int in 1:c.ne
+        v = c.config[i]
+        for j::Int in v_prev+1:v-1
+            c.lin_index += binomcoeff[c.no-j+1,c.ne-i+1]
+        end
+        v_prev = v
+    end
+end
+#=}}}=#
+
+
+"""
+    calc_linear_index(c::DeterminantString)
+    
+Return linear index for lexically ordered __config DeterminantString
+"""
 function calc_linear_index(c::DeterminantString)
-    #=
-    Return linear index for lexically ordered __config DeterminantString
-    =#
     #={{{=#
     v_prev::Int = 0
     lin_index = 1
     for i in 1:c.ne
         v = c.config[i]
         #todo: change mchn from function call to data lookup!
-        for j in v_prev+1:v-1
-            #print(c)
-            #print(c.no-j, " ", c.ne-i,'\n')
+        @inbounds @simd for j in v_prev+1:v-1
             lin_index += get_nchk(c.no-j,c.ne-i)
         end
         v_prev = v
@@ -218,7 +284,7 @@ end
 
 
 """
-    fill_ca_lookup(c::DeterminantString)
+    fill_ca_lookup2(c::DeterminantString)
 
 Create an index table relating each DeterminantString with all ia substitutions
 i.e., ca_lookup[Ka,p,q] = sign*La
@@ -233,19 +299,25 @@ function fill_ca_lookup2(c::DeterminantString)
 
     max = calc_max(ket)
 
-    tbl = zeros(Integer,max, ket.no, ket.no)
+    tbl = zeros(Int,ket.no, ket.no, max)
     for K in 1:max
-        for p in 1:ket.no
-            for q in 1:ket.no
-                bra = deepcopy(ket)
+        for q in 1:ket.no
+            for p in ket.config
+                #bra = deepcopy(ket)
+                copy!(bra,ket)
+                
                 apply_annihilation!(bra,p)
+                if bra.sign == 0
+                    continue
+                end
                 apply_creation!(bra,q)
-                @assert(issorted(bra.config))
+                issorted(bra.config) || throw(Exception)
                 if bra.sign == 0
                     continue
                 else
-                    calc_linear_index!(bra)
-                    tbl[K, q, p] = bra.sign*bra.lin_index
+                    calc_linear_index!(bra,binom_coeff)
+                    #@code_warntype calc_linear_index!(bra,binom_coeff)
+                    tbl[q, p, K] = bra.sign*bra.lin_index
                 end
             end
         end
@@ -255,6 +327,110 @@ function fill_ca_lookup2(c::DeterminantString)
 end
 #=}}}=#
 
+"""
+    fill_ca_lookup3(c::DeterminantString)
+
+Create an index table relating each DeterminantString with all ia substitutions
+i.e., ca_lookup[Ka,p,q] = (sign,La)
+
+<L|p'q|K> = sign
+"""
+function fill_ca_lookup3(c::DeterminantString)
+    #={{{=#
+
+    ket = DeterminantString(c.no, c.ne)
+    bra = DeterminantString(c.no, c.ne)
+
+    max = calc_max(ket)
+
+    tbl = Array{Tuple,3}(undef,ket.no,ket.no,max)
+    #tbl = zeros(Int,ket.no, ket.no, max)
+    for K in 1:max
+        for p in 1:ket.no
+            for q in 1:ket.no
+                bra = deepcopy(ket)
+                apply_annihilation!(bra,p)
+                apply_creation!(bra,q)
+                #@assert(issorted(bra.config))
+                if bra.sign == 0
+                    tbl[q, p, K] = (0.0,0)
+                else
+                    calc_linear_index!(bra)
+                    tbl[q, p, K] = (1.0*bra.sign,bra.lin_index)
+                end
+            end
+        end
+        incr!(ket)
+    end
+    return tbl
+end
+#=}}}=#
+
+
+#"""
+#    fill_vo_lookup(c::DeterminantString)
+#
+#Create an index table relating each DeterminantString with all ia substitutions
+#i.e., ca_lookup[v,o,Ka] = sign*La
+#where o and v are occupied and virtual indices
+#
+#<L|v'o|K> = sign
+#"""
+#function fill_vo_lookup(c::DeterminantString)
+#    #={{{=#
+#
+#    ket = DeterminantString(c.no, c.ne)
+#    bra = DeterminantString(c.no, c.ne)
+#
+#    max = calc_max(ket)
+#
+#    no = ket.no
+#    ne = ket.ne
+#    nv = no-ne
+#
+#    tbl = zeros(Int,nv, ne, max)
+#    #tbl = Array{Tuple,3}(undef,nv,ne,max)
+#    #tbl = Array{SVector{4,Int},nv, ne, max}
+#    #println("max:",max)
+#    for K in 1:max
+#        virt = get_unoccupied(ket)
+#        for pp in 1:ne
+#            p = ket.config[pp]
+#            bra1 = deepcopy(ket)
+#            apply_annihilation!(bra1,p)
+#            for qq in 1:nv 
+#                q = virt[qq]
+#                bra = deepcopy(bra1)
+#                apply_creation!(bra,q)
+#                @assert(issorted(bra.config))
+#                if bra.sign == 0
+#                    continue
+#                else
+#                    calc_linear_index!(bra)
+#                    tbl[qq, pp, K] = bra.sign*bra.lin_index
+#                    #tbl[qq, pp, K] = (bra.sign, bra.lin_index, q, p)
+#                    #println()
+#                    #display(bra)
+#                    #println("qq=", qq,", pp=", pp,", K=", K)
+#                    #println("sgn=", bra.sign, ", lin=", bra.lin_index,", q=", q, ", p=", p)
+#                end
+#            end
+#        end
+#        incr!(ket)
+#    end
+#    #println(maximum(tbl))
+#    #println(minimum(tbl))
+#    #throw(Exception)
+#    return tbl
+#end
+##=}}}=#
+
+
+"""
+    reset!(c::DeterminantString)
+
+Reset the DeterminantString to the first config
+"""
 function reset!(c::DeterminantString)
     #={{{=#
     c.config = Vector(1:c.ne)
@@ -275,7 +451,12 @@ end
 #=}}}=#
 
 
-function apply_annihilation!(c::DeterminantString, orb_index::Integer)
+"""
+    apply_annihilation!(c::DeterminantString, orb_index::Int)
+
+Apply an annihilation operator to `c` corresponding to orbital `orb_index` 
+"""
+function apply_annihilation!(c::DeterminantString, orb_index::Int)
     #=
     apply annihilation operator a_i to current DeterminantString
     where orb_index is i
@@ -314,7 +495,14 @@ end
 #=}}}=#
 
 
-function apply_creation!(c::DeterminantString, orb_index::Integer)
+
+
+"""
+    apply_creation!(c::DeterminantString, orb_index::Int)
+
+Apply a creation operator to `c` corresponding to orbital `orb_index` 
+"""
+function apply_creation!(c::DeterminantString, orb_index::Int)
     #=
     apply creation operator a_i to current DeterminantString
     where orb_index is i

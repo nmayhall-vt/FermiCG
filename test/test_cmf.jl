@@ -68,8 +68,19 @@ using Test
     f2 = FermiCG.cmf_ci_iteration(mol, Cl, rdm1a, rdm1b, clusters, init_fspace, verbose=1)
     @test isapprox(f2[1], -2.876651063218, atol=1e-10)
 
-    e_cmf, U = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, verbose=0, gconv=1e-6)
 
+    f1 = FermiCG.cmf_ci(ints, clusters, init_fspace, rdm1a, verbose=0)
+    f2 = FermiCG.cmf_ci(mol, Cl, clusters, init_fspace, rdm1a, verbose=0)
+    @test isapprox(f1[1], f2[1], atol=1e-10)
+    @test isapprox(f1[1], -2.97293813654926351, atol=1e-10)
+    
+    e_cmf, U = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, verbose=0, gconv=1e-6, method="cg")
+    #e_cmf, U = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, verbose=0, gconv=1e-6, max_iter_oo=4)
     @test isapprox(e_cmf, -3.205983033016, atol=1e-10)
-    #FermiCG.pyscf_write_molden(mol,C_cmf,filename="cmf.molden")
+  
+    ## This is so slow, so only test a couple iterations
+    ##e_cmf, U = FermiCG.cmf_oo(mol, Cl, clusters, init_fspace, rdm1, verbose=0, gconv=1e-6)
+    ##@test isapprox(e_cmf, -3.205983033016, atol=1e-10)
+    #e_cmf, U = FermiCG.cmf_oo(mol, Cl, clusters, init_fspace, rdm1, verbose=0, gconv=1e-6, max_iter_oo=3)
+    #@test isapprox(e_cmf, -3.2036779028934497, atol=1e-10)
 end
