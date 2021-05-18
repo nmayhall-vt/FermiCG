@@ -230,6 +230,7 @@ function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rd
         
             na = fspace[ci.idx][1]
             nb = fspace[ci.idx][2]
+	    print(no,na,nb)
 
             if (na == no) && (nb == no)
                 #
@@ -240,6 +241,30 @@ function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rd
                 end
                 d1 *= 2.0
                 d2 *= 2.0
+                e = compute_energy(0, ints_i.h1, ints_i.h2, d1, d2)
+                verbose == 0 || @printf(" Slater Det Energy: %12.8f\n", e)
+
+            elseif (na == no) && (nb == 0)
+                #
+                # a doubly occupied space
+                d1 = Matrix(1.0I, no, no)
+                for p in 1:no, q in 1:no, r in 1:no, s in 1:no
+                    d2[p,q,r,s] = 2*d1[p,q]*d1[r,s] - d1[p,s]*d1[r,q]
+                end
+                d1 *= 2.0
+                d2 *= 0.0
+                e = compute_energy(0, ints_i.h1, ints_i.h2, d1, d2)
+                verbose == 0 || @printf(" Slater Det Energy: %12.8f\n", e)
+
+            elseif (na == 0) && (nb == no)
+                #
+                # a doubly occupied space
+                d1 = Matrix(1.0I, no, no)
+                for p in 1:no, q in 1:no, r in 1:no, s in 1:no
+                    d2[p,q,r,s] = 2*d1[p,q]*d1[r,s] - d1[p,s]*d1[r,q]
+                end
+                d1 *= 2.0
+                d2 *= 0.0
                 e = compute_energy(0, ints_i.h1, ints_i.h2, d1, d2)
                 verbose == 0 || @printf(" Slater Det Energy: %12.8f\n", e)
 
