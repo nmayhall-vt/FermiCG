@@ -2,6 +2,11 @@
 ## Background
 
 Tensor Product Selected CI (TPSCI) approximates FCI on large active spaces using a sparse basis of tensor products of many-body cluster states.
+The main idea is fold much of the electron correlation up into the basis vectors themselves, by diagonalizing local Hamiltonians (Hamiltonians acting on disjoint sets of orbitals, "clusters"), 
+and using the tensor product space of these cluster states as our basis. 
+For entangled clusters, the convergence of the global energy with the number of local cluster states is slow, making direct truncation of the cluster basis ineffective. 
+However, instead of seeking a simple trunctation based on local information, 
+we seek a sparse representation, such that only a small number of global states are needed to obtain an accurate approximation of the ground state. 
 
 ### Algorithm
 The algorithm consists of the following steps:
