@@ -1,7 +1,8 @@
 """
-    contract_matrix_element(   term::ClusteredTerm1B, 
+    function contract_matrix_element(   term::ClusteredTerm1B, 
                                     cluster_ops::Vector{ClusterOps},
-                                    fock_bra, bra, fock_ket, ket)
+                                    fock_bra::FockConfig, bra::ClusterConfig, 
+                                    fock_ket::FockConfig, ket::ClusterConfig)
 
 Contraction for local (1body) terms. No contraction is needed,
 just a lookup from the correct operator
@@ -31,9 +32,10 @@ function contract_matrix_element(   term::ClusteredTerm1B,
 end
 #=}}}=#
 """
-    contract_matrix_element(   term::ClusteredTerm2B, 
+    function contract_matrix_element(   term::ClusteredTerm2B, 
                                     cluster_ops::Vector{ClusterOps},
-                                    fock_bra, bra, fock_ket, ket)
+                                    fock_bra::FockConfig, bra::ClusterConfig, 
+                                    fock_ket::FockConfig, ket::ClusterConfig)
 """
 function contract_matrix_element(   term::ClusteredTerm2B, 
                                     cluster_ops::Vector{ClusterOps},
@@ -112,9 +114,10 @@ function contract_matrix_element(   term::ClusteredTerm2B,
 end
 #=}}}=#
 """
-    contract_matrix_element(   term::ClusteredTerm3B, 
+    function contract_matrix_element(   term::ClusteredTerm3B, 
                                     cluster_ops::Vector{ClusterOps},
-                                    fock_bra, bra, fock_ket, ket)
+                                    fock_bra::FockConfig, bra::ClusterConfig, 
+                                    fock_ket::FockConfig, ket::ClusterConfig)
 """
 function contract_matrix_element(   term::ClusteredTerm3B, 
                                     cluster_ops::Vector{ClusterOps},
@@ -164,9 +167,10 @@ function contract_matrix_element(   term::ClusteredTerm3B,
 end
 #=}}}=#
 """
-    contract_matrix_element(   term::ClusteredTerm4B, 
+    function contract_matrix_element(   term::ClusteredTerm4B, 
                                     cluster_ops::Vector{ClusterOps},
-                                    fock_bra, bra, fock_ket, ket)
+                                    fock_bra::FockConfig, bra::ClusterConfig, 
+                                    fock_ket::FockConfig, ket::ClusterConfig)
 """
 function contract_matrix_element(   term::ClusteredTerm4B, 
                                     cluster_ops::Vector{ClusterOps},
@@ -340,9 +344,11 @@ end
 
 
 """
-    contract_matvec(    term::ClusteredTerm2B, 
-                        cluster_ops::Vector{ClusterOps},
-                        fock_bra, fock_ket, ket)
+    function contract_matvec(   term::ClusteredTerm1B, 
+                                    cluster_ops::Vector{ClusterOps},
+                                    fock_bra::FockConfig{N}, 
+                                    fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
+                                    thresh=1e-9) where {T,R,N}
 """
 function contract_matvec(   term::ClusteredTerm1B, 
                                     cluster_ops::Vector{ClusterOps},
@@ -374,9 +380,11 @@ end
 
 
 """
-    contract_matvec(    term::ClusteredTerm2B, 
-                        cluster_ops::Vector{ClusterOps},
-                        fock_bra, fock_ket, ket)
+    function contract_matvec(   term::ClusteredTerm2B, 
+                                    cluster_ops::Vector{ClusterOps},
+                                    fock_bra::FockConfig{N}, 
+                                    fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
+                                    thresh=1e-9) where {T,R,N}
 """
 function contract_matvec(   term::ClusteredTerm2B, 
                                     cluster_ops::Vector{ClusterOps},
@@ -450,9 +458,11 @@ end
 #=}}}=#
 
 """
-    contract_matvec(    term::ClusteredTerm3B, 
-                        cluster_ops::Vector{ClusterOps},
-                        fock_bra, fock_ket, ket)
+    function contract_matvec_M3(   term::ClusteredTerm3B, 
+                                    cluster_ops::Vector{ClusterOps},
+                                    fock_bra::FockConfig{N}, 
+                                    fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
+                                    thresh=1e-9) where {T,R,N}
 """
 function contract_matvec_M3(   term::ClusteredTerm3B, 
                                     cluster_ops::Vector{ClusterOps},
@@ -523,9 +533,11 @@ end
 #=}}}=#
 
 """
-    contract_matvec(    term::ClusteredTerm4B, 
-                        cluster_ops::Vector{ClusterOps},
-                        fock_bra, fock_ket, ket)
+    function contract_matvec_M4(   term::ClusteredTerm4B, 
+                                    cluster_ops::Vector{ClusterOps},
+                                    fock_bra::FockConfig{N}, 
+                                    fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
+                                    thresh=1e-9) where {T,R,N}
 """
 function contract_matvec_M4(   term::ClusteredTerm4B, 
                                     cluster_ops::Vector{ClusterOps},
@@ -657,9 +669,11 @@ end
 #       M^2 memory versions
 #############################################################################################################################################
 """
-    contract_matvec(    term::ClusteredTerm4B, 
-                        cluster_ops::Vector{ClusterOps},
-                        fock_bra, fock_ket, ket)
+    function contract_matvec(   term::ClusteredTerm3B, 
+                                    cluster_ops::Vector{ClusterOps},
+                                    fock_bra::FockConfig{N}, 
+                                    fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
+                                    thresh=1e-9, prescreen=true) where {T,R,N}
 
 This version should only use M^2N^2 storage, and n^5 scaling n={MN}
 """
@@ -748,9 +762,11 @@ end
 #=}}}=#
 
 """
-    contract_matvec(    term::ClusteredTerm4B, 
-                        cluster_ops::Vector{ClusterOps},
-                        fock_bra, fock_ket, ket)
+    function contract_matvec(   term::ClusteredTerm4B, 
+                                    cluster_ops::Vector{ClusterOps},
+                                    fock_bra::FockConfig{N}, 
+                                    fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
+                                    thresh=1e-9, prescreen=true) where {T,R,N}
 
 This version should only use M^2N^2 storage, and n^5 scaling n={MN}
 """
@@ -948,9 +964,9 @@ end
 """
 Return upper bound on the size of matrix elements resulting from matrix multiply 
 
-V[I,J] =  g1[i,I] * g2[i,J] * c 
+    V[I,J] =  g1[i,I] * g2[i,J] * c 
 
-max(|V|) <= sum_i max|g1[i,:]| * max|g2[i,:]| * |c|
+    max(|V|) <= sum_i max|g1[i,:]| * max|g2[i,:]| * |c|
 """
 function upper_bound(g1, g2; c::Float64=1.0)
 #={{{=#
@@ -973,9 +989,9 @@ end
 """
 Return upper bound on the size of tensor elements resulting from the following contraction
 
-V[I,J] = v[i,j] * g1[i,I] * g2[j,J] 
+    V[I,J] = v[i,j] * g1[i,I] * g2[j,J] 
 
-max(|V|) <= sum_ij |v[ij]| * |g1[i,:]|_8 * |g2[j,:]|_8 * |c|
+    max(|V|) <= sum_ij |v[ij]| * |g1[i,:]|_8 * |g2[j,:]|_8 * |c|
 """
 function upper_bound(v::Array{Float64,2}, g1, g2; c::Float64=1.0)
     #={{{=#
@@ -1007,9 +1023,9 @@ end
 """
 Return upper bound on the size of tensor elements resulting from the following contraction
 
-V[I,J,K] = v[i,j,k] * g1[i,I] * g2[j,J] * g3[k,K] 
+    V[I,J,K] = v[i,j,k] * g1[i,I] * g2[j,J] * g3[k,K] 
 
-max(|V|) <= sum_ijk |v[ijk]| * |g1[i,:]|_8 * |g2[j,:]|_8 * |g3[k,:]|_8 * |c|
+    max(|V|) <= sum_ijk |v[ijk]| * |g1[i,:]|_8 * |g2[j,:]|_8 * |g3[k,:]|_8 * |c|
 """
 function upper_bound(v::Array{Float64,3}, g1, g2, g3; c::Float64=1.0)
 #={{{=#
@@ -1048,9 +1064,9 @@ end
 """
 Return upper bound on the size of tensor elements resulting from the following contraction
 
-V[I,J,K,L] = v[i,j,k,l] * g1[i,I] * g2[j,J] * g3[k,K] * g4[l,L]
+    V[I,J,K,L] = v[i,j,k,l] * g1[i,I] * g2[j,J] * g3[k,K] * g4[l,L]
 
-max(|V|) <= sum_ijkl |v[ijkl]| * |g1[i,:]|_8 * |g2[j,:]|_8 * |g3[k,:]|_8 * |g4[l,:]|_8
+    max(|V|) <= sum_ijkl |v[ijkl]| * |g1[i,:]|_8 * |g2[j,:]|_8 * |g3[k,:]|_8 * |g4[l,:]|_8
 """
 function upper_bound(v::Array{Float64,4}, g1, g2, g3, g4; c::Float64=1.0)
     #={{{=#
@@ -1095,7 +1111,7 @@ end
 
         
 """
-max(H_IJ(K)|_K <= sum_r (sum_pq vpqrs max(g1[p,:]) * max(g2[q,:]) * |c| ) * |g3(r,K)|
+    max(H_IJ(K)|_K <= sum_r (sum_pq vpqrs max(g1[p,:]) * max(g2[q,:]) * |c| ) * |g3(r,K)|
 """
 function upper_bound2(v::Array{Float64,3}, g1, g2, g3, thresh; c::Float64=1.0)
     #={{{=#
@@ -1177,7 +1193,7 @@ end
 
 
 """
-max(H_IJK(L)|_L <= sum_s (sum_pqr vpqrs max(g1[p,:]) * max(g2[q,:]) * max(g3[r,:]) * |c| ) * |g4(s,L)|
+    max(H_IJK(L)|_L <= sum_s (sum_pqr vpqrs max(g1[p,:]) * max(g2[q,:]) * max(g3[r,:]) * |c| ) * |g4(s,L)|
 """
 function upper_bound2(v::Array{Float64,4}, g1, g2, g3, g4, thresh; c::Float64=1.0)
     #={{{=#

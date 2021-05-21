@@ -52,14 +52,27 @@ end
 
 
 """
-    tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
-                thresh_cipsi = 1e-2,
-                thresh_foi   = 1e-6,
-                thresh_asci  = 1e-2,
-                max_iter     = 10,
-                conv_thresh  = 1e-4) where {T,N,R}
+function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
+    thresh_cipsi = 1e-2,
+    thresh_foi   = 1e-6,
+    thresh_asci  = 1e-2,
+    thresh_var   = -1.0,
+    max_iter     = 10,
+    conv_thresh  = 1e-4,
+    nbody        = 4,
+    incremental  = true,
+    matvec       = 1) where {T,N,R}
 
-Run TPSCI 
+# Run TPSCI 
+- `thresh_cipsi`: threshold for which configurations to include in the variational space. Add if |c^{(1)}| > `thresh_cipsi`
+- `thresh_foi`  : threshold for which terms to keep in the H|0> vector used to form the first order wavefunction
+- `thresh_asci` : threshold for determining from which variational configurations $ |c^{(0)}_i| > `thresh_asci` $
+- `thresh_var`  : threshold for clipping the result of the variational wavefunction. Not really needed default set to -1 (off)
+- `max_iter`    : maximum selected CI iterations
+- `conv_thresh` : stop selected CI iterations when energy change is smaller than `conv_thresh`
+- `nbody`       : only consider up to `nbody` terms when searching for new configurations
+- `incremental` : for the sigma vector incrementally between iterations
+- `matvec`      : which implementation of the matrix vector code
 """
 function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
     thresh_cipsi = 1e-2,
@@ -242,7 +255,7 @@ end
 #=}}}=#
 
 """
-    build_full_H(ci_vector::ClusteredState, cluster_ops, clustered_ham::ClusteredOperator)
+    function build_full_H_parallel(ci_vector::ClusteredState, cluster_ops, clustered_ham::ClusteredOperator)
 
 Build full TPSCI Hamiltonian matrix in space spanned by `ci_vector`. This works in serial for the full matrix
 """
@@ -332,6 +345,13 @@ end
 #=}}}=#
 
 """
+    function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; 
+        nbody=4, 
+        H0="Hcmf",
+        E0=nothing, #pass in <0|H0|0>, or compute it
+        thresh_foi=1e-8, 
+        verbose=1,
+        matvec=3) where {T,N,R}
 """
 function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; 
         nbody=4, 
@@ -405,6 +425,9 @@ end
 #=}}}=#
 
 """
+    function compute_expectation_value(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; nbody=4) where {T,N,R}
+
+Compute expectation value of a `ClusteredOperator` (`clustered_ham`) for state `ci_vector`
 """
 function compute_expectation_value(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; nbody=4) where {T,N,R}
     #={{{=#
@@ -447,7 +470,7 @@ end
 
 
 """
-    open_matvec(ci_vector::ClusteredState, cluster_ops, clustered_ham; thresh=1e-9, nbody=4)
+    function open_matvec(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 
 Compute the action of the Hamiltonian on a tpsci state vector. Open here, means that we access the full FOIS 
 (restricted only by thresh), instead of the action of H on v within a subspace of configurations. 
@@ -507,7 +530,7 @@ end
 
 
 """
-    open_matvec_thread(ci_vector::ClusteredState, cluster_ops, clustered_ham; thresh=1e-9, nbody=4)
+    function open_matvec_thread(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 
 Compute the action of the Hamiltonian on a tpsci state vector. Open here, means that we access the full FOIS 
 (restricted only by thresh), instead of the action of H on v within a subspace of configurations. 
@@ -610,7 +633,7 @@ end
 #=}}}=#
 
 """
-    open_matvec_parallel(ci_vector::ClusteredState, cluster_ops, clustered_ham; thresh=1e-9, nbody=4)
+    function open_matvec_parallel(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 
 Compute the action of the Hamiltonian on a tpsci state vector. Open here, means that we access the full FOIS 
 (restricted only by thresh), instead of the action of H on v within a subspace of configurations. 
@@ -729,6 +752,7 @@ end
 #=}}}=#
 
 """
+    function open_matvec_parallel2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 """
 function open_matvec_parallel2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 #={{{=#
@@ -806,7 +830,7 @@ end
 
 
 """
-    compute_diagonal(vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
+    function compute_diagonal(vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
 
 Form the diagonal of the hamiltonan, `clustered_ham`, in the basis defined by `vector`
 """
@@ -826,7 +850,7 @@ function compute_diagonal(vector::ClusteredState{T,N,R}, cluster_ops, clustered_
 end
 
 """
-    expand_each_fock_space!(s::ClusteredState, bases)
+    function expand_each_fock_space!(s::ClusteredState{T,N,R}, bases::Vector{ClusterBasis}) where {T,N,R}
 
 For each fock space sector defined, add all possible basis states
 - `basis::Vector{ClusterBasis}` 
@@ -858,7 +882,7 @@ end
 # }}}
 
 """
-    expand_to_full_space(s::ClusteredState, bases)
+    function expand_to_full_space!(s::AbstractState, bases::Vector{ClusterBasis}, na, nb)
 
 Define all possible fock space sectors and add all possible basis states
 - `basis::Vector{ClusterBasis}` 
@@ -919,7 +943,7 @@ end
 
 
 """
-    hosvd(ci_vector::ClusteredState, cluster_ops; hshift=1e-8, truncate=-1)
+    function hosvd(ci_vector::ClusteredState{T,N,R}, cluster_ops; hshift=1e-8, truncate=-1) where {T,N,R}
 
 Peform HOSVD aka Tucker Decomposition of ClusteredState
 """
@@ -1030,7 +1054,7 @@ end
 
 
 """
-    build_brdm(ci_vector::ClusteredState, ci, dims)
+    function build_brdm(ci_vector::ClusteredState, ci, dims)
     
 Build block reduced density matrix for `Cluster`,  `ci`
 - `ci_vector::ClusteredState` = input state
