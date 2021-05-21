@@ -2,7 +2,7 @@ using ThreadPools
 
 
 """
-    function open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
+    open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 
 Compute the action of the Hamiltonian on a tpsci state vector. Open here, means that we access the full FOIS 
 (restricted only by thresh), instead of the action of H on v within a subspace of configurations. 
@@ -239,7 +239,7 @@ end
 reshape2(a, dims) = invoke(Base._reshape, Tuple{AbstractArray,typeof(dims)}, a, dims)
 
 """
-    function contract_matvec_thread(   term::ClusteredTerm1B, 
+    contract_matvec_thread(   term::ClusteredTerm1B, 
                                     cluster_ops::Vector{ClusterOps},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T},
@@ -297,7 +297,7 @@ end
 #=}}}=#
 
 """
-    function contract_matvec_thread(   term::ClusteredTerm2B, 
+    contract_matvec_thread(   term::ClusteredTerm2B, 
                                     cluster_ops::Vector{ClusterOps},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T},
@@ -369,7 +369,7 @@ end
 #=}}}=#
 
 """
-    function contract_matvec_thread(   term::ClusteredTerm3B, 
+    contract_matvec_thread(   term::ClusteredTerm3B, 
                                     cluster_ops::Vector{ClusterOps},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T},
@@ -494,7 +494,7 @@ end
 #=}}}=#
 
 """
-    function contract_matvec_thread(   term::ClusteredTerm4B, 
+    contract_matvec_thread(   term::ClusteredTerm4B, 
                                     cluster_ops::Vector{ClusterOps},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T},
@@ -704,6 +704,8 @@ end
 #=}}}=#
 
 """
+    upper_bound_thread(g1, g2; c::Float64=1.0)
+
 Return upper bound on the size of matrix elements resulting from matrix multiply 
 
     V[I,J] =  g1[i,I] * g2[i,J] * c 
@@ -729,6 +731,8 @@ end
 #=}}}=#
 
 """
+    upper_bound_thread(v::AbstractArray{Float64,3}, g1, g2, g3, scr1, scr2, scr3; c::Float64=1.0)
+
 Return upper bound on the size of tensor elements resulting from the following contraction
 
     V[I,J,K] = v[i,j,k] * g1[i,I] * g2[j,J] * g3[k,K] 
@@ -779,6 +783,8 @@ end
 
 
 """
+    upper_bound_thread(v::Array{Float64,4}, g1, g2, g3, g4, scr1, scr2, scr3, scr4; c::Float64=1.0)
+
 Return upper bound on the size of tensor elements resulting from the following contraction
 
     V[I,J,K,L] = v[i,j,k,l] * g1[i,I] * g2[j,J] * g3[k,K] * g4[l,L]
@@ -837,6 +843,10 @@ end
 
 
 """
+    upper_bound2_thread(v::Array{Float64,4}, g1, g2, g3, g4, 
+        scr_f::Vector{Vector{Float64}}, scr_i::Vector{Vector{Int16}}, thresh; 
+        c::Float64=1.0)
+
     max(H_IJK(L)|_L <= sum_s (sum_pqr vpqrs max(g1[p,:]) * max(g2[q,:]) * max(g3[r,:]) * |c| ) * |g4(s,L)|
 """
 function upper_bound2_thread(v::Array{Float64,4}, g1, g2, g3, g4, 

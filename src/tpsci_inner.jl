@@ -1,5 +1,5 @@
 """
-    function contract_matrix_element(   term::ClusteredTerm1B, 
+    contract_matrix_element(   term::ClusteredTerm1B, 
                                     cluster_ops::Vector{ClusterOps},
                                     fock_bra::FockConfig, bra::ClusterConfig, 
                                     fock_ket::FockConfig, ket::ClusterConfig)
@@ -32,10 +32,12 @@ function contract_matrix_element(   term::ClusteredTerm1B,
 end
 #=}}}=#
 """
-    function contract_matrix_element(   term::ClusteredTerm2B, 
+    contract_matrix_element(   term::ClusteredTerm2B, 
                                     cluster_ops::Vector{ClusterOps},
                                     fock_bra::FockConfig, bra::ClusterConfig, 
                                     fock_ket::FockConfig, ket::ClusterConfig)
+
+Form TPSCI matrix element by contracting operators with integrals for 2body terms. 
 """
 function contract_matrix_element(   term::ClusteredTerm2B, 
                                     cluster_ops::Vector{ClusterOps},
@@ -114,10 +116,12 @@ function contract_matrix_element(   term::ClusteredTerm2B,
 end
 #=}}}=#
 """
-    function contract_matrix_element(   term::ClusteredTerm3B, 
+    contract_matrix_element(   term::ClusteredTerm3B, 
                                     cluster_ops::Vector{ClusterOps},
                                     fock_bra::FockConfig, bra::ClusterConfig, 
                                     fock_ket::FockConfig, ket::ClusterConfig)
+
+Form TPSCI matrix element by contracting operators with integrals for 3body terms. 
 """
 function contract_matrix_element(   term::ClusteredTerm3B, 
                                     cluster_ops::Vector{ClusterOps},
@@ -167,10 +171,12 @@ function contract_matrix_element(   term::ClusteredTerm3B,
 end
 #=}}}=#
 """
-    function contract_matrix_element(   term::ClusteredTerm4B, 
+    contract_matrix_element(   term::ClusteredTerm4B, 
                                     cluster_ops::Vector{ClusterOps},
                                     fock_bra::FockConfig, bra::ClusterConfig, 
                                     fock_ket::FockConfig, ket::ClusterConfig)
+
+Form TPSCI matrix element by contracting operators with integrals for 4body terms. 
 """
 function contract_matrix_element(   term::ClusteredTerm4B, 
                                     cluster_ops::Vector{ClusterOps},
@@ -344,7 +350,7 @@ end
 
 
 """
-    function contract_matvec(   term::ClusteredTerm1B, 
+    contract_matvec(   term::ClusteredTerm1B, 
                                     cluster_ops::Vector{ClusterOps},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
@@ -380,7 +386,7 @@ end
 
 
 """
-    function contract_matvec(   term::ClusteredTerm2B, 
+    contract_matvec(   term::ClusteredTerm2B, 
                                     cluster_ops::Vector{ClusterOps},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
@@ -458,7 +464,7 @@ end
 #=}}}=#
 
 """
-    function contract_matvec_M3(   term::ClusteredTerm3B, 
+    contract_matvec_M3(   term::ClusteredTerm3B, 
                                     cluster_ops::Vector{ClusterOps},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
@@ -533,7 +539,7 @@ end
 #=}}}=#
 
 """
-    function contract_matvec_M4(   term::ClusteredTerm4B, 
+    contract_matvec_M4(   term::ClusteredTerm4B, 
                                     cluster_ops::Vector{ClusterOps},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
@@ -669,7 +675,7 @@ end
 #       M^2 memory versions
 #############################################################################################################################################
 """
-    function contract_matvec(   term::ClusteredTerm3B, 
+    contract_matvec(   term::ClusteredTerm3B, 
                                     cluster_ops::Vector{ClusterOps},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
@@ -762,7 +768,7 @@ end
 #=}}}=#
 
 """
-    function contract_matvec(   term::ClusteredTerm4B, 
+    contract_matvec(   term::ClusteredTerm4B, 
                                     cluster_ops::Vector{ClusterOps},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
@@ -962,6 +968,8 @@ end
 
 
 """
+    upper_bound(g1, g2; c::Float64=1.0)
+
 Return upper bound on the size of matrix elements resulting from matrix multiply 
 
     V[I,J] =  g1[i,I] * g2[i,J] * c 
@@ -987,6 +995,8 @@ end
 #=}}}=#
 
 """
+    upper_bound(v::Array{Float64,2}, g1, g2; c::Float64=1.0)
+
 Return upper bound on the size of tensor elements resulting from the following contraction
 
     V[I,J] = v[i,j] * g1[i,I] * g2[j,J] 
@@ -1021,6 +1031,8 @@ end
 #=}}}=#
 
 """
+    upper_bound(v::Array{Float64,3}, g1, g2, g3; c::Float64=1.0)
+
 Return upper bound on the size of tensor elements resulting from the following contraction
 
     V[I,J,K] = v[i,j,k] * g1[i,I] * g2[j,J] * g3[k,K] 
@@ -1062,6 +1074,8 @@ end
 #=}}}=#
 
 """
+    upper_bound(v::Array{Float64,4}, g1, g2, g3, g4; c::Float64=1.0)
+
 Return upper bound on the size of tensor elements resulting from the following contraction
 
     V[I,J,K,L] = v[i,j,k,l] * g1[i,I] * g2[j,J] * g3[k,K] * g4[l,L]
@@ -1111,6 +1125,10 @@ end
 
         
 """
+    upper_bound2(v::Array{Float64,3}, g1, g2, g3, thresh; c::Float64=1.0)
+
+Get upper bound on the possible values 
+
     max(H_IJ(K)|_K <= sum_r (sum_pq vpqrs max(g1[p,:]) * max(g2[q,:]) * |c| ) * |g3(r,K)|
 """
 function upper_bound2(v::Array{Float64,3}, g1, g2, g3, thresh; c::Float64=1.0)
@@ -1193,6 +1211,10 @@ end
 
 
 """
+    upper_bound2(v::Array{Float64,4}, g1, g2, g3, g4, thresh; c::Float64=1.0)
+
+Get upper bound on the possible values 
+
     max(H_IJK(L)|_L <= sum_s (sum_pqr vpqrs max(g1[p,:]) * max(g2[q,:]) * max(g3[r,:]) * |c| ) * |g4(s,L)|
 """
 function upper_bound2(v::Array{Float64,4}, g1, g2, g3, g4, thresh; c::Float64=1.0)
