@@ -36,7 +36,7 @@ The algorithm consists of the following steps:
       ```
 
 ### Tips on clustering 
-### Performance considerations 
+## Performance considerations 
 - Robust integral screening
 - `thresh_asci` 
 - HOSVD boot-strapping
