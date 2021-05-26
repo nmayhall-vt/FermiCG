@@ -114,7 +114,7 @@ Base.iterate(co::ClusteredOperator, state=1) = iterate(co.trans, state)
 flush_cache(h::Dict{TransferConfig,Vector{ClusteredTerm}}) = flush_cache(ClusteredOperator(h)) 
 mem_used_by_cache(h::Dict{TransferConfig,Vector{ClusteredTerm}}) = mem_used_by_cache(ClusteredOperator(h)) 
 Base.convert(::Type{ClusteredOperator}, input::Dict{TransferConfig,Vector{ClusteredTerm}}) = ClusteredOperator(input)
-
+@inline Base.length(co::ClusteredOperator) = return length(co.trans)
 function Base.display(co::ClusteredOperator)
     for (ftrans, terms) in co
         display(ftrans)

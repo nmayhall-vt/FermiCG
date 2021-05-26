@@ -43,10 +43,9 @@ end
 """
     build_sigma!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham)
 """
-function cache_hamiltonian(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; nbody=4)
+function cache_hamiltonian_old(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; nbody=4)
     #={{{=#
     
-    return
 
 
     println(" Cache hamiltonian terms")
@@ -82,10 +81,13 @@ function cache_hamiltonian(sigma_vector::CompressedTuckerState, ci_vector::Compr
     #=}}}=#
 end
 
-function cache_hamiltonian_not_working(bra::CompressedTuckerState, ket::CompressedTuckerState, cluster_ops, clustered_ham; nbody=4)
+function cache_hamiltonian(bra::CompressedTuckerState, ket::CompressedTuckerState, cluster_ops, clustered_ham; nbody=4)
     println(" Cache hamiltonian terms")
    
-    for (ftrans,terms) in clustered_ham
+    keys_to_loop = [keys(clustered_ham.trans)...]
+    println(" Number of threaded jobs:", length(keys_to_loop))
+    Threads.@threads for ftrans in keys_to_loop
+        terms = clustered_ham[ftrans]
         for term in terms
                
             length(term.clusters) <= nbody || continue
@@ -112,11 +114,6 @@ function cache_hamiltonian_not_working(bra::CompressedTuckerState, ket::Compress
                     end
                 end
             end
-        end
-    end
-    for (ftrans,terms) in clustered_ham
-        for term in terms
-            #println(" # of cached: ", length(keys(term.cache)))
         end
     end
 end
@@ -231,9 +228,9 @@ function form_sigma_block!(term::C,
         # build the dense H term
         op = build_dense_H_term(term, cluster_ops, fock_bra, bra, coeffs_bra, fock_ket, ket, coeffs_ket)
         
-        if cache
-            term.cache[cache_key] = op
-        end
+        #if cache
+        #    term.cache[cache_key] = op
+        #end
     end
 
     return contract_dense_H_with_state(term, op, state_sign, coeffs_bra, coeffs_ket)

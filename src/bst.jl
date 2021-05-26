@@ -1,3 +1,4 @@
+using TimerOutputs
 
 """
     block_sparse_tucker(input_vec::CompressedTuckerState, cluster_ops, clustered_ham;
@@ -51,6 +52,8 @@ function block_sparse_tucker(input_vec::CompressedTuckerState, cluster_ops, clus
     ref_vec = deepcopy(input_vec)
     clustered_S2 = extract_S2(input_vec.clusters)
 
+    to = TimerOutput()
+
     for iter in 1:max_iter
         println(" --------------------------------------------------------------------")
         println(" Iterate PT-Var:       Iteration #: ",iter)
@@ -71,7 +74,7 @@ function block_sparse_tucker(input_vec::CompressedTuckerState, cluster_ops, clus
         # Solve variationally in reference space
         println()
         @printf(" Solve zeroth-order problem. Dimension = %10i\n", length(ref_vec))
-        @time e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, tol=tol_ci)
+        @timeit to "CI small" e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, tol=tol_ci)
 #       sig = deepcopy(ref_vec)
 #       zero!(sig)
 #       build_sigma!(sig, ref_vec, cluster_ops, clustered_ham)
@@ -82,20 +85,20 @@ function block_sparse_tucker(input_vec::CompressedTuckerState, cluster_ops, clus
         
         tmp = deepcopy(ref_vec)
         zero!(tmp)
-        build_sigma!(tmp, ref_vec, cluster_ops, clustered_S2)
+        @timeit to "S2" build_sigma!(tmp, ref_vec, cluster_ops, clustered_S2)
         @printf(" <S^2> = %12.8f\n", orth_dot(tmp,ref_vec))
    
         #
         # Get First order wavefunction
         println()
         println(" Compute first order wavefunction. Reference space dim = ", length(ref_vec))
-        @time pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+        @timeit to "FOIS" pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
 
         # 
         # Compress FOIS
         norm1 = orth_dot(pt1_vec, pt1_vec)
         dim1 = length(pt1_vec)
-        pt1_vec = compress(pt1_vec, thresh=thresh_foi)
+        @timeit to "compress" pt1_vec = compress(pt1_vec, thresh=thresh_foi)
         norm2 = orth_dot(pt1_vec, pt1_vec)
         dim2 = length(pt1_vec)
         @printf(" FOIS Compressed from:     %8i → %8i (thresh = %8.1e)\n", dim1, dim2, thresh_foi)
@@ -107,12 +110,12 @@ function block_sparse_tucker(input_vec::CompressedTuckerState, cluster_ops, clus
             # 
             println()
             println(" Compute PT vector. Reference space dim = ", length(ref_vec))
-            pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol_ci, do_pt=do_pt, max_iter=max_iter_pt, H0=H0)
+            @timeit to "PT1" pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol_ci, do_pt=do_pt, max_iter=max_iter_pt, H0=H0)
             # 
             # Compress first order wavefunction 
             norm1 = orth_dot(pt1_vec, pt1_vec)
             dim1 = length(pt1_vec)
-            pt1_vec = compress(pt1_vec, thresh=thresh_pt)
+            @timeit to "compress" pt1_vec = compress(pt1_vec, thresh=thresh_pt)
             norm2 = orth_dot(pt1_vec, pt1_vec)
             dim2 = length(pt1_vec)
             @printf(" PT   Compressed from:     %8i → %8i (thresh = %8.1e)\n", dim1, dim2, thresh_pt)
@@ -126,26 +129,15 @@ function block_sparse_tucker(input_vec::CompressedTuckerState, cluster_ops, clus
         println()
         var_vec = deepcopy(ref_vec)
         zero!(pt1_vec)
-        nonorth_add!(var_vec, pt1_vec)
+        @timeit to "add" nonorth_add!(var_vec, pt1_vec)
         normalize!(var_vec)
         @printf(" Solve in compressed FOIS. Dimension =   %10i\n", length(var_vec))
-        @time e_var, var_vec = tucker_ci_solve(var_vec, cluster_ops, clustered_ham, tol=tol_ci)
+        @timeit to "CI big" e_var, var_vec = tucker_ci_solve(var_vec, cluster_ops, clustered_ham, tol=tol_ci)
         
         tmp = deepcopy(var_vec)
         zero!(tmp)
-        build_sigma!(tmp, var_vec, cluster_ops, clustered_S2)
+        @timeit to "S2" build_sigma!(tmp, var_vec, cluster_ops, clustered_S2)
         @printf(" <S^2> = %12.8f\n", orth_dot(tmp,var_vec))
-
-#        #
-#        # Compress Variational Wavefunction
-#        dim1 = length(var_vec)
-#        norm1 = orth_dot(var_vec, var_vec)
-#        var_vec = compress(var_vec, thresh=thresh_var)
-#        normalize!(var_vec)
-#        dim2 = length(var_vec)
-#        norm2 = orth_dot(var_vec, var_vec)
-#        @printf(" Compressed CI state from: %8i → %8i (thresh = %8.1e)\n", dim1, dim2, thresh_var)
-#        @printf(" Norm of compressed state: %12.8f \n", norm2)
 
         ref_vec = var_vec
 
@@ -155,6 +147,7 @@ function block_sparse_tucker(input_vec::CompressedTuckerState, cluster_ops, clus
 
         if abs(e_last[1] - e_var[1]) < tol_tucker 
             println("*Converged")
+            show(to)
             return e_var, ref_vec
             break
         end
@@ -162,6 +155,7 @@ function block_sparse_tucker(input_vec::CompressedTuckerState, cluster_ops, clus
             
     end
     println(" Not converged")
+    show(to)
     return e_var,ref_vec 
 end
 #=}}}=#
