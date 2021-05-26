@@ -12,7 +12,7 @@ e.g.
 """
 struct CompressedTuckerState{T,N} 
     clusters::Vector{Cluster}
-    data::OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker{T,N}}}
+    data::OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N}}}
     p_spaces::Vector{ClusterSubspace}
     q_spaces::Vector{ClusterSubspace}
 end
@@ -23,6 +23,32 @@ Base.iterate(ts::CompressedTuckerState, state=1) = iterate(ts.data, state)
 normalize!(ts::CompressedTuckerState) = scale!(ts, 1/sqrt(orth_dot(ts,ts)))
 
 
+"""
+# Returns
+- `CompressedTuckerState`
+"""
+function CompressedTuckerState(clusters::Vector{Cluster}, p_spaces, q_spaces) 
+    #={{{=#
+
+    N = length(clusters)
+    T = Float64
+
+    #factors = []
+    #for ci in clusters
+    #    dim = length(p_spaces[ci.idx][init_fspace[ci.idx]])
+    #    push!(factors, 1.0Matrix(I, dim, 1))
+    #end
+    #factors = tuple(factors...) 
+    
+    #tconfig = TuckerConfig([p_spaces[ci.idx].data[init_fspace[ci.idx]] for ci in clusters])
+    #fconfig = FockConfig(init_fspace)
+    #tdata = Tucker(reshape([1.0], tuple(ones(Int64, N)...)), factors)
+    data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N}} }()
+     
+    #data[fconfig][tconfig] = tdata
+    return CompressedTuckerState(clusters, data, p_spaces, q_spaces) 
+#=}}}=#
+end
 
 
 """
