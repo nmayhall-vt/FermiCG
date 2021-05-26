@@ -711,8 +711,16 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
 
     data = OrderedDict{FockConfig{N}, OrderedDict{TuckerConfig{N}, Vector{Tucker{T,N}} } }()
 
-    for (ket_fock, ket_tconfigs) in ket_cts
-        for (fock_trans, terms) in clustered_ham
+    lk = ReentrantLock()
+
+        
+    #for (fock_trans, terms) in clustered_ham
+    keys_to_loop = [keys(clustered_ham.trans)...]
+    println(" Number of threaded jobs:", length(keys_to_loop))
+
+    Threads.@threads for fock_trans in keys_to_loop
+        for (ket_fock, ket_tconfigs) in ket_cts
+            terms = clustered_ham[fock_trans]
 
             #
             # new fock sector configuration
@@ -810,24 +818,31 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
                         length(sig_tuck) > 0 || continue
 
 
-                        if haskey(data, sig_fock)
-                            if haskey(data[sig_fock], sig_tconfig)
-                                #
-                                # In this case, our sigma vector already has a compressed coefficient tensor.
-                                # Consequently, we need to add these two together
-                                
-                                push!(data[sig_fock][sig_tconfig], sig_tuck)
-                                #sig_tuck = add([sig_tuck, sig_cts[sig_fock][sig_tconfig]])
-                                ##sig_tuck = compress(sig_tuck, thresh=thresh, max_number=max_number)
-                                #sig_cts[sig_fock][sig_tconfig] = sig_tuck
+                        begin
+                            lock(lk)
+                            try
+                                if haskey(data, sig_fock)
+                                    if haskey(data[sig_fock], sig_tconfig)
+                                        #
+                                        # In this case, our sigma vector already has a compressed coefficient tensor.
+                                        # Consequently, we need to add these two together
 
-                            else
-                                data[sig_fock][sig_tconfig] = [sig_tuck]
-                                #sig_cts[sig_fock][sig_tconfig] = sig_tuck
+                                        push!(data[sig_fock][sig_tconfig], sig_tuck)
+                                        #sig_tuck = add([sig_tuck, sig_cts[sig_fock][sig_tconfig]])
+                                        ##sig_tuck = compress(sig_tuck, thresh=thresh, max_number=max_number)
+                                        #sig_cts[sig_fock][sig_tconfig] = sig_tuck
+
+                                    else
+                                        data[sig_fock][sig_tconfig] = [sig_tuck]
+                                        #sig_cts[sig_fock][sig_tconfig] = sig_tuck
+                                    end
+                                else
+                                    #sig_cts[sig_fock] = OrderedDict(sig_tconfig => sig_tuck)
+                                    data[sig_fock] = OrderedDict(sig_tconfig => [sig_tuck])
+                                end
+                            finally
+                                unlock(lk)
                             end
-                        else
-                            #sig_cts[sig_fock] = OrderedDict(sig_tconfig => sig_tuck)
-                            data[sig_fock] = OrderedDict(sig_tconfig => [sig_tuck])
                         end
 
                     end
