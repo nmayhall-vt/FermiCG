@@ -110,23 +110,24 @@ should be the first-order interacting space (or some compressed version of it).
 Compute compressed CEPA.
 Since there can be non-zero overlap with a multireference state, we need to generalize.
 
-HC = SCe
+    HC = SCe
 
-|Haa + Hax| |1 | = |I   + Sax| |1 | E
-|Hxa + Hxx| |Cx|   |Sxa + I  | |Cx|
+    |Haa + Hax| |1 | = |I   + Sax| |1 | E
+    |Hxa + Hxx| |Cx|   |Sxa + I  | |Cx|
 
-Haa + Hax*Cx = (1 + Sax*Cx)E
-Hxa + HxxCx = SxaE + CxE
+    Haa + Hax*Cx = (1 + Sax*Cx)E
+    Hxa + HxxCx = SxaE + CxE
 
 The idea for CEPA is to approximate E in the amplitude equation.
 CEPA(0): E = Eref
 
-(Hxx-Eref)*Cx = Sxa*Eref - Hxa
+    (Hxx-Eref)*Cx = Sxa*Eref - Hxa
 
 Ax=b
 
 After solving, the Energy can be obtained as:
-E = (Eref + Hax*Cx) / (1 + Sax*Cx)
+    
+    E = (Eref + Hax*Cx) / (1 + Sax*Cx)
 """
 function tucker_cepa_solve(ref_vector::CompressedTuckerState, cepa_vector::CompressedTuckerState, cluster_ops, clustered_ham; tol=1e-5, cache=true, max_iter=30, verbose=false)
 #={{{=#
