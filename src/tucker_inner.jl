@@ -1345,3 +1345,187 @@ function form_sigma_block_expand(term::ClusteredTerm4B,
     
 end
 #=}}}=#
+
+function form_sigma_block_expand2(term::ClusteredTerm2B,
+                            cluster_ops::Vector{ClusterOps},
+                            fock_bra::FockConfig, bra::TuckerConfig,
+                            fock_ket::FockConfig, ket::TuckerConfig,
+                            coeffs_ket::Tucker{T,N},
+                            scr::Vector{Vector{Float64}};  
+                            max_number=nothing, prescreen=1e-4) where {T,N}
+    #={{{=#
+    #display(term)
+    #display.((fock_bra, fock_ket))
+    c1 = term.clusters[1]
+    c2 = term.clusters[2]
+    n_clusters = length(bra)
+
+    #
+    # make sure active clusters are correct transitions
+    fock_bra[c1.idx] == fock_ket[c1.idx] .+ term.delta[1] || throw(Exception)
+    fock_bra[c2.idx] == fock_ket[c2.idx] .+ term.delta[2] || throw(Exception)
+
+    #
+    # determine sign from rearranging clusters if odd number of operators
+    state_sign = compute_terms_state_sign(term, fock_ket)
+    
+    scr1 = scr[1]
+    scr2 = scr[2]
+    scr3 = scr[3]
+    scr4 = scr[4]
+
+    np = size(term.ints,1)
+    nq = size(term.ints,2)
+    
+    #
+    # op[IK,JL] = <I|p'|J> h(pq) <K|q|L>
+
+    # todo: add in 2e integral tucker decomposition and compress gamma along 1st index first
+
+    #
+    # Compress Gammas using the cluster's Tucker factors, but since we are expanding the compression space
+    # only compress the right hand side
+    # e.g.,
+    #   Gamma(pqr, I, J) Ur(J,l) = Gamma(pqr, I, l) where k and l are compressed indices
+    g1a::Array{Float64,3} = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
+    #@btime @views gamma1 = $g1a[:,$bra[$c1.idx],$ket[$c1.idx]]
+    #@views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    @views gamma1 = g1a[:,bra[c1.idx],ket[c1.idx]]
+    Ur = coeffs_ket.factors[c1.idx]
+
+    # gamma1(p,I,J) U(J,j)  = g1(p,I,j)
+    nI = size(gamma1, 2) 
+    nJ = size(gamma1, 3) 
+    nj = size(Ur, 2) 
+
+    #resize!(scr1, np*nI*nj)
+    #scr1 = reshape2(scr1, (np*nI,nj))
+    #mul!(scr1, reshape2(gamma1,(np*nI,nJ)), Ur)
+    #g1 = reshape2(scr1, (np,nI,nj))
+
+    g1 = scr[1]
+    resize!(g1, np*nI*nj)
+    g1 = reshape2(g1, (np,nI,nj))
+    @tensor begin
+        g1[p,I,l] = Ur[J,l] * gamma1[p,I,J]
+        #g1[p,I,l] := Ur[J,l] * gamma1[p,I,J]
+    end
+
+    @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+    Ur = coeffs_ket.factors[c2.idx]
+    @tensor begin
+        g2[p,I,l] := Ur[J,l] * gamma2[p,I,J]
+    end
+
+    #
+    # Decompose the local operators. Since gamma[p,I,l] has indices (small, large, small),
+    # we only need at most p*l number of new vectors for the index we are searching over
+
+    new_factor1 = Matrix(1.0I, size(g1,2), size(g1,2))
+    new_factor2 = Matrix(1.0I, size(g2,2), size(g2,2))
+
+
+
+    D = permutedims(g1, [2,1,3])
+    F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+    nkeep = 0
+    for si in F.S
+        if si > prescreen
+            nkeep += 1
+        end
+    end
+    new_factor1 = F.U[:,1:nkeep]
+    g1 = Diagonal(F.S[1:nkeep]) * F.Vt[1:nkeep,:] 
+    g1 = reshape(g1, size(g1,1), size(D,2), size(D,3))
+    g1 = permutedims(g1, [2,1,3])
+
+
+    D = permutedims(g2, [2,1,3])
+    F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+    nkeep = 0
+    for si in F.S
+        if si > prescreen
+            nkeep += 1
+        end
+    end
+    new_factor2 = F.U[:,1:nkeep]
+    g2 = Diagonal(F.S[1:nkeep]) * F.Vt[1:nkeep,:] 
+    g2 = reshape(g2, size(g2,1), size(D,2), size(D,3))
+    g2 = permutedims(g2, [2,1,3])
+
+    #
+    # Now contract into 2body term
+    #
+    # h(p,q) * g1(p,I,J) * g2(q,K,L) = op(J,L,I,K)
+    op = Array{Float64}[]
+    @tensor begin
+        op[q,J,I] := term.ints[p,q] * g1[p,I,J]
+        op[J,L,I,K] := op[q,J,I] * g2[q,K,L]
+    end
+
+    #
+    # form overlaps - needed when TuckerConfigs aren't the same because each does their own compression and has
+    # distinct Tucker factors
+    tensors = Vector{Array{T}}()
+    indices = Vector{Vector{Int16}}()
+    state_indices = -collect(1:n_clusters)
+    s = state_sign # this is the product of scalar overlaps that don't need tensor contractions
+
+    # if the compressed operator becomes a scalar, treat it as such
+    if length(op) == 1
+        s *= op[1]
+    else
+        op_indices = [c1.idx, c2.idx, -c1.idx, -c2.idx]
+        state_indices[c1.idx] = c1.idx
+        state_indices[c2.idx] = c2.idx
+        push!(tensors, op)
+        push!(indices, op_indices)
+    end
+
+    push!(tensors, coeffs_ket.core)
+    push!(indices, state_indices)
+
+    length(tensors) == length(indices) || error(" mismatch between operators and indices")
+
+    bra_core = zeros(1,1)
+    if length(tensors) == 1
+        # this means that all the overlaps and the operator is a scalar
+        bra_core = coeffs_ket.core .* s
+    else
+        #display.(("a", size(coeffs_bra), size(coeffs_ket), "sizes: ", size.(overlaps), indices))
+        #display.(("a", size(coeffs_bra), size(coeffs_ket), "sizes: ", overlaps, indices))
+        bra_core = @ncon(tensors, indices)
+        bra_core .= bra_core .* s
+    end
+
+    # first decompose the already partially decomposed core tensor
+    #
+    # Vket ~ Aket x U1 x U2 x ...
+    #
+    # then we modified the compressed coefficients in the ket, Aket
+    #
+    # to get Abra, which we then compress again.
+    #
+    # The active cluster tucker factors become identity matrices
+    #
+    # Abra ~ Bbra x UU1 x UU2 x ....
+    #
+    #
+    # e.g, V(IJK) = C(ijk) * U1(Ii) * U2(Jj) * U3(Kk)
+    #
+    # then C get's modified and furhter compressed
+    #
+    # V(IJK) = C(abc) * U1(ia) * U2(jb) * U3(kc) * U1(Ii) * U2(Jj) * U3(Kk)
+    # V(IJK) = C(abc) * (U1(ia) * U1(Ii)) * (U2(jb) * U2(Jj)) * (U3(kc) * U3(Kk))
+    # V(IJK) = C(abc) * U1(Ia)  * U2(Jb) * U3(Kc)
+    #
+
+    new_factors = [coeffs_ket.factors[i] for i in 1:N]
+    #new_factors[c1.idx] = Matrix(1.0I, size(bra_core,c1.idx), size(bra_core,c1.idx))
+    #new_factors[c2.idx] = Matrix(1.0I, size(bra_core,c2.idx), size(bra_core,c2.idx))
+    new_factors[c1.idx] = new_factor1
+    new_factors[c2.idx] = new_factor2 
+    return Tucker(bra_core, NTuple{N}(new_factors))
+end
+#=}}}=#
+

@@ -713,11 +713,18 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
 
     lk = ReentrantLock()
 
-        
+
+    nscr = 10
+    scr = Vector{Vector{Vector{Float64}} }()
+    for tid in 1:Threads.nthreads()
+        tmp = Vector{Vector{Float64}}() 
+        [push!(tmp, zeros(Float64,10000)) for i in 1:nscr]
+        push!(scr, tmp)
+    end
+       
     #for (fock_trans, terms) in clustered_ham
     keys_to_loop = [keys(clustered_ham.trans)...]
     println(" Number of threaded jobs:", length(keys_to_loop))
-
     Threads.@threads for fock_trans in keys_to_loop
         for (ket_fock, ket_tconfigs) in ket_cts
             terms = clustered_ham[fock_trans]
@@ -808,6 +815,21 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
                                                                 ket_fock, ket_tconfig, ket_tuck,
                                                                 max_number=max_number,
                                                                 prescreen=thresh)
+
+                        if (term isa ClusteredTerm2B) && false
+                            @btime del = form_sigma_block_expand2($term, $cluster_ops,
+                                                                $sig_fock, $sig_tconfig,
+                                                                $ket_fock, $ket_tconfig, $ket_tuck,
+                                                                $scr[Threads.threadid()],
+                                                                max_number=$max_number,
+                                                                prescreen=$thresh)
+                            #del = form_sigma_block_expand2(term, cluster_ops,
+                            #                                    sig_fock, sig_tconfig,
+                            #                                    ket_fock, ket_tconfig, ket_tuck,
+                            #                                    scr[Threads.threadid()],
+                            #                                    max_number=max_number,
+                            #                                    prescreen=thresh)
+                        end
 
                        
                         sig_tuck = compress(sig_tuck, thresh=thresh)
