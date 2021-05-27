@@ -74,13 +74,21 @@ Base.haskey(cb::ClusterBasis,key) = haskey(cb.basis, key)
 function Base.display(cb::ClusterBasis) 
     @printf(" ClusterBasis for Cluster: %4i\n",cb.cluster.idx)
     norb = length(cb.cluster)
+    sum_total_dim = 0
+    sum_dim = 0
     for (sector, vecs) in cb.basis
         dim = size(vecs,2)
         total_dim = binomial(norb,sector[1]) * binomial(norb,sector[2]) 
+        sum_dim += dim
+        sum_total_dim += total_dim
         
         @printf("   FockSector = (%2iα, %2iβ): Total Dim = %5i: Dim = %4i\n", sector[1],sector[2],total_dim, dim)
     end
+       
+    @printf("   -----------------------------\n")
+    @printf("   Total Dim = %5i: Dim = %4i\n", sum_total_dim, sum_dim)
 end
+
 
 
 ######################################################################################################
