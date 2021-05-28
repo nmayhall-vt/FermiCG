@@ -7,6 +7,8 @@ using BenchmarkTools
 using OrderedCollections
 using PyCall
 
+using NPZ
+
 
 
 struct FCIProblem
@@ -1104,8 +1106,10 @@ function svd_state(v,P::FCIProblem,norbs1,norbs2,svd_thresh)
     @assert(norbs1+norbs2 ==P.no)
 
     schmidt_basis = OrderedDict()
-    vector = OrderedDict{Tuple{UInt8,UInt8},Float64}()
+    #vector = OrderedDict{Tuple{UInt8,UInt8},Float64}()
     vector = OrderedDict()
+
+    #schmidt_basis = Dict{Tuple,Matrix{Float64}}
 
     println("----------------------------------------")
     println("          SVD of state")
@@ -1136,22 +1140,29 @@ function svd_state(v,P::FCIProblem,norbs1,norbs2,svd_thresh)
     for I in 1:ket_a.max
     	for J in 1:ket_b.max
 	    try
-	        append!(vector[fock_labels_a[I],fock_labels_b[J]],v[I,J])
+	        append!(vector[tuple(fock_labels_a[I],fock_labels_b[J])],v[I,J])
 	    catch
-	        vector[fock_labels_a[I],fock_labels_a[J]] = [v[I,J]]
+	        vector[tuple(fock_labels_a[I],fock_labels_b[J])] = [v[I,J]]
 	    end
 	end
     end
 
     for (fock,fvec)  in vector
+
         println()
         println("Prepare Fock Space:  ",fock)
 
         ket_a1 = DeterminantString(norbs1, fock[1])
         ket_b1 = DeterminantString(norbs1, fock[2])
 
-        ket_a2 = DeterminantString(norbs2, fock[1])
-        ket_b2 = DeterminantString(norbs2, fock[2])
+        ket_a2 = DeterminantString(norbs2, P.na - fock[1])
+        ket_b2 = DeterminantString(norbs2, P.nb - fock[2])
+
+
+        temp_fvec = reshape(fvec,ket_b1.max*ket_b2.max,ket_a1.max*ket_a2.max)'
+	st = "temp_fvec"*string(fock)
+	npzwrite(st, temp_fvec)
+
 
         #when swapping alpha2 and beta1 do we flip sign?
         sign = 1
@@ -1163,29 +1174,36 @@ function svd_state(v,P::FCIProblem,norbs1,norbs2,svd_thresh)
 
         norm_curr = fvec' * fvec
         @printf(" Norm: %12.8f\n",sqrt(norm_curr))
-	#println(size(fvec))
+	println(size(fvec))
+	#display(fvec)
 
 	fvec = sign *fvec
-	fvec2 = reshape(fvec,ket_a1.max,ket_a2.max,ket_b1.max,ket_b2.max)
+	
+	#opposite to python with transpose on fvec
+	fvec2 = reshape(fvec',ket_b2.max,ket_b1.max,ket_a2.max,ket_a1.max)
 	fvec3 = permutedims(fvec2, [ 1, 3, 2, 4])
-	fvec4 = reshape(fvec3,ket_a1.max*ket_b1.max,ket_a2.max*ket_b2.max)
+	fvec4 = reshape(fvec3,ket_b2.max*ket_a2.max,ket_b1.max*ket_a1.max)
 
 	# fvec4 is transpose of what we have in python code
 	fvec5 = fvec4'
 
     	F = svd(fvec5,full=true)
+
+
 	nkeep = 0
     	for (ni_idx,ni) in enumerate(F.S)
 	    if ni > svd_thresh
 	        nkeep += 1
 	    	@printf(" %5i:	   %12.8f\n",ni_idx,ni)
 	    else
-	    	@printf(" %5i:	   %12.8f\n",ni_idx,ni)
+	        @printf(" %5i:	   %12.8f*\n",ni_idx,ni)
 	    end
 	end
 
 	if nkeep > 0
-	    schmidt_basis[fock] = F.U[:,1:nkeep]
+	    schmidt_basis[fock] = Matrix(F.U[:,1:nkeep])
+	    #st = "fin_vec"*string(fock)
+	    #npzwrite(st, F.U[:,1:nkeep])
 	end
 
         #norm += norm_curr

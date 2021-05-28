@@ -2,6 +2,8 @@ using Arpack
 using StaticArrays
 using LinearAlgebra
 
+using NPZ
+
 """
     idx::Int
     orb_list::Vector{Int}
@@ -836,8 +838,10 @@ thresh_schmidt  :   threshold for determining how many singular vectors to inclu
 
 Returns new basis for the cluster
 """
-function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db, thresh_orb=1e-8, thresh_schmidt=1e-3, thresh_ci=1e-6,do_embedding=true)
+function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db; 
+        thresh_schmidt=1e-3, thresh_orb=1e-8, thresh_ci=1e-6,do_embedding=true)
 
+    println()
     println("------------------------------------------------------------")
     @printf("Form Embedded Schmidt-style basis for Cluster %4i\n",ci.idx)
     D = Da + Db 
@@ -1001,6 +1005,7 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db, thresh_orb=1e
 	no_range = collect(1:size(Cfrag,2)+size(Cbath,2))
         #ints_i = form_casci_eff_ints(ints2,collect(1:size(Cfrag,2)+size(Cbath,2)), denvt_a, denvt_b)
         ints2 = subset(ints2,collect(1:size(Cfrag,2)+size(Cbath,2)), denvt_a, denvt_b)
+	println("H")
         display(ints2.h1)
         display(ints2.h0)
 
@@ -1032,3 +1037,114 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db, thresh_orb=1e
     return basis
 end
 
+
+"""
+    compute_cluster_est_basis(ints::InCoreInts, clusters::Vector{Cluster}; 
+        init_fspace=nothing, delta_elec=nothing, verbose=0, max_roots=10, 
+        rdm1a=nothing, rdm1b=nothing)
+
+Return a Vector of `ClusterBasis` for each `Cluster`  using the Embedded Schmidt Truncation
+- `ints::InCoreInts`: In-core integrals
+- `clusters::Vector{Cluster}`: Clusters 
+- `Da`: background density matrix for embedding local hamiltonian (alpha)
+- `Db`: background density matrix for embedding local hamiltonian (beta)
+- `init_fspace`: list of pairs of (nα,nβ) for each cluster for defining reference space
+                 for selecting out only certain fock sectors
+- `thresh_schmidt`: the threshold for the EST 
+- `thresh_orb`: threshold for the orbital
+- `thresh_ci`: threshold for the ci problem
+"""
+function compute_cluster_est_basis(ints::InCoreInts, clusters::Vector{Cluster},Da,Db; 
+        thresh_schmidt=1e-3, thresh_orb=1e-8, thresh_ci=1e-6,do_embedding=true,verbose=0,init_fspace=nothing)
+#={{{=#
+    # initialize output
+    cluster_bases = Vector{ClusterBasis}()
+
+    for ci in clusters
+        verbose == 0 || display(ci)
+
+        # Obtain the schmidt basis
+        basis = FermiCG.form_schmidt_basis(ints, ci, Da, Db,thresh_schmidt=thresh_schmidt)
+
+        # Loop over sectors and do FCI for each
+        basis_i = ClusterBasis(ci) 
+
+        for (key, value) in basis
+            basis_i[key] = value
+	    println(key)
+	    display(value)
+        end
+        push!(cluster_bases,basis_i)
+    end
+    return cluster_bases
+end
+#=}}}=#
+
+
+
+
+"""
+    compute_cluster_est_basis(ints::InCoreInts, clusters::Vector{Cluster}; 
+        init_fspace=nothing, delta_elec=nothing, verbose=0, max_roots=10, 
+        rdm1a=nothing, rdm1b=nothing)
+
+Return a Vector of `ClusterBasis` for each `Cluster`  using the Embedded Schmidt Truncation
+- `ints::InCoreInts`: In-core integrals
+- `clusters::Vector{Cluster}`: Clusters 
+- `Da`: background density matrix for embedding local hamiltonian (alpha)
+- `Db`: background density matrix for embedding local hamiltonian (beta)
+- `init_fspace`: list of pairs of (nα,nβ) for each cluster for defining reference space
+                 for selecting out only certain fock sectors
+- `thresh_schmidt`: the threshold for the EST 
+- `thresh_orb`: threshold for the orbital
+- `thresh_ci`: threshold for the ci problem
+"""
+function compute_cluster_est_basis2(ints::InCoreInts, clusters::Vector{Cluster},Da,Db; 
+        thresh_schmidt=1e-3, thresh_orb=1e-8, thresh_ci=1e-6,do_embedding=true,verbose=0,init_fspace=nothing,delta_elec=nothing)
+#={{{=#
+    # initialize output
+    cluster_bases = Vector{ClusterBasis}()
+
+    for ci in clusters
+        verbose == 0 || display(ci)
+
+        # Obtain the schmidt basis
+        basis = FermiCG.form_schmidt_basis(ints, ci, Da, Db,thresh_schmidt=thresh_schmidt)
+
+        delta_e_i = ()
+        if all( (delta_elec,init_fspace) .!= nothing)
+            delta_e_i = (init_fspace[ci.idx][1], init_fspace[ci.idx][2], delta_elec)
+        end
+
+        
+        #
+        # Get list of Fock-space sectors for current cluster
+        #
+        sectors = FermiCG.possible_focksectors(ci, delta_elec=delta_e_i)
+
+        #
+        # Loop over sectors and do FCI for each
+        basis_i = ClusterBasis(ci) 
+
+
+        #for (key, value) in basis
+        #    basis_i[key] = value
+	#    println(key)
+	#    display(value)
+        #end
+
+
+        for sec in sectors
+            if sec in keys(basis) 
+                basis_i[sec] = basis[sec]
+		#display(basis[sec])
+		st = "fock_"*string(ci.idx)*"_"*string(sec)
+		npzwrite(st, Matrix(basis[sec]))
+            else
+	    	#println(sec)
+            end
+        end
+        push!(cluster_bases,basis_i)
+    end
+    return cluster_bases
+end
