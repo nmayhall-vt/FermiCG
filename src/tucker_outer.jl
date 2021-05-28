@@ -810,11 +810,20 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
                         check_term(term, sig_fock, sig_tconfig, ket_fock, ket_tconfig) || continue
 
 
+                        bound = calc_bound(term, cluster_ops,
+                                           sig_fock, sig_tconfig,
+                                           ket_fock, ket_tconfig, ket_tuck,
+                                           prescreen=thresh)
+                        if bound < sqrt(thresh)
+                            continue
+                        end
+                        
+
                         sig_tuck = form_sigma_block_expand(term, cluster_ops,
-                                                                sig_fock, sig_tconfig,
-                                                                ket_fock, ket_tconfig, ket_tuck,
-                                                                max_number=max_number,
-                                                                prescreen=thresh)
+                                                           sig_fock, sig_tconfig,
+                                                           ket_fock, ket_tconfig, ket_tuck,
+                                                           max_number=max_number,
+                                                           prescreen=thresh)
 
                         if (term isa ClusteredTerm2B) && false
                             @btime del = form_sigma_block_expand2($term, $cluster_ops,

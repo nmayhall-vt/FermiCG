@@ -854,6 +854,12 @@ function form_sigma_block_expand(term::ClusteredTerm2B,
     c1 = term.clusters[1]
     c2 = term.clusters[2]
     n_clusters = length(bra)
+    #bound1 = norm(term.ints)*norm(coeffs_ket.core)
+    ##bound1 *= norm(gamma1)*norm(gamma2)
+    ##bound1 *= norm(coeffs_ket.factors[c1.idx])*norm(coeffs_ket.factors[c2.idx])
+    #if bound1 < sqrt(prescreen)
+    #    return FermiCG.Tucker(Array{Float64}(undef,[0 for i in 1:N]...), ntuple(i->Array{Float64}(undef,0,0), N))
+    #end
 
     #
     # make sure active clusters are correct transitions
@@ -875,12 +881,16 @@ function form_sigma_block_expand(term::ClusteredTerm2B,
     # e.g.,
     #   Gamma(pqr, I, J) Ur(J,l) = Gamma(pqr, I, l) where k and l are compressed indices
     @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+   
+
+
     Ur = coeffs_ket.factors[c1.idx]
     @tensor begin
         g1[p,I,l] := Ur[J,l] * gamma1[p,I,J]
     end
+    #@printf("Norm: %12.8f %12.8f %12.8f\n",norm(gamma1),norm(coeffs_ket.core),norm(gamma1)*norm(coeffs_ket.core))
 
-    @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
     Ur = coeffs_ket.factors[c2.idx]
     @tensor begin
         g2[p,I,l] := Ur[J,l] * gamma2[p,I,J]
@@ -899,7 +909,7 @@ function form_sigma_block_expand(term::ClusteredTerm2B,
     F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
     nkeep = 0
     for si in F.S
-        if si > prescreen
+        if si > 1e-12 
             nkeep += 1
         end
     end
@@ -913,7 +923,7 @@ function form_sigma_block_expand(term::ClusteredTerm2B,
     F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
     nkeep = 0
     for si in F.S
-        if si > prescreen
+        if si > 1e-12
             nkeep += 1
         end
     end
@@ -1529,3 +1539,85 @@ function form_sigma_block_expand2(term::ClusteredTerm2B,
 end
 #=}}}=#
 
+function calc_bound(term::ClusteredTerm1B,
+                            cluster_ops::Vector{ClusterOps},
+                            fock_bra::FockConfig, bra::TuckerConfig,
+                            fock_ket::FockConfig, ket::TuckerConfig,
+                            coeffs_ket::Tucker{T,N};
+                            prescreen=1e-4) where {T,N}
+    c1 = term.clusters[1]
+    
+    bound1 = norm(term.ints)*norm(coeffs_ket.core)
+    if bound1 < sqrt(prescreen)
+        return false 
+    end
+    return true
+end
+   
+function calc_bound(term::ClusteredTerm2B,
+                            cluster_ops::Vector{ClusterOps},
+                            fock_bra::FockConfig, bra::TuckerConfig,
+                            fock_ket::FockConfig, ket::TuckerConfig,
+                            coeffs_ket::Tucker{T,N};
+                            prescreen=1e-4) where {T,N}
+    c1 = term.clusters[1]
+    c2 = term.clusters[2]
+    
+    #@views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    #@views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+    bound1 = norm(term.ints)*norm(coeffs_ket.core)
+    #bound1 *= norm(gamma1)*norm(gamma2)
+    bound1 *= norm(coeffs_ket.factors[c1.idx])*norm(coeffs_ket.factors[c2.idx])
+    if bound1 < sqrt(prescreen)
+        return false 
+    end
+    return true
+end
+   
+function calc_bound(term::ClusteredTerm3B,
+                            cluster_ops::Vector{ClusterOps},
+                            fock_bra::FockConfig, bra::TuckerConfig,
+                            fock_ket::FockConfig, ket::TuckerConfig,
+                            coeffs_ket::Tucker{T,N};
+                            prescreen=1e-4) where {T,N}
+    c1 = term.clusters[1]
+    c2 = term.clusters[2]
+    c3 = term.clusters[3]
+    
+    @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+    @views gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,bra[c3.idx],ket[c3.idx]]
+    bound1 = norm(term.ints)*norm(coeffs_ket.core)
+    #bound1 *= norm(gamma1)*norm(gamma2)*norm(gamma3)
+    bound1 *= norm(coeffs_ket.factors[c1.idx])*norm(coeffs_ket.factors[c2.idx])*norm(coeffs_ket.factors[c3.idx])
+    if bound1 < sqrt(prescreen)
+        return false 
+    end
+    return true
+end
+   
+   
+function calc_bound(term::ClusteredTerm4B,
+                            cluster_ops::Vector{ClusterOps},
+                            fock_bra::FockConfig, bra::TuckerConfig,
+                            fock_ket::FockConfig, ket::TuckerConfig,
+                            coeffs_ket::Tucker{T,N};
+                            prescreen=1e-4) where {T,N}
+    c1 = term.clusters[1]
+    c2 = term.clusters[2]
+    c3 = term.clusters[3]
+    c4 = term.clusters[4]
+    
+    @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+    @views gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,bra[c3.idx],ket[c3.idx]]
+    @views gamma4 = cluster_ops[c4.idx][term.ops[4]][(fock_bra[c4.idx],fock_ket[c4.idx])][:,bra[c4.idx],ket[c4.idx]]
+    bound1 = norm(term.ints)*norm(coeffs_ket.core)
+    #bound1 *= norm(gamma1)*norm(gamma2)*norm(gamma3)*norm(gamma4)
+    bound1 *= norm(coeffs_ket.factors[c1.idx])*norm(coeffs_ket.factors[c2.idx])*norm(coeffs_ket.factors[c3.idx])*norm(coeffs_ket.factors[c4.idx])
+    if bound1 < sqrt(prescreen)
+        return false 
+    end
+    return true
+end
+   
