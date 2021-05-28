@@ -79,8 +79,8 @@ using Test
     #end
 
 
-    cluster_bases = FermiCG.compute_cluster_est_basis2(ints, clusters, rdm1a, rdm1b, thresh_schmidt=5e-3, init_fspace=init_fspace)
     #cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=1, max_roots=1,rdm1a=Da,rdm1b=Db,init_fspace=init_fspace) 
+    cluster_bases = FermiCG.compute_cluster_est_basis2(ints, clusters, rdm1a, rdm1b, thresh_schmidt=5e-3, init_fspace=init_fspace)
 
     
     clustered_ham = FermiCG.extract_ClusteredTerms(ints, clusters)

@@ -1001,19 +1001,18 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db;
             denvt_b = U[:,1:nb_envt] * U[:,1:nb_envt]'
 
 	end
-        #form ints in the cluster 
-	no_range = collect(1:size(Cfrag,2)+size(Cbath,2))
-        #ints_i = form_casci_eff_ints(ints2,collect(1:size(Cfrag,2)+size(Cbath,2)), denvt_a, denvt_b)
-        ints2 = subset(ints2,collect(1:size(Cfrag,2)+size(Cbath,2)), denvt_a, denvt_b)
-	println("H")
-        display(ints2.h1)
-        display(ints2.h0)
+    #form ints in the cluster 
+    no_range = collect(1:size(Cfrag,2)+size(Cbath,2))
+    #ints_i = form_casci_eff_ints(ints2,collect(1:size(Cfrag,2)+size(Cbath,2)), denvt_a, denvt_b)
+    ints2 = subset(ints2,collect(1:size(Cfrag,2)+size(Cbath,2)), denvt_a, denvt_b)
+    #println("H")
+    #display(ints2.h1)
+    #display(ints2.h0)
 
     else
         denvt_a *= 0 
         denvt_b *= 0 
         ints2 = form_casci_eff_ints(ints2,collect(1:size(Cfrag,2)+size(Cbath,2)), denvt_a, denvt_b)
-
     end
 
     println(" Number of electrons in Environment system:")

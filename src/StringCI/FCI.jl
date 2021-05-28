@@ -1107,7 +1107,7 @@ function svd_state(v,P::FCIProblem,norbs1,norbs2,svd_thresh)
 
     schmidt_basis = OrderedDict()
     #vector = OrderedDict{Tuple{UInt8,UInt8},Float64}()
-    vector = OrderedDict()
+    vector = OrderedDict{Tuple{Int,Int},Any}()
 
     #schmidt_basis = Dict{Tuple,Matrix{Float64}}
 
@@ -1131,20 +1131,28 @@ function svd_state(v,P::FCIProblem,norbs1,norbs2,svd_thresh)
     bisect = pyimport("bisect")
     for I in 1:ket_a.max
         fock_labels_a[I] = bisect.bisect(ket_a.config,norbs1)
+        #print("nick: ", ket_a.config, " " , norbs1, " ", fock_labels_a[I], "\n")
         incr!(ket_a)
     end
     for I in 1:ket_b.max
         fock_labels_b[I] = bisect.bisect(ket_b.config,norbs1)
         incr!(ket_b)
     end
-    for I in 1:ket_a.max
-    	for J in 1:ket_b.max
-	    try
-	        append!(vector[tuple(fock_labels_a[I],fock_labels_b[J])],v[I,J])
-	    catch
-	        vector[tuple(fock_labels_a[I],fock_labels_b[J])] = [v[I,J]]
-	    end
-	end
+    for J in 1:ket_b.max
+        for I in 1:ket_a.max
+            fock = (fock_labels_a[I], fock_labels_b[J])
+
+            #if fock in vector
+            #    append!(vector[fock],v[I,J])
+            #else
+            #    vector[fock] = [v[I,J]]
+            #end
+            try
+                append!(vector[tuple(fock_labels_a[I],fock_labels_b[J])],v[I,J])
+            catch
+                vector[tuple(fock_labels_a[I],fock_labels_b[J])] = [v[I,J]]
+            end
+        end
     end
 
     for (fock,fvec)  in vector
@@ -1160,51 +1168,53 @@ function svd_state(v,P::FCIProblem,norbs1,norbs2,svd_thresh)
 
 
         temp_fvec = reshape(fvec,ket_b1.max*ket_b2.max,ket_a1.max*ket_a2.max)'
-	st = "temp_fvec"*string(fock)
-	npzwrite(st, temp_fvec)
+        #temp_fvec = reshape(fvec,ket_b1.max*ket_b2.max,ket_a1.max*ket_a2.max)'
+        st = "temp_fvec"*string(fock)
+        npzwrite(st, temp_fvec)
 
 
         #when swapping alpha2 and beta1 do we flip sign?
         sign = 1
-        if (P.na-fock[1]%2)==1 && fock[2]%2==1
-	    sign = -1
-	end
+        if (P.na-fock[1])%2==1 && fock[2]%2==1
+            sign = -1
+        end
         println("sign",sign)
         @printf(" Dimensions: %5i x %-5i \n",ket_a1.max*ket_b1.max, ket_a2.max*ket_b2.max)
 
         norm_curr = fvec' * fvec
         @printf(" Norm: %12.8f\n",sqrt(norm_curr))
-	println(size(fvec))
-	#display(fvec)
+        println(size(fvec))
+        #display(fvec)
 
-	fvec = sign *fvec
-	
-	#opposite to python with transpose on fvec
-	fvec2 = reshape(fvec',ket_b2.max,ket_b1.max,ket_a2.max,ket_a1.max)
-	fvec3 = permutedims(fvec2, [ 1, 3, 2, 4])
-	fvec4 = reshape(fvec3,ket_b2.max*ket_a2.max,ket_b1.max*ket_a1.max)
+        fvec = sign *fvec
 
-	# fvec4 is transpose of what we have in python code
-	fvec5 = fvec4'
+        #opposite to python with transpose on fvec
+        #fvec2 = reshape(fvec',ket_b2.max,ket_b1.max,ket_a2.max,ket_a1.max)
+        fvec2 = reshape(fvec,ket_a1.max,ket_a2.max,ket_b1.max,ket_b2.max)
+        fvec3 = permutedims(fvec2, [ 1, 3, 2, 4])
+        fvec4 = reshape(fvec3,ket_a1.max*ket_b1.max,ket_a2.max*ket_b2.max)
 
-    	F = svd(fvec5,full=true)
+        # fvec4 is transpose of what we have in python code
+        fvec5 = fvec4'
+
+        F = svd(fvec5,full=true)
 
 
-	nkeep = 0
-    	for (ni_idx,ni) in enumerate(F.S)
-	    if ni > svd_thresh
-	        nkeep += 1
-	    	@printf(" %5i:	   %12.8f\n",ni_idx,ni)
-	    else
-	        @printf(" %5i:	   %12.8f*\n",ni_idx,ni)
-	    end
-	end
+        nkeep = 0
+        for (ni_idx,ni) in enumerate(F.S)
+            if ni > svd_thresh
+                nkeep += 1
+                @printf(" %5i:	   %12.8f\n",ni_idx,ni)
+            else
+                @printf(" %5i:	   %12.8f*\n",ni_idx,ni)
+            end
+        end
 
-	if nkeep > 0
-	    schmidt_basis[fock] = Matrix(F.U[:,1:nkeep])
-	    #st = "fin_vec"*string(fock)
-	    #npzwrite(st, F.U[:,1:nkeep])
-	end
+        if nkeep > 0
+            schmidt_basis[fock] = Matrix(F.U[:,1:nkeep])
+            #st = "fin_vec"*string(fock)
+            #npzwrite(st, F.U[:,1:nkeep])
+        end
 
         #norm += norm_curr
     end
