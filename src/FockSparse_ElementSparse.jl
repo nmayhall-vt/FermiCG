@@ -11,7 +11,8 @@ struct ClusteredState{T,N,R} <: AbstractState
     data::OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, MVector{R,T}}}
 end
 Base.haskey(ts::ClusteredState, i) = return haskey(ts.data,i)
-Base.iterate(ts::ClusteredState, state=1) = iterate(ts.data, state)
+#Base.iterate(ts::ClusteredState, state=1) = iterate(ts.data, state)
+#Base.eltype(::Type{ClusteredState{T,N,R}}) where {T,N,R} = OrderedDict{ClusterConfig{N}, MVector{R,T}} 
 
 """
     ClusteredState(clusters)
@@ -19,9 +20,9 @@ Base.iterate(ts::ClusteredState, state=1) = iterate(ts.data, state)
 Constructor
 - `clusters::Vector{Cluster}`
 """
-function ClusteredState(clusters; T=Float64, nroots=1)
+function ClusteredState(clusters; T=Float64, R=1)
     N = length(clusters)
-    return ClusteredState{T,N,nroots}(clusters,OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, MVector{nroots,T}}}())
+    return ClusteredState{T,N,R}(clusters,OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, MVector{R,T}}}())
 end
 
 """
@@ -34,9 +35,10 @@ end
 """
     getindex(s::ClusteredState, fock::Vector{Tuple{T,T}}) where T<:Integer
 """
-Base.getindex(s::ClusteredState, fock::Vector{Tuple{T,T}}) where T<:Integer = s.data[fock]
-Base.getindex(s::ClusteredState, fock) = s.data[fock]
-Base.setindex!(s::ClusteredState, a, b) = s.data[b] = a
+#Base.getindex(s::ClusteredState, fock::Vector{Tuple{T,T}}) where T<:Integer = s.data[fock]
+@inline Base.getindex(s::ClusteredState, fock) = s.data[fock]
+@inline Base.setindex!(s::ClusteredState, a, b) = s.data[b] = a
+
 
 function Base.size(s::ClusteredState{T,N,R}) where {T,N,R}
     return length(s),R
@@ -54,7 +56,7 @@ end
 function get_vector(s::ClusteredState; root=1)
     v = zeros(length(s))
     idx = 1
-    for (fock, configs) in s
+    for (fock, configs) in s.data
         for (config, coeff) in configs
             v[idx] = coeff[root]
             idx += 1
@@ -68,7 +70,7 @@ end
 function get_vectors(s::ClusteredState{T,N,R}) where {T,N,R}
     v = zeros(T,length(s), R)
     idx = 1
-    for (fock, configs) in s
+    for (fock, configs) in s.data
         for (config, coeff) in configs
             v[idx,:] .= coeff[:]
             idx += 1
@@ -90,7 +92,8 @@ function set_vector!(ts::ClusteredState{T,N,R}, v::Matrix{T}) where {T,N,R}
     idx = 1
     for (fock, tconfigs) in ts.data
         for (tconfig, coeffs) in tconfigs
-            ts[fock][tconfig] = MVector{R}(v[idx,:])
+            #ts[fock][tconfig] = MVector{R}(v[idx,:])
+            @views coeffs .= v[idx,:]
             idx += 1
         end
     end
@@ -234,17 +237,36 @@ function dot(v1::ClusteredState{T,N,R}, v2::ClusteredState{T,N,R}, r1, r2) where
 end
     
 """
+    dot(v1::ClusteredState,v2::ClusteredState; r1=1, r2=1)
+"""
+function orth!(v1::ClusteredState{T,N,R}) where {T,N,R}
+    d = T(0)
+    F = svd(get_vectors(v1))
+
+    set_vector!(v1, F.U*F.Vt)
+    return 
+end
+    
+"""
     prune_empty_fock_spaces!(s::ClusteredState)
         
 remove fock_spaces that don't have any configurations 
 """
 function prune_empty_fock_spaces!(s::ClusteredState)
-    keylist = keys(s.data)
+    keylist = [keys(s.data)...]
     for fock in keylist
         if length(s[fock]) == 0
             delete!(s.data, fock)
         end
     end
+#    # I'm not sure why this is necessary
+#    idx = 0
+#    for (fock,configs) in s.data
+#        for (config, coeffs) in s.data[fock]
+#            idx += 1
+#        end
+#    end
+    return 
 end
 
 """
@@ -283,7 +305,7 @@ Add coeffs in `s2` to `s1`
 """
 function add!(s1::ClusteredState, s2::ClusteredState)
     #={{{=#
-    for (fock,configs) in s2
+    for (fock,configs) in s2.data
         if haskey(s1, fock)
             for (config,coeffs) in configs
                 if haskey(s1[fock], config)
@@ -298,3 +320,4 @@ function add!(s1::ClusteredState, s2::ClusteredState)
     end
     #=}}}=#
 end
+

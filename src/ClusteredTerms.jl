@@ -34,7 +34,7 @@ struct ClusteredTerm1B <: ClusteredTerm
     delta::TransferConfig{1}
     parity::Tuple{Int}
     clusters::Tuple{Cluster}
-    ints::Array{Float64}
+    ints::Array{Float64,1}
     cache::Dict
 end
 
@@ -45,7 +45,7 @@ struct ClusteredTerm2B <: ClusteredTerm
     parity::Tuple{Int,Int}
     #active::Vector{Int16}
     clusters::Tuple{Cluster,Cluster}
-    ints::Array{Float64}
+    ints::Array{Float64,2}
     cache::Dict
 end
 
@@ -55,7 +55,7 @@ struct ClusteredTerm3B <: ClusteredTerm
     parity::Tuple{Int,Int,Int}
     #active::Vector{Int16}
     clusters::Tuple{Cluster,Cluster,Cluster}
-    ints::Array{Float64}
+    ints::Array{Float64,3}
     cache::Dict
 end
 
@@ -64,7 +64,7 @@ struct ClusteredTerm4B <: ClusteredTerm
     delta::TransferConfig{4}
     parity::Tuple{Int,Int,Int,Int}
     clusters::Tuple{Cluster,Cluster,Cluster,Cluster}
-    ints::Array{Float64}
+    ints::Array{Float64,4}
     cache::Dict
 end
 
@@ -191,7 +191,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
 #={{{=#
             # instead of forming p'q and p'q'sr just precontract and keep them in 
             # ClusterOps
-            term = ClusteredTerm1B(("H",), ((0,0),), (0,), (ci,), zeros(1,1),Dict())
+            term = ClusteredTerm1B(("H",), ((0,0),), (0,), (ci,), zeros(1),Dict())
             push!(terms[zero_fock],term)
 #=}}}=#
         end
@@ -744,6 +744,85 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
     
     return terms
 end
+
+
+"""
+    extract_S2(clusters)
+
+Form a clustered operator type for the S^2 operator
+"""
+function extract_S2(clusters)
+            #={{{=#
+
+    norb = 0
+    for ci in clusters
+        norb += length(ci)
+    end
+
+    terms = ClusteredOperator() 
+    n_clusters = length(clusters)
+    ops_a = Array{String}(undef,n_clusters)
+    ops_b = Array{String}(undef,n_clusters)
+    fill!(ops_a,"")
+    fill!(ops_b,"")
+  
+    zero_fock = TransferConfig([(0,0) for i in clusters])
+    terms[zero_fock] = Vector{ClusteredTerm}()
+    for ci in clusters
+        fock1 = (0,0)
+        clusteredterm = ClusteredTerm1B(("S2",), (fock1,), (0,), (ci, ), ones(1), Dict())
+
+        focktrans = replace(zero_fock, (ci.idx,), (fock1,))
+        if haskey(terms,focktrans)
+            push!(terms[focktrans], clusteredterm)
+        else
+            terms[focktrans] = [clusteredterm]
+        end
+        
+        for cj in clusters
+            i = ci.idx
+            j = cj.idx
+
+            i < j || continue
+
+
+            fock1 = (1,-1)
+            fock2 = (-1,1)
+            clusteredterm = ClusteredTerm2B(("S+","S-"), (fock1,fock2), (0,0), (ci, cj), ones(length(ci),length(cj)), Dict())
+
+            focktrans = replace(zero_fock, (ci.idx, cj.idx), (fock1, fock2))
+            if haskey(terms,focktrans)
+                push!(terms[focktrans], clusteredterm)
+            else
+                terms[focktrans] = [clusteredterm]
+            end
+            
+            fock1 = (-1,1)
+            fock2 = (1,-1)
+            clusteredterm = ClusteredTerm2B(("S-","S+"), (fock1,fock2), (0,0), (ci, cj), ones(length(ci),length(cj)), Dict())
+
+            focktrans = replace(zero_fock, (ci.idx, cj.idx), (fock1, fock2))
+            if haskey(terms,focktrans)
+                push!(terms[focktrans], clusteredterm)
+            else
+                terms[focktrans] = [clusteredterm]
+            end
+            
+            fock1 = (0,0)
+            fock2 = (0,0)
+            clusteredterm = ClusteredTerm2B(("Sz","Sz"), (fock1,fock2), (0,0), (ci, cj), 2*ones(1,1), Dict())
+
+            focktrans = replace(zero_fock, (ci.idx, cj.idx), (fock1, fock2))
+            if haskey(terms,focktrans)
+                push!(terms[focktrans], clusteredterm)
+            else
+                terms[focktrans] = [clusteredterm]
+            end
+        end
+    end
+    return terms
+end
+#=}}}=#
 
 
 """

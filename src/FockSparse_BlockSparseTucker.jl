@@ -1,11 +1,14 @@
 """
 Represents a state in an set of abitrary (yet low-rank) subspaces of a set of FockConfigs.
-e.g. v[FockConfig][TuckerConfig] => Tucker Decomposed Tensor
+e.g. 
+    
+    v[FockConfig][TuckerConfig] => Tucker Decomposed Tensor
 
-    clusters::Vector{Cluster}
-    data::OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker}}
-    p_spaces::Vector{ClusterSubspace}
-    q_spaces::Vector{ClusterSubspace}
+# Data
+- `clusters::Vector{Cluster}`
+- `data::OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker}}`
+- `p_spaces::Vector{ClusterSubspace}`
+- `q_spaces::Vector{ClusterSubspace}`
 """
 struct CompressedTuckerState{T,N} 
     clusters::Vector{Cluster}
@@ -25,9 +28,15 @@ normalize!(ts::CompressedTuckerState) = scale!(ts, 1/sqrt(orth_dot(ts,ts)))
 """
     CompressedTuckerState(ts::TuckerState; thresh=-1, max_number=nothing, verbose=0)
 
-Convert a `TuckerState` to a `CompressedTuckerState`
-Constructor
-- ts::TuckerState`
+Create a `CompressedTuckerState` from a `TuckerState` 
+
+# Arguments
+- `ts::TuckerState`
+- `thresh=-1`: discard singular values smaller than `thresh`
+- `max_number=nothing`: if != `nothing`, only keep up to `max_number` singular vectors per SVD
+- `verbose=0`: print level
+# Returns 
+- `CompressedTuckerState`
 """
 function CompressedTuckerState(ts::TuckerState{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
 #={{{=#
@@ -68,11 +77,16 @@ end
 
 
 """
-    compress(ts::CompressedTuckerState; thresh=-1, max_number=nothing)
+    compress(ts::CompressedTuckerState{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
 
-- `ts::TuckerState`
-- `thresh`: threshold for compression
+Compress state via HOSVD
+# Arguments
+- `ts::CompressedTuckerState`
+- `thresh = -1`: threshold for compression
 - `max_number`: only keep certain number of vectors per TuckerConfig
+- `verbose=0`: print level
+# Returns
+- `CompressedTuckerState`
 """
 function compress(ts::CompressedTuckerState{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
     d = OrderedDict{FockConfig, OrderedDict{TuckerConfig, Tucker{T,N}}}() 

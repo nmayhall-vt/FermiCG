@@ -6,7 +6,7 @@ using Arpack
 using StatProfilerHTML
 using BenchmarkTools
 
-#@testset "full_hbuild" begin
+@testset "full_hbuild" begin
     atoms = []
   
     clusters = []
@@ -73,7 +73,7 @@ end
     
 
     max_roots = 400
-    nroots = 2
+    nroots = 10 
 
     clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
     
@@ -159,6 +159,6 @@ end
     #@test isapprox(F.values[1], -5.066833300762457, atol=1e-10)
     
     #maximum(abs.(H-H')) < 1e-14 || error("Hamiltonian not symmetric: ",maximum(abs.(H-H'))); 
-#end
+end
 
 

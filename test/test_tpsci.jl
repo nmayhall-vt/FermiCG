@@ -38,7 +38,7 @@ using Arpack
     basis = "sto-3g"
     mol     = Molecule(0,1,atoms,basis)
 
-    nroots = 4
+    nroots = 1
 
     # get integrals
     mf = FermiCG.pyscf_do_scf(mol)
@@ -48,13 +48,13 @@ using Arpack
     @printf(" Do FCI\n")
     pyscf = pyimport("pyscf")
     pyscf.lib.num_threads(1)
-	fci = pyimport("pyscf.fci")
-	cisolver = pyscf.fci.direct_spin1.FCI()
-	cisolver.max_cycle = 200 
-	cisolver.conv_tol = 1e-8
-	nelec = na + nb
-	norb = size(ints.h1,1)
-	#e_fci, v_fci = cisolver.kernel(ints.h1, ints.h2, norb, nelec, ecore=0, nroots =nroots)
+    fci = pyimport("pyscf.fci")
+    cisolver = pyscf.fci.direct_spin1.FCI()
+    cisolver.max_cycle = 200 
+    cisolver.conv_tol = 1e-8
+    nelec = na + nb
+    norb = size(ints.h1,1)
+    #e_fci, v_fci = cisolver.kernel(ints.h1, ints.h2, norb, nelec, ecore=0, nroots =nroots)
 
     #e_fci = [-18.33022092,
     #         -18.05457644]
@@ -72,7 +72,7 @@ using Arpack
     # localize orbitals
     C = mf.mo_coeff
     Cl = FermiCG.localize(mf.mo_coeff,"lowdin",mf)
-    FermiCG.pyscf_write_molden(mol,Cl,filename="lowdin.molden")
+    #FermiCG.pyscf_write_molden(mol,Cl,filename="lowdin.molden")
     S = FermiCG.get_ovlp(mf)
     U =  C' * S * Cl
     println(" Rotate Integrals")
@@ -90,7 +90,7 @@ using Arpack
 
     e_cmf, U, Da, Db  = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, 
                                        max_iter_oo=40, verbose=0, gconv=1e-6, method="bfgs")
-    FermiCG.pyscf_write_molden(mol,Cl*U,filename="cmf.molden")
+    #FermiCG.pyscf_write_molden(mol,Cl*U,filename="cmf.molden")
     ints = FermiCG.orbital_rotation(ints,U)
 
     e_ref = e_cmf - ints.h0
@@ -129,49 +129,82 @@ using Arpack
 
     FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
 
-
-
-    ci_vector = FermiCG.ClusteredState(clusters, nroots=nroots)
- 
-    ref_fock = FermiCG.FockConfig(init_fspace)
-    FermiCG.add_fockconfig!(ci_vector, ref_fock)
-    
-    #1 e hops
     if true 
-        focks1e = []
+
+        ci_vector = FermiCG.ClusteredState(clusters, R=nroots)
+
+        ref_fock = FermiCG.FockConfig(init_fspace)
+        FermiCG.add_fockconfig!(ci_vector, ref_fock)
+
+        @time e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=true, 
+                                  thresh_cipsi=1e-3, thresh_foi=1e-9, thresh_asci=1e-4, conv_thresh=1e-5, matvec=1);
+
+        ref = [-18.32973618]
+
+        @test isapprox(abs.(ref), abs.(e0), atol=1e-8)
+    end
+   
+    if true 
+        nroots = 4
+
+        ci_vector = FermiCG.ClusteredState(clusters, R=nroots)
+
+        ref_fock = FermiCG.FockConfig(init_fspace)
+        FermiCG.add_fockconfig!(ci_vector, ref_fock)
+
+        #1 excitons 
+        ci_vector[ref_fock][ClusterConfig([2,1,1])] = [0,1,0,0]
+        ci_vector[ref_fock][ClusterConfig([1,2,1])] = [0,0,1,0]
+        ci_vector[ref_fock][ClusterConfig([1,1,2])] = [0,0,0,1]
+
+        e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=false,
+                                  thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=1e-2, conv_thresh=1e-4);
+
+        e2, v1 = FermiCG.compute_pt2(v0, cluster_ops, clustered_ham, thresh_foi=1e-8, matvec=3)
+
+        ref = [-18.32932467
+               -18.05349474
+               -18.02775313
+               -17.99514933
+              ]
+        @test isapprox(abs.(ref), abs.(e0+e2), atol=1e-7)
+
+
+        rotations = FermiCG.hosvd(v0, cluster_ops)
         for ci in clusters
-            for cj in clusters
-                tmp = [ref_fock.config...]
-                tmp[ci.idx] = (tmp[ci.idx][1] + 1, tmp[ci.idx][2])
-                tmp[cj.idx] = (tmp[cj.idx][1] - 1, tmp[cj.idx][2])
-                push!(focks1e, FermiCG.FockConfig(tmp))
-                tmp = [ref_fock.config...]
-                tmp[ci.idx] = (tmp[ci.idx][1], tmp[ci.idx][2] + 1)
-                tmp[cj.idx] = (tmp[cj.idx][1], tmp[cj.idx][2] - 1)
-                push!(focks1e, FermiCG.FockConfig(tmp))
-            end
+            FermiCG.rotate!(cluster_ops[ci.idx], rotations[ci.idx])
+            FermiCG.rotate!(cluster_bases[ci.idx], rotations[ci.idx])
+            FermiCG.check_basis_orthogonality(cluster_bases[ci.idx])
         end
 
-        for fock in focks1e
-            FermiCG.add_fockconfig!(ci_vector, fock)
-        end
+        #cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
+        #FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
+
+
+        e0a, v0a = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=false, 
+                                    thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=1e-2);
+        e2a, v1a = FermiCG.compute_pt2(v0a, cluster_ops, clustered_ham, thresh_foi=1e-8, matvec=3)
+
+        ref = [-18.32916288
+               -18.05357935
+               -18.02800015
+               -17.99499973]
+
+        @test isapprox(abs.(ref), abs.(e0a+e2a), atol=1e-7)
     end
 
+    ci_vector = FermiCG.ClusteredState(clusters, R=4)
+    ref_fock = FermiCG.FockConfig(init_fspace)
+    FermiCG.add_fockconfig!(ci_vector, ref_fock)
+    ci_vector[ref_fock][ClusterConfig([2,1,1])] = [0,1,0,0]
+    ci_vector[ref_fock][ClusterConfig([1,2,1])] = [0,0,1,0]
+    ci_vector[ref_fock][ClusterConfig([1,1,2])] = [0,0,0,1]
 
-    thresh_cipsi = 1e-3
-    thresh_foi = 1e-8
-
-    e0, e2, v0, v1 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, 
-                                        thresh_cipsi=1e-3, thresh_foi=1e-6, thresh_asci=1e-2);
-
-    ref = [-18.329833158828205,
-           -18.054673303059687,
-           -18.02861399010862,
-           -17.995734573996003
-          ]
-
-
-    @test isapprox(abs.(ref), abs.(e0+e2), atol=1e-8)
-    
+    sig1 = FermiCG.open_matvec_serial2(ci_vector, cluster_ops, clustered_ham, nbody=4, thresh=1e-8)
+    sig2 = FermiCG.open_matvec_thread(ci_vector, cluster_ops, clustered_ham, nbody=4, thresh=1e-8)
+    sig3 = FermiCG.open_matvec_thread2(ci_vector, cluster_ops, clustered_ham, nbody=4, thresh=1e-8)
+        
+    @test isapprox(norm(sig1), norm(sig2), atol=1e-16)
+    @test isapprox(norm(sig1), norm(sig3), atol=1e-16)
 end
 

@@ -29,7 +29,7 @@ using IterTools
 # Local Imports
 #
 include("Utils.jl")
-include("Tensors.jl")
+include("hosvd.jl")
 include("StringCI/StringCI.jl");
 include("Solvers.jl");
 include("Hamiltonians.jl");
@@ -46,8 +46,10 @@ include("ClusteredTerms.jl")
 
 include("tucker_inner.jl")
 include("tucker_outer.jl")
+include("bst.jl")
 
 include("tpsci_inner.jl")
+include("tpsci_matvec_thread.jl")
 include("tpsci_outer.jl")
 
 include("dense_inner.jl")
@@ -65,4 +67,8 @@ export Molecule
 export Atom
 export Cluster
 export ClusterBasis
+export ClusteredState
+export ClusterConfig 
+export FockConfig 
+
 end

@@ -89,7 +89,7 @@ end
 ######################################################################################################
 struct ClusterOps
     cluster::Cluster
-    data::Dict{String,Dict{Tuple,Array}}
+    data::Dict{String,Dict{Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}},Array}}
 end
 Base.iterate(i::ClusterOps, state=1) = iterate(i.data, state)
 Base.length(i::ClusterOps) = length(co.data)
@@ -109,7 +109,7 @@ function Base.display(co::ClusterOps)
     end
 end
 function ClusterOps(ci::Cluster)
-    dic1 = Dict{Tuple,Array{Float64}}()
+    dic1 = Dict{Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}},Array{Float64}}()
     dic2 = Dict{String,typeof(dic1)}() 
     return ClusterOps(ci, dic2)
 end
@@ -299,7 +299,7 @@ function compute_cluster_ops(cluster_bases::Vector{ClusterBasis},ints)
     for ci in clusters
         cb = cluster_bases[ci.idx]
         
-        cluster_ops[ci.idx]["H"] = FermiCG.tdm_H(cb, subset(ints, ci.orb_list)) 
+        cluster_ops[ci.idx]["H"] = FermiCG.tdm_H(cb, subset(ints, ci.orb_list), verbose=0) 
 
         cluster_ops[ci.idx]["A"], cluster_ops[ci.idx]["a"] = FermiCG.tdm_A(cb,"alpha") 
         cluster_ops[ci.idx]["B"], cluster_ops[ci.idx]["b"] = FermiCG.tdm_A(cb,"beta")
@@ -316,6 +316,62 @@ function compute_cluster_ops(cluster_bases::Vector{ClusterBasis},ints)
         cluster_ops[ci.idx]["ABb"], cluster_ops[ci.idx]["Bba"] = FermiCG.tdm_ABa(cb,"beta")
         #cluster_ops[ci.idx]["ABa"], cluster_ops[ci.idx]["Aba"], cluster_ops[ci.idx]["BAa"], cluster_ops[ci.idx]["Aab"] = FermiCG.tdm_ABa(cb,"alpha")
         #cluster_ops[ci.idx]["ABb"], cluster_ops[ci.idx]["Bba"], cluster_ops[ci.idx]["BAb"], cluster_ops[ci.idx]["Bab"] = FermiCG.tdm_ABa(cb,"beta")
+       
+        # spin operators
+        
+        #
+        # S+
+        op = Dict{Tuple,Array}()
+        for (fock,mat) in cluster_ops[ci.idx]["Ab"]
+            dims = size(mat)
+            op[fock] = zeros(dims[2:4]...)
+            for j in 1:dims[4]
+                for i in 1:dims[3]
+                    for p in 1:dims[2]
+                        op[fock][p,i,j] = mat[p,p,i,j]
+                    end
+                end
+            end
+        end
+        cluster_ops[ci.idx]["S+"] = op
+        
+        #
+        # S-
+        op = Dict{Tuple,Array}()
+        for (fock,mat) in cluster_ops[ci.idx]["Ba"]
+            dims = size(mat)
+            op[fock] = zeros(dims[2:4]...)
+            for j in 1:dims[4]
+                for i in 1:dims[3]
+                    for p in 1:dims[2]
+                        op[fock][p,i,j] = mat[p,p,i,j]
+                    end
+                end
+            end
+        end
+        cluster_ops[ci.idx]["S-"] = op
+        
+        #
+        # Sz
+        op = Dict{Tuple,Array}()
+        #
+        # loop over fock-space transitions
+        for (fock,basis) in cb
+            focktrans = (fock,fock)
+
+            sz = (fock[1] - fock[2]) / 2.0
+            op[focktrans] = sz*Matrix(1.0I, size(cb[fock],2), size(cb[fock],2))
+            op[focktrans] = reshape(op[focktrans],1,size(op[focktrans],1),size(op[focktrans],2))
+
+        end
+        cluster_ops[ci.idx]["Sz"] = op
+
+
+        #
+        # S2
+        cluster_ops[ci.idx]["S2"] = FermiCG.tdm_S2(cb, subset(ints, ci.orb_list), verbose=0) 
+
+
 
         to_delete = [
                      #"AAa",
@@ -362,6 +418,7 @@ function compute_cluster_ops(cluster_bases::Vector{ClusterBasis},ints)
         # reshape data into 3index quantities: e.g., (pqr, I, J)
         for opstring in keys(cluster_ops[ci.idx])
             opstring != "H" || continue
+            opstring != "S2" || continue
             for ftrans in keys(cluster_ops[ci.idx][opstring])
                 data = cluster_ops[ci.idx][opstring][ftrans]
                 dim1 = prod(size(data)[1:(length(size(data))-2)])
@@ -438,6 +495,34 @@ function tdm_H(cb::ClusterBasis, ints; verbose=0)
         Hmap = StringCI.get_map(ints, problem)
 
         dicti[focktrans] = cb[fock]' * Matrix((Hmap * cb[fock]))
+
+        if verbose > 0
+            for e in 1:size(cb[fock],2)
+                @printf(" %4i %12.8f\n", e, dicti[focktrans][e,e])
+            end
+        end
+    end
+    return dicti
+#=}}}=#
+end
+"""
+"""
+function tdm_S2(cb::ClusterBasis, ints; verbose=0)
+#={{{=#
+    verbose == 0 || println("")
+    verbose == 0 || display(cb.cluster)
+    norbs = length(cb.cluster)
+
+    dicti = Dict{Tuple,Array}()
+    #
+    # loop over fock-space transitions
+    verbose == 0 || display(cb.cluster)
+    for (fock,basis) in cb
+        focktrans = (fock,fock)
+        problem = StringCI.FCIProblem(norbs, fock[1], fock[2])
+        verbose == 0 || display(problem)
+
+        dicti[focktrans] = cb[fock]' * (StringCI.build_S2_matrix(problem) * cb[fock])
 
         if verbose > 0
             for e in 1:size(cb[fock],2)
@@ -829,8 +914,6 @@ end
 
 
 
-
-
 """
 	form_schmidt_basis
 thresh_orb      :   threshold for determining how many bath orbitals to include
@@ -1103,3 +1186,110 @@ function compute_cluster_est_basis(ints::InCoreInts, clusters::Vector{Cluster},D
     return cluster_bases
 end
 #=}}}=#
+=======
+    
+"""
+    rotate!(cb::ClusterBasis, U::Dict{Tuple,Matrix{T}}) where {T} 
+
+Rotate `cb` by unitary matrices in `U`
+"""
+function rotate!(cb::ClusterBasis,U::Dict{Tuple,Matrix{T}}) where {T} 
+#={{{=#
+    for (fspace,mat) in U
+        cb[fspace] .= cb[fspace] * mat
+    end
+end
+#=}}}=#
+
+    
+"""
+    rotate!(ops::ClusterOps, U::Dict{Tuple,Matrix{T}}) where {T} 
+
+Rotate `ops` by unitary matrices in `U`
+"""
+function rotate!(ops::ClusterOps,U::Dict{Tuple,Matrix{T}}) where T
+#={{{=#
+    for (op,fspace_deltas) in ops
+        #println(" Rotate ", op)
+        for (fspace_delta,tdm) in fspace_deltas
+            fspace_l = fspace_delta[1]
+            fspace_r = fspace_delta[2]
+
+            if haskey(U, fspace_l)==true && haskey(U, fspace_r)==true
+                Ul = U[fspace_l]
+                Ur = U[fspace_r]
+                if length(size(tdm)) == 2
+                    @tensoropt tmp[q,s] := Ul[p,q] * Ur[r,s] * tdm[p,r]
+                    ops[op][fspace_delta] = tmp 
+                elseif length(size(tdm)) == 3
+                    @tensoropt tmp[p,s,t] := Ul[q,s] * Ur[r,t] * tdm[p,q,r]
+                    ops[op][fspace_delta] = tmp 
+                elseif length(size(tdm)) == 4
+                    @tensoropt tmp[p,q,t,u] := Ul[r,t] * Ur[s,u] * tdm[p,q,r,s]
+                    ops[op][fspace_delta] = tmp 
+                elseif length(size(tdm)) == 5
+                    @tensoropt  tmp[p,q,r,u,v] := Ul[s,u] * Ur[t,v] * tdm[p,q,r,s,t]
+                    ops[op][fspace_delta] = tmp 
+                else
+                    error("Wrong dimension")
+                end
+
+            elseif haskey(U, fspace_l)==true && haskey(U, fspace_r)==false
+                Ul = U[fspace_l]
+                if length(size(tdm)) == 2
+                    @tensoropt tmp[q,r] := Ul[p,q] * tdm[p,r]
+                    ops[op][fspace_delta] = tmp 
+                elseif length(size(tdm)) == 3
+                    @tensoropt tmp[p,s,r] := Ul[q,s] * tdm[p,q,r]
+                    ops[op][fspace_delta] = tmp 
+                elseif length(size(tdm)) == 4
+                    @tensoropt tmp[p,q,t,s] := Ul[r,t] * tdm[p,q,r,s]
+                    ops[op][fspace_delta] = tmp 
+                elseif length(size(tdm)) == 5
+                    @tensoropt tmp[p,q,r,u,t] := Ul[s,u] * tdm[p,q,r,s,t]
+                    ops[op][fspace_delta] = tmp 
+                else
+                    error("Wrong dimension")
+                end
+
+            elseif haskey(U, fspace_l)==false && haskey(U, fspace_r)==true
+                Ur = U[fspace_r]
+                if length(size(tdm)) == 2
+                    @tensoropt tmp[p,s] := Ur[r,s] * tdm[p,r]
+                    ops[op][fspace_delta] = tmp 
+                elseif length(size(tdm)) == 3
+                    @tensoropt tmp[p,q,t] := Ur[r,t] * tdm[p,q,r]
+                    ops[op][fspace_delta] = tmp 
+                elseif length(size(tdm)) == 4
+                    @tensoropt tmp[p,q,r,u] := Ur[s,u] * tdm[p,q,r,s]
+                    ops[op][fspace_delta] = tmp 
+                elseif length(size(tdm)) == 5
+                    @tensoropt tmp[p,q,r,s,v] := Ur[t,v] * tdm[p,q,r,s,t]
+                    ops[op][fspace_delta] = tmp 
+                else
+                    error("Wrong dimension")
+                end
+            end
+        end
+    end
+end
+#=}}}=#
+
+function check_basis_orthogonality(basis::ClusterBasis; thresh=1e-13)
+    for (fspace,mat) in basis
+        if check_orthogonality(mat,thresh=thresh) == false
+            println(" Cluster:", basis.cluster)
+            println(" Fockspace:", fspace)
+        end
+    end
+end
+
+function check_orthogonality(mat; thresh=1e-12)
+    Id = mat' * mat
+    if maximum(abs.(I-Id)) > thresh 
+        @warn("problem with orthogonality ", maximum(abs.(I-Id)))
+        return false
+    end
+    return true
+end
+
