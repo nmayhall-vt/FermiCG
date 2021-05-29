@@ -1097,7 +1097,14 @@ end
 
 """
     svd_state(prb::FCIProblem)
+Do an SVD of the FCI vector partitioned into clusters with (norbs1 | norbs2)
+where the orbitals are assumed to be ordered for cluster 1| cluster 2 haveing norbs1 and 
+norbs2, respectively.
+
 - `prb`: FCIProblem just defines the current CI problem (i.e., fock sector)
+- `norbs1`:number of orbitals in left cluster
+- `norbs2`:number of orbitals in right cluster
+- `svd_thresh`: the threshold below which the states will be discarded
 """
 function svd_state(v,P::FCIProblem,norbs1,norbs2,svd_thresh)
 

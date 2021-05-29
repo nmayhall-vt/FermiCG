@@ -1054,51 +1054,6 @@ Return a Vector of `ClusterBasis` for each `Cluster`  using the Embedded Schmidt
 - `thresh_ci`: threshold for the ci problem
 """
 function compute_cluster_est_basis(ints::InCoreInts, clusters::Vector{Cluster},Da,Db; 
-        thresh_schmidt=1e-3, thresh_orb=1e-8, thresh_ci=1e-6,do_embedding=true,verbose=0,init_fspace=nothing)
-#={{{=#
-    # initialize output
-    cluster_bases = Vector{ClusterBasis}()
-
-    for ci in clusters
-        verbose == 0 || display(ci)
-
-        # Obtain the schmidt basis
-        basis = FermiCG.form_schmidt_basis(ints, ci, Da, Db,thresh_schmidt=thresh_schmidt)
-
-        # Loop over sectors and do FCI for each
-        basis_i = ClusterBasis(ci) 
-
-        for (key, value) in basis
-            basis_i[key] = value
-	    println(key)
-	    display(value)
-        end
-        push!(cluster_bases,basis_i)
-    end
-    return cluster_bases
-end
-#=}}}=#
-
-
-
-
-"""
-    compute_cluster_est_basis(ints::InCoreInts, clusters::Vector{Cluster}; 
-        init_fspace=nothing, delta_elec=nothing, verbose=0, max_roots=10, 
-        rdm1a=nothing, rdm1b=nothing)
-
-Return a Vector of `ClusterBasis` for each `Cluster`  using the Embedded Schmidt Truncation
-- `ints::InCoreInts`: In-core integrals
-- `clusters::Vector{Cluster}`: Clusters 
-- `Da`: background density matrix for embedding local hamiltonian (alpha)
-- `Db`: background density matrix for embedding local hamiltonian (beta)
-- `init_fspace`: list of pairs of (nα,nβ) for each cluster for defining reference space
-                 for selecting out only certain fock sectors
-- `thresh_schmidt`: the threshold for the EST 
-- `thresh_orb`: threshold for the orbital
-- `thresh_ci`: threshold for the ci problem
-"""
-function compute_cluster_est_basis2(ints::InCoreInts, clusters::Vector{Cluster},Da,Db; 
         thresh_schmidt=1e-3, thresh_orb=1e-8, thresh_ci=1e-6,do_embedding=true,verbose=0,init_fspace=nothing,delta_elec=nothing)
 #={{{=#
     # initialize output
@@ -1147,3 +1102,4 @@ function compute_cluster_est_basis2(ints::InCoreInts, clusters::Vector{Cluster},
     end
     return cluster_bases
 end
+#=}}}=#
