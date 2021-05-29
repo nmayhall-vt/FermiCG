@@ -3,6 +3,41 @@ using Random
 using Optim
 
 
+
+"""
+	form_casci_eff_ints(ints::InCoreInts, orb_list, rdm1a, rdm1b)
+
+Obtain a subset of integrals which act on the orbitals in Cluster,
+embedding the 1rdm from the rest of the system
+
+Returns an `InCoreInts` type
+"""
+function form_casci_eff_ints(ints::InCoreInts, orb_list, rdm1a, rdm1b)
+    da = deepcopy(rdm1a)
+    db = deepcopy(rdm1b)
+    da[:,orb_list] .= 0
+    db[:,orb_list] .= 0
+    da[orb_list,:] .= 0
+    db[orb_list,:] .= 0
+    viirs = ints.h2[orb_list, orb_list,:,:]
+    viqri = ints.h2[orb_list, :, :, orb_list]
+    ints_i = subset(ints, orb_list)
+    println()
+    println("ints in eff cas")
+    display(ints_i.h1)
+    exit()
+    @tensor begin
+        ints_i.h1[p,q] += .5*viirs[p,q,r,s] * (da+db)[r,s]
+        ints_i.h1[p,s] -= .25*viqri[p,q,r,s] * da[q,r]
+        ints_i.h1[p,s] -= .25*viqri[p,q,r,s] * da[q,r]
+
+    end
+    return ints_i
+end
+
+
+
+
 """
 	form_casci_ints(ints::InCoreInts, ci::Cluster, rdm1a, rdm1b)
 
@@ -258,6 +293,8 @@ function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rd
         
         rdm1_dict[ci.idx] = d1
         rdm2_dict[ci.idx] = d2
+	rdm1a[ci.orb_list,ci.orb_list] = d1
+	rdm1b[ci.orb_list,ci.orb_list] = d1
     end
     e_curr = compute_cmf_energy(ints, rdm1_dict, rdm2_dict, clusters, verbose=verbose)
     if verbose > 1
