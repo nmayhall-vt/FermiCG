@@ -922,7 +922,8 @@ thresh_schmidt  :   threshold for determining how many singular vectors to inclu
 Returns new basis for the cluster
 """
 function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db; 
-        thresh_schmidt=1e-3, thresh_orb=1e-8, thresh_ci=1e-6,do_embedding=true)
+        thresh_schmidt=1e-3, thresh_orb=1e-8, thresh_ci=1e-6,do_embedding=true,
+        eig_nr=1)
 
     println()
     println("------------------------------------------------------------")
@@ -1088,9 +1089,6 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db;
     no_range = collect(1:size(Cfrag,2)+size(Cbath,2))
     #ints_i = form_casci_eff_ints(ints2,collect(1:size(Cfrag,2)+size(Cbath,2)), denvt_a, denvt_b)
     ints2 = subset(ints2,collect(1:size(Cfrag,2)+size(Cbath,2)), denvt_a, denvt_b)
-    #println("H")
-    #display(ints2.h1)
-    #display(ints2.h0)
 
     else
         denvt_a *= 0 
@@ -1109,10 +1107,12 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db;
     norb2 = size(ints2.h1,1)
     problem = FermiCG.StringCI.FCIProblem(norb2, na_actv, nb_actv)
     Hmat = FermiCG.StringCI.build_H_matrix(ints2, problem)
-    EIG = eigen(Hmat)
-    v = EIG.vectors
-    e = EIG.values
-
+    #EIG = eigen(Hmat)
+    #v = EIG.vectors
+    #e = EIG.values
+    
+    e,v = Arpack.eigs(Hmat, nev = eig_nr, which=:SR)
+    e = real(e)[1]
     v = v[:,1]
 
     basis = FermiCG.StringCI.svd_state(v,problem,length(active),nkeep,thresh_schmidt)
@@ -1186,7 +1186,6 @@ function compute_cluster_est_basis(ints::InCoreInts, clusters::Vector{Cluster},D
     return cluster_bases
 end
 #=}}}=#
-=======
     
 """
     rotate!(cb::ClusterBasis, U::Dict{Tuple,Matrix{T}}) where {T} 
