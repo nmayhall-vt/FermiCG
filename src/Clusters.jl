@@ -1106,15 +1106,17 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db;
 
     norb2 = size(ints2.h1,1)
     problem = FermiCG.StringCI.FCIProblem(norb2, na_actv, nb_actv)
-    Hmat = FermiCG.StringCI.build_H_matrix(ints2, problem)
-    #EIG = eigen(Hmat)
-    #v = EIG.vectors
-    #e = EIG.values
-    
-    e,v = Arpack.eigs(Hmat, nev = eig_nr, which=:SR)
+    Hmap = StringCI.get_map(ints2, problem)
+    v0 = svd(rand(problem.dim,eig_nr)).U
+    davidson = FermiCG.Davidson(Hmap,v0=v0,max_iter=200, max_ss_vecs=20, nroots=eig_nr, tol=1e-8)
+    #FermiCG.solve(davidson)
+    @printf(" Now iterate: \n")
+    flush(stdout)
+    #@time FermiCG.iteration(davidson, Adiag=Adiag, iprint=2)
+    @time e,v = FermiCG.solve(davidson);
     e = real(e)[1]
     v = v[:,1]
-
+    
     basis = FermiCG.StringCI.svd_state(v,problem,length(active),nkeep,thresh_schmidt)
     return basis
 end

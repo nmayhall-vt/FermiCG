@@ -1165,7 +1165,7 @@ function svd_state(v,P::FCIProblem,norbs1,norbs2,svd_thresh)
     for (fock,fvec)  in vector
 
         println()
-        println("Prepare Fock Space:  ",fock)
+        @printf("Prepare Fock Space:  %iα, %iβ\n",fock[1] ,fock[2] )
 
         ket_a1 = DeterminantString(norbs1, fock[1])
         ket_b1 = DeterminantString(norbs1, fock[2])
@@ -1176,8 +1176,8 @@ function svd_state(v,P::FCIProblem,norbs1,norbs2,svd_thresh)
 
         temp_fvec = reshape(fvec,ket_b1.max*ket_b2.max,ket_a1.max*ket_a2.max)'
         #temp_fvec = reshape(fvec,ket_b1.max*ket_b2.max,ket_a1.max*ket_a2.max)'
-        st = "temp_fvec"*string(fock)
-        npzwrite(st, temp_fvec)
+        #st = "temp_fvec"*string(fock)
+        #npzwrite(st, temp_fvec)
 
 
         #when swapping alpha2 and beta1 do we flip sign?
@@ -1185,12 +1185,12 @@ function svd_state(v,P::FCIProblem,norbs1,norbs2,svd_thresh)
         if (P.na-fock[1])%2==1 && fock[2]%2==1
             sign = -1
         end
-        println("sign",sign)
-        @printf(" Dimensions: %5i x %-5i \n",ket_a1.max*ket_b1.max, ket_a2.max*ket_b2.max)
+        #println("sign",sign)
+        @printf("   Dimensions: %5i x %-5i \n",ket_a1.max*ket_b1.max, ket_a2.max*ket_b2.max)
 
         norm_curr = fvec' * fvec
-        @printf(" Norm: %12.8f\n",sqrt(norm_curr))
-        println(size(fvec))
+        @printf("   Norm: %12.8f\n",sqrt(norm_curr))
+        #println(size(fvec))
         #display(fvec)
 
         fvec = sign *fvec
@@ -1208,14 +1208,16 @@ function svd_state(v,P::FCIProblem,norbs1,norbs2,svd_thresh)
 
 
         nkeep = 0
+        @printf("   %5s %12s\n","State","Weight")
         for (ni_idx,ni) in enumerate(F.S)
             if ni > svd_thresh
                 nkeep += 1
-                @printf(" %5i:	   %12.8f\n",ni_idx,ni)
+                @printf("   %5i %12.8f\n",ni_idx,ni)
             else
-                @printf(" %5i:	   %12.8f*\n",ni_idx,ni)
+                @printf("   %5i %12.8f (discarded)\n",ni_idx,ni)
             end
         end
+        
 
         if nkeep > 0
             schmidt_basis[fock] = Matrix(F.U[:,1:nkeep])
