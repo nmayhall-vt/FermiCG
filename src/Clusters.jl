@@ -923,7 +923,7 @@ Returns new basis for the cluster
 """
 function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db; 
         thresh_schmidt=1e-3, thresh_orb=1e-8, thresh_ci=1e-6,do_embedding=true,
-        eig_nr=1)
+        eig_nr=1, eig_max_cycles=200)
 
     println()
     println("------------------------------------------------------------")
@@ -1139,7 +1139,9 @@ Return a Vector of `ClusterBasis` for each `Cluster`  using the Embedded Schmidt
 - `thresh_ci`: threshold for the ci problem
 """
 function compute_cluster_est_basis(ints::InCoreInts, clusters::Vector{Cluster},Da,Db; 
-        thresh_schmidt=1e-3, thresh_orb=1e-8, thresh_ci=1e-6,do_embedding=true,verbose=0,init_fspace=nothing,delta_elec=nothing)
+        thresh_schmidt=1e-3, thresh_orb=1e-8, thresh_ci=1e-6,
+	do_embedding=true,verbose=0,init_fspace=nothing,delta_elec=nothing,
+	est_nr=1, est_max_cycles=200, est_thresh=1e-6)
 #={{{=#
     # initialize output
     cluster_bases = Vector{ClusterBasis}()
@@ -1148,7 +1150,8 @@ function compute_cluster_est_basis(ints::InCoreInts, clusters::Vector{Cluster},D
         verbose == 0 || display(ci)
 
         # Obtain the schmidt basis
-        basis = FermiCG.form_schmidt_basis(ints, ci, Da, Db,thresh_schmidt=thresh_schmidt)
+        basis = FermiCG.form_schmidt_basis(ints, ci, Da, Db,thresh_schmidt=thresh_schmidt,
+					   eig_nr=est_nr, eig_max_cycles=est_max_cycles, thresh_ci=est_thresh)
 
         delta_e_i = ()
         if all( (delta_elec,init_fspace) .!= nothing)
