@@ -316,6 +316,10 @@ function contract_matvec_thread(   term::ClusteredTerm2B,
     # that the ClusterOps type isn't formed in an ideal concrete manner. We just currently use Array. 
     # This should be cleaned up eventually, preferably with a distinction between contracted, and uncontracted
     # operators.
+           
+    haskey(g1a, (fock_bra[c1.idx],fock_ket[c1.idx])) || return
+    haskey(g2a, (fock_bra[c2.idx],fock_ket[c2.idx])) || return
+    
     g1::Array{Float64,3} = g1a[(fock_bra[c1.idx],fock_ket[c1.idx])]
     g2::Array{Float64,3} = g2a[(fock_bra[c2.idx],fock_ket[c2.idx])]
     
@@ -376,6 +380,10 @@ function contract_matvec_thread(   term::ClusteredTerm3B,
     # X(p,J,K) = h(pqr) <J|q|_> <K|r|_>
     #
     #
+    haskey(cluster_ops[c1.idx][term.ops[1]],  (fock_bra[c1.idx],fock_ket[c1.idx])) || return
+    haskey(cluster_ops[c2.idx][term.ops[2]],  (fock_bra[c2.idx],fock_ket[c2.idx])) || return
+    haskey(cluster_ops[c3.idx][term.ops[3]],  (fock_bra[c3.idx],fock_ket[c3.idx])) || return
+
     g1::Array{Float64,3} = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
     g2::Array{Float64,3} = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])]
     g3::Array{Float64,3} = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])]
@@ -492,6 +500,11 @@ function contract_matvec_thread(   term::ClusteredTerm4B,
     # X(p,J,K) = h(pqr) <J|q|_> <K|r|_>
     #
     #
+    haskey(cluster_ops[c1.idx][term.ops[1]],  (fock_bra[c1.idx],fock_ket[c1.idx])) || return
+    haskey(cluster_ops[c2.idx][term.ops[2]],  (fock_bra[c2.idx],fock_ket[c2.idx])) || return
+    haskey(cluster_ops[c3.idx][term.ops[3]],  (fock_bra[c3.idx],fock_ket[c3.idx])) || return
+    haskey(cluster_ops[c4.idx][term.ops[4]],  (fock_bra[c4.idx],fock_ket[c4.idx])) || return
+    
     g1::Array{Float64,3} = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
     g2::Array{Float64,3} = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])]
     g3::Array{Float64,3} = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])]
