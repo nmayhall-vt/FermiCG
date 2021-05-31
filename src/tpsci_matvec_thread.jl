@@ -114,7 +114,7 @@ end
 
 function open_matvec_serial2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 #={{{=#
-    println(" In open_matvec_thread2\n")
+    println(" In open_matvec_serial2\n")
     sig = deepcopy(ci_vector)
     zero!(sig)
     clusters = ci_vector.clusters

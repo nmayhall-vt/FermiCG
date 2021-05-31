@@ -29,7 +29,8 @@ end
     add_fockconfig!(s::ClusteredState, fock::FockConfig)
 """
 function add_fockconfig!(s::ClusteredState{T,N,R}, fock::FockConfig{N}) where {T<:Number,N,R}
-    s.data[fock] = OrderedDict{ClusterConfig{N}, MVector{R,T}}(ClusterConfig([1 for i in 1:N]) => zeros(MVector{R,T}))
+    s.data[fock] = OrderedDict{ClusterConfig{N}, MVector{R,T}}()
+    #s.data[fock] = OrderedDict{ClusterConfig{N}, MVector{R,T}}(ClusterConfig([1 for i in 1:N]) => zeros(MVector{R,T}))
 end
 
 """

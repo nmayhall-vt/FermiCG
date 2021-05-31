@@ -181,6 +181,7 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
             project_out!(sig, vec_asci)
             println(" Length of FOIS vector: ", length(sig))
 
+
             println(" Compute diagonal")
             @time Hd = compute_diagonal(sig, cluster_ops, clustered_ham_0)
 
@@ -818,7 +819,15 @@ function compute_diagonal(vector::ClusteredState{T,N,R}, cluster_ops, clustered_
         for (config_bra, coeff_bra) in configs_bra
             idx += 1
             for term in clustered_ham[zero_trans]
-                Hd[idx] += contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_bra, config_bra)
+		    try
+			    Hd[idx] += contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_bra, config_bra)
+		    catch
+			    display(term)
+			    display(fock_bra)
+			    display(config_bra)
+			    error()
+		    end
+
             end
         end
     end
