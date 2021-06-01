@@ -87,6 +87,7 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
 #={{{=#
     vec_var = deepcopy(ci_vector)
     vec_pt = deepcopy(ci_vector)
+    length(ci_vector) > 0 || error(" input vector has zero length")
     zero!(vec_pt)
     e0 = zeros(T,R) 
     e2 = zeros(T,R) 

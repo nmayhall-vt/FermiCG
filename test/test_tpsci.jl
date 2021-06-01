@@ -105,36 +105,14 @@ using Arpack
     cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
 
 
-
-    p_spaces = Vector{FermiCG.ClusterSubspace}()
-    q_spaces = Vector{FermiCG.ClusterSubspace}()
-
-    # define p spaces
-    for ci in clusters
-        tss = FermiCG.ClusterSubspace(ci)
-        tss[init_fspace[ci.idx]] = 1:1
-        push!(p_spaces, tss)
-    end
-
-    # define q spaces
-    for tssp in p_spaces 
-        tss = FermiCG.get_ortho_compliment(tssp, cluster_bases[tssp.cluster.idx])
-        push!(q_spaces, tss)
-    end
-
-    println(" ================= Cluster P Spaces ===================")
-    display.(p_spaces)
-    println(" ================= Cluster Q Spaces ===================")
-    display.(q_spaces)
-
     FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
+        
+    ref_fock = FermiCG.FockConfig(init_fspace)
 
     if true 
 
-        ci_vector = FermiCG.ClusteredState(clusters, R=nroots)
+        ci_vector = FermiCG.ClusteredState(clusters, ref_fock, R=nroots)
 
-        ref_fock = FermiCG.FockConfig(init_fspace)
-        FermiCG.add_fockconfig!(ci_vector, ref_fock)
 
         @time e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=true, 
                                   thresh_cipsi=1e-3, thresh_foi=1e-9, thresh_asci=1e-4, conv_thresh=1e-5, matvec=1);
@@ -147,10 +125,7 @@ using Arpack
     if true 
         nroots = 4
 
-        ci_vector = FermiCG.ClusteredState(clusters, R=nroots)
-
-        ref_fock = FermiCG.FockConfig(init_fspace)
-        FermiCG.add_fockconfig!(ci_vector, ref_fock)
+        ci_vector = FermiCG.ClusteredState(clusters, ref_fock, R=nroots)
 
         #1 excitons 
         ci_vector[ref_fock][ClusterConfig([2,1,1])] = [0,1,0,0]
@@ -193,9 +168,8 @@ using Arpack
         @test isapprox(abs.(ref), abs.(e0a+e2a), atol=1e-7)
     end
 
-    ci_vector = FermiCG.ClusteredState(clusters, R=4)
-    ref_fock = FermiCG.FockConfig(init_fspace)
-    FermiCG.add_fockconfig!(ci_vector, ref_fock)
+        
+    ci_vector = FermiCG.ClusteredState(clusters, ref_fock, R=nroots)
     ci_vector[ref_fock][ClusterConfig([2,1,1])] = [0,1,0,0]
     ci_vector[ref_fock][ClusterConfig([1,2,1])] = [0,0,1,0]
     ci_vector[ref_fock][ClusterConfig([1,1,2])] = [0,0,0,1]
