@@ -1,9 +1,9 @@
 using PyCall
 using PrettyTables
 
-pydir = joinpath(dirname(pathof(FermiCG)), "python")
-pushfirst!(PyVector(pyimport("sys")."path"), pydir)
-ENV["PYTHON"] = Sys.which("python")
+#pydir = joinpath(dirname(pathof(FermiCG)), "python")
+#pushfirst!(PyVector(pyimport("sys")."path"), pydir)
+#ENV["PYTHON"] = Sys.which("python")
 #print(ENV)
 
 """
@@ -72,7 +72,7 @@ Write MO coeffs `C` to a molden file for visualizing
 function pyscf_write_molden(molecule::Molecule, C; filename="orbitals.molden")
     pyscf = pyimport("pyscf")
     pyscf.lib.num_threads(1)
-    molden = pyimport("pyscf.molden")
+    molden = pyimport("pyscf.tools.molden")
     pymol = make_pyscf_mole(molecule)
     molden.from_mo(pymol, filename, C)
     return 1
@@ -90,7 +90,8 @@ Write MO coeffs `C` to a molden file for visualizing
 """
 function pyscf_write_molden(mf; filename="orbitals.molden")
     pyscf = pyimport("pyscf")
-    molden = pyimport("pyscf.molden")
+    tools = pyimport("pyscf.tools")
+    molden = pyimport("tools.molden")
     molden.from_mo(mf.mol, filename, mf.mo_coeff)
     return 1
 end

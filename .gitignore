@@ -1,7 +1,6 @@
 *.jl.*.cov
 *.jl.cov
 *.jl.mem
-docs/build/
 docs/site/
 venv/
 __pycache__

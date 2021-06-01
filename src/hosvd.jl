@@ -1,8 +1,10 @@
 """
-    core::Array{T, N}
-    factors::NTuple{N, Matrix{T}}
+Simple Tucker (HOSVD) type
+# Data
+- `core::Array{T, N}`
+- `factors::NTuple{N, Matrix{T}}`
 
-Tucker factors are stored as Tall matrices
+Tucker factors are stored as tall matrices
 """
 struct Tucker{T, N} 
     core::Array{T, N}
@@ -98,7 +100,7 @@ end
 
 
 """
-    compress(t::Tucker)
+    compress(t::Tucker{T,N}; thresh=1e-7, max_number=nothing) where {T,N}
 
 Try to compress further 
 """

@@ -34,7 +34,7 @@ struct ClusteredTerm1B <: ClusteredTerm
     delta::TransferConfig{1}
     parity::Tuple{Int}
     clusters::Tuple{Cluster}
-    ints::Array{Float64}
+    ints::Array{Float64,1}
     cache::Dict
 end
 
@@ -45,7 +45,7 @@ struct ClusteredTerm2B <: ClusteredTerm
     parity::Tuple{Int,Int}
     #active::Vector{Int16}
     clusters::Tuple{Cluster,Cluster}
-    ints::Array{Float64}
+    ints::Array{Float64,2}
     cache::Dict
 end
 
@@ -55,7 +55,7 @@ struct ClusteredTerm3B <: ClusteredTerm
     parity::Tuple{Int,Int,Int}
     #active::Vector{Int16}
     clusters::Tuple{Cluster,Cluster,Cluster}
-    ints::Array{Float64}
+    ints::Array{Float64,3}
     cache::Dict
 end
 
@@ -64,7 +64,7 @@ struct ClusteredTerm4B <: ClusteredTerm
     delta::TransferConfig{4}
     parity::Tuple{Int,Int,Int,Int}
     clusters::Tuple{Cluster,Cluster,Cluster,Cluster}
-    ints::Array{Float64}
+    ints::Array{Float64,4}
     cache::Dict
 end
 
@@ -191,7 +191,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
 #={{{=#
             # instead of forming p'q and p'q'sr just precontract and keep them in 
             # ClusterOps
-            term = ClusteredTerm1B(("H",), ((0,0),), (0,), (ci,), zeros(1,1),Dict())
+            term = ClusteredTerm1B(("H",), ((0,0),), (0,), (ci,), zeros(1),Dict())
             push!(terms[zero_fock],term)
 #=}}}=#
         end
@@ -770,7 +770,7 @@ function extract_S2(clusters)
     terms[zero_fock] = Vector{ClusteredTerm}()
     for ci in clusters
         fock1 = (0,0)
-        clusteredterm = ClusteredTerm1B(("S2",), (fock1,), (0,), (ci, ), ones(1,1), Dict())
+        clusteredterm = ClusteredTerm1B(("S2",), (fock1,), (0,), (ci, ), ones(1), Dict())
 
         focktrans = replace(zero_fock, (ci.idx,), (fock1,))
         if haskey(terms,focktrans)
