@@ -5,6 +5,98 @@ using Optim
 
 
 """
+	form_1rdm_dressed_ints(ints::InCoreInts, orb_list, rdm1a, rdm1b)
+
+Obtain a subset of integrals which act on the orbitals in Cluster,
+embedding the 1rdm from the rest of the system
+
+Returns an `InCoreInts` type
+"""
+function form_1rdm_dressed_ints(ints::InCoreInts, orb_list, rdm1a, rdm1b)
+    norb_act = size(orb_list)[1]
+    full_orb = size(rdm1a)[1]
+    h = zeros(norb_act,norb_act)
+    f = zeros(norb_act,norb_act)
+    v = zeros(norb_act,norb_act,norb_act,norb_act)
+    da = zeros(norb_act,norb_act)
+    db = zeros(norb_act,norb_act)
+
+
+    for (pi,p) in enumerate(orb_list)
+    	for (qi,q) in enumerate(orb_list)
+	    h[pi,qi] = ints.h1[p,q]
+	    da[pi,qi] = rdm1a[p,q]
+	    db[pi,qi] = rdm1b[p,q]
+	end
+    end
+
+
+    for (pi,p) in enumerate(orb_list)
+    	for (qi,q) in enumerate(orb_list)
+    	    for (ri,r) in enumerate(orb_list)
+    		for (si,s) in enumerate(orb_list)
+		    v[pi,qi,ri,si] = ints.h2[p,q,r,s]
+		end
+	    end
+	end
+    end
+
+    println(" Compute single particle embedding potential")
+    denv_a = 1.0*rdm1a
+    denv_b = 1.0*rdm1b
+    dact_a = 0.0*rdm1a
+    dact_b = 0.0*rdm1b
+
+    for (pi,p) in enumerate(orb_list)
+    	for (qi,q) in enumerate(1:size(rdm1a)[1])
+	    denv_a[p,q] = 0
+	    denv_b[p,q] = 0
+	    denv_a[q,p] = 0
+	    denv_b[q,p] = 0
+
+	    dact_a[p,q] = rdm1a[p,q]
+	    dact_b[p,q] = rdm1b[p,q]
+	    dact_a[q,p] = rdm1a[q,p]
+	    dact_b[q,p] = rdm1b[q,p]
+	end
+    end
+
+    println(" Trace of env 1RDM: %12.8f",tr(denv_a + denv_b))
+    #print(" Compute energy of 1rdm:")
+
+    ga =  zeros(size(ints.h1)) 
+    gb =  zeros(size(ints.h1)) 
+
+    @tensor begin
+        ga[r,s] += ints.h2[p,q,r,s] * (denv_a[p,q] + denv_b[p,q])
+        ga[q,r] -= ints.h2[p,q,r,s] * (denv_a[p,s])
+
+        gb[r,s] += ints.h2[p,q,r,s] * (denv_a[p,q] + denv_b[p,q])
+        gb[q,r] -= ints.h2[p,q,r,s] * (denv_b[p,s])
+    end
+
+    De = denv_a + denv_b
+    Fa = ints.h1 + .5*ga
+    Fb = ints.h1 + .5*gb
+    F = ints.h1 + .25*(ga + gb)
+    Eenv = tr(De * F) 
+   
+    f = zeros(norb_act,norb_act)
+    for (pi,p) in enumerate(orb_list)
+        for (qi,q) in enumerate(orb_list)
+            f[pi,qi] =  F[p,q]
+	end
+    end
+
+    t = 2*f-h
+    ints_i = InCoreInts(ints.h0, t, v)
+    return ints_i
+end
+
+
+
+
+"""
 	form_casci_eff_ints(ints::InCoreInts, orb_list, rdm1a, rdm1b)
 
 Obtain a subset of integrals which act on the orbitals in Cluster,
