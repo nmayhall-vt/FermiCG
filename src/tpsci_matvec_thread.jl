@@ -2,7 +2,7 @@ using ThreadPools
 
 
 """
-    open_matvec_thread(ci_vector::ClusteredState, cluster_ops, clustered_ham; thresh=1e-9, nbody=4)
+    open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 
 Compute the action of the Hamiltonian on a tpsci state vector. Open here, means that we access the full FOIS 
 (restricted only by thresh), instead of the action of H on v within a subspace of configurations. 
@@ -114,7 +114,7 @@ end
 
 function open_matvec_serial2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 #={{{=#
-    println(" In open_matvec_thread2\n")
+    println(" In open_matvec_serial2\n")
     sig = deepcopy(ci_vector)
     zero!(sig)
     clusters = ci_vector.clusters
@@ -238,6 +238,17 @@ end
 
 reshape2(a, dims) = invoke(Base._reshape, Tuple{AbstractArray,typeof(dims)}, a, dims)
 
+"""
+    contract_matvec_thread(   term::ClusteredTerm1B, 
+                                    cluster_ops::Vector{ClusterOps},
+                                    fock_bra::FockConfig{N}, 
+                                    fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T},
+                                    sig, 
+                                    scr_f::Vector{Vector{Float64}},  
+                                    scr_i::Vector{Vector{Int16}},  
+                                    scr_m::Vector{MVector{N,Int16}};  
+                                    thresh=1e-9) where {T,R,N}
+"""
 function contract_matvec_thread(   term::ClusteredTerm1B, 
                                     cluster_ops::Vector{ClusterOps},
                                     fock_bra::FockConfig{N}, 
@@ -285,7 +296,17 @@ function contract_matvec_thread(   term::ClusteredTerm1B,
 end
 #=}}}=#
 
-
+"""
+    contract_matvec_thread(   term::ClusteredTerm2B, 
+                                    cluster_ops::Vector{ClusterOps},
+                                    fock_bra::FockConfig{N}, 
+                                    fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T},
+                                    sig, 
+                                    scr_f::Vector{Vector{Float64}},  
+                                    scr_i::Vector{Vector{Int16}},  
+                                    scr_m::Vector{MVector{N,Int16}};  
+                                    thresh=1e-9) where {T,R,N}
+"""
 function contract_matvec_thread(   term::ClusteredTerm2B, 
                                     cluster_ops::Vector{ClusterOps},
                                     fock_bra::FockConfig{N}, 
@@ -316,6 +337,10 @@ function contract_matvec_thread(   term::ClusteredTerm2B,
     # that the ClusterOps type isn't formed in an ideal concrete manner. We just currently use Array. 
     # This should be cleaned up eventually, preferably with a distinction between contracted, and uncontracted
     # operators.
+           
+    haskey(g1a, (fock_bra[c1.idx],fock_ket[c1.idx])) || return
+    haskey(g2a, (fock_bra[c2.idx],fock_ket[c2.idx])) || return
+    
     g1::Array{Float64,3} = g1a[(fock_bra[c1.idx],fock_ket[c1.idx])]
     g2::Array{Float64,3} = g2a[(fock_bra[c2.idx],fock_ket[c2.idx])]
     
@@ -348,6 +373,16 @@ end
 #=}}}=#
 
 """
+    contract_matvec_thread(   term::ClusteredTerm3B, 
+                                    cluster_ops::Vector{ClusterOps},
+                                    fock_bra::FockConfig{N}, 
+                                    fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T},
+                                    sig, 
+                                    scr_f::Vector{Vector{Float64}},  
+                                    scr_i::Vector{Vector{Int16}},  
+                                    scr_m::Vector{MVector{N,Int16}};  
+                                    thresh=1e-9, prescreen=true) where {T,R,N}
+
 This version should only use M^2N^2 storage, and n^4 scaling n={MN}
 """
 function contract_matvec_thread(   term::ClusteredTerm3B, 
@@ -376,6 +411,10 @@ function contract_matvec_thread(   term::ClusteredTerm3B,
     # X(p,J,K) = h(pqr) <J|q|_> <K|r|_>
     #
     #
+    haskey(cluster_ops[c1.idx][term.ops[1]],  (fock_bra[c1.idx],fock_ket[c1.idx])) || return
+    haskey(cluster_ops[c2.idx][term.ops[2]],  (fock_bra[c2.idx],fock_ket[c2.idx])) || return
+    haskey(cluster_ops[c3.idx][term.ops[3]],  (fock_bra[c3.idx],fock_ket[c3.idx])) || return
+
     g1::Array{Float64,3} = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
     g2::Array{Float64,3} = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])]
     g3::Array{Float64,3} = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])]
@@ -463,6 +502,16 @@ end
 #=}}}=#
 
 """
+    contract_matvec_thread(   term::ClusteredTerm4B, 
+                                    cluster_ops::Vector{ClusterOps},
+                                    fock_bra::FockConfig{N}, 
+                                    fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T},
+                                    sig, 
+                                    scr_f::Vector{Vector{Float64}},  
+                                    scr_i::Vector{Vector{Int16}},  
+                                    scr_m::Vector{MVector{N,Int16}};  
+                                    thresh=1e-9, prescreen=true) where {T,R,N}
+
 This version should only use M^2N^2 storage, and n^5 scaling n={MN}
 """
 function contract_matvec_thread(   term::ClusteredTerm4B, 
@@ -492,6 +541,11 @@ function contract_matvec_thread(   term::ClusteredTerm4B,
     # X(p,J,K) = h(pqr) <J|q|_> <K|r|_>
     #
     #
+    haskey(cluster_ops[c1.idx][term.ops[1]],  (fock_bra[c1.idx],fock_ket[c1.idx])) || return
+    haskey(cluster_ops[c2.idx][term.ops[2]],  (fock_bra[c2.idx],fock_ket[c2.idx])) || return
+    haskey(cluster_ops[c3.idx][term.ops[3]],  (fock_bra[c3.idx],fock_ket[c3.idx])) || return
+    haskey(cluster_ops[c4.idx][term.ops[4]],  (fock_bra[c4.idx],fock_ket[c4.idx])) || return
+    
     g1::Array{Float64,3} = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
     g2::Array{Float64,3} = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])]
     g3::Array{Float64,3} = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])]
@@ -663,11 +717,13 @@ end
 #=}}}=#
 
 """
+    upper_bound_thread(g1, g2; c::Float64=1.0)
+
 Return upper bound on the size of matrix elements resulting from matrix multiply 
 
-V[I,J] =  g1[i,I] * g2[i,J] * c 
+    V[I,J] =  g1[i,I] * g2[i,J] * c 
 
-max(|V|) <= sum_i max|g1[i,:]| * max|g2[i,:]| * |c|
+    max(|V|) <= sum_i max|g1[i,:]| * max|g2[i,:]| * |c|
 """
 function upper_bound_thread(g1, g2; c::Float64=1.0)
 #={{{=#
@@ -688,11 +744,13 @@ end
 #=}}}=#
 
 """
+    upper_bound_thread(v::AbstractArray{Float64,3}, g1, g2, g3, scr1, scr2, scr3; c::Float64=1.0)
+
 Return upper bound on the size of tensor elements resulting from the following contraction
 
-V[I,J,K] = v[i,j,k] * g1[i,I] * g2[j,J] * g3[k,K] 
+    V[I,J,K] = v[i,j,k] * g1[i,I] * g2[j,J] * g3[k,K] 
 
-max(|V|) <= sum_ijk |v[ijk]| * |g1[i,:]|_8 * |g2[j,:]|_8 * |g3[k,:]|_8 
+    max(|V|) <= sum_ijk |v[ijk]| * |g1[i,:]|_8 * |g2[j,:]|_8 * |g3[k,:]|_8 
 """
 function upper_bound_thread(v::AbstractArray{Float64,3}, g1, g2, g3, scr1, scr2, scr3; c::Float64=1.0)
     #={{{=#
@@ -738,11 +796,13 @@ end
 
 
 """
+    upper_bound_thread(v::Array{Float64,4}, g1, g2, g3, g4, scr1, scr2, scr3, scr4; c::Float64=1.0)
+
 Return upper bound on the size of tensor elements resulting from the following contraction
 
-V[I,J,K,L] = v[i,j,k,l] * g1[i,I] * g2[j,J] * g3[k,K] * g4[l,L]
+    V[I,J,K,L] = v[i,j,k,l] * g1[i,I] * g2[j,J] * g3[k,K] * g4[l,L]
 
-max(|V|) <= sum_ijkl |v[ijkl]| * |g1[i,:]|_8 * |g2[j,:]|_8 * |g3[k,:]|_8 * |g4[l,:]|_8
+    max(|V|) <= sum_ijkl |v[ijkl]| * |g1[i,:]|_8 * |g2[j,:]|_8 * |g3[k,:]|_8 * |g4[l,:]|_8
 """
 function upper_bound_thread(v::Array{Float64,4}, g1, g2, g3, g4, scr1, scr2, scr3, scr4; c::Float64=1.0)
     #={{{=#
@@ -796,7 +856,11 @@ end
 
 
 """
-max(H_IJK(L)|_L <= sum_s (sum_pqr vpqrs max(g1[p,:]) * max(g2[q,:]) * max(g3[r,:]) * |c| ) * |g4(s,L)|
+    upper_bound2_thread(v::Array{Float64,4}, g1, g2, g3, g4, 
+        scr_f::Vector{Vector{Float64}}, scr_i::Vector{Vector{Int16}}, thresh; 
+        c::Float64=1.0)
+
+    max(H_IJK(L)|_L <= sum_s (sum_pqr vpqrs max(g1[p,:]) * max(g2[q,:]) * max(g3[r,:]) * |c| ) * |g4(s,L)|
 """
 function upper_bound2_thread(v::Array{Float64,4}, g1, g2, g3, g4, 
         scr_f::Vector{Vector{Float64}}, scr_i::Vector{Vector{Int16}}, thresh; 

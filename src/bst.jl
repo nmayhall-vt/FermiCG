@@ -10,6 +10,7 @@ using TimerOutputs
         thresh_foi  = 1e-6,
         thresh_pt   = 1e-5,
         tol_ci      = 1e-5,
+	resolve_ss  = true,
         do_pt       = true,
         tol_tucker  = 1e-6)
 
@@ -26,6 +27,7 @@ using TimerOutputs
 - `thresh_foi`: Compression threshold for the FOIS
 - `thresh_pt`: Compression threshold for the first-order wavefunction (if used)
 - `tol_ci`:     Convergence threshold for the CI (norm of residual)
+- `resolve_ss`:  After compressing previous variational state, should we resolve in new subspace?
 - `do_pt = true`: Compute pt1 wavefunction for finding updated compression basis?
 - `tol_tucker`: Convergence threshold for Tucker iterations (energy change)
 # Returns
@@ -43,10 +45,12 @@ function block_sparse_tucker(input_vec::CompressedTuckerState, cluster_ops, clus
         thresh_foi  = 1e-6,
         thresh_pt   = 1e-5,
         tol_ci      = 1e-5,
+	resolve_ss  = true,
         do_pt       = true,
         tol_tucker  = 1e-6)
       #={{{=#
     e_last = 0.0
+    e0     = 0.0
     e_var  = 0.0
     e_pt2  = 0.0
     ref_vec = deepcopy(input_vec)
@@ -74,7 +78,9 @@ function block_sparse_tucker(input_vec::CompressedTuckerState, cluster_ops, clus
         # Solve variationally in reference space
         println()
         @printf(" Solve zeroth-order problem. Dimension = %10i\n", length(ref_vec))
-        @timeit to "CI small" e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, tol=tol_ci)
+	if resolve_ss
+            @timeit to "CI small" e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, tol=tol_ci)
+	end
 #       sig = deepcopy(ref_vec)
 #       zero!(sig)
 #       build_sigma!(sig, ref_vec, cluster_ops, clustered_ham)
