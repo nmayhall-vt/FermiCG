@@ -815,7 +815,7 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
                                            ket_fock, ket_tconfig, ket_tuck,
                                            prescreen=thresh)
                         if bound < sqrt(thresh)
-                            continue
+                            #continue
                         end
                         
 
