@@ -96,39 +96,6 @@ end
 
 
 
-"""
-	form_casci_eff_ints(ints::InCoreInts, orb_list, rdm1a, rdm1b)
-
-Obtain a subset of integrals which act on the orbitals in Cluster,
-embedding the 1rdm from the rest of the system
-
-Returns an `InCoreInts` type
-"""
-function form_casci_eff_ints(ints::InCoreInts, orb_list, rdm1a, rdm1b)
-    da = deepcopy(rdm1a)
-    db = deepcopy(rdm1b)
-    da[:,orb_list] .= 0
-    db[:,orb_list] .= 0
-    da[orb_list,:] .= 0
-    db[orb_list,:] .= 0
-    viirs = ints.h2[orb_list, orb_list,:,:]
-    viqri = ints.h2[orb_list, :, :, orb_list]
-    ints_i = subset(ints, orb_list)
-    println()
-    println("ints in eff cas")
-    display(ints_i.h1)
-    exit()
-    @tensor begin
-        ints_i.h1[p,q] += .5*viirs[p,q,r,s] * (da+db)[r,s]
-        ints_i.h1[p,s] -= .25*viqri[p,q,r,s] * da[q,r]
-        ints_i.h1[p,s] -= .25*viqri[p,q,r,s] * da[q,r]
-
-    end
-    return ints_i
-end
-
-
-
 
 """
 	form_casci_ints(ints::InCoreInts, ci::Cluster, rdm1a, rdm1b)
@@ -244,7 +211,11 @@ function compute_cmf_energy(ints, rdm1s, rdm2s, clusters; verbose=0)
         # 	tmp += h_pq[p,q] * rdm1s[ci.idx][q,p]
         # 	tmp += .5 * v_pqrs[p,q,r,s] * rdm2s[ci.idx][p,q,r,s]
         # end
-        e1[ci.idx] = FermiCG.compute_energy(0, ints_i.h1, ints_i.h2, rdm1s[ci.idx], rdm2s[ci.idx])
+        e1[ci.idx] = FermiCG.compute_energy(0, ints_i.h1, ints_i.h2, rdm1s[ci.idx][1]+rdm1s[ci.idx][2], rdm2s[ci.idx])
+
+	println("SUM of e1")
+	println(sum(e1))
+
         # e1[ci.idx] = tmp
     end
     for ci in clusters
@@ -256,10 +227,24 @@ function compute_cmf_energy(ints, rdm1s, rdm2s, clusters; verbose=0)
             v_psrq = ints.h2[ci.orb_list, cj.orb_list, cj.orb_list, ci.orb_list]
             # v_pqrs = ints.h2[ci.orb_list, ci.orb_list, cj.orb_list, cj.orb_list]
             tmp = 0
+            #@tensor begin
+            #    tmp  = v_pqrs[p,q,r,s] * rdm1s[ci.idx][p,q] * rdm1s[cj.idx][r,s]
+            #    tmp -= .5*v_psrq[p,s,r,q] * rdm1s[ci.idx][p,q] * rdm1s[cj.idx][r,s]
+            #end
+
             @tensor begin
-                tmp  = v_pqrs[p,q,r,s] * rdm1s[ci.idx][p,q] * rdm1s[cj.idx][r,s]
-                tmp -= .5*v_psrq[p,s,r,q] * rdm1s[ci.idx][p,q] * rdm1s[cj.idx][r,s]
+                tmp  = v_pqrs[p,q,r,s] * rdm1s[ci.idx][1][p,q] * rdm1s[cj.idx][1][r,s]
+                tmp -= v_psrq[p,s,r,q] * rdm1s[ci.idx][1][p,q] * rdm1s[cj.idx][1][r,s]
+
+                tmp += v_pqrs[p,q,r,s] * rdm1s[ci.idx][2][p,q] * rdm1s[cj.idx][2][r,s]
+                tmp -= v_psrq[p,s,r,q] * rdm1s[ci.idx][2][p,q] * rdm1s[cj.idx][2][r,s]
+
+                tmp += v_pqrs[p,q,r,s] * rdm1s[ci.idx][1][p,q] * rdm1s[cj.idx][2][r,s]
+
+                tmp += v_pqrs[p,q,r,s] * rdm1s[ci.idx][2][p,q] * rdm1s[cj.idx][1][r,s]
             end
+
+
             e2[ci.idx, cj.idx] = tmp
         end
     end
@@ -305,8 +290,8 @@ function cmf_ci_iteration(mol::Molecule, C, rdm1a, rdm1b, clusters, fspace; verb
         ints_i = FermiCG.pyscf_build_ints(mol, C[:,ci.orb_list], Dembed);
         #
         # use pyscf to compute FCI energy
-        e, d1, d2 = FermiCG.pyscf_fci(ints_i,fspace[ci.idx][1],fspace[ci.idx][2], verbose=verbose)
-        rdm1_dict[ci.idx] = d1
+        e, d1a,d1b, d2 = FermiCG.pyscf_fci(ints_i,fspace[ci.idx][1],fspace[ci.idx][2], verbose=verbose)
+        rdm1_dict[ci.idx] = [d1a,d1b]
         rdm2_dict[ci.idx] = d2
     end
     e_curr = compute_cmf_energy(mol, C, rdm1_dict, rdm2_dict, clusters, verbose=verbose)
@@ -336,8 +321,9 @@ end
 
 Perform single CMF-CI iteration, returning new energy, and density
 """
-function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rdm1b, fspace; verbose=1)
+function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rdm1b, fspace; verbose=1,sequential=false)
     rdm1_dict = Dict{Integer,Array}()
+    rdm1s_dict = Dict{Integer,Array}()
     rdm2_dict = Dict{Integer,Array}()
     for ci in clusters
         flush(stdout)
@@ -380,13 +366,18 @@ function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rd
         else
             #
             # run PYSCF FCI
-            e, d1, d2 = FermiCG.pyscf_fci(ints_i,fspace[ci.idx][1],fspace[ci.idx][2], verbose=verbose)
+            e, d1a,d1b, d2 = FermiCG.pyscf_fci(ints_i,fspace[ci.idx][1],fspace[ci.idx][2], verbose=verbose)
         end
         
-        rdm1_dict[ci.idx] = d1
+        rdm1_dict[ci.idx] = [d1a,d1b]
+        #rdm1s_dict[ci.idx] = d1a+d1b
         rdm2_dict[ci.idx] = d2
-	#rdm1a[ci.orb_list,ci.orb_list] = d1
-	#rdm1b[ci.orb_list,ci.orb_list] = d1
+	#display(d1a-d1b)
+
+	if sequential==true
+	    rdm1a[ci.orb_list,ci.orb_list] = d1a
+	    rdm1b[ci.orb_list,ci.orb_list] = d1b
+	end
     end
     e_curr = compute_cmf_energy(ints, rdm1_dict, rdm2_dict, clusters, verbose=verbose)
     if verbose > 1
@@ -396,8 +387,8 @@ function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rd
     rdm1a_out = zeros(size(rdm1a))
     rdm1b_out = zeros(size(rdm1b))
     for ci in clusters
-        rdm1a_out[ci.orb_list, ci.orb_list] .= rdm1_dict[ci.idx]
-        rdm1b_out[ci.orb_list, ci.orb_list] .= rdm1_dict[ci.idx]
+        rdm1a_out[ci.orb_list, ci.orb_list] .= rdm1_dict[ci.idx][1]
+        rdm1b_out[ci.orb_list, ci.orb_list] .= rdm1_dict[ci.idx][2]
     end
     return e_curr,rdm1a_out, rdm1b_out, rdm1_dict, rdm2_dict
 end
@@ -420,7 +411,7 @@ Optimize the 1RDM for CMF-CI, without requiring an InCoreInts object
 - `verbose`: how much to print
 """
 function cmf_ci(mol::Molecule, C::Matrix, clusters::Vector{Cluster}, fspace::Vector, dguess; 
-                max_iter=10, dconv=1e-6, econv=1e-10, verbose=1)
+                max_iter=10, dconv=1e-6, econv=1e-10, verbose=1,squential=false)
     rdm1a = deepcopy(dguess)
     rdm1b = deepcopy(dguess)
     energies = []
@@ -436,7 +427,7 @@ function cmf_ci(mol::Molecule, C::Matrix, clusters::Vector{Cluster}, fspace::Vec
             println(" CMF CI Iter: ", iter)
             println(" ------------------------------------------ ")
         end
-        e_curr, rdm1a_curr, rdm1b_curr, rdm1_dict, rdm2_dict = cmf_ci_iteration(mol, C, rdm1a, rdm1b, clusters, fspace, verbose=verbose)
+        e_curr, rdm1a_curr, rdm1b_curr, rdm1_dict, rdm2_dict = cmf_ci_iteration(mol, C, rdm1a, rdm1b, clusters, fspace, verbose=verbose,sequential=sequential)
         append!(energies,e_curr)
         error = (rdm1a_curr+rdm1b_curr) - (rdm1a+rdm1b)
         d_err = LinearAlgebra.norm(error)
@@ -472,7 +463,7 @@ end
 Optimize the 1RDM for CMF-CI
 """
 function cmf_ci(ints, clusters, fspace, dguess; 
-                max_iter=10, dconv=1e-6, econv=1e-10, verbose=1)
+                max_iter=10, dconv=1e-6, econv=1e-10, verbose=1,sequential=false)
 	rdm1a = deepcopy(dguess)
 	rdm1b = deepcopy(dguess)
 	energies = []
