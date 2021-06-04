@@ -713,7 +713,23 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
 
     lk = ReentrantLock()
 
-
+    #
+    #   2body:
+    #       term: H(IK,I'K') = h(pq) G1(pII') G3(qKK')     
+    #       ket: C(I'J'K')  = c(i'j'k') U1(I'i') U2(J'j') U3(K'k')
+    #
+    #       sigma: σ(Ij'K,i'j'k') = h(pq) X1(pIi') U2(J'j') X3(qKk')    diagonal in j'
+    #           
+    #           sigma is quadratic in cluster dimension. We can reduce that sometimes by 
+    #           compressing X
+    #
+    #       X1(pIi') = x1(pii') V1(Ii)   where V1(Ii) are the left singular vectors of X1(I,pi') 
+    #                                    such that when dim(p)*dim(i') < dim(I) we get exact reduction
+    #       X3(qKk') = x3(qkk') V3(Kk)   
+    #                                   
+    #
+    #
+    #
     nscr = 10
     scr = Vector{Vector{Vector{Float64}} }()
     for tid in 1:Threads.nthreads()
