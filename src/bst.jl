@@ -104,6 +104,10 @@ function block_sparse_tucker(input_vec::CompressedTuckerState, cluster_ops, clus
         # Compress FOIS
         norm1 = orth_dot(pt1_vec, pt1_vec)
         dim1 = length(pt1_vec)
+       
+        if length(pt1_vec) == 0
+            error("zero length FOIS?")
+        end
         @timeit to "compress" pt1_vec = compress(pt1_vec, thresh=thresh_foi)
         norm2 = orth_dot(pt1_vec, pt1_vec)
         dim2 = length(pt1_vec)

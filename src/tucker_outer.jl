@@ -860,6 +860,9 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
                             #                                    prescreen=thresh)
                         end
 
+                        if length(sig_tuck) == 0
+                            continue
+                        end
                        
                         sig_tuck = compress(sig_tuck, thresh=thresh)
 

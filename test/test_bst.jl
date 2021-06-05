@@ -91,9 +91,9 @@ using Test
                                                max_iter_pt = 200, 
                                                nbody       = 4,
                                                H0          = "Hcmf",
-                                               thresh_var  = 1e-4,
-                                               thresh_foi  = 1e-6,
-                                               thresh_pt   = 1e-5,
+                                               thresh_var  = 1e-2,
+                                               thresh_foi  = 1e-3,
+                                               thresh_pt   = sqrt(1e-5),
                                                tol_ci      = 1e-5,
                                                do_pt       = true,
                                                tol_tucker  = 1e-4)

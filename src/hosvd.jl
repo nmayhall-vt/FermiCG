@@ -65,20 +65,17 @@ function add(tucks::Vector{Tucker{T,N}}; thresh=1e-10, max_number=nothing, type=
         nkeep = 0
         if type == "magnitude"
             for si in F.S 
-                if si*si > thresh
+                if si > thresh
                     nkeep += 1
                 end
             end
         elseif type == "sum"
-            target = sum(F.S .* F.S)
+            target = sum(F.S )
             curr = 0.0
             for si in F.S 
                 if abs(curr-target) > thresh
                     nkeep += 1
                     curr += si*si
-                    if verbose > 0
-                        @printf(" Eigenvalue = %12.8f\n", i)
-                    end
                 end
             end
         else
@@ -126,6 +123,7 @@ Try to compress further
 """
 function compress(t::Tucker{T,N}; thresh=1e-7, max_number=nothing, type="magnitude") where {T,N}
 
+    length(t) > 0 || return t
     tt = Tucker(t.core, thresh=thresh, max_number=max_number, type=type)
 
     new_factors = [zeros(1,1) for i in 1:N]
@@ -173,17 +171,23 @@ function tucker_decompose(A::Array{T,N}; thresh=1e-7, max_number=nothing, verbos
     if verbose > 0
         println(" Tucker Decompose:", size(A))
     end
+    length(A) > 0 || error(" can't decompose array with zero data")
     for i in 1:ndims(A)
-        idx_l = collect(1:ndims(A))
-        idx_r = collect(1:ndims(A))
-        idx_l[i] = -1
-        idx_r[i] = -2
-        G = tensorcontract(A,idx_l,A,idx_r)
-        #G = @ncon([A, A], [idx_l, idx_r])
-        F = eigen((G .+ G') .* .5) # should be symmetric, but sometimes values get very small and numerical error builds up
-        perm = sortperm(real(F.values), rev=true)
-        l = F.values[perm]
-        v = F.vectors[:,perm]
+        idx = collect(1:ndims(A))
+        idx[i] = -1
+        perm = sortperm(idx)
+        U,Σ, = svd(reshape(permutedims(A,perm), size(A,i), length(A)÷size(A,i))) 
+   
+#        idx_l = collect(1:ndims(A))
+#        idx_r = collect(1:ndims(A))
+#        idx_l[i] = -1
+#        idx_r[i] = -2
+#        G = tensorcontract(A,idx_l,A,idx_r)
+#        #G = @ncon([A, A], [idx_l, idx_r])
+#        F = eigen((G .+ G') .* .5) # should be symmetric, but sometimes values get very small and numerical error builds up
+#        perm = sortperm(real(F.values), rev=true)
+#        l = F.values[perm]
+#        v = F.vectors[:,perm]
 
         nkeep = 0
         if verbose > 0
@@ -191,23 +195,23 @@ function tucker_decompose(A::Array{T,N}; thresh=1e-7, max_number=nothing, verbos
         end
         nkeep = 0
         if type == "magnitude"
-            for li in l
-                if abs(li) > thresh
+            for (idx,Σi) in enumerate(Σ)
+                if abs(Σi) > thresh
                     nkeep += 1
                     if verbose > 0
-                        @printf(" Eigenvalue = %12.8f\n", li)
+                        @printf("   Singular Value %4i = %12.8f\n", idx, Σi)
                     end
                 end
             end
         elseif type == "sum"
             target = sum(l)
             curr = 0.0
-            for (idx,i) in enumerate(l) 
+            for (idx,Σi) in enumerate(Σ)
                 if abs(curr-target) > thresh
                     nkeep += 1
-                    curr += i
+                    curr += Σi
                     if verbose > 0
-                        @printf(" Eigenvalue = %12.8f\n", i)
+                        @printf("   Singular Value %4i = %12.8f\n", idx, Σi)
                     end
                 end
             end
@@ -218,7 +222,7 @@ function tucker_decompose(A::Array{T,N}; thresh=1e-7, max_number=nothing, verbos
             nkeep = min(nkeep, max_number)
         end
 
-        push!(factors, v[:,1:nkeep])
+        push!(factors, U[:,1:nkeep])
     end
     return transform_basis(A,factors), factors
 end
@@ -391,3 +395,4 @@ function unfold(A::AbstractArray{T,N}, i::Integer) where {T,N}
     return reshape(B,(d,div(length(B),d)))
 end
 
+LinearAlgebra.norm(A::Tucker{T,N}) where {T,N} = norm(A.core)
