@@ -2,7 +2,7 @@ using FermiCG
 using Printf
 using Test
 
-#@testset "BST" begin
+@testset "BST" begin
 
     molecule = "
     H   0.0     0.0     0.0
@@ -99,4 +99,4 @@ using Test
                                                tol_tucker  = 1e-4)
 
     @test isapprox(e_var[1], -18.329455008361652, atol=1e-8)
-#end
+end

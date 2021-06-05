@@ -17,8 +17,8 @@ function Tucker_tot(A::Array{T,N}; thresh=-1, verbose=0) where {T,N}
     core,factors = tucker_decompose_tot(A, thresh=thresh, verbose=verbose)
     return Tucker{T,N}(core, NTuple{N}(factors))
 end
-function Tucker(A::Array{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
-    core,factors = tucker_decompose(A, thresh=thresh, max_number=max_number, verbose=verbose)
+function Tucker(A::Array{T,N}; thresh=-1, max_number=nothing, verbose=0, type="magnitude") where {T,N}
+    core,factors = tucker_decompose(A, thresh=thresh, max_number=max_number, verbose=verbose, type=type)
     return Tucker{T,N}(core, NTuple{N}(factors))
 end
 recompose(t::Tucker{T,N}) where {T<:Number, N} = tucker_recompose(t.core, t.factors)
@@ -40,7 +40,7 @@ Add together multiple Tucker instances. Assumed non-orthogonal.
 # Arguments
 - `tucks::Vector{Tucker{T,N}}`: Vector of Tucker objects
 """
-function add(tucks::Vector{Tucker{T,N}}; thresh=1e-10, max_number=nothing) where {T,N}
+function add(tucks::Vector{Tucker{T,N}}; thresh=1e-10, max_number=nothing, type="magnitude") where {T,N}
 
     length(tucks) > 0 ||  error("not enough Tuckers to add", length(tucks))
     length(tucks) > 1 ||  return tucks[1] 
@@ -63,10 +63,26 @@ function add(tucks::Vector{Tucker{T,N}}; thresh=1e-10, max_number=nothing) where
         F = svd(Ui)
 
         nkeep = 0
-        for si in F.S 
-            if si*si > thresh
-                nkeep += 1
+        if type == "magnitude"
+            for si in F.S 
+                if si*si > thresh
+                    nkeep += 1
+                end
             end
+        elseif type == "sum"
+            target = sum(F.S .* F.S)
+            curr = 0.0
+            for si in F.S 
+                if abs(curr-target) > thresh
+                    nkeep += 1
+                    curr += si*si
+                    if verbose > 0
+                        @printf(" Eigenvalue = %12.8f\n", i)
+                    end
+                end
+            end
+        else
+            error("wrong type")
         end
         if max_number != nothing
             nkeep = min(nkeep, max_number)
@@ -108,9 +124,9 @@ end
 
 Try to compress further 
 """
-function compress(t::Tucker{T,N}; thresh=1e-7, max_number=nothing) where {T,N}
+function compress(t::Tucker{T,N}; thresh=1e-7, max_number=nothing, type="magnitude") where {T,N}
 
-    tt = Tucker(t.core, thresh=thresh, max_number=max_number)
+    tt = Tucker(t.core, thresh=thresh, max_number=max_number, type=type)
 
     new_factors = [zeros(1,1) for i in 1:N]
 
@@ -140,13 +156,19 @@ function dot(t1::Tucker{T,N}, t2::Tucker{T,N}) where {T,N}
 end
 
 """
-    function tucker_decompose(A::Array{T,N}; thresh=1e-7, max_number=nothing, verbose=1) where {T,N}
+    function tucker_decompose(A::Array{T,N}; thresh=1e-7, max_number=nothing, verbose=1, type="magnitude") where {T,N}
 
 Tucker Decomposition of dense tensor: 
     A ~ X *(1) U1 *(2) U2 ....
 where cluster states are discarded based on the corresponding SVD
+#Arguments
+- `A`: matrix to decompose
+- `thresh`: threshold for discarding tucker factors
+- `max_number`: limit number of tucker factors to this value
+- `type`: type of trunctation. "magnitude" discards values smaller than this number. 
+    "sum" discards values such that the sum of discarded values is smaller than `thresh`.
 """
-function tucker_decompose(A::Array{T,N}; thresh=1e-7, max_number=nothing, verbose=1) where {T,N}
+function tucker_decompose(A::Array{T,N}; thresh=1e-7, max_number=nothing, verbose=1, type="magnitude") where {T,N}
     factors = Vector{Matrix{T}}()
     if verbose > 0
         println(" Tucker Decompose:", size(A))
@@ -167,13 +189,30 @@ function tucker_decompose(A::Array{T,N}; thresh=1e-7, max_number=nothing, verbos
         if verbose > 0
             @printf(" index dimension: %6i\n", size(A)[i])
         end
-        for li in l
-            if abs(li) > thresh
-                nkeep += 1
-                if verbose > 0
-                    @printf(" Eigenvalue = %12.8f\n", li)
+        nkeep = 0
+        if type == "magnitude"
+            for li in l
+                if abs(li) > thresh
+                    nkeep += 1
+                    if verbose > 0
+                        @printf(" Eigenvalue = %12.8f\n", li)
+                    end
                 end
             end
+        elseif type == "sum"
+            target = sum(l)
+            curr = 0.0
+            for (idx,i) in enumerate(l) 
+                if abs(curr-target) > thresh
+                    nkeep += 1
+                    curr += i
+                    if verbose > 0
+                        @printf(" Eigenvalue = %12.8f\n", i)
+                    end
+                end
+            end
+        else
+            error("wrong type")
         end
         if max_number != nothing
             nkeep = min(nkeep, max_number)
