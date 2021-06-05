@@ -718,7 +718,7 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
     #       term: H(IK,I'K') = h(pq) G1(pII') G3(qKK')     
     #       ket: C(I'J'K')  = c(i'j'k') U1(I'i') U2(J'j') U3(K'k')
     #
-    #       sigma: σ(Ij'K,i'j'k') = h(pq) X1(pIi') U2(J'j') X3(qKk')    diagonal in j'
+    #       sigma: Σ(IJ'K) = h(pq) X1(pIi') U2(J'j') X3(qKk') c(i'j'k')    diagonal in j'
     #           
     #           sigma is quadratic in cluster dimension. We can reduce that sometimes by 
     #           compressing X
@@ -727,7 +727,11 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
     #                                    such that when dim(p)*dim(i') < dim(I) we get exact reduction
     #       X3(qKk') = x3(qkk') V3(Kk)   
     #                                   
+    #       Σ(IJ'K) = σ(ij'k) V1(Ii) U2(J'j') V3(Kk)
     #
+    #       at this point, Σ has the form of an hosvd with σ as teh core tensor
+    #
+    #       σ(ij'k) =  h(pq) x1(pii') x3(qkk') c(i'j'k')
     #
     #
     nscr = 10
