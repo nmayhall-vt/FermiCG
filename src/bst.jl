@@ -159,10 +159,10 @@ function block_sparse_tucker(input_vec::CompressedTuckerState, cluster_ops, clus
         @printf(" E(Ref)      = %12.8f\n", e0[1])
         do_pt == false || @printf(" E(PT2) tot  = %12.8f\n", e_pt2)
         @printf(" E(var) tot  = %12.8f\n", e_var[1])
+    	show(to)
 
         if abs(e_last[1] - e_var[1]) < tol_tucker 
             println("*Converged")
-            show(to)
             return e_var, ref_vec
             break
         end
@@ -170,7 +170,6 @@ function block_sparse_tucker(input_vec::CompressedTuckerState, cluster_ops, clus
 
     end
     println(" Not converged")
-    show(to)
     return e_var,ref_vec 
 end
 #=}}}=#
