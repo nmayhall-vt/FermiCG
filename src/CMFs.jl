@@ -115,16 +115,16 @@ function form_casci_ints(ints::InCoreInts, ci::Cluster, rdm1a, rdm1b)
     viirs = ints.h2[ci.orb_list, ci.orb_list,:,:]
     viqri = ints.h2[ci.orb_list, :, :, ci.orb_list]
     fa = zeros(length(ci),length(ci))
+    Ja = zeros(length(ci),length(ci))
     fb = copy(fa)
     ints_i = subset(ints, ci.orb_list)
     @tensor begin
-        ints_i.h1[p,q] += .5*viirs[p,q,r,s] * (da+db)[r,s]
+        ints_i.h1[p,q] += viirs[p,q,r,s] * (da+db)[r,s]
         # fb = deepcopy(fa)
         # fa[p,s] -= viqri[p,q,r,s] * da[q,r]
         # fb[p,s] -= viqri[p,q,r,s] * db[q,r]
-        ints_i.h1[p,s] -= .25*viqri[p,q,r,s] * da[q,r]
-        ints_i.h1[p,s] -= .25*viqri[p,q,r,s] * da[q,r]
-
+        ints_i.h1[p,s] -= .5*viqri[p,q,r,s] * da[q,r]
+        ints_i.h1[p,s] -= .5*viqri[p,q,r,s] * db[q,r]
     end
     return ints_i
 end
@@ -227,6 +227,7 @@ function compute_cmf_energy(ints, rdm1s, rdm2s, clusters; verbose=0)
             v_psrq = ints.h2[ci.orb_list, cj.orb_list, cj.orb_list, ci.orb_list]
             # v_pqrs = ints.h2[ci.orb_list, ci.orb_list, cj.orb_list, cj.orb_list]
             tmp = 0
+
             #@tensor begin
             #    tmp  = v_pqrs[p,q,r,s] * rdm1s[ci.idx][p,q] * rdm1s[cj.idx][r,s]
             #    tmp -= .5*v_psrq[p,s,r,q] * rdm1s[ci.idx][p,q] * rdm1s[cj.idx][r,s]
@@ -248,6 +249,7 @@ function compute_cmf_energy(ints, rdm1s, rdm2s, clusters; verbose=0)
             e2[ci.idx, cj.idx] = tmp
         end
     end
+    display(e2)
     if verbose>=1
         for ei = 1:length(e1)
             @printf(" Cluster %3i E =%12.8f\n",ei,e1[ei])
@@ -370,7 +372,7 @@ function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rd
         end
         
         rdm1_dict[ci.idx] = [d1a,d1b]
-        #rdm1s_dict[ci.idx] = d1a+d1b
+        rdm1s_dict[ci.idx] = d1a+d1b
         rdm2_dict[ci.idx] = d2
 	#display(d1a-d1b)
 
@@ -738,7 +740,8 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess;
             @tensor begin
                 grad_1[p,q] += v_111[p,v,u,w] * rdm2_dict[ci.idx][q,v,u,w]
                 #grad_1[p,q] += v_111[p,v,u,w] * rdm2_dict[ci.idx][q,u,w,v]
-                grad_1[p,q] += h_1[p,r] * rdm1_dict[ci.idx][r,q]
+                #grad_1[p,q] += h_1[p,r] * rdm1_dict[ci.idx][r,q]
+                grad_1[p,q] += h_1[p,r] * (rdm1_dict[ci.idx][1][r,q]+rdm1_dict[ci.idx][2][r,q])
             end
             for cj in clusters
                 if ci.idx == cj.idx
@@ -746,8 +749,8 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess;
                 end
                 v_212 = ints2.h2[:,cj.orb_list, ci.orb_list, cj.orb_list]
                 v_122 = ints2.h2[:,ci.orb_list, cj.orb_list, cj.orb_list]
-                d1 = rdm1_dict[ci.idx]
-                d2 = rdm1_dict[cj.idx]
+                d1 = rdm1_dict[ci.idx][1] + rdm1_dict[ci.idx][2]
+                d2 = rdm1_dict[cj.idx][1] + rdm1_dict[cj.idx][2]
 
                 @tensor begin
                     grad_1[p,q] += v_122[p,v,u,w] * d1[q,v] * d2[w,u]
