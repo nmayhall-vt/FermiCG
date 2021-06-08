@@ -718,7 +718,27 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
 
     lk = ReentrantLock()
 
-
+    #
+    #   2body:
+    #       term: H(IK,I'K') = h(pq) G1(pII') G3(qKK')     
+    #       ket: C(I'J'K')  = c(i'j'k') U1(I'i') U2(J'j') U3(K'k')
+    #
+    #       sigma: Σ(IJ'K) = h(pq) X1(pIi') U2(J'j') X3(qKk') c(i'j'k')    diagonal in j'
+    #           
+    #           sigma is quadratic in cluster dimension. We can reduce that sometimes by 
+    #           compressing X
+    #
+    #       X1(pIi') = x1(pii') V1(Ii)   where V1(Ii) are the left singular vectors of X1(I,pi') 
+    #                                    such that when dim(p)*dim(i') < dim(I) we get exact reduction
+    #       X3(qKk') = x3(qkk') V3(Kk)   
+    #                                   
+    #       Σ(IJ'K) = σ(ij'k) V1(Ii) U2(J'j') V3(Kk)
+    #
+    #       at this point, Σ has the form of an hosvd with σ as teh core tensor
+    #
+    #       σ(ij'k) =  h(pq) x1(pii') x3(qkk') c(i'j'k')
+    #
+    #
     nscr = 10
     scr = Vector{Vector{Vector{Float64}} }()
     for tid in 1:Threads.nthreads()
@@ -845,6 +865,9 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
                             #                                    prescreen=thresh)
                         end
 
+                        if length(sig_tuck) == 0
+                            continue
+                        end
                        
                         sig_tuck = compress(sig_tuck, thresh=thresh)
 

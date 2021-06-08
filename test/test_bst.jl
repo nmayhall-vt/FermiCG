@@ -2,7 +2,7 @@ using FermiCG
 using Printf
 using Test
 
-#@testset "BST" begin
+@testset "BST" begin
 
     molecule = "
     H   0.0     0.0     0.0
@@ -91,12 +91,12 @@ using Test
                                                max_iter_pt = 200, 
                                                nbody       = 4,
                                                H0          = "Hcmf",
-                                               thresh_var  = 1e-4,
-                                               thresh_foi  = 1e-6,
-                                               thresh_pt   = 1e-5,
+                                               thresh_var  = 1e-2,
+                                               thresh_foi  = 1e-3,
+                                               thresh_pt   = sqrt(1e-5),
                                                tol_ci      = 1e-5,
                                                do_pt       = true,
                                                tol_tucker  = 1e-4)
 
     @test isapprox(e_var[1], -18.329455008361652, atol=1e-8)
-#end
+end
