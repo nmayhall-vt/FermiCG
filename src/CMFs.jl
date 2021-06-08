@@ -213,9 +213,6 @@ function compute_cmf_energy(ints, rdm1s, rdm2s, clusters; verbose=0)
         # end
         e1[ci.idx] = FermiCG.compute_energy(0, ints_i.h1, ints_i.h2, rdm1s[ci.idx][1]+rdm1s[ci.idx][2], rdm2s[ci.idx])
 
-	println("SUM of e1")
-	println(sum(e1))
-
         # e1[ci.idx] = tmp
     end
     for ci in clusters
@@ -249,7 +246,6 @@ function compute_cmf_energy(ints, rdm1s, rdm2s, clusters; verbose=0)
             e2[ci.idx, cj.idx] = tmp
         end
     end
-    display(e2)
     if verbose>=1
         for ei = 1:length(e1)
             @printf(" Cluster %3i E =%12.8f\n",ei,e1[ei])
