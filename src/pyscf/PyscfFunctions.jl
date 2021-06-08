@@ -284,7 +284,7 @@ function pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1, verbose=1
 	d1a,d1b = cisolver.make_rdm1s(ci, norb, (na,nb))
 
 	d1,d2 = cisolver.make_rdm12(ci, norb, (na,nb))
-	 @printf(" Energy2: %12.8f\n", FermiCG.compute_energy(ham.h0, ham.h1, ham.h2, d1a+d1b, d2))
+	#@printf(" Energy2: %12.8f\n", FermiCG.compute_energy(ham.h0, ham.h1, ham.h2, d1a+d1b, d2))
 	# print(" PYSCF 1RDM: ")
 	F = eigen(d1)
 	occs = F.values
