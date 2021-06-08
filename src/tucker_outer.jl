@@ -502,7 +502,7 @@ function define_foi_space(cts::T, clustered_ham; nbody=2) where T<:Union{TuckerS
                         push!(tmp, tmp2)
                     end
 
-                    for prod in product(tmp...)
+                    for prod in Iterators.product(tmp...)
                         new_tconfig = deepcopy(tconfig)
                         for cidx in 1:length(term.clusters)
                             ci = term.clusters[cidx]
@@ -810,7 +810,7 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
                     #
                     # Now loop over cartesian product of available subspaces (those in X above) and
                     # create the target TuckerConfig and then evaluate the associated terms
-                    for prod in product(available...)
+                    for prod in Iterators.product(available...)
                         sig_tconfig = [ket_tconfig.config...]
                         for cidx in 1:length(term.clusters)
                             ci = term.clusters[cidx]
