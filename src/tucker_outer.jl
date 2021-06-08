@@ -749,7 +749,7 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
        
     #for (fock_trans, terms) in clustered_ham
     keys_to_loop = [keys(clustered_ham.trans)...]
-    println(" Number of threaded jobs:", length(keys_to_loop))
+    println(" Number of tasks:", length(keys_to_loop))
     Threads.@threads for fock_trans in keys_to_loop
         for (ket_fock, ket_tconfigs) in ket_cts
             terms = clustered_ham[fock_trans]
@@ -868,6 +868,9 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
                         if length(sig_tuck) == 0
                             continue
                         end
+                        if norm(sig_tuck) < thresh 
+                            continue
+                        end
                        
                         sig_tuck = compress(sig_tuck, thresh=thresh)
 
@@ -911,7 +914,9 @@ function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, c
         end
     end
 
-    for (fock,tconfigs) in data
+    println(" Now add the results together")
+    flush(stdout)
+    @time for (fock,tconfigs) in data
         for (tconfig, tuck) in tconfigs
             if haskey(sig_cts, fock)
                 sig_cts[fock][tconfig] = compress(nonorth_add(tuck), thresh=thresh)

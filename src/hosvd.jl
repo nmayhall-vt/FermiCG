@@ -42,6 +42,11 @@ Add together multiple Tucker instances. Assumed non-orthogonal.
 """
 function add(tucks::Vector{Tucker{T,N}}; thresh=1e-10, max_number=nothing, type="magnitude") where {T,N}
 
+    # sort the Tucker objects to add. This puts them in a well-defined order for reproducibility.
+    norms = norm.(tucks)
+    perm = sortperm(norms,rev=true)
+    tucks = tucks[perm]
+    #display(norm.(tucks))
     length(tucks) > 0 ||  error("not enough Tuckers to add", length(tucks))
     length(tucks) > 1 ||  return tucks[1] 
 
