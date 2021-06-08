@@ -75,6 +75,11 @@ function tucker_ci_solve(ci_vector::CompressedTuckerState, cluster_ops, clustere
         flush(stdout)
     end
 
+    #for (ftrans,terms) in clustered_ham
+    #    for term in terms
+    #        println("nick: ", length(term.cache))
+    #    end
+    #end
 
     #cache_hamiltonian(ci_vector, ci_vector, cluster_ops, clustered_ham)
     

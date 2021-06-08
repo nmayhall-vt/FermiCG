@@ -93,11 +93,13 @@ function cache_hamiltonian(bra::CompressedTuckerState, ket::CompressedTuckerStat
             length(term.clusters) <= nbody || continue
 
             for (fock_ket, configs_ket) in ket
-                fock_bra = [fock_ket.config...]
-                for (cii,ci) in enumerate(term.clusters)
-                    fock_bra[ci.idx] = (fock_ket[ci.idx][1] + ftrans[cii][1], fock_ket[ci.idx][2] + ftrans[cii][2])
-                end
-                fock_bra = FockConfig(fock_bra)
+                #fock_bra = [fock_ket.config...]
+                #for (cii,ci) in enumerate(term.clusters)
+                #    fock_bra[ci.idx] = (fock_ket[ci.idx][1] + ftrans[cii][1], fock_ket[ci.idx][2] + ftrans[cii][2])
+                #end
+            
+                fock_bra = ftrans + fock_ket
+                #fock_bra = FockConfig(fock_bra)
 
                 haskey(bra.data, fock_bra) == true || continue
 
@@ -212,8 +214,8 @@ function form_sigma_block!(term::C,
 
     op = Array{Float64}[]
     cache_key = OperatorConfig((fock_bra, fock_ket, bra, ket))
-    if cache && haskey(term.cache, cache_key)
-    #if cache 
+    #if cache && haskey(term.cache, cache_key)
+    if cache 
        
 
         #
