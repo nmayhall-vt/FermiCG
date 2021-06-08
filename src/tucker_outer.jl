@@ -88,10 +88,10 @@ function tucker_ci_solve(ci_vector::CompressedTuckerState, cluster_ops, clustere
     #FermiCG.solve(davidson)
     flush(stdout)
     #@time FermiCG.iteration(davidson, Adiag=Adiag, iprint=2)
-    e,v = FermiCG.solve(davidson)
+    @time e,v = FermiCG.solve(davidson)
     set_vector!(vec,v)
     
-    println(" Memory used by cache: ", mem_used_by_cache(clustered_ham))
+    #println(" Memory used by cache: ", mem_used_by_cache(clustered_ham))
 
     #flush term cache
     flush_cache(clustered_ham)

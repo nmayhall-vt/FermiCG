@@ -163,6 +163,7 @@ function block_sparse_tucker(input_vec::CompressedTuckerState, cluster_ops, clus
         if abs(e_last[1] - e_var[1]) < tol_tucker 
             println("*Converged")
             show(to)
+            println("")
             return e_var, ref_vec
             break
         end
@@ -171,6 +172,7 @@ function block_sparse_tucker(input_vec::CompressedTuckerState, cluster_ops, clus
     end
     println(" Not converged")
     show(to)
+    println("")
     return e_var,ref_vec 
 end
 #=}}}=#
