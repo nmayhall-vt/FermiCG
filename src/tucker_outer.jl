@@ -954,12 +954,25 @@ end
     
 
 
+"""
+    function do_fois_pt2(ref::CompressedTuckerState, cluster_ops, clustered_ham;
+            H0          = "Hcmf",
+            max_iter    = 50,
+            nbody       = 4,
+            thresh_foi  = 1e-6,
+            tol         = 1e-5,
+            opt_ref     = true,
+            verbose     = true)
+
+Do PT2
+"""
 function do_fois_pt2(ref::CompressedTuckerState, cluster_ops, clustered_ham;
             H0          = "Hcmf",
             max_iter    = 50,
             nbody       = 4,
             thresh_foi  = 1e-6,
             tol         = 1e-5,
+            opt_ref     = true,
             verbose     = true)
     @printf("\n-------------------------------------------------------\n")
     @printf(" Do Hylleraas PT2\n")
@@ -973,8 +986,11 @@ function do_fois_pt2(ref::CompressedTuckerState, cluster_ops, clustered_ham;
     # 
     # Solve variationally in reference space
     ref_vec = deepcopy(ref)
+    
     @printf(" Solve zeroth-order problem. Dimension = %10i\n", length(ref_vec))
-    @time e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, tol=tol)
+    if opt_ref 
+        @time e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, tol=tol)
+    end
 
     #
     # Get First order wavefunction
@@ -1000,7 +1016,7 @@ function do_fois_pt2(ref::CompressedTuckerState, cluster_ops, clustered_ham;
     # Solve for first order wavefunction 
     println(" Compute PT vector. Reference space dim = ", length(ref_vec))
     pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol, max_iter=max_iter, H0=H0)
-    @printf(" E(Ref)      = %12.8f\n", e0[1])
+    #@printf(" E(Ref)      = %12.8f\n", e0[1])
     @printf(" E(PT2) tot  = %12.8f\n", e_pt2)
     return e_pt2, pt1_vec 
 end
