@@ -15,10 +15,15 @@ Base.haskey(ts::ClusteredState, i) = return haskey(ts.data,i)
 #Base.eltype(::Type{ClusteredState{T,N,R}}) where {T,N,R} = OrderedDict{ClusterConfig{N}, MVector{R,T}} 
 
 """
-    ClusteredState(clusters)
+    ClusteredState(clusters; T=Float64, R=1)
 
-Constructor
+Constructor creating an empty vector
+# Arguments
 - `clusters::Vector{Cluster}`
+- `T`:  Type of data for coefficients
+- `R`:  Number of roots
+# Returns
+- `ClusteredState`
 """
 function ClusteredState(clusters; T=Float64, R=1)
     N = length(clusters)
@@ -26,10 +31,42 @@ function ClusteredState(clusters; T=Float64, R=1)
 end
 
 """
+    ClusteredState(clusters::Vector{Cluster}, fconfig::FockConfig{N}; T=Float64, R=1) where {N}
+
+Constructor using only a single FockConfig. This allows us to turn the CMF state into a ClusteredState.
+# Arguments
+- `clusters`: vector of clusters types
+- `fconfig`: starting FockConfig
+- `T`:  Type of data for coefficients
+- `R`:  Number of roots
+# Returns
+- `ClusteredState`
+"""
+function ClusteredState(clusters::Vector{Cluster}, fconfig::FockConfig{N}; T=Float64, R=1) where {N}
+    #={{{=#
+
+    state = ClusteredState(clusters, T=T, R=R)
+    add_fockconfig!(state, fconfig)
+    conf = ClusterConfig([1 for i in 1:length(clusters)])
+    state[fconfig][conf] = zeros(T,R) 
+    return state
+#=}}}=#
+end
+
+
+
+
+
+
+
+
+
+"""
     add_fockconfig!(s::ClusteredState, fock::FockConfig)
 """
 function add_fockconfig!(s::ClusteredState{T,N,R}, fock::FockConfig{N}) where {T<:Number,N,R}
-    s.data[fock] = OrderedDict{ClusterConfig{N}, MVector{R,T}}(ClusterConfig([1 for i in 1:N]) => zeros(MVector{R,T}))
+    s.data[fock] = OrderedDict{ClusterConfig{N}, MVector{R,T}}()
+    #s.data[fock] = OrderedDict{ClusterConfig{N}, MVector{R,T}}(ClusterConfig([1 for i in 1:N]) => zeros(MVector{R,T}))
 end
 
 """

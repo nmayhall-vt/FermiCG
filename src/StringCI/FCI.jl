@@ -4,6 +4,9 @@ using Parameters
 using Profile
 using LinearMaps
 using BenchmarkTools
+using OrderedCollections
+using PyCall
+
 
 
 
@@ -1087,6 +1090,144 @@ function build_S2_matrix(P::FCIProblem)
         incr!(ket_b)
     end
     return S2
+end
+#=}}}=#
+
+
+"""
+    svd_state(prb::FCIProblem)
+Do an SVD of the FCI vector partitioned into clusters with (norbs1 | norbs2)
+where the orbitals are assumed to be ordered for cluster 1| cluster 2 haveing norbs1 and 
+norbs2, respectively.
+
+- `prb`: FCIProblem just defines the current CI problem (i.e., fock sector)
+- `norbs1`:number of orbitals in left cluster
+- `norbs2`:number of orbitals in right cluster
+- `svd_thresh`: the threshold below which the states will be discarded
+"""
+function svd_state(v,P::FCIProblem,norbs1,norbs2,svd_thresh)
+
+    #={{{=#
+
+    @assert(norbs1+norbs2 ==P.no)
+
+    schmidt_basis = OrderedDict()
+    #vector = OrderedDict{Tuple{UInt8,UInt8},Float64}()
+    vector = OrderedDict{Tuple{Int,Int},Any}()
+
+    #schmidt_basis = Dict{Tuple,Matrix{Float64}}
+
+    println("----------------------------------------")
+    println("          SVD of state")
+    println("----------------------------------------")
+
+    # Create ci_strings
+    ket_a = DeterminantString(P.no, P.na)
+    ket_b = DeterminantString(P.no, P.nb)
+
+    v = reshape(v,(ket_a.max, ket_b.max))
+    @assert(size(v,1) == ket_a.max)
+    @assert(size(v,2) == ket_b.max)
+
+    fock_labels_a = Array{Int,1}(undef,ket_a.max)
+    fock_labels_b = Array{Int,1}(undef,ket_b.max)
+
+
+    # Get the fock space using the bisect method in python
+    bisect = pyimport("bisect")
+    for I in 1:ket_a.max
+        fock_labels_a[I] = bisect.bisect(ket_a.config,norbs1)
+        #print("nick: ", ket_a.config, " " , norbs1, " ", fock_labels_a[I], "\n")
+        incr!(ket_a)
+    end
+    for I in 1:ket_b.max
+        fock_labels_b[I] = bisect.bisect(ket_b.config,norbs1)
+        incr!(ket_b)
+    end
+    for J in 1:ket_b.max
+        for I in 1:ket_a.max
+            fock = (fock_labels_a[I], fock_labels_b[J])
+
+            #if fock in vector
+            #    append!(vector[fock],v[I,J])
+            #else
+            #    vector[fock] = [v[I,J]]
+            #end
+            try
+                append!(vector[tuple(fock_labels_a[I],fock_labels_b[J])],v[I,J])
+            catch
+                vector[tuple(fock_labels_a[I],fock_labels_b[J])] = [v[I,J]]
+            end
+        end
+    end
+
+    for (fock,fvec)  in vector
+
+        println()
+        @printf("Prepare Fock Space:  %iα, %iβ\n",fock[1] ,fock[2] )
+
+        ket_a1 = DeterminantString(norbs1, fock[1])
+        ket_b1 = DeterminantString(norbs1, fock[2])
+
+        ket_a2 = DeterminantString(norbs2, P.na - fock[1])
+        ket_b2 = DeterminantString(norbs2, P.nb - fock[2])
+
+
+        temp_fvec = reshape(fvec,ket_b1.max*ket_b2.max,ket_a1.max*ket_a2.max)'
+        #temp_fvec = reshape(fvec,ket_b1.max*ket_b2.max,ket_a1.max*ket_a2.max)'
+        #st = "temp_fvec"*string(fock)
+        #npzwrite(st, temp_fvec)
+
+
+        #when swapping alpha2 and beta1 do we flip sign?
+        sign = 1
+        if (P.na-fock[1])%2==1 && fock[2]%2==1
+            sign = -1
+        end
+        #println("sign",sign)
+        @printf("   Dimensions: %5i x %-5i \n",ket_a1.max*ket_b1.max, ket_a2.max*ket_b2.max)
+
+        norm_curr = fvec' * fvec
+        @printf("   Norm: %12.8f\n",sqrt(norm_curr))
+        #println(size(fvec))
+        #display(fvec)
+
+        fvec = sign *fvec
+
+        #opposite to python with transpose on fvec
+        #fvec2 = reshape(fvec',ket_b2.max,ket_b1.max,ket_a2.max,ket_a1.max)
+        fvec2 = reshape(fvec,ket_a1.max,ket_a2.max,ket_b1.max,ket_b2.max)
+        fvec3 = permutedims(fvec2, [ 1, 3, 2, 4])
+        fvec4 = reshape(fvec3,ket_a1.max*ket_b1.max,ket_a2.max*ket_b2.max)
+
+        # fvec4 is transpose of what we have in python code
+        fvec5 = fvec4'
+
+        F = svd(fvec5,full=true)
+
+
+        nkeep = 0
+        @printf("   %5s %12s\n","State","Weight")
+        for (ni_idx,ni) in enumerate(F.S)
+            if ni > svd_thresh
+                nkeep += 1
+                @printf("   %5i %12.8f\n",ni_idx,ni)
+            else
+                @printf("   %5i %12.8f (discarded)\n",ni_idx,ni)
+            end
+        end
+        
+
+        if nkeep > 0
+            schmidt_basis[fock] = Matrix(F.U[:,1:nkeep])
+            #st = "fin_vec"*string(fock)
+            #npzwrite(st, F.U[:,1:nkeep])
+        end
+
+        #norm += norm_curr
+    end
+
+    return schmidt_basis
 end
 #=}}}=#
 
