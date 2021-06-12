@@ -77,13 +77,21 @@ Base.haskey(cb::ClusterBasis,key) = haskey(cb.basis, key)
 function Base.display(cb::ClusterBasis) 
     @printf(" ClusterBasis for Cluster: %4i\n",cb.cluster.idx)
     norb = length(cb.cluster)
+    sum_total_dim = 0
+    sum_dim = 0
     for (sector, vecs) in cb.basis
         dim = size(vecs,2)
         total_dim = binomial(norb,sector[1]) * binomial(norb,sector[2]) 
+        sum_dim += dim
+        sum_total_dim += total_dim
         
         @printf("   FockSector = (%2iα, %2iβ): Total Dim = %5i: Dim = %4i\n", sector[1],sector[2],total_dim, dim)
     end
+       
+    @printf("   -----------------------------\n")
+    @printf("   Total Dim = %5i: Dim = %4i\n", sum_total_dim, sum_dim)
 end
+
 
 
 ######################################################################################################
@@ -1087,13 +1095,15 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db;
 	end
     #form ints in the cluster 
     no_range = collect(1:size(Cfrag,2)+size(Cbath,2))
-    #ints_i = form_casci_eff_ints(ints2,collect(1:size(Cfrag,2)+size(Cbath,2)), denvt_a, denvt_b)
-    ints2 = subset(ints2,collect(1:size(Cfrag,2)+size(Cbath,2)), denvt_a, denvt_b)
+
+    #ints_f = subset(ints2,collect(1:size(Cfrag,2)+size(Cbath,2)), denvt_a, denvt_b)
+
+    ints_f = FermiCG.form_1rdm_dressed_ints(ints2,no_range,denvt_a,denvt_b)
 
     else
         denvt_a *= 0 
         denvt_b *= 0 
-        ints2 = form_casci_eff_ints(ints2,collect(1:size(Cfrag,2)+size(Cbath,2)), denvt_a, denvt_b)
+        ints_f = form_casci_eff_ints(ints2,collect(1:size(Cfrag,2)+size(Cbath,2)), denvt_a, denvt_b)
     end
 
     println(" Number of electrons in Environment system:")
@@ -1104,9 +1114,9 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db;
     println(" Number of electrons in Fragment+Bath system:")
     @printf("  α: %12.8f  β:%12.8f \n ",na_actv,nb_actv)
 
-    norb2 = size(ints2.h1,1)
+    norb2 = size(ints_f.h1,1)
     problem = FermiCG.StringCI.FCIProblem(norb2, na_actv, nb_actv)
-    Hmap = StringCI.get_map(ints2, problem)
+    Hmap = StringCI.get_map(ints_f, problem)
     v0 = svd(rand(problem.dim,eig_nr)).U
     davidson = FermiCG.Davidson(Hmap,v0=v0,max_iter=200, max_ss_vecs=20, nroots=eig_nr, tol=1e-8)
     #FermiCG.solve(davidson)
@@ -1180,8 +1190,8 @@ function compute_cluster_est_basis(ints::InCoreInts, clusters::Vector{Cluster},D
             if sec in keys(basis) 
                 basis_i[sec] = basis[sec]
 		#display(basis[sec])
-		st = "fock_"*string(ci.idx)*"_"*string(sec)
-		npzwrite(st, Matrix(basis[sec]))
+		#st = "fock_"*string(ci.idx)*"_"*string(sec)
+		#npzwrite(st, Matrix(basis[sec]))
             else
 	    	#println(sec)
             end

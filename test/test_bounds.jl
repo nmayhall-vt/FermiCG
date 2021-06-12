@@ -109,8 +109,22 @@ function test3a()
     return l1 == l2 
 end
 
+function tuck_bound()
+    v = FermiCG.recompose(FermiCG.Tucker(rand(6,7,8,9).-.5,max_number=4)) .+ .01*(rand(6,7,8,9) .- .5)
+    v = v./norm(v)
+    tuck = FermiCG.Tucker_tot(v, thresh=.1,verbose=1)
+    err1 = norm(v-FermiCG.recompose(tuck)) <= .1
+    
+    v = (rand(6,7,8,9) .- .5)
+    v = v./norm(v)
+    tuck = FermiCG.Tucker_tot(v, thresh=.4,verbose=1)
+    err2 = norm(v-FermiCG.recompose(tuck)) <= .4
+    return err1 && err2
+end
+
 @testset "tpsci" begin
-    for i in 1:100
+    for i in 1:10
+        @test tuck_bound()
         @test test1() 
         @test test2() 
         @test test3() 

@@ -5,35 +5,94 @@ using Optim
 
 
 """
-	form_casci_eff_ints(ints::InCoreInts, orb_list, rdm1a, rdm1b)
+	form_1rdm_dressed_ints(ints::InCoreInts, orb_list, rdm1a, rdm1b)
 
 Obtain a subset of integrals which act on the orbitals in Cluster,
 embedding the 1rdm from the rest of the system
 
 Returns an `InCoreInts` type
 """
-function form_casci_eff_ints(ints::InCoreInts, orb_list, rdm1a, rdm1b)
-    da = deepcopy(rdm1a)
-    db = deepcopy(rdm1b)
-    da[:,orb_list] .= 0
-    db[:,orb_list] .= 0
-    da[orb_list,:] .= 0
-    db[orb_list,:] .= 0
-    viirs = ints.h2[orb_list, orb_list,:,:]
-    viqri = ints.h2[orb_list, :, :, orb_list]
-    ints_i = subset(ints, orb_list)
-    println()
-    println("ints in eff cas")
-    display(ints_i.h1)
-    exit()
-    @tensor begin
-        ints_i.h1[p,q] += .5*viirs[p,q,r,s] * (da+db)[r,s]
-        ints_i.h1[p,s] -= .25*viqri[p,q,r,s] * da[q,r]
-        ints_i.h1[p,s] -= .25*viqri[p,q,r,s] * da[q,r]
+function form_1rdm_dressed_ints(ints::InCoreInts, orb_list, rdm1a, rdm1b)
+    norb_act = size(orb_list)[1]
+    full_orb = size(rdm1a)[1]
+    h = zeros(norb_act,norb_act)
+    f = zeros(norb_act,norb_act)
+    v = zeros(norb_act,norb_act,norb_act,norb_act)
+    da = zeros(norb_act,norb_act)
+    db = zeros(norb_act,norb_act)
 
+
+    for (pi,p) in enumerate(orb_list)
+    	for (qi,q) in enumerate(orb_list)
+	    h[pi,qi] = ints.h1[p,q]
+	    da[pi,qi] = rdm1a[p,q]
+	    db[pi,qi] = rdm1b[p,q]
+	end
     end
+
+
+    for (pi,p) in enumerate(orb_list)
+    	for (qi,q) in enumerate(orb_list)
+    	    for (ri,r) in enumerate(orb_list)
+    		for (si,s) in enumerate(orb_list)
+		    v[pi,qi,ri,si] = ints.h2[p,q,r,s]
+		end
+	    end
+	end
+    end
+
+    println(" Compute single particle embedding potential")
+    denv_a = 1.0*rdm1a
+    denv_b = 1.0*rdm1b
+    dact_a = 0.0*rdm1a
+    dact_b = 0.0*rdm1b
+
+    for (pi,p) in enumerate(orb_list)
+    	for (qi,q) in enumerate(1:size(rdm1a)[1])
+	    denv_a[p,q] = 0
+	    denv_b[p,q] = 0
+	    denv_a[q,p] = 0
+	    denv_b[q,p] = 0
+
+	    dact_a[p,q] = rdm1a[p,q]
+	    dact_b[p,q] = rdm1b[p,q]
+	    dact_a[q,p] = rdm1a[q,p]
+	    dact_b[q,p] = rdm1b[q,p]
+	end
+    end
+
+    println(" Trace of env 1RDM: %12.8f",tr(denv_a + denv_b))
+    #print(" Compute energy of 1rdm:")
+
+    ga =  zeros(size(ints.h1)) 
+    gb =  zeros(size(ints.h1)) 
+
+    @tensor begin
+        ga[r,s] += ints.h2[p,q,r,s] * (denv_a[p,q] + denv_b[p,q])
+        ga[q,r] -= ints.h2[p,q,r,s] * (denv_a[p,s])
+
+        gb[r,s] += ints.h2[p,q,r,s] * (denv_a[p,q] + denv_b[p,q])
+        gb[q,r] -= ints.h2[p,q,r,s] * (denv_b[p,s])
+    end
+
+    De = denv_a + denv_b
+    Fa = ints.h1 + .5*ga
+    Fb = ints.h1 + .5*gb
+    F = ints.h1 + .25*(ga + gb)
+    Eenv = tr(De * F) 
+   
+    f = zeros(norb_act,norb_act)
+    for (pi,p) in enumerate(orb_list)
+        for (qi,q) in enumerate(orb_list)
+            f[pi,qi] =  F[p,q]
+	end
+    end
+
+    t = 2*f-h
+    ints_i = InCoreInts(ints.h0, t, v)
     return ints_i
 end
+
 
 
 
@@ -56,16 +115,16 @@ function form_casci_ints(ints::InCoreInts, ci::Cluster, rdm1a, rdm1b)
     viirs = ints.h2[ci.orb_list, ci.orb_list,:,:]
     viqri = ints.h2[ci.orb_list, :, :, ci.orb_list]
     fa = zeros(length(ci),length(ci))
+    Ja = zeros(length(ci),length(ci))
     fb = copy(fa)
     ints_i = subset(ints, ci.orb_list)
     @tensor begin
-        ints_i.h1[p,q] += .5*viirs[p,q,r,s] * (da+db)[r,s]
+        ints_i.h1[p,q] += viirs[p,q,r,s] * (da+db)[r,s]
         # fb = deepcopy(fa)
         # fa[p,s] -= viqri[p,q,r,s] * da[q,r]
         # fb[p,s] -= viqri[p,q,r,s] * db[q,r]
-        ints_i.h1[p,s] -= .25*viqri[p,q,r,s] * da[q,r]
-        ints_i.h1[p,s] -= .25*viqri[p,q,r,s] * da[q,r]
-
+        ints_i.h1[p,s] -= .5*viqri[p,q,r,s] * da[q,r]
+        ints_i.h1[p,s] -= .5*viqri[p,q,r,s] * db[q,r]
     end
     return ints_i
 end
@@ -152,7 +211,8 @@ function compute_cmf_energy(ints, rdm1s, rdm2s, clusters; verbose=0)
         # 	tmp += h_pq[p,q] * rdm1s[ci.idx][q,p]
         # 	tmp += .5 * v_pqrs[p,q,r,s] * rdm2s[ci.idx][p,q,r,s]
         # end
-        e1[ci.idx] = FermiCG.compute_energy(0, ints_i.h1, ints_i.h2, rdm1s[ci.idx], rdm2s[ci.idx])
+        e1[ci.idx] = FermiCG.compute_energy(0, ints_i.h1, ints_i.h2, rdm1s[ci.idx][1]+rdm1s[ci.idx][2], rdm2s[ci.idx])
+
         # e1[ci.idx] = tmp
     end
     for ci in clusters
@@ -164,10 +224,25 @@ function compute_cmf_energy(ints, rdm1s, rdm2s, clusters; verbose=0)
             v_psrq = ints.h2[ci.orb_list, cj.orb_list, cj.orb_list, ci.orb_list]
             # v_pqrs = ints.h2[ci.orb_list, ci.orb_list, cj.orb_list, cj.orb_list]
             tmp = 0
+
+            #@tensor begin
+            #    tmp  = v_pqrs[p,q,r,s] * rdm1s[ci.idx][p,q] * rdm1s[cj.idx][r,s]
+            #    tmp -= .5*v_psrq[p,s,r,q] * rdm1s[ci.idx][p,q] * rdm1s[cj.idx][r,s]
+            #end
+
             @tensor begin
-                tmp  = v_pqrs[p,q,r,s] * rdm1s[ci.idx][p,q] * rdm1s[cj.idx][r,s]
-                tmp -= .5*v_psrq[p,s,r,q] * rdm1s[ci.idx][p,q] * rdm1s[cj.idx][r,s]
+                tmp  = v_pqrs[p,q,r,s] * rdm1s[ci.idx][1][p,q] * rdm1s[cj.idx][1][r,s]
+                tmp -= v_psrq[p,s,r,q] * rdm1s[ci.idx][1][p,q] * rdm1s[cj.idx][1][r,s]
+
+                tmp += v_pqrs[p,q,r,s] * rdm1s[ci.idx][2][p,q] * rdm1s[cj.idx][2][r,s]
+                tmp -= v_psrq[p,s,r,q] * rdm1s[ci.idx][2][p,q] * rdm1s[cj.idx][2][r,s]
+
+                tmp += v_pqrs[p,q,r,s] * rdm1s[ci.idx][1][p,q] * rdm1s[cj.idx][2][r,s]
+
+                tmp += v_pqrs[p,q,r,s] * rdm1s[ci.idx][2][p,q] * rdm1s[cj.idx][1][r,s]
             end
+
+
             e2[ci.idx, cj.idx] = tmp
         end
     end
@@ -213,8 +288,8 @@ function cmf_ci_iteration(mol::Molecule, C, rdm1a, rdm1b, clusters, fspace; verb
         ints_i = FermiCG.pyscf_build_ints(mol, C[:,ci.orb_list], Dembed);
         #
         # use pyscf to compute FCI energy
-        e, d1, d2 = FermiCG.pyscf_fci(ints_i,fspace[ci.idx][1],fspace[ci.idx][2], verbose=verbose)
-        rdm1_dict[ci.idx] = d1
+        e, d1a,d1b, d2 = FermiCG.pyscf_fci(ints_i,fspace[ci.idx][1],fspace[ci.idx][2], verbose=verbose)
+        rdm1_dict[ci.idx] = [d1a,d1b]
         rdm2_dict[ci.idx] = d2
     end
     e_curr = compute_cmf_energy(mol, C, rdm1_dict, rdm2_dict, clusters, verbose=verbose)
@@ -244,8 +319,9 @@ end
 
 Perform single CMF-CI iteration, returning new energy, and density
 """
-function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rdm1b, fspace; verbose=1)
+function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rdm1b, fspace; verbose=1,sequential=false)
     rdm1_dict = Dict{Integer,Array}()
+    rdm1s_dict = Dict{Integer,Array}()
     rdm2_dict = Dict{Integer,Array}()
     for ci in clusters
         flush(stdout)
@@ -313,13 +389,18 @@ function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rd
         else
             #
             # run PYSCF FCI
-            e, d1, d2 = FermiCG.pyscf_fci(ints_i,fspace[ci.idx][1],fspace[ci.idx][2], verbose=verbose)
+            e, d1a,d1b, d2 = FermiCG.pyscf_fci(ints_i,fspace[ci.idx][1],fspace[ci.idx][2], verbose=verbose)
         end
         
-        rdm1_dict[ci.idx] = d1
+        rdm1_dict[ci.idx] = [d1a,d1b]
+        rdm1s_dict[ci.idx] = d1a+d1b
         rdm2_dict[ci.idx] = d2
-	#rdm1a[ci.orb_list,ci.orb_list] = d1
-	#rdm1b[ci.orb_list,ci.orb_list] = d1
+	#display(d1a-d1b)
+
+	if sequential==true
+	    rdm1a[ci.orb_list,ci.orb_list] = d1a
+	    rdm1b[ci.orb_list,ci.orb_list] = d1b
+	end
     end
     e_curr = compute_cmf_energy(ints, rdm1_dict, rdm2_dict, clusters, verbose=verbose)
     if verbose > 1
@@ -329,8 +410,8 @@ function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rd
     rdm1a_out = zeros(size(rdm1a))
     rdm1b_out = zeros(size(rdm1b))
     for ci in clusters
-        rdm1a_out[ci.orb_list, ci.orb_list] .= rdm1_dict[ci.idx]
-        rdm1b_out[ci.orb_list, ci.orb_list] .= rdm1_dict[ci.idx]
+        rdm1a_out[ci.orb_list, ci.orb_list] .= rdm1_dict[ci.idx][1]
+        rdm1b_out[ci.orb_list, ci.orb_list] .= rdm1_dict[ci.idx][2]
     end
     return e_curr,rdm1a_out, rdm1b_out, rdm1_dict, rdm2_dict
 end
@@ -353,7 +434,7 @@ Optimize the 1RDM for CMF-CI, without requiring an InCoreInts object
 - `verbose`: how much to print
 """
 function cmf_ci(mol::Molecule, C::Matrix, clusters::Vector{Cluster}, fspace::Vector, dguess; 
-                max_iter=10, dconv=1e-6, econv=1e-10, verbose=1)
+                max_iter=10, dconv=1e-6, econv=1e-10, verbose=1,squential=false)
     rdm1a = deepcopy(dguess)
     rdm1b = deepcopy(dguess)
     energies = []
@@ -369,7 +450,7 @@ function cmf_ci(mol::Molecule, C::Matrix, clusters::Vector{Cluster}, fspace::Vec
             println(" CMF CI Iter: ", iter)
             println(" ------------------------------------------ ")
         end
-        e_curr, rdm1a_curr, rdm1b_curr, rdm1_dict, rdm2_dict = cmf_ci_iteration(mol, C, rdm1a, rdm1b, clusters, fspace, verbose=verbose)
+        e_curr, rdm1a_curr, rdm1b_curr, rdm1_dict, rdm2_dict = cmf_ci_iteration(mol, C, rdm1a, rdm1b, clusters, fspace, verbose=verbose,sequential=sequential)
         append!(energies,e_curr)
         error = (rdm1a_curr+rdm1b_curr) - (rdm1a+rdm1b)
         d_err = LinearAlgebra.norm(error)
@@ -405,7 +486,7 @@ end
 Optimize the 1RDM for CMF-CI
 """
 function cmf_ci(ints, clusters, fspace, dguess; 
-                max_iter=10, dconv=1e-6, econv=1e-10, verbose=1)
+                max_iter=10, dconv=1e-6, econv=1e-10, verbose=1,sequential=false)
 	rdm1a = deepcopy(dguess)
 	rdm1b = deepcopy(dguess)
 	energies = []
@@ -680,7 +761,8 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess;
             @tensor begin
                 grad_1[p,q] += v_111[p,v,u,w] * rdm2_dict[ci.idx][q,v,u,w]
                 #grad_1[p,q] += v_111[p,v,u,w] * rdm2_dict[ci.idx][q,u,w,v]
-                grad_1[p,q] += h_1[p,r] * rdm1_dict[ci.idx][r,q]
+                #grad_1[p,q] += h_1[p,r] * rdm1_dict[ci.idx][r,q]
+                grad_1[p,q] += h_1[p,r] * (rdm1_dict[ci.idx][1][r,q]+rdm1_dict[ci.idx][2][r,q])
             end
             for cj in clusters
                 if ci.idx == cj.idx
@@ -688,8 +770,8 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess;
                 end
                 v_212 = ints2.h2[:,cj.orb_list, ci.orb_list, cj.orb_list]
                 v_122 = ints2.h2[:,ci.orb_list, cj.orb_list, cj.orb_list]
-                d1 = rdm1_dict[ci.idx]
-                d2 = rdm1_dict[cj.idx]
+                d1 = rdm1_dict[ci.idx][1] + rdm1_dict[ci.idx][2]
+                d2 = rdm1_dict[cj.idx][1] + rdm1_dict[cj.idx][2]
 
                 @tensor begin
                     grad_1[p,q] += v_122[p,v,u,w] * d1[q,v] * d2[w,u]
