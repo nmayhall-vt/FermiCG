@@ -11,7 +11,10 @@ This is essentially used for computing a PT correction outside of the subspace, 
 This parallellizes over FockConfigs in the output state, so it's not the most fine-grained, but it avoids data races in 
 filling the final vector
 """
-function open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
+function open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; 
+                             thresh=1e-9, 
+                             prescreen=true,
+                             nbody=4) where {T,N,R}
 #={{{=#
     println(" In open_matvec_thread2\n")
     sig = deepcopy(ci_vector)
@@ -97,7 +100,7 @@ function open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clus
         fock_bra = job[1]
         tid = Threads.threadid()
         _open_matvec_thread2_job(job[2], fock_bra, cluster_ops, nbody, thresh, 
-                                 jobs_out[tid], scr_f[tid], scr_i[tid], scr_m[tid])
+                                 jobs_out[tid], scr_f[tid], scr_i[tid], scr_m[tid], prescreen)
     end
     flush(stdout)
 
@@ -112,7 +115,10 @@ function open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clus
 end
 #=}}}=#
 
-function open_matvec_serial2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
+function open_matvec_serial2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham;
+                             thresh=1e-9, 
+                             prescreen=true,
+                             nbody=4) where {T,N,R}
 #={{{=#
     println(" In open_matvec_serial2\n")
     sig = deepcopy(ci_vector)
@@ -189,7 +195,7 @@ function open_matvec_serial2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clus
         fock_bra = job[1]
         tid = 1
         _open_matvec_thread2_job(job[2], fock_bra, cluster_ops, nbody, thresh, 
-                                 jobs_out[tid], scr_f[tid], scr_i[tid], scr_m[tid])
+                                 jobs_out[tid], scr_f[tid], scr_i[tid], scr_m[tid],prescreen)
     end
     flush(stdout)
 
@@ -203,7 +209,7 @@ function open_matvec_serial2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clus
 end
 #=}}}=#
 
-function _open_matvec_thread2_job(job, fock_bra, cluster_ops, nbody, thresh, sig, scr_f, scr_i, scr_m)
+function _open_matvec_thread2_job(job, fock_bra, cluster_ops, nbody, thresh, sig, scr_f, scr_i, scr_m, prescreen)
 #={{{=#
 
     haskey(sig, fock_bra) || add_fockconfig!(sig, fock_bra)
@@ -222,7 +228,7 @@ function _open_matvec_thread2_job(job, fock_bra, cluster_ops, nbody, thresh, sig
                 #term isa ClusteredTerm2B || continue
 
                 contract_matvec_thread(term, cluster_ops, fock_bra, fock_ket, config_ket, coeff_ket, sig[fock_bra], 
-                                       scr_f, scr_i, scr_m, thresh=thresh)
+                                       scr_f, scr_i, scr_m, thresh=thresh, prescreen=prescreen)
                 if term isa ClusteredTerm3B
                     #@code_warntype contract_matvec_thread(term, cluster_ops, fock_bra, fock_ket, config_ket, coeff_ket, 
                     #                              sig[fock_bra],scr1, scr2, thresh=thresh)
@@ -257,7 +263,7 @@ function contract_matvec_thread(   term::ClusteredTerm1B,
                                     scr_f::Vector{Vector{Float64}},  
                                     scr_i::Vector{Vector{Int16}},  
                                     scr_m::Vector{MVector{N,Int16}};  
-                                    thresh=1e-9) where {T,R,N}
+                                    thresh=1e-9, prescreen=true) where {T,R,N}
 #={{{=#
     c1 = term.clusters[1]
 
@@ -315,7 +321,7 @@ function contract_matvec_thread(   term::ClusteredTerm2B,
                                     scr_f::Vector{Vector{Float64}},  
                                     scr_i::Vector{Vector{Int16}},  
                                     scr_m::Vector{MVector{N,Int16}};  
-                                    thresh=1e-9) where {T,R,N}
+                                    thresh=1e-9, prescreen=true) where {T,R,N}
 #={{{=#
 
 
