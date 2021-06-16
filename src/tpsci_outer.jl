@@ -352,6 +352,7 @@ end
         H0="Hcmf",
         E0=nothing, #pass in <0|H0|0>, or compute it
         thresh_foi=1e-8, 
+        prescreen=false,
         verbose=1,
         matvec=3) where {T,N,R}
 """
@@ -360,6 +361,7 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
         H0="Hcmf",
         E0=nothing, #pass in <0|H0|0>, or compute it
         thresh_foi=1e-8, 
+        prescreen=false,
         verbose=1,
         matvec=3) where {T,N,R}
     #={{{=#
@@ -376,11 +378,11 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
 
     if matvec == 1
         #@time sig = open_matvec(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
-        @time sig = open_matvec_serial2(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+        @time sig = open_matvec_serial2(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi, prescreen=prescreen)
     elseif matvec == 2
         @time sig = open_matvec_thread(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
     elseif matvec == 3
-        @time sig = open_matvec_thread2(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+        @time sig = open_matvec_thread2(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi, prescreen=prescreen)
     else
         error("wrong matvec")
     end
