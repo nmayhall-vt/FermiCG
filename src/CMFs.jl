@@ -257,9 +257,6 @@ function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rd
         end
         rdm1_dict[ci.idx] = d1
         rdm2_dict[ci.idx] = d2
-
-	rdm1a[ci.orb_list,ci.orb_list] = d1
-	rdm1b[ci.orb_list,ci.orb_list] = d1
     end
     e_curr = compute_cmf_energy(ints, rdm1_dict, rdm2_dict, clusters, verbose=verbose)
     if verbose > 1
