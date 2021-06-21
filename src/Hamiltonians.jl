@@ -143,9 +143,9 @@ function subset(ints::InCoreInts, list, rdm1a=nothing, rdm1b=nothing)
         fa = zeros(length(list),length(list))
         fb = copy(fa)
         @tensor begin
-            ints_i.h1[p,q] += .5*viirs[p,q,r,s] * (da+db)[r,s]
-            ints_i.h1[p,s] -= .25*viqri[p,q,r,s] * da[q,r]
-            ints_i.h1[p,s] -= .25*viqri[p,q,r,s] * da[q,r]
+            ints_i.h1[p,q] += viirs[p,q,r,s] * (da+db)[r,s]
+            ints_i.h1[p,s] -= .5*viqri[p,q,r,s] * da[q,r]
+            ints_i.h1[p,s] -= .5*viqri[p,q,r,s] * db[q,r]
         end
     end
     return ints_i

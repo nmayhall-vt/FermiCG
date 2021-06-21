@@ -51,11 +51,11 @@ using Test
     for ci in clusters
         display(cluster_bases[ci.idx])
         for (sector,vecs) in cluster_bases[ci.idx].basis
-            tst1 += sum(vecs)
+            tst1 += sum(abs.(vecs))
         end
     end
     println(tst1)
-    @test isapprox(tst1, -1.6974064473846595, atol=1e-10)
+    @test isapprox(tst1, 66.05063700792823, atol=1e-10)
    
     # now try with restrictions on fock space, and dimensions
     cluster_bases = Vector{ClusterBasis}()
@@ -68,11 +68,11 @@ using Test
     for ci in clusters
         display(cluster_bases[ci.idx])
         for (sector,vecs) in cluster_bases[ci.idx].basis
-            tst1 += sum(vecs)
+            tst1 += sum(abs.(vecs))
         end
     end
     println(tst1)
-    @test isapprox(tst1, -14.028337001467657, atol=1e-10)
+    @test isapprox(tst1, 43.466561233596934, atol=1e-10)
    
 end
 

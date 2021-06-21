@@ -1,7 +1,12 @@
 name: CI
 on:
-  - push
-  - pull_request
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
 jobs:
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
@@ -10,16 +15,16 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.1'
+          #- '1.1'
           - '1.5'
-          - 'nightly'
+          #- 'nightly'
         os:
           - ubuntu-latest
           - macOS-latest
-          - windows-latest
+          #- windows-latest
         arch:
           - x64
-          - x86
+          #- x86
         exclude:
           - os: macOS-latest
             arch: x86
@@ -29,9 +34,13 @@ jobs:
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.9' # Version range or exact version of a Python version to use, using SemVer's version range syntax
       - uses: actions/cache@v1
         env:
           cache-name: cache-artifacts
+          JULIA_NUM_THREADS: 2
         with:
           path: ~/.julia/artifacts
           key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
@@ -39,31 +48,58 @@ jobs:
             ${{ runner.os }}-test-${{ env.cache-name }}-
             ${{ runner.os }}-test-
             ${{ runner.os }}-
-      - uses: julia-actions/julia-buildpkg@v1
-      - uses: julia-actions/julia-runtest@v1
+      - run: echo " we are starting here"
+      - name: List files in the repository
+        run: |
+          ls ${{ github.workspace }}
+      - name: Install python dependencies
+        run: |
+          which python; 
+          python -V; 
+          cd src/python; 
+          ls ./; 
+          pip install -r requirements.txt; 
+      - name: Run Julia tests
+        run: |
+          export TPSCI_PYTHON=$(which python)  
+          export PYTHON=$(which python)  
+          echo $(which python)
+          pip freeze; 
+          cd ../;
+          cd FermiCG/
+          echo "Contents of current directory:"
+          ls -al
+          echo "done."
+          julia --color=yes --project=./ -e 'using Pkg; Pkg.build("PyCall"); Pkg.test();'
+      #- run: pip install virtualenv; virtualenv -p python3 venv; source venv/bin/activate; export TPSCI_PYTHON=$(which python)
+      #- run: pip install -r requirements.txt; export TPSCI_PYTHON=$(which python)
+      #- run: which python
+      #- run: cd ../../
+      #- run: julia --project=./ -e "using Pkg; Pkg.test();"
       - uses: julia-actions/julia-processcoverage@v1
       - uses: codecov/codecov-action@v1
         with:
           file: lcov.info
-  docs:
-    name: Documentation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: julia-actions/setup-julia@v1
-        with:
-          version: '1'
-      - run: |
-          julia --project=docs -e '
-            using Pkg
-            Pkg.develop(PackageSpec(path=pwd()))
-            Pkg.instantiate()'
-      - run: |
-          julia --project=docs -e '
-            using Documenter: doctest
-            using FermiCG
-            doctest(FermiCG)'
-      - run: julia --project=docs docs/make.jl
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+
+#  docs:
+#    name: Documentation
+#    runs-on: ubuntu-latest
+#    steps:
+#      - uses: actions/checkout@v2
+#      - uses: julia-actions/setup-julia@v1
+#        with:
+#          version: '1'
+#      - run: |
+#          julia --project=docs -e '
+#            using Pkg
+#            Pkg.develop(PackageSpec(path=pwd()))
+#            Pkg.instantiate()'
+#      - run: |
+#          julia --project=docs -e '
+#            using Documenter: doctest
+#            using FermiCG
+#            doctest(FermiCG)'
+#      - run: julia --project=docs docs/make.jl
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}

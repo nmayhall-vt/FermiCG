@@ -15,10 +15,15 @@ Base.haskey(ts::ClusteredState, i) = return haskey(ts.data,i)
 #Base.eltype(::Type{ClusteredState{T,N,R}}) where {T,N,R} = OrderedDict{ClusterConfig{N}, MVector{R,T}} 
 
 """
-    ClusteredState(clusters)
+    ClusteredState(clusters; T=Float64, R=1)
 
-Constructor
+Constructor creating an empty vector
+# Arguments
 - `clusters::Vector{Cluster}`
+- `T`:  Type of data for coefficients
+- `R`:  Number of roots
+# Returns
+- `ClusteredState`
 """
 function ClusteredState(clusters; T=Float64, R=1)
     N = length(clusters)
@@ -26,18 +31,51 @@ function ClusteredState(clusters; T=Float64, R=1)
 end
 
 """
+    ClusteredState(clusters::Vector{Cluster}, fconfig::FockConfig{N}; T=Float64, R=1) where {N}
+
+Constructor using only a single FockConfig. This allows us to turn the CMF state into a ClusteredState.
+# Arguments
+- `clusters`: vector of clusters types
+- `fconfig`: starting FockConfig
+- `T`:  Type of data for coefficients
+- `R`:  Number of roots
+# Returns
+- `ClusteredState`
+"""
+function ClusteredState(clusters::Vector{Cluster}, fconfig::FockConfig{N}; T=Float64, R=1) where {N}
+    #={{{=#
+
+    state = ClusteredState(clusters, T=T, R=R)
+    add_fockconfig!(state, fconfig)
+    conf = ClusterConfig([1 for i in 1:length(clusters)])
+    state[fconfig][conf] = zeros(T,R) 
+    return state
+#=}}}=#
+end
+
+
+
+
+
+
+
+
+
+"""
     add_fockconfig!(s::ClusteredState, fock::FockConfig)
 """
 function add_fockconfig!(s::ClusteredState{T,N,R}, fock::FockConfig{N}) where {T<:Number,N,R}
-    s.data[fock] = OrderedDict{ClusterConfig{N}, MVector{R,T}}(ClusterConfig([1 for i in 1:N]) => zeros(MVector{R,T}))
+    s.data[fock] = OrderedDict{ClusterConfig{N}, MVector{R,T}}()
+    #s.data[fock] = OrderedDict{ClusterConfig{N}, MVector{R,T}}(ClusterConfig([1 for i in 1:N]) => zeros(MVector{R,T}))
 end
 
 """
     getindex(s::ClusteredState, fock::Vector{Tuple{T,T}}) where T<:Integer
 """
-Base.getindex(s::ClusteredState, fock::Vector{Tuple{T,T}}) where T<:Integer = s.data[fock]
-Base.getindex(s::ClusteredState, fock) = s.data[fock]
-Base.setindex!(s::ClusteredState, a, b) = s.data[b] = a
+#Base.getindex(s::ClusteredState, fock::Vector{Tuple{T,T}}) where T<:Integer = s.data[fock]
+@inline Base.getindex(s::ClusteredState, fock) = s.data[fock]
+@inline Base.setindex!(s::ClusteredState, a, b) = s.data[b] = a
+
 
 function Base.size(s::ClusteredState{T,N,R}) where {T,N,R}
     return length(s),R
@@ -91,7 +129,8 @@ function set_vector!(ts::ClusteredState{T,N,R}, v::Matrix{T}) where {T,N,R}
     idx = 1
     for (fock, tconfigs) in ts.data
         for (tconfig, coeffs) in tconfigs
-            ts[fock][tconfig] = MVector{R}(v[idx,:])
+            #ts[fock][tconfig] = MVector{R}(v[idx,:])
+            @views coeffs .= v[idx,:]
             idx += 1
         end
     end
@@ -235,6 +274,17 @@ function dot(v1::ClusteredState{T,N,R}, v2::ClusteredState{T,N,R}, r1, r2) where
 end
     
 """
+    dot(v1::ClusteredState,v2::ClusteredState; r1=1, r2=1)
+"""
+function orth!(v1::ClusteredState{T,N,R}) where {T,N,R}
+    d = T(0)
+    F = svd(get_vectors(v1))
+
+    set_vector!(v1, F.U*F.Vt)
+    return 
+end
+    
+"""
     prune_empty_fock_spaces!(s::ClusteredState)
         
 remove fock_spaces that don't have any configurations 
@@ -307,3 +357,4 @@ function add!(s1::ClusteredState, s2::ClusteredState)
     end
     #=}}}=#
 end
+

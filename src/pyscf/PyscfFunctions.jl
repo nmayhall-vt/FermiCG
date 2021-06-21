@@ -1,9 +1,9 @@
 using PyCall
 using PrettyTables
 
-pydir = joinpath(dirname(pathof(FermiCG)), "python")
-pushfirst!(PyVector(pyimport("sys")."path"), pydir)
-ENV["PYTHON"] = Sys.which("python")
+#pydir = joinpath(dirname(pathof(FermiCG)), "python")
+#pushfirst!(PyVector(pyimport("sys")."path"), pydir)
+#ENV["PYTHON"] = Sys.which("python")
 #print(ENV)
 
 """
@@ -72,7 +72,7 @@ Write MO coeffs `C` to a molden file for visualizing
 function pyscf_write_molden(molecule::Molecule, C; filename="orbitals.molden")
     pyscf = pyimport("pyscf")
     pyscf.lib.num_threads(1)
-    molden = pyimport("pyscf.molden")
+    molden = pyimport("pyscf.tools.molden")
     pymol = make_pyscf_mole(molecule)
     molden.from_mo(pymol, filename, C)
     return 1
@@ -90,7 +90,8 @@ Write MO coeffs `C` to a molden file for visualizing
 """
 function pyscf_write_molden(mf; filename="orbitals.molden")
     pyscf = pyimport("pyscf")
-    molden = pyimport("pyscf.molden")
+    tools = pyimport("pyscf.tools")
+    molden = pyimport("tools.molden")
     molden.from_mo(mf.mol, filename, mf.mo_coeff)
     return 1
 end
@@ -274,13 +275,16 @@ function pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1, verbose=1
 	cisolver.conv_tol = conv_tol
 	nelec = na + nb
 	norb = size(ham.h1)[1]
-	efci, ci = cisolver.kernel(ham.h1, ham.h2, norb , nelec, ecore=0, nroots =nroots, verbose=100)
+	efci, ci = cisolver.kernel(ham.h1, ham.h2, norb , (na,nb), ecore=0, nroots =nroots, verbose=100)
     #@printf(" Length of CI Vector: %i\n", length(ci[1]))
     #println(size(ci[1]))
 	fci_dim = size(ci,1)*size(ci,2)
 	# d1 = cisolver.make_rdm1(ci, norb, nelec)
-	d1,d2 = cisolver.make_rdm12(ci, norb, nelec)
-	# @printf(" Energy2: %12.8f\n", FermiCG.compute_energy(ham.h0, ham.h1, ham.h2, d1, d2))
+
+	d1a,d1b = cisolver.make_rdm1s(ci, norb, (na,nb))
+
+	d1,d2 = cisolver.make_rdm12(ci, norb, (na,nb))
+	#@printf(" Energy2: %12.8f\n", FermiCG.compute_energy(ham.h0, ham.h1, ham.h2, d1a+d1b, d2))
 	# print(" PYSCF 1RDM: ")
 	F = eigen(d1)
 	occs = F.values
@@ -299,7 +303,7 @@ function pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1, verbose=1
         @printf(" FCI:        %12.8f %12.8f \n", efci+ham.h0, efci)
     end
 
-    return efci, d1, d2, ci
+    return efci, d1a,d1b, d2, ci
 end
 
 

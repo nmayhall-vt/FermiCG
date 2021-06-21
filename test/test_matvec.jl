@@ -47,29 +47,7 @@ using StaticArrays
     mf = FermiCG.pyscf_do_scf(mol)
     nbas = size(mf.mo_coeff)[1]
     ints = FermiCG.pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
-	
-    @printf(" Do FCI\n")
-    pyscf = pyimport("pyscf")
-    pyscf.lib.num_threads(1)
-	fci = pyimport("pyscf.fci")
-	cisolver = pyscf.fci.direct_spin1.FCI()
-	cisolver.max_cycle = 200 
-	cisolver.conv_tol = 1e-8
-	nelec = na + nb
-	norb = size(ints.h1,1)
-	#e_fci, v_fci = cisolver.kernel(ints.h1, ints.h2, norb, nelec, ecore=0, nroots =nroots)
 
-    #e_fci = [-18.33022092,
-    #         -18.05457644]
-    e_fci  = [-18.33022092,
-              -18.05457645,
-              -18.02913047,
-              -17.99661027
-             ]
-
-    for i in 1:length(e_fci)
-        @printf(" %4i %12.8f %12.8f\n", i, e_fci[i], e_fci[i]+ints.h0)
-    end
 
 
     # localize orbitals

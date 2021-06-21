@@ -1,8 +1,10 @@
 """
-    core::Array{T, N}
-    factors::NTuple{N, Matrix{T}}
+Simple Tucker (HOSVD) type
+# Data
+- `core::Array{T, N}`
+- `factors::NTuple{N, Matrix{T}}`
 
-Tucker factors are stored as Tall matrices
+Tucker factors are stored as tall matrices
 """
 struct Tucker{T, N} 
     core::Array{T, N}
@@ -11,8 +13,12 @@ struct Tucker{T, N}
 end
 
 
-function Tucker(A::Array{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
-    core,factors = tucker_decompose(A, thresh=thresh, max_number=max_number, verbose=verbose)
+function Tucker_tot(A::Array{T,N}; thresh=-1, verbose=0) where {T,N}
+    core,factors = tucker_decompose_tot(A, thresh=thresh, verbose=verbose)
+    return Tucker{T,N}(core, NTuple{N}(factors))
+end
+function Tucker(A::Array{T,N}; thresh=-1, max_number=nothing, verbose=0, type="magnitude") where {T,N}
+    core,factors = tucker_decompose(A, thresh=thresh, max_number=max_number, verbose=verbose, type=type)
     return Tucker{T,N}(core, NTuple{N}(factors))
 end
 recompose(t::Tucker{T,N}) where {T<:Number, N} = tucker_recompose(t.core, t.factors)
@@ -34,8 +40,13 @@ Add together multiple Tucker instances. Assumed non-orthogonal.
 # Arguments
 - `tucks::Vector{Tucker{T,N}}`: Vector of Tucker objects
 """
-function add(tucks::Vector{Tucker{T,N}}; thresh=1e-10, max_number=nothing) where {T,N}
+function add(tucks::Vector{Tucker{T,N}}; thresh=1e-10, max_number=nothing, type="magnitude") where {T,N}
 
+    # sort the Tucker objects to add. This puts them in a well-defined order for reproducibility.
+    norms = norm.(tucks)
+    perm = sortperm(norms,rev=true)
+    tucks = tucks[perm]
+    #display(norm.(tucks))
     length(tucks) > 0 ||  error("not enough Tuckers to add", length(tucks))
     length(tucks) > 1 ||  return tucks[1] 
 
@@ -57,10 +68,23 @@ function add(tucks::Vector{Tucker{T,N}}; thresh=1e-10, max_number=nothing) where
         F = svd(Ui)
 
         nkeep = 0
-        for si in F.S 
-            if si*si > thresh
-                nkeep += 1
+        if type == "magnitude"
+            for si in F.S 
+                if si > thresh
+                    nkeep += 1
+                end
             end
+        elseif type == "sum"
+            target = sum(F.S )
+            curr = 0.0
+            for si in F.S 
+                if abs(curr-target) > thresh
+                    nkeep += 1
+                    curr += si*si
+                end
+            end
+        else
+            error("wrong type")
         end
         if max_number != nothing
             nkeep = min(nkeep, max_number)
@@ -98,13 +122,14 @@ end
 
 
 """
-    compress(t::Tucker)
+    compress(t::Tucker{T,N}; thresh=1e-7, max_number=nothing) where {T,N}
 
 Try to compress further 
 """
-function compress(t::Tucker{T,N}; thresh=1e-7, max_number=nothing) where {T,N}
+function compress(t::Tucker{T,N}; thresh=1e-7, max_number=nothing, type="magnitude") where {T,N}
 
-    tt = Tucker(t.core, thresh=thresh, max_number=max_number)
+    length(t) > 0 || return t
+    tt = Tucker(t.core, thresh=thresh, max_number=max_number, type=type)
 
     new_factors = [zeros(1,1) for i in 1:N]
 
@@ -134,11 +159,92 @@ function dot(t1::Tucker{T,N}, t2::Tucker{T,N}) where {T,N}
 end
 
 """
+    function tucker_decompose(A::Array{T,N}; thresh=1e-7, max_number=nothing, verbose=1, type="magnitude") where {T,N}
+
 Tucker Decomposition of dense tensor: 
-A ~ X *(1) U1 *(2) U2 ....
+    A ~ X *(1) U1 *(2) U2 ....
+where cluster states are discarded based on the corresponding SVD
+#Arguments
+- `A`: matrix to decompose
+- `thresh`: threshold for discarding tucker factors
+- `max_number`: limit number of tucker factors to this value
+- `type`: type of trunctation. "magnitude" discards values smaller than this number. 
+    "sum" discards values such that the sum of discarded values is smaller than `thresh`.
 """
-function tucker_decompose(A::Array{T,N}; thresh=1e-7, max_number=nothing, verbose=1) where {T,N}
+function tucker_decompose(A::Array{T,N}; thresh=1e-7, max_number=nothing, verbose=1, type="magnitude") where {T,N}
     factors = Vector{Matrix{T}}()
+    if verbose > 0
+        println(" Tucker Decompose:", size(A))
+    end
+    length(A) > 0 || error(" can't decompose array with zero data")
+    for i in 1:ndims(A)
+        idx = collect(1:ndims(A))
+        idx[i] = -1
+        perm = sortperm(idx)
+        U,Σ, = svd(reshape(permutedims(A,perm), size(A,i), length(A)÷size(A,i))) 
+   
+#        idx_l = collect(1:ndims(A))
+#        idx_r = collect(1:ndims(A))
+#        idx_l[i] = -1
+#        idx_r[i] = -2
+#        G = tensorcontract(A,idx_l,A,idx_r)
+#        #G = @ncon([A, A], [idx_l, idx_r])
+#        F = eigen((G .+ G') .* .5) # should be symmetric, but sometimes values get very small and numerical error builds up
+#        perm = sortperm(real(F.values), rev=true)
+#        l = F.values[perm]
+#        v = F.vectors[:,perm]
+
+        nkeep = 0
+        if verbose > 0
+            @printf(" index dimension: %6i\n", size(A)[i])
+        end
+        nkeep = 0
+        if type == "magnitude"
+            for (idx,Σi) in enumerate(Σ)
+                if abs(Σi) > thresh
+                    nkeep += 1
+                    if verbose > 0
+                        @printf("   Singular Value %4i = %12.8f\n", idx, Σi)
+                    end
+                end
+            end
+        elseif type == "sum"
+            target = sum(l)
+            curr = 0.0
+            for (idx,Σi) in enumerate(Σ)
+                if abs(curr-target) > thresh
+                    nkeep += 1
+                    curr += Σi
+                    if verbose > 0
+                        @printf("   Singular Value %4i = %12.8f\n", idx, Σi)
+                    end
+                end
+            end
+        else
+            error("wrong type")
+        end
+        if max_number != nothing
+            nkeep = min(nkeep, max_number)
+        end
+
+        push!(factors, U[:,1:nkeep])
+    end
+    return transform_basis(A,factors), factors
+end
+
+"""
+    function tucker_decompose_tot(A::Array{T,N}; thresh=1e-7, verbose=1) where {T,N}
+
+Tucker Decomposition of dense tensor: 
+    A ~ X *(1) U1 *(2) U2 ....
+where the cluster states are discarded to ensure ||V-v||_F < thresh, with V and v being the full and 
+approximated tensors. This isn't quite ready for use, as it doens't fall back to the optimal case for
+SVD of a matrix as it doesn't consider the possibility of being diagonal in svd basis.
+"""
+function tucker_decompose_tot(A::Array{T,N}; thresh=1e-7, verbose=1) where {T,N}
+    factors = Vector{Matrix{T}}()
+    values = [] 
+    inds = []
     if verbose > 0
         println(" Tucker Decompose:", size(A))
     end
@@ -154,24 +260,44 @@ function tucker_decompose(A::Array{T,N}; thresh=1e-7, max_number=nothing, verbos
         l = F.values[perm]
         v = F.vectors[:,perm]
 
-        nkeep = 0
-        if verbose > 0
-            @printf(" index dimension: %6i\n", size(A)[i])
-        end
+        println(i)
         for li in l
-            if abs(li) > thresh
-                nkeep += 1
-                if verbose > 0
-                    @printf(" Eigenvalue = %12.8f\n", li)
-                end
+            if verbose > 0
+                @printf(" Eigenvalue = %12.8f\n", li)
             end
         end
-        if max_number != nothing
-            nkeep = min(nkeep, max_number)
-        end
+        #if max_number != nothing
+        #    nkeep = min(nkeep, max_number)
+        #end
 
-        push!(factors, v[:,1:nkeep])
+        push!(factors, v)
+        append!(values, sqrt.(abs.(l)))
+        append!(inds, [i for j in 1:length(l)])
     end
+        
+        
+    perm = sortperm(real(values), rev=true)
+    values = values[perm]
+    inds = inds[perm]
+
+    dims = zeros(Int,N)
+    target = sum(values)
+    curr = 0.0
+    nkeep = 0
+    for (idx,i) in enumerate(values) 
+        if abs(curr-target) > thresh
+            nkeep += 1
+            curr += i
+        end
+    end
+    for i in 1:nkeep
+        dims[inds[i]] += 1
+    end
+    for i in 1:N
+        factors[i] = factors[i][:,1:dims[i]]
+    end
+    display(target)
+    display(size.(factors,2))
     return transform_basis(A,factors), factors
 end
 
@@ -274,3 +400,4 @@ function unfold(A::AbstractArray{T,N}, i::Integer) where {T,N}
     return reshape(B,(d,div(length(B),d)))
 end
 
+LinearAlgebra.norm(A::Tucker{T,N}) where {T,N} = norm(A.core)

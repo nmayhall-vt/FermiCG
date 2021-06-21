@@ -1,15 +1,18 @@
 """
 Represents a state in an set of abitrary (yet low-rank) subspaces of a set of FockConfigs.
-e.g. v[FockConfig][TuckerConfig] => Tucker Decomposed Tensor
+e.g. 
+    
+    v[FockConfig][TuckerConfig] => Tucker Decomposed Tensor
 
-    clusters::Vector{Cluster}
-    data::OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker}}
-    p_spaces::Vector{ClusterSubspace}
-    q_spaces::Vector{ClusterSubspace}
+# Data
+- `clusters::Vector{Cluster}`
+- `data::OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker}}`
+- `p_spaces::Vector{ClusterSubspace}`
+- `q_spaces::Vector{ClusterSubspace}`
 """
 struct CompressedTuckerState{T,N} 
     clusters::Vector{Cluster}
-    data::OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker{T,N}}}
+    data::OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N}}}
     p_spaces::Vector{ClusterSubspace}
     q_spaces::Vector{ClusterSubspace}
 end
@@ -20,14 +23,115 @@ Base.iterate(ts::CompressedTuckerState, state=1) = iterate(ts.data, state)
 normalize!(ts::CompressedTuckerState) = scale!(ts, 1/sqrt(orth_dot(ts,ts)))
 
 
+"""
+    CompressedTuckerState(clusters::Vector{Cluster}, 
+        fconfig::FockConfig{N}, 
+        cluster_bases::Vector{ClusterBasis}) where {N} 
+
+Constructor using only a single FockConfig. This allows us to turn the CMF state into a CompressedTuckerState.
+As such, it chooses the ground state of each cluster in the Fock sector specified by `FockConfig` to be the 
+P space, and then the Q space is defined as the orthogonal complement of this state within the available basis, 
+specified by `cluster_bases`.
+# Arguments
+- `clusters`: vector of clusters types
+- `fconfig`: starting FockConfig 
+- `cluster_basis`: list of ClusterBasis types - needed to know the dimensions of the q-spaces
+# Returns
+- `CompressedTuckerState`
+"""
+function CompressedTuckerState(clusters::Vector{Cluster}, 
+        fconfig::FockConfig{N}, 
+        cluster_bases::Vector{ClusterBasis}) where {N} 
+    #={{{=#
+    T = Float64
+
+    # 
+    # start by building the P and Q spaces needed
+    p_spaces = Vector{ClusterSubspace}()
+    q_spaces = Vector{ClusterSubspace}()
+    # define p spaces
+    for ci in clusters
+        tss = ClusterSubspace(ci)
+        tss[fconfig[ci.idx]] = 1:1
+        push!(p_spaces, tss)
+    end
+
+    # define q spaces
+    for tssp in p_spaces 
+        tss = get_ortho_compliment(tssp, cluster_bases[tssp.cluster.idx])
+        push!(q_spaces, tss)
+    end
+
+    data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N}} }()
+    state = CompressedTuckerState(clusters, data, p_spaces, q_spaces) 
+    add_fockconfig!(state, fconfig)
+
+    factors = []
+    for ci in clusters
+        dim = length(p_spaces[ci.idx][fconfig[ci.idx]])
+        push!(factors, 1.0Matrix(I, dim, 1))
+    end
+    factors = tuple(factors...) 
+    
+    tconfig = TuckerConfig([p_spaces[ci.idx].data[fconfig[ci.idx]] for ci in clusters])
+    tdata = Tucker(reshape([1.0], tuple(ones(Int64, N)...)), factors)
+    
+    state[fconfig][tconfig] = tdata
+    return state
+#=}}}=#
+end
+
+
+"""
+    CompressedTuckerState(clusters::Vector{Cluster}, 
+        p_spaces::Vector{FermiCG.ClusterSubspace}, 
+        q_spaces::Vector{FermiCG.ClusterSubspace}) 
+
+Constructor - specify input p and q spaces
+# Arguments
+- `clusters`: vector of clusters types
+- `p_spaces`: list of p space ranges for each cluster
+- `q_spaces`: list of q space ranges for each cluster
+# Returns
+- `CompressedTuckerState`
+"""
+function CompressedTuckerState(clusters::Vector{Cluster}, 
+        p_spaces::Vector{FermiCG.ClusterSubspace}, 
+        q_spaces::Vector{FermiCG.ClusterSubspace}) 
+    #={{{=#
+
+    N = length(clusters)
+    T = Float64
+
+    #factors = []
+    #for ci in clusters
+    #    dim = length(p_spaces[ci.idx][init_fspace[ci.idx]])
+    #    push!(factors, 1.0Matrix(I, dim, 1))
+    #end
+    #factors = tuple(factors...) 
+    
+    #tconfig = TuckerConfig([p_spaces[ci.idx].data[init_fspace[ci.idx]] for ci in clusters])
+    #fconfig = FockConfig(init_fspace)
+    #tdata = Tucker(reshape([1.0], tuple(ones(Int64, N)...)), factors)
+    data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N}} }()
+     
+    #data[fconfig][tconfig] = tdata
+    return CompressedTuckerState(clusters, data, p_spaces, q_spaces) 
+#=}}}=#
+end
 
 
 """
     CompressedTuckerState(ts::TuckerState; thresh=-1, max_number=nothing, verbose=0)
 
-Convert a `TuckerState` to a `CompressedTuckerState`
-Constructor
-- ts::TuckerState`
+Create a `CompressedTuckerState` from a `TuckerState` 
+# Arguments
+- `ts::TuckerState`
+- `thresh=-1`: discard singular values smaller than `thresh`
+- `max_number=nothing`: if != `nothing`, only keep up to `max_number` singular vectors per SVD
+- `verbose=0`: print level
+# Returns 
+- `CompressedTuckerState`
 """
 function CompressedTuckerState(ts::TuckerState{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
 #={{{=#
@@ -45,7 +149,7 @@ function CompressedTuckerState(ts::TuckerState{T,N}; thresh=-1, max_number=nothi
 
     nroots == 1 || error(" Conversion to CompressedTuckerState can only have 1 root")
 
-    data = OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker{T,N} }}()
+    data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N} }}()
     for (fock, tconfigs) in ts.data
         for (tconfig, coeffs) in tconfigs
 
@@ -68,14 +172,19 @@ end
 
 
 """
-    compress(ts::CompressedTuckerState; thresh=-1, max_number=nothing)
+    compress(ts::CompressedTuckerState{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
 
-- `ts::TuckerState`
-- `thresh`: threshold for compression
+Compress state via HOSVD
+# Arguments
+- `ts::CompressedTuckerState`
+- `thresh = -1`: threshold for compression
 - `max_number`: only keep certain number of vectors per TuckerConfig
+- `verbose=0`: print level
+# Returns
+- `CompressedTuckerState`
 """
 function compress(ts::CompressedTuckerState{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
-    d = OrderedDict{FockConfig, OrderedDict{TuckerConfig, Tucker{T,N}}}() 
+    d = OrderedDict{FockConfig{N}, OrderedDict{TuckerConfig{N}, Tucker{T,N}}}() 
     for (fock, tconfigs) in ts.data
         for (tconfig, coeffs) in tconfigs
             tmp = compress(ts.data[fock][tconfig], thresh=thresh, max_number=max_number)
