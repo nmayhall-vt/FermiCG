@@ -88,7 +88,7 @@ using Arpack
 
     rdm1 = zeros(size(ints.h1))
 
-    e_cmf, U, Da, Db  = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, 
+    e_cmf, U, Da, Db  = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, rdm1, 
                                        max_iter_oo=40, verbose=0, gconv=1e-6, method="bfgs")
     #FermiCG.pyscf_write_molden(mol,Cl*U,filename="cmf.molden")
     ints = FermiCG.orbital_rotation(ints,U)

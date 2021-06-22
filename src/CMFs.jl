@@ -329,18 +329,18 @@ function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rd
         problem = FermiCG.StringCI.FCIProblem(length(ci), fspace[ci.idx][1],fspace[ci.idx][2])
         verbose < 2 || display(problem)
         ints_i = form_casci_ints(ints, ci, rdm1a, rdm1b)
-        
+
         no = length(ci)
         e = 0.0
         d1 = zeros(no, no)
-	d1a =zeros(no,no)
-	d1b =zeros(no,no)
+        d1a =zeros(no,no)
+        d1b =zeros(no,no)
         d2 = zeros(no, no, no, no)
         if problem.dim == 1
-        
+
             #
             # we have a slater determinant. Compute energy and dms
-        
+
             na = fspace[ci.idx][1]
             nb = fspace[ci.idx][2]
 
@@ -364,8 +364,8 @@ function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rd
                 for p in 1:no, q in 1:no, r in 1:no, s in 1:no
                     d2[p,q,r,s] = d1[p,q]*d1[r,s] - d1[p,s]*d1[r,q]
                 end
-		d1a  = d1
-		d1b  = zeros(no,no)
+                d1a  = d1
+                d1b  = zeros(no,no)
                 e = compute_energy(0, ints_i.h1, ints_i.h2, d1, d2)
                 verbose == 0 || @printf(" Slater Det Energy: %12.8f\n", e)
 
@@ -376,8 +376,8 @@ function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rd
                 for p in 1:no, q in 1:no, r in 1:no, s in 1:no
                     d2[p,q,r,s] = d1[p,q]*d1[r,s] - d1[p,s]*d1[r,q]
                 end
-		d1a  = zeros(no,no)
-		d1b  = d1
+                d1a  = zeros(no,no)
+                d1b  = d1
                 e = compute_energy(0, ints_i.h1, ints_i.h2, d1, d2)
                 verbose == 0 || @printf(" Slater Det Energy: %12.8f\n", e)
 
@@ -397,12 +397,12 @@ function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rd
         rdm1_dict[ci.idx] = [d1a,d1b]
         rdm1s_dict[ci.idx] = d1a+d1b
         rdm2_dict[ci.idx] = d2
-	#display(d1a-d1b)
+        #display(d1a-d1b)
 
-	if sequential==true
-	    rdm1a[ci.orb_list,ci.orb_list] = d1a
-	    rdm1b[ci.orb_list,ci.orb_list] = d1b
-	end
+        if sequential==true
+            rdm1a[ci.orb_list,ci.orb_list] = d1a
+            rdm1b[ci.orb_list,ci.orb_list] = d1b
+        end
     end
     e_curr = compute_cmf_energy(ints, rdm1_dict, rdm2_dict, clusters, verbose=verbose)
     if verbose > 1
@@ -439,8 +439,8 @@ function cmf_ci(mol::Molecule, C::Matrix, clusters::Vector{Cluster}, fspace::Vec
                 max_iter=10, dconv=1e-6, econv=1e-10, verbose=1,squential=false)
     #rdm1a = deepcopy(dguess)
     #rdm1b = deepcopy(dguess)
-	rdm1a = deepcopy(in_rdm1a)
-	rdm1b = deepcopy(in_rdm1b)
+    rdm1a = deepcopy(in_rdm1a)
+    rdm1b = deepcopy(in_rdm1b)
     energies = []
     e_prev = 0
     e0 = FermiCG.get_nuclear_rep(mol)
@@ -491,16 +491,16 @@ Optimize the 1RDM for CMF-CI
 """
 function cmf_ci(ints, clusters, fspace, in_rdm1a, in_rdm1b; 
                 max_iter=10, dconv=1e-6, econv=1e-10, verbose=1,sequential=false)
-	rdm1a = deepcopy(in_rdm1a)
-	rdm1b = deepcopy(in_rdm1b)
-	energies = []
-	e_prev = 0
+    rdm1a = deepcopy(in_rdm1a)
+    rdm1b = deepcopy(in_rdm1b)
+    energies = []
+    e_prev = 0
 
-	rdm1_dict = 0
-	rdm2_dict = 0
-	rdm1_dict = Dict{Integer,Array}()
-	rdm2_dict = Dict{Integer,Array}()
-	# rdm2_dict = Dict{Integer, Array}()
+    rdm1_dict = 0
+    rdm2_dict = 0
+    rdm1_dict = Dict{Integer,Array}()
+    rdm2_dict = Dict{Integer,Array}()
+    # rdm2_dict = Dict{Integer, Array}()
     for iter = 1:max_iter
         if verbose > 1
             println()
@@ -516,23 +516,23 @@ function cmf_ci(ints, clusters, fspace, in_rdm1a, in_rdm1b;
         if verbose>1
             @printf(" CMF-CI Energy: %12.8f | Change: RDM: %6.1e Energy %6.1e\n\n", e_curr, d_err, e_err)
         end
-		e_prev = e_curr*1
-		rdm1a = rdm1a_curr
-		rdm1b = rdm1b_curr
-		if (abs(d_err) < dconv) && (abs(e_err) < econv)
-			if verbose>1
+        e_prev = e_curr*1
+        rdm1a = rdm1a_curr
+        rdm1b = rdm1b_curr
+        if (abs(d_err) < dconv) && (abs(e_err) < econv)
+            if verbose>1
                 @printf("*CMF-CI: Elec %12.8f Total %12.8f\n", e_curr-ints.h0, e_curr)
             end
-			break
-		end
-	end
+            break
+        end
+    end
     if verbose>0
         println(" Energy per Iteration:")
         for i in energies
             @printf(" Elec: %12.8f Total: %12.8f\n", i-ints.h0, i)
         end
     end
-	return e_prev, rdm1a, rdm1b, rdm1_dict, rdm2_dict
+    return e_prev, rdm1a, rdm1b, rdm1_dict, rdm2_dict
 end
 
 
@@ -685,7 +685,7 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess_a, d
     # e, da, db = cmf_oo_iteration(ints, clusters, fspace, max_iter_ci, dguess, kappa)
 
     function g_numerical(k)
-        stepsize = 1e-5
+        stepsize = 1e-6
         grad = zeros(size(k))
         for (ii,i) in enumerate(k)
             k1 = deepcopy(k)
@@ -696,6 +696,7 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess_a, d
             e2 = f(k2) 
             grad[ii] = (e1-e2)/(2*stepsize)
         end
+        g_curr = norm(grad)
         return grad
     end
 
@@ -744,8 +745,8 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess_a, d
     function callback(k)
        
         # reset initial RDM guess for each cmf_ci
-        da = deepcopy(da2)
-        db = deepcopy(db2)
+        #da = deepcopy(da2)
+        #db = deepcopy(db2)
 
         #if e_err > 0
         #    @warn " energy increased"
@@ -814,7 +815,14 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess_a, d
 #    display(round.(unpack_gradient(grad2, norb),digits=6))
 #    return
 
-    
+    #display("here:")
+    #gerr = g_numerical(kappa) - g(kappa)
+    #display(norm(gerr))
+    #for i in gerr
+    #    @printf(" err: %12.8f\n",i)
+    #end
+    #return
+
     if (method=="bfgs") || (method=="cg") || (method=="gd")
         optmethod = BFGS()
         if method=="cg"
@@ -834,7 +842,8 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess_a, d
                                 iterations=max_iter_oo,
                                )
 
-        res = optimize(f, g, kappa, optmethod, options; inplace = false )
+        res = optimize(f, g_numerical, kappa, optmethod, options; inplace = false )
+        #res = optimize(f, g, kappa, optmethod, options; inplace = false )
         summary(res)
         e = Optim.minimum(res)
         display(res)
