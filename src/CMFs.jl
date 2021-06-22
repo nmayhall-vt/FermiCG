@@ -795,10 +795,18 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess_a, d
                 v_122 = ints2.h2[:,ci.orb_list, cj.orb_list, cj.orb_list]
                 d1 = rdm1_dict[ci.idx][1] + rdm1_dict[ci.idx][2]
                 d2 = rdm1_dict[cj.idx][1] + rdm1_dict[cj.idx][2]
+                
+                d1a = rdm1_dict[ci.idx][1]
+                d1b = rdm1_dict[ci.idx][2]
+                d2a = rdm1_dict[cj.idx][1]
+                d2b = rdm1_dict[cj.idx][2]
 
                 @tensor begin
+                    #grad_1[p,q] += v_122[p,v,u,w] * d1[q,v] * d2[w,u]
+                    #grad_1[p,q] -= .5*v_212[p,v,u,w] * d1[q,u] * d2[w,v]
                     grad_1[p,q] += v_122[p,v,u,w] * d1[q,v] * d2[w,u]
-                    grad_1[p,q] -= .5*v_212[p,v,u,w] * d1[q,u] * d2[w,v]
+                    grad_1[p,q] -= v_212[p,v,u,w] * d1a[q,u] * d2a[w,v]
+                    grad_1[p,q] -= v_212[p,v,u,w] * d1b[q,u] * d2b[w,v]
                 end
             end
             grad[:,ci.orb_list] .= -2*grad_1
@@ -842,8 +850,8 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess_a, d
                                 iterations=max_iter_oo,
                                )
 
-        res = optimize(f, g_numerical, kappa, optmethod, options; inplace = false )
-        #res = optimize(f, g, kappa, optmethod, options; inplace = false )
+        #res = optimize(f, g_numerical, kappa, optmethod, options; inplace = false )
+        res = optimize(f, g, kappa, optmethod, options; inplace = false )
         summary(res)
         e = Optim.minimum(res)
         display(res)
