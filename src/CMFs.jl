@@ -366,7 +366,7 @@ function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rd
             # run PYSCF FCI
             e, d1a,d1b, d2 = FermiCG.pyscf_fci(ints_i,fspace[ci.idx][1],fspace[ci.idx][2], verbose=verbose)
         end
-        
+
         rdm1_dict[ci.idx] = [d1a,d1b]
         rdm1s_dict[ci.idx] = d1a+d1b
         rdm2_dict[ci.idx] = d2
