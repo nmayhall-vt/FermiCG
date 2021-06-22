@@ -333,6 +333,8 @@ function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rd
         no = length(ci)
         e = 0.0
         d1 = zeros(no, no)
+	d1a =zeros(no,no)
+	d1b =zeros(no,no)
         d2 = zeros(no, no, no, no)
         if problem.dim == 1
         
@@ -341,7 +343,6 @@ function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rd
         
             na = fspace[ci.idx][1]
             nb = fspace[ci.idx][2]
-	    print(no,na,nb)
 
             if (na == no) && (nb == no)
                 #
@@ -350,32 +351,33 @@ function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rd
                 for p in 1:no, q in 1:no, r in 1:no, s in 1:no
                     d2[p,q,r,s] = 2*d1[p,q]*d1[r,s] - d1[p,s]*d1[r,q]
                 end
-                d1 *= 2.0
+                d1a = d1 
+                d1b = d1 
                 d2 *= 2.0
                 e = compute_energy(0, ints_i.h1, ints_i.h2, d1, d2)
                 verbose == 0 || @printf(" Slater Det Energy: %12.8f\n", e)
 
             elseif (na == no) && (nb == 0)
                 #
-                # a doubly occupied space
+                # singly occupied space
                 d1 = Matrix(1.0I, no, no)
                 for p in 1:no, q in 1:no, r in 1:no, s in 1:no
-                    d2[p,q,r,s] = 2*d1[p,q]*d1[r,s] - d1[p,s]*d1[r,q]
+                    d2[p,q,r,s] = d1[p,q]*d1[r,s] - d1[p,s]*d1[r,q]
                 end
-                d1 *= 2.0
-                d2 *= 0.0
+		d1a  = d1
+		d1b  = zeros(no,no)
                 e = compute_energy(0, ints_i.h1, ints_i.h2, d1, d2)
                 verbose == 0 || @printf(" Slater Det Energy: %12.8f\n", e)
 
             elseif (na == 0) && (nb == no)
                 #
-                # a doubly occupied space
+                # singly occupied space
                 d1 = Matrix(1.0I, no, no)
                 for p in 1:no, q in 1:no, r in 1:no, s in 1:no
-                    d2[p,q,r,s] = 2*d1[p,q]*d1[r,s] - d1[p,s]*d1[r,q]
+                    d2[p,q,r,s] = d1[p,q]*d1[r,s] - d1[p,s]*d1[r,q]
                 end
-                d1 *= 2.0
-                d2 *= 0.0
+		d1a  = zeros(no,no)
+		d1b  = d1
                 e = compute_energy(0, ints_i.h1, ints_i.h2, d1, d2)
                 verbose == 0 || @printf(" Slater Det Energy: %12.8f\n", e)
 
