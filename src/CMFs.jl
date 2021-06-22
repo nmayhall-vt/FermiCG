@@ -169,7 +169,7 @@ function compute_cmf_energy(mol::Molecule, C::Matrix, rdm1s, rdm2s, clusters; ve
             e2[ci.idx, cj.idx] = tmp
         end
     end
-    if verbose>=1
+    if verbose>1
         for ei = 1:length(e1)
             @printf(" Cluster %3i E =%12.8f\n",ei,e1[ei])
         end
@@ -246,7 +246,7 @@ function compute_cmf_energy(ints, rdm1s, rdm2s, clusters; verbose=0)
             e2[ci.idx, cj.idx] = tmp
         end
     end
-    if verbose>=1
+    if verbose>1
         for ei = 1:length(e1)
             @printf(" Cluster %3i E =%12.8f\n",ei,e1[ei])
         end
@@ -273,7 +273,7 @@ This method forms the eri's on the fly to avoid global N^4 storage
 
 See also: [`cmf_ci_iteration`](@ref)
 """
-function cmf_ci_iteration(mol::Molecule, C, rdm1a, rdm1b, clusters, fspace; verbose=1)
+function cmf_ci_iteration(mol::Molecule, C, rdm1a, rdm1b, clusters, fspace; verbose=0)
     rdm1_dict = Dict{Integer,Array}()
     rdm2_dict = Dict{Integer,Array}()
     for ci in clusters
@@ -327,7 +327,7 @@ function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rd
         flush(stdout)
 
         problem = FermiCG.StringCI.FCIProblem(length(ci), fspace[ci.idx][1],fspace[ci.idx][2])
-        verbose == 0 || display(problem)
+        verbose < 2 || display(problem)
         ints_i = form_casci_ints(ints, ci, rdm1a, rdm1b)
         
         no = length(ci)
@@ -391,7 +391,7 @@ function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rd
             # run PYSCF FCI
             e, d1a,d1b, d2 = FermiCG.pyscf_fci(ints_i,fspace[ci.idx][1],fspace[ci.idx][2], verbose=verbose)
         end
-        
+
         rdm1_dict[ci.idx] = [d1a,d1b]
         rdm1s_dict[ci.idx] = d1a+d1b
         rdm2_dict[ci.idx] = d2
@@ -433,10 +433,12 @@ Optimize the 1RDM for CMF-CI, without requiring an InCoreInts object
 - `econv`: Convergence threshold for change in energy 
 - `verbose`: how much to print
 """
-function cmf_ci(mol::Molecule, C::Matrix, clusters::Vector{Cluster}, fspace::Vector, dguess; 
+function cmf_ci(mol::Molecule, C::Matrix, clusters::Vector{Cluster}, fspace::Vector, in_rdm1a, in_rdm1b; 
                 max_iter=10, dconv=1e-6, econv=1e-10, verbose=1,squential=false)
-    rdm1a = deepcopy(dguess)
-    rdm1b = deepcopy(dguess)
+    #rdm1a = deepcopy(dguess)
+    #rdm1b = deepcopy(dguess)
+	rdm1a = deepcopy(in_rdm1a)
+	rdm1b = deepcopy(in_rdm1b)
     energies = []
     e_prev = 0
     e0 = FermiCG.get_nuclear_rep(mol)
@@ -444,7 +446,7 @@ function cmf_ci(mol::Molecule, C::Matrix, clusters::Vector{Cluster}, fspace::Vec
     rdm1_dict = Dict{Integer,Array}()
     rdm2_dict = Dict{Integer,Array}()
     for iter = 1:max_iter
-        if verbose > 0
+        if verbose > 1
             println()
             println(" ------------------------------------------ ")
             println(" CMF CI Iter: ", iter)
@@ -455,14 +457,14 @@ function cmf_ci(mol::Molecule, C::Matrix, clusters::Vector{Cluster}, fspace::Vec
         error = (rdm1a_curr+rdm1b_curr) - (rdm1a+rdm1b)
         d_err = LinearAlgebra.norm(error)
         e_err = e_curr-e_prev
-        if verbose>0
+        if verbose>1
             @printf(" CMF-CI Energy: %12.8f | Change: RDM: %6.1e Energy %6.1e\n\n", e_curr, d_err, e_err)
         end
         e_prev = e_curr*1
         rdm1a = rdm1a_curr
         rdm1b = rdm1b_curr
         if (abs(d_err) < dconv) && (abs(e_err) < econv)
-            if verbose>0
+            if verbose>1
                 @printf("*CMF-CI: Elec %12.8f Total %12.8f\n", e_curr-e0, e_curr)
             end
             break
@@ -485,10 +487,10 @@ end
 
 Optimize the 1RDM for CMF-CI
 """
-function cmf_ci(ints, clusters, fspace, dguess; 
+function cmf_ci(ints, clusters, fspace, in_rdm1a, in_rdm1b; 
                 max_iter=10, dconv=1e-6, econv=1e-10, verbose=1,sequential=false)
-	rdm1a = deepcopy(dguess)
-	rdm1b = deepcopy(dguess)
+	rdm1a = deepcopy(in_rdm1a)
+	rdm1b = deepcopy(in_rdm1b)
 	energies = []
 	e_prev = 0
 
@@ -498,7 +500,7 @@ function cmf_ci(ints, clusters, fspace, dguess;
 	rdm2_dict = Dict{Integer,Array}()
 	# rdm2_dict = Dict{Integer, Array}()
     for iter = 1:max_iter
-        if verbose > 0
+        if verbose > 1
             println()
             println(" ------------------------------------------ ")
             println(" CMF CI Iter: ", iter)
@@ -509,14 +511,14 @@ function cmf_ci(ints, clusters, fspace, dguess;
         error = (rdm1a_curr+rdm1b_curr) - (rdm1a+rdm1b)
         d_err = norm(error)
         e_err = e_curr-e_prev
-        if verbose>0
+        if verbose>1
             @printf(" CMF-CI Energy: %12.8f | Change: RDM: %6.1e Energy %6.1e\n\n", e_curr, d_err, e_err)
         end
 		e_prev = e_curr*1
 		rdm1a = rdm1a_curr
 		rdm1b = rdm1b_curr
 		if (abs(d_err) < dconv) && (abs(e_err) < econv)
-			if verbose>0
+			if verbose>1
                 @printf("*CMF-CI: Elec %12.8f Total %12.8f\n", e_curr-ints.h0, e_curr)
             end
 			break
@@ -674,7 +676,7 @@ end
 
 Do CMF with orbital optimization
 """
-function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess; 
+function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess_a, dguess_b; 
                 max_iter_oo=100, max_iter_ci=100, gconv=1e-6, verbose=0, method="bfgs", alpha=nothing)
     norb = size(ints.h1)[1]
     #kappa = zeros(norb*(norb-1))
@@ -698,15 +700,21 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess;
     #   
     #   Initialize optimization data
     #
+    e_prev = 0
     e_curr = 0
     g_curr = 0
     e_err = 0
     #da = zeros(size(ints.h1))
     #db = zeros(size(ints.h1))
-    da = deepcopy(dguess)
-    db = deepcopy(dguess)
-    da1 = zeros(size(ints.h1))
-    db1 = zeros(size(ints.h1))
+    da = deepcopy(dguess_a)
+    db = deepcopy(dguess_b)
+
+    da1 = deepcopy(dguess_a)
+    db1 = deepcopy(dguess_b)
+
+    da2 = deepcopy(dguess_a)
+    db2 = deepcopy(dguess_b)
+
     iter = 0
     kappa = zeros(norb*(norb-1))
 
@@ -714,12 +722,15 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess;
     #   Define Objective function (energy)
     #
     function f(k)
+        #display(norm(k))
         K = unpack_gradient(k, norb)
         U = exp(K)
         ints2 = orbital_rotation(ints,U)
         da1 = U'*da*U
         db1 = U'*db*U
-        e, da1, db1, rdm1_dict, rdm2_dict = cmf_ci(ints2, clusters, fspace, da1+db1, dconv=gconv/10.0, verbose=0)
+        e, da1, db1, rdm1_dict, rdm2_dict = cmf_ci(ints2, clusters, fspace, da1, db1, dconv=gconv/10.0, verbose=0)
+        da2 = U*da1*U'
+        db2 = U*db1*U'
         e_err = e-e_curr
         e_curr = e
         return e
@@ -729,6 +740,15 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess;
     #   Define Callback for logging and checking for convergence
     #
     function callback(k)
+       
+        # reset initial RDM guess for each cmf_ci
+        da = deepcopy(da2)
+        db = deepcopy(db2)
+
+        #if e_err > 0
+        #    @warn " energy increased"
+        #    return true
+        #end
         iter += 1
         if (g_curr < gconv) 
             @printf("*ooCMF Iter: %4i Total= %16.12f Active= %16.12f G= %12.2e\n", iter, e_curr, e_curr-ints.h0, g_curr)
@@ -752,7 +772,7 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess;
         da1 = U'*da*U
         db1 = U'*db*U
         
-        e, gd1a, gd1b, rdm1_dict, rdm2_dict = cmf_ci(ints2, clusters, fspace, da1+db1, dconv=gconv/10.0, verbose=verbose)
+        e, gd1a, gd1b, rdm1_dict, rdm2_dict = cmf_ci(ints2, clusters, fspace, da1, db1, dconv=gconv/10.0, verbose=verbose)
         grad = zeros(size(ints2.h1))
         for ci in clusters
             grad_1 = grad[:,ci.orb_list]
@@ -821,6 +841,8 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess;
         kappa = Optim.minimizer(res)
         K = unpack_gradient(kappa, norb)
         U = exp(K)
+        da1 = U'*da*U
+        db1 = U'*db*U
         return e, U, da1, db1
     elseif method=="diis"
         res = do_diis(f, g, callback, kappa, gconv, max_iter_oo, method)
