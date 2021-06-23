@@ -257,7 +257,7 @@ end
 
 """
     cmf_ci_iteration(mol::Molecule, C, rdm1a, rdm1b, clusters, fspace; 
-                     verbose=1)
+                     verbose=0)
 
 Perform single CMF-CI iteration, returning new energy, and density.
 This method forms the eri's on the fly to avoid global N^4 storage
@@ -315,11 +315,11 @@ end
 
 
 """
-    cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rdm1b, fspace; verbose=1)
+    cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rdm1b, fspace; verbose=0)
 
 Perform single CMF-CI iteration, returning new energy, and density
 """
-function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rdm1b, fspace; verbose=1,sequential=false)
+function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rdm1b, fspace; verbose=0,sequential=false)
     rdm1_dict = Dict{Integer,Array}()
     rdm1s_dict = Dict{Integer,Array}()
     rdm2_dict = Dict{Integer,Array}()
@@ -421,7 +421,7 @@ end
 
 """
     cmf_ci(mol::Molecule, C::Matrix, clusters::Vector{Cluster}, fspace::Vector, dguess; 
-            max_iter=10, dconv=1e-6, econv=1e-10, verbose=1)
+            max_iter=10, dconv=1e-6, econv=1e-10, verbose=0)
 
 Optimize the 1RDM for CMF-CI, without requiring an InCoreInts object 
 
@@ -436,7 +436,7 @@ Optimize the 1RDM for CMF-CI, without requiring an InCoreInts object
 - `verbose`: how much to print
 """
 function cmf_ci(mol::Molecule, C::Matrix, clusters::Vector{Cluster}, fspace::Vector, in_rdm1a, in_rdm1b; 
-                max_iter=10, dconv=1e-6, econv=1e-10, verbose=1,squential=false)
+                max_iter=10, dconv=1e-6, econv=1e-10, verbose=0,squential=false)
     #rdm1a = deepcopy(dguess)
     #rdm1b = deepcopy(dguess)
     rdm1a = deepcopy(in_rdm1a)
@@ -485,12 +485,12 @@ end
 
 """
     cmf_ci(ints, clusters, fspace, dguess; 
-            max_iter=10, dconv=1e-6, econv=1e-10, verbose=1)
+            max_iter=10, dconv=1e-6, econv=1e-10, verbose=0)
 
 Optimize the 1RDM for CMF-CI
 """
 function cmf_ci(ints, clusters, fspace, in_rdm1a, in_rdm1b; 
-                max_iter=10, dconv=1e-6, econv=1e-10, verbose=1,sequential=false)
+                max_iter=10, dconv=1e-6, econv=1e-10, verbose=0,sequential=false)
     rdm1a = deepcopy(in_rdm1a)
     rdm1b = deepcopy(in_rdm1b)
     energies = []
@@ -684,10 +684,16 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess_a, d
     #kappa = zeros(norb*(norb-1))
     # e, da, db = cmf_oo_iteration(ints, clusters, fspace, max_iter_ci, dguess, kappa)
 
-    function g_numerical(k)
-        stepsize = 1e-6
+    function g_numerical(k; num=nothing)
+        stepsize = 1e-4
         grad = zeros(size(k))
+        if num == nothing 
+            num = length(k)
+        end
+        @printf(" Compute finite-difference orbital gradients for %12i parameters\n",num)
         for (ii,i) in enumerate(k)
+            ii < num || continue 
+            display(ii)
             k1 = deepcopy(k)
             k1[ii] += stepsize
             e1 = f(k1) 
@@ -731,7 +737,7 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess_a, d
         ints2 = orbital_rotation(ints,U)
         da1 = U'*da*U
         db1 = U'*db*U
-        e, da1, db1, rdm1_dict, rdm2_dict = cmf_ci(ints2, clusters, fspace, da1, db1, dconv=gconv/10.0, verbose=0)
+        e, da1, db1, rdm1_dict, rdm2_dict = cmf_ci(ints2, clusters, fspace, da1, db1, dconv=gconv/10.0, verbose=verbose)
         da2 = U*da1*U'
         db2 = U*db1*U'
         e_err = e-e_curr
@@ -824,7 +830,8 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess_a, d
 #    return
 
     #display("here:")
-    #gerr = g_numerical(kappa) - g(kappa)
+    ##gerr = g_numerical(kappa) - g(kappa)
+    #gerr = g_numerical(kappa,num=10) - g(kappa)
     #display(norm(gerr))
     #for i in gerr
     #    @printf(" err: %12.8f\n",i)

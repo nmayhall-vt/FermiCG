@@ -1307,3 +1307,14 @@ function check_orthogonality(mat; thresh=1e-12)
     return true
 end
 
+
+function block_diagonalize_orbitals(h, clusters::Vector{Cluster})
+    no = sum(length.(clusters))
+    Uout = Matrix{Float64}(I,no,no)
+    for ci in clusters
+        hi = h[ci.orb_list,ci.orb_list]
+        F = eigen(hi)
+        Uout[ci.orb_list,ci.orb_list] .= F.vectors
+    end
+    return Uout
+end

@@ -265,31 +265,31 @@ end
 
 Use PySCF to compute Full CI
 """
-function pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1, verbose=1)
-	# println(" Use PYSCF to compute FCI")
-	pyscf = pyimport("pyscf")
+function pyscf_fci(ham, na, nb; max_cycle=40, conv_tol=1e-8, nroots=1, verbose=1)
+    # println(" Use PYSCF to compute FCI")
+    pyscf = pyimport("pyscf")
     pyscf.lib.num_threads(1)
-	fci = pyimport("pyscf.fci")
-	cisolver = pyscf.fci.direct_spin1.FCI()
-	cisolver.max_cycle = max_cycle
-	cisolver.conv_tol = conv_tol
-	nelec = na + nb
-	norb = size(ham.h1)[1]
-	efci, ci = cisolver.kernel(ham.h1, ham.h2, norb , (na,nb), ecore=0, nroots =nroots, verbose=100)
+    fci = pyimport("pyscf.fci")
+    cisolver = pyscf.fci.direct_spin1.FCI()
+    cisolver.max_cycle = max_cycle
+    cisolver.conv_tol = conv_tol
+    nelec = na + nb
+    norb = size(ham.h1)[1]
+    efci, ci = cisolver.kernel(ham.h1, ham.h2, norb , (na,nb), ecore=0, nroots =nroots, verbose=verbose*100)
     #@printf(" Length of CI Vector: %i\n", length(ci[1]))
     #println(size(ci[1]))
-	fci_dim = size(ci,1)*size(ci,2)
-	# d1 = cisolver.make_rdm1(ci, norb, nelec)
+    fci_dim = size(ci,1)*size(ci,2)
+    # d1 = cisolver.make_rdm1(ci, norb, nelec)
 
-	d1a,d1b = cisolver.make_rdm1s(ci, norb, (na,nb))
+    d1a,d1b = cisolver.make_rdm1s(ci, norb, (na,nb))
 
-	d1,d2 = cisolver.make_rdm12(ci, norb, (na,nb))
-	#@printf(" Energy2: %12.8f\n", FermiCG.compute_energy(ham.h0, ham.h1, ham.h2, d1a+d1b, d2))
-	# print(" PYSCF 1RDM: ")
-	F = eigen(d1)
-	occs = F.values
-	sum_n = sum(occs)
-	# @printf(" Sum of diagonals = %12.8f\n", sum_n)
+    d1,d2 = cisolver.make_rdm12(ci, norb, (na,nb))
+    #@printf(" Energy2: %12.8f\n", FermiCG.compute_energy(ham.h0, ham.h1, ham.h2, d1a+d1b, d2))
+    # print(" PYSCF 1RDM: ")
+    F = eigen(d1)
+    occs = F.values
+    sum_n = sum(occs)
+    # @printf(" Sum of diagonals = %12.8f\n", sum_n)
     if verbose > 1
         @printf(" Natural Orbital Occupations:\n")
         [@printf(" %4i %12.8f\n",i,occs[i]) for i in 1:size(occs)[1] ]
@@ -315,7 +315,7 @@ function get_nuclear_rep(mol::Molecule)
 end
 
 """
-	localize(C::Array{Float64,2},method::String, mf)
+localize(C::Array{Float64,2},method::String, mf)
 
 Localize the orbitals using method = `method`
 """
@@ -339,11 +339,11 @@ function localize(C::Array{Float64,2},method::String, mf)
 end
 
 """
-	get_ovlp(mf)
+get_ovlp(mf)
 
 Get overlap matrix from pyscf using mean-field object
 """
 function get_ovlp(mf)
-		return mf.mol.intor("int1e_ovlp_sph")
+    return mf.mol.intor("int1e_ovlp_sph")
 end
 
