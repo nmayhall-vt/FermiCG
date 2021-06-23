@@ -745,8 +745,8 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess_a, d
     function callback(k)
        
         # reset initial RDM guess for each cmf_ci
-        #da = deepcopy(da2)
-        #db = deepcopy(db2)
+        da = deepcopy(da2)
+        db = deepcopy(db2)
 
         #if e_err > 0
         #    @warn " energy increased"
