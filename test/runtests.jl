@@ -15,4 +15,5 @@ Random.seed!(1234567)
     include("test_bounds.jl")
     include("test_s2.jl")
     include("test_bst.jl")
+    include("test_schmidt.jl")
 end

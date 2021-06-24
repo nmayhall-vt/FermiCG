@@ -63,12 +63,12 @@ using OrderedCollections
     #Da = D1
     #Db = D1
 
-    e_cmf, U, Da, Db  = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, 
+    e_cmf, U, Da, Db  = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, rdm1,
                                        max_iter_oo=40, verbose=0, gconv=1e-6, method="bfgs")
     ints = FermiCG.orbital_rotation(ints,U)
 
-    rdm1a = Da*.5
-    rdm1b = Db*.5
+    rdm1a = Da
+    rdm1b = Db
 
     display(Da)
     println()

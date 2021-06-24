@@ -49,7 +49,7 @@ function form_1rdm_dressed_ints(ints::InCoreInts, orb_list, rdm1a, rdm1b)
 
     for (pi,p) in enumerate(orb_list)
     	for (qi,q) in enumerate(1:size(rdm1a)[1])
-	    denv_a[p,q] = 0
+        denv_a[p,q] = 0
 	    denv_b[p,q] = 0
 	    denv_a[q,p] = 0
 	    denv_b[q,p] = 0
@@ -454,7 +454,7 @@ function cmf_ci(mol::Molecule, C::Matrix, clusters::Vector{Cluster}, fspace::Vec
             println(" CMF CI Iter: ", iter)
             println(" ------------------------------------------ ")
         end
-        e_curr, rdm1a_curr, rdm1b_curr, rdm1_dict, rdm2_dict = cmf_ci_iteration(mol, C, rdm1a, rdm1b, clusters, fspace, verbose=verbose,sequential=sequential)
+        e_curr, rdm1a_curr, rdm1b_curr, rdm1_dict, rdm2_dict = cmf_ci_iteration(mol, C, rdm1a, rdm1b, clusters, fspace, verbose=verbose)
         append!(energies,e_curr)
         error = (rdm1a_curr+rdm1b_curr) - (rdm1a+rdm1b)
         d_err = LinearAlgebra.norm(error)
@@ -484,10 +484,21 @@ end
 
 
 """
-    cmf_ci(ints, clusters, fspace, dguess; 
-            max_iter=10, dconv=1e-6, econv=1e-10, verbose=1)
+    cmf_ci(ints, clusters, fspace, in_rdm1a, in_rdm1b; 
+                max_iter=10, dconv=1e-6, econv=1e-10, verbose=1,sequential=false)
 
 Optimize the 1RDM for CMF-CI
+
+#Arguments
+- `ints::InCoreInts`: integrals for full system
+- `clusters::Vector{Cluster}`: vector of cluster objects
+- `fspace::Vector{Vector{Integer}}`: vector of particle number occupations for each cluster specifying the sectors of fock space 
+- `in_rdm1a`: initial guess for 1particle density matrix for alpha electrons
+- `in_rdm1b`: initial guess for 1particle density matrix for beta electrons
+- `dconv`: Convergence threshold for change in density 
+- `econv`: Convergence threshold for change in energy 
+- `sequential`: Use the density matrix of the previous cluster in a cMF iteration to form effective integrals. Improves comvergence, may depend on cluster orderings   
+- `verbose`: Printing level 
 """
 function cmf_ci(ints, clusters, fspace, in_rdm1a, in_rdm1b; 
                 max_iter=10, dconv=1e-6, econv=1e-10, verbose=1,sequential=false)
@@ -508,7 +519,7 @@ function cmf_ci(ints, clusters, fspace, in_rdm1a, in_rdm1b;
             println(" CMF CI Iter: ", iter)
             println(" ------------------------------------------ ")
         end
-        e_curr, rdm1a_curr, rdm1b_curr, rdm1_dict, rdm2_dict = cmf_ci_iteration(ints, clusters, rdm1a, rdm1b, fspace, verbose=verbose)
+        e_curr, rdm1a_curr, rdm1b_curr, rdm1_dict, rdm2_dict = cmf_ci_iteration(ints, clusters, rdm1a, rdm1b, fspace, verbose=verbose,sequential=sequential)
         append!(energies,e_curr)
         error = (rdm1a_curr+rdm1b_curr) - (rdm1a+rdm1b)
         d_err = norm(error)
@@ -673,13 +684,26 @@ end
 
 
 """
-    cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess; 
-            max_iter_oo=100, max_iter_ci=100, gconv=1e-6, verbose=0, method="bfgs")
+    cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess_a, dguess_b; 
+                max_iter_oo=100, max_iter_ci=100, gconv=1e-6, verbose=0, method="bfgs", alpha=nothing,sequential=false)
 
 Do CMF with orbital optimization
+
+#Arguments
+- `ints::InCoreInts`: integrals for full system
+- `clusters::Vector{Cluster}`: vector of cluster objects
+- `fspace::Vector{Vector{Integer}}`: vector of particle number occupations for each cluster specifying the sectors of fock space 
+- `dguess_a`: initial guess for 1particle density matrix for alpha electrons
+- `dguess_b`: initial guess for 1particle density matrix for beta electrons
+- `max_iter_oo`: Max iter for the orbital optimization iterations 
+- `max_iter_ci`: Max iter for the cmf iteration for the cluster states 
+- `gconv`: Convergence threshold for change in gradient of energy 
+- `sequential`: If true use the density matrix of the previous cluster in a cMF iteration to form effective integrals. Improves comvergence, may depend on cluster orderings   
+- `verbose`: Printing level 
+- `method`: optimization method
 """
 function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess_a, dguess_b; 
-                max_iter_oo=100, max_iter_ci=100, gconv=1e-6, verbose=0, method="bfgs", alpha=nothing)
+                max_iter_oo=100, max_iter_ci=100, gconv=1e-6, verbose=0, method="bfgs", alpha=nothing,sequential=false)
     norb = size(ints.h1)[1]
     #kappa = zeros(norb*(norb-1))
     # e, da, db = cmf_oo_iteration(ints, clusters, fspace, max_iter_ci, dguess, kappa)
@@ -731,7 +755,7 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess_a, d
         ints2 = orbital_rotation(ints,U)
         da1 = U'*da*U
         db1 = U'*db*U
-        e, da1, db1, rdm1_dict, rdm2_dict = cmf_ci(ints2, clusters, fspace, da1, db1, dconv=gconv/10.0, verbose=0)
+        e, da1, db1, rdm1_dict, rdm2_dict = cmf_ci(ints2, clusters, fspace, da1, db1, dconv=gconv/10.0, verbose=0,sequential=sequential)
         da2 = U*da1*U'
         db2 = U*db1*U'
         e_err = e-e_curr

@@ -69,12 +69,12 @@ using Test
     #@test isapprox(f2[1], -2.876651063218, atol=1e-10)
 
 
-    f1 = FermiCG.cmf_ci(ints, clusters, init_fspace, rdm1a, rdm1b, verbose=0)
+    f1 = FermiCG.cmf_ci(ints, clusters, init_fspace, rdm1a, rdm1b, verbose=1,sequential=false)
     #f2 = FermiCG.cmf_ci(mol, Cl, clusters, init_fspace, rdm1a, verbose=0)
     #@test isapprox(f1[1], f2[1], atol=1e-10)
     @test isapprox(f1[1], -2.97293813654926351, atol=1e-10)
     
-    e_cmf, U = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, rdm1, verbose=0, gconv=1e-6, method="cg")
+    e_cmf, U = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, rdm1, verbose=0, gconv=1e-6, method="cg",sequential=true)
     #e_cmf, U = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, verbose=0, gconv=1e-6, max_iter_oo=4)
     @test isapprox(e_cmf, -3.205983033016, atol=1e-10)
   
