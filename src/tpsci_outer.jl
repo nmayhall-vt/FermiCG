@@ -60,6 +60,7 @@ end
             max_iter     = 10,
             conv_thresh  = 1e-4,
             nbody        = 4,
+            H0           = "Hcmf",
             incremental  = true,
             matvec       = 1) where {T,N,R}
 
@@ -82,7 +83,10 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
     max_iter     = 10,
     conv_thresh  = 1e-4,
     nbody        = 4,
+    H0           = "Hcmf",
     incremental  = true,
+    do_s2        = false,
+    thresh_s2    = 1e-7,
     matvec       = 1) where {T,N,R}
 #={{{=#
     vec_var = deepcopy(ci_vector)
@@ -104,14 +108,16 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
     
     vec_asci_old = ClusteredState(ci_vector.clusters, R=R)
     sig = ClusteredState(ci_vector.clusters, R=R)
-    clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = "Hcmf") 
+    clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = H0) 
 
+    set_vector!(vec_var, Matrix{T}(I,size(vec_var)...))
     for it in 1:max_iter
 
         println()
         println(" ===================================================================")
         @printf("     Selected CI Iteration: %4i epsilon: %12.8f\n", it,thresh_cipsi)
         println(" ===================================================================")
+
 
         if it > 1
             l1 = length(vec_var)
@@ -124,7 +130,19 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
             l2 = length(vec_var)
             @printf(" Add pt vector to current space %6i → %6i\n", l1, l2)
         end
-
+        
+        if do_s2
+            sig_s2 = open_matvec_thread2(vec_var, cluster_ops, clustered_S2, thresh=thresh_s2, prescreen=false)
+            sig_s2 = open_matvec_thread2(sig_s2, cluster_ops, clustered_S2, thresh=thresh_s2, prescreen=false)
+            #s2_exp = dot(sig_s2,ci_vector)
+            clip!(sig_s2, thresh=thresh_s2)
+            zero!(sig_s2)
+            l1 = length(vec_var)
+            add!(vec_var, sig_s2)
+            l2 = length(vec_var)
+            @printf(" Add spin purifying configs to current space %6i → %6i\n", l1, l2)
+        end
+       
         @printf(" Build Hamiltonian matrix with dimension: %5i\n", length(vec_var))
         flush(stdout)
         #@time H = build_full_H(vec_var, cluster_ops, clustered_ham)
@@ -148,6 +166,18 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
             display(vec_var, root=r)
         end
         
+        if do_s2
+            sig_s2 = open_matvec_thread2(vec_var, cluster_ops, clustered_S2, thresh=thresh_s2, prescreen=false)
+            sig_s2 = open_matvec_thread2(sig_s2, cluster_ops, clustered_S2, thresh=thresh_s2, prescreen=false)
+            #s2_exp = dot(sig_s2,ci_vector)
+            clip!(sig_s2, thresh=thresh_s2)
+            zero!(sig_s2)
+            l1 = length(vec_var)
+            add!(vec_var, sig_s2)
+            l2 = length(vec_var)
+            @printf(" Add spin purifying configs to current space %6i → %6i\n", l1, l2)
+        end
+        
         # get barycentric energy <0|H0|0>
         Efock = compute_expectation_value(vec_var, cluster_ops, clustered_ham_0)
         #Efock = nothing
@@ -164,11 +194,15 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
 
         del_v0 = deepcopy(vec_asci_old)
         ovlps = []
+        
+        vtmp = get_vectors(vec_asci)
         for r in 1:R
             if dot(vec_asci_old, vec_asci, r, r) < 0
-                scale!(vec_asci, -1.0)
+                vtmp[:,r] .= -vtmp[:,r]
             end
         end
+        set_vector!(vec_asci,vtmp)
+
         scale!(del_v0,-1.0)
         add!(del_v0, vec_asci)
         println(" Norm of delta v:")
@@ -223,6 +257,7 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
         l2 = length(vec_pt)
         @printf(" Length of PT1  vector %8i → %8i \n", l1, l2)
         #add!(vec_var, vec_pt)
+        
 
         if maximum(abs.(e0_last .- e0)) < conv_thresh
             print_tpsci_iter(vec_var, it, e0, true)
