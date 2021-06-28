@@ -27,6 +27,14 @@ using Arpack
     na = 4
     nb = 5
 
+    clusters    = [(1:8)]
+    init_fspace = [(4,4)]
+    na = 4
+    nb = 4
+
+    init_fspace = [(2,2),(1,1),(1,1)]
+    na = 4
+    nb = 4
 
     basis = "sto-3g"
     mol     = Molecule(0,1,atoms,basis)
@@ -47,18 +55,21 @@ using Arpack
     cisolver.conv_tol = 1e-8
     nelec = na + nb
     norb = size(ints.h1,1)
-    if false
-        e_fci, v_fci = cisolver.kernel(ints.h1, ints.h2, norb, nelec, ecore=0, nroots =10)
+    if false 
+        e_fci, v_fci = cisolver.kernel(ints.h1, ints.h2, norb, nelec, ecore=0, nroots =200)
 
 
         for i in 1:length(e_fci)
             @printf(" %4i %12.8f %12.8f\n", i, e_fci[i], e_fci[i]+ints.h0)
         end
     end
-
+    
    
 
-    e, d1a,d1b, d2 = FermiCG.pyscf_fci(ints,4,2);
+    e, d1a,d1b, d2 = FermiCG.pyscf_fci(ints,na,nb);
+    etest = FermiCG.compute_energy(ints, d1a+d1b, d2)
+    @test isapprox(e+ints.h0, etest, atol=1e-12)
+
     d1s = Dict()
     d2s = Dict()
     d1s[1] = [d1a,d1b]

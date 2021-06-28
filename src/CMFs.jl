@@ -211,10 +211,12 @@ end
 
 Perform single CMF-CI iteration, returning new energy, and density
 """
-function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rdm1b, fspace; verbose=0,sequential=false)
+function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rdm1b, fspace; 
+                          verbose=0, sequential=false, max_ci_iter=100)
     rdm1_dict = Dict{Integer,Array}()
     rdm1s_dict = Dict{Integer,Array}()
     rdm2_dict = Dict{Integer,Array}()
+    #verbose = 2
     for ci in clusters
         flush(stdout)
 
@@ -319,6 +321,7 @@ Optimize the 1RDM for CMF-CI
 """
 function cmf_ci(ints, clusters, fspace, in_rdm1a, in_rdm1b; 
                 max_iter=100, dconv=1e-6, econv=1e-10, verbose=0,sequential=false)
+#={{{=#
     rdm1a = deepcopy(in_rdm1a)
     rdm1b = deepcopy(in_rdm1b)
     energies = []
@@ -364,9 +367,122 @@ function cmf_ci(ints, clusters, fspace, in_rdm1a, in_rdm1b;
     end
     return e_prev, rdm1a, rdm1b, rdm1_dict, rdm2_dict
 end
+#=}}}=#
 
 
 
+
+
+
+"""
+Orbital gradient 
+"""
+function cmf_orb_grad(ints::InCoreInts, clusters, fspace, rdm1_dict, rdm2_dict)
+    #={{{=#
+    norb = size(ints.h1,1)
+
+    if 1==0
+        full_2rdm = zeros(size(ints.h2))
+        full_1rdm = zeros(size(ints.h1))
+        full_1rdmb = zeros(size(ints.h1))
+        full_1rdma = zeros(size(ints.h1))
+        for ci in clusters
+            for (pi,p) in enumerate(ci.orb_list)
+                for (qi,q) in enumerate(ci.orb_list)
+                    full_1rdma[p,q] = rdm1_dict[ci.idx][1][pi,qi] 
+                    full_1rdmb[p,q] = rdm1_dict[ci.idx][2][pi,qi] 
+                end
+            end
+        end
+        full_1rdm = full_1rdma + full_1rdmb
+
+        for p in 1:norb
+            for q in 1:norb
+                for r in 1:norb
+                    for s in 1:norb
+                        full_2rdm[p,q,r,s] = full_1rdm[p,q]*full_1rdm[r,s] - full_1rdma[p,s]*full_1rdma[r,q] - full_1rdmb[p,s]*full_1rdmb[r,q]
+                    end
+                end
+            end
+        end
+        for ci in clusters
+            for (pi,p) in enumerate(ci.orb_list)
+                for (qi,q) in enumerate(ci.orb_list)
+                    for (ri,r) in enumerate(ci.orb_list)
+                        for (si,s) in enumerate(ci.orb_list)
+                            full_2rdm[p,q,r,s] = rdm2_dict[ci.idx][pi,qi,ri,si]
+                        end
+                    end
+                end
+            end
+        end
+        etest = compute_energy(ints, full_1rdm, full_2rdm)
+        println(" nick: ", etest)
+        etest = compute_cmf_energy(ints, rdm1_dict, rdm2_dict, clusters)
+        println(" nick: ", etest)
+        F = zeros(size(full_1rdm))   
+        @tensor begin
+            F[p,q] += ints.h1[p,v] * full_1rdm[v,q] 
+            F[p,q] += ints.h2[p,v,u,w] * full_2rdm[q,v,u,w] 
+        end
+        grad = -2.0.*(F'-F)
+        gout = pack_gradient(grad, norb)
+        g_curr = norm(gout)
+        #error("test")
+        return gout
+    end
+    grad = zeros(size(ints.h1))
+    for ci in clusters
+        grad_1 = grad[:,ci.orb_list]
+        h_1	   = ints.h1[:,ci.orb_list]
+        v_111  = ints.h2[:, ci.orb_list, ci.orb_list, ci.orb_list]
+        @tensor begin
+            grad_1[p,q] += v_111[p,v,u,w] * rdm2_dict[ci.idx][q,v,u,w]
+            grad_1[p,q] += h_1[p,r] * (rdm1_dict[ci.idx][1][r,q]+rdm1_dict[ci.idx][2][r,q])
+            #grad_1[p,q] += v_111[p,v,u,w] * rdm2_dict[ci.idx][q,u,w,v]
+            #grad_1[p,q] += h_1[p,r] * rdm1_dict[ci.idx][r,q]
+        end
+        for cj in clusters
+            if ci.idx == cj.idx
+                continue
+            end
+            v_212 = ints.h2[:,cj.orb_list, ci.orb_list, cj.orb_list]
+            v_122 = ints.h2[:,ci.orb_list, cj.orb_list, cj.orb_list]
+            #v_221 = ints2.h2[:,cj.orb_list, cj.orb_list, ci.orb_list]
+            d1 = rdm1_dict[ci.idx][1] + rdm1_dict[ci.idx][2]
+            d2 = rdm1_dict[cj.idx][1] + rdm1_dict[cj.idx][2]
+
+            d1a = rdm1_dict[ci.idx][1]
+            d1b = rdm1_dict[ci.idx][2]
+            d2a = rdm1_dict[cj.idx][1]
+            d2b = rdm1_dict[cj.idx][2]
+
+            @tensor begin
+                #grad_1[p,q] += v_122[p,v,u,w] * d1[q,v] * d2[w,u]
+                #grad_1[p,q] -= .5*v_212[p,v,u,w] * d1[q,u] * d2[w,v]
+
+                #grad_1[p,q] += v_122[p,v,u,w] * d1a[q,v] * d2a[u,w]
+                #grad_1[p,q] -= v_221[p,v,u,w] * d1a[q,w] * d2a[u,v]
+                #grad_1[p,q] += v_122[p,v,u,w] * d1b[q,v] * d2b[u,w]
+                #grad_1[p,q] -= v_221[p,v,u,w] * d1b[q,w] * d2b[u,v]
+                #grad_1[p,q] += v_122[p,v,u,w] * d1a[q,v] * d2b[u,w]
+                #grad_1[p,q] += v_122[p,v,u,w] * d1b[q,v] * d2a[u,w]
+
+                grad_1[p,q] += v_122[p,v,u,w] * d1[q,v] * d2[u,w]
+                grad_1[p,q] -= v_212[p,v,u,w] * d1a[q,u] * d2a[w,v]
+                grad_1[p,q] -= v_212[p,v,u,w] * d1b[q,u] * d2b[w,v]
+            end
+        end
+        grad[:,ci.orb_list] .+= -2*grad_1
+    end
+    grad = grad'-grad
+    gout = pack_gradient(grad, norb)
+    g_curr = norm(gout)
+    return gout
+end
+
+
+#=}}}=#
 
 
 
@@ -484,11 +600,25 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess_a, d
             return false 
         end
     end
+    
+    function g(kappa)
+        norb = size(ints.h1)[1]
+        # println(" In g_analytic")
+        K = unpack_gradient(kappa, norb)
+        U = exp(K)
+        #println(size(U), size(kappa))
+        ints2 = orbital_rotation(ints,U)
+        da1 = U'*da*U
+        db1 = U'*db*U
+       
+        e, gd1a, gd1b, rdm1_dict, rdm2_dict = cmf_ci(ints2, clusters, fspace, da1, db1, dconv=gconv/100.0, verbose=verbose)
 
+        return cmf_orb_grad(ints2, clusters, fspace, rdm1_dict, rdm2_dict)
+    end
     #
     #   Define Gradient function
     #
-    function g(kappa)
+    function g2(kappa)
         norb = size(ints.h1)[1]
         # println(" In g_analytic")
         K = unpack_gradient(kappa, norb)

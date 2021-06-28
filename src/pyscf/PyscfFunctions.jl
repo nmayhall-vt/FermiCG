@@ -269,6 +269,7 @@ function pyscf_fci(ham, na, nb; max_cycle=40, conv_tol=1e-8, nroots=1, verbose=1
     # println(" Use PYSCF to compute FCI")
     pyscf = pyimport("pyscf")
     pyscf.lib.num_threads(1)
+    #nroots=1
     fci = pyimport("pyscf.fci")
     cisolver = pyscf.fci.direct_spin1.FCI()
     cisolver.max_cycle = max_cycle
@@ -276,6 +277,7 @@ function pyscf_fci(ham, na, nb; max_cycle=40, conv_tol=1e-8, nroots=1, verbose=1
     nelec = na + nb
     norb = size(ham.h1)[1]
     efci, ci = cisolver.kernel(ham.h1, ham.h2, norb , (na,nb), ecore=0, nroots =nroots, verbose=verbose*100)
+    #display(efci)
     #@printf(" Length of CI Vector: %i\n", length(ci[1]))
     #println(size(ci[1]))
     fci_dim = size(ci,1)*size(ci,2)
