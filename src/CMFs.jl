@@ -601,7 +601,7 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess_a, d
         end
     end
     
-    function g(kappa)
+    function g2(kappa)
         norb = size(ints.h1)[1]
         # println(" In g_analytic")
         K = unpack_gradient(kappa, norb)
@@ -618,7 +618,7 @@ function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess_a, d
     #
     #   Define Gradient function
     #
-    function g2(kappa)
+    function g(kappa)
         norb = size(ints.h1)[1]
         # println(" In g_analytic")
         K = unpack_gradient(kappa, norb)
