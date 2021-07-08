@@ -31,6 +31,29 @@ function ClusteredState(clusters; T=Float64, R=1)
 end
 
 """
+    function ClusteredState(v::ClusteredState{T,N,R}; T=T, R=R) where {T,N,R}
+
+Constructor creating a `ClusteredState` with the same basis as `v`, but with potentially different `R` and `T`. 
+Coefficients of new vector are 0.0
+
+# Arguments
+- `T`:  Type of data for coefficients
+- `R`:  Number of roots
+# Returns
+- `ClusteredState`
+"""
+function ClusteredState(v::ClusteredState{TT,NN,RR}; T=TT, R=RR) where {TT,NN,RR}
+    out = ClusteredState(v.clusters,T=T,R=R)
+    for (fock, configs) in v.data
+        add_fockconfig!(out,fock)
+        for (config, coeffs) in configs
+            out[fock][config] = zeros(T,R)
+        end
+    end
+    return out
+end
+
+"""
     ClusteredState(clusters::Vector{Cluster}, fconfig::FockConfig{N}; T=Float64, R=1) where {N}
 
 Constructor using only a single FockConfig. This allows us to turn the CMF state into a ClusteredState.
@@ -115,8 +138,11 @@ function get_vectors(s::ClusteredState{T,N,R}) where {T,N,R}
     end
     return v
 end
+
 """
-    set_vector!(s::ClusteredState)
+    function set_vector!(ts::ClusteredState{T,N,R}, v::Matrix{T}) where {T,N,R}
+
+Fill the coefficients of `ts` with the values in `v`
 """
 function set_vector!(ts::ClusteredState{T,N,R}, v::Matrix{T}) where {T,N,R}
 
@@ -137,6 +163,31 @@ function set_vector!(ts::ClusteredState{T,N,R}, v::Matrix{T}) where {T,N,R}
     nbasis == idx-1 || error("huh?", nbasis, " ", idx)
     return
 end
+
+#"""
+#    function set_vector!(ts::ClusteredState{T,N,R}, v) where {T,N,R}
+#
+#Fill the coefficients of `ts` with the values in `v`
+#"""
+#function set_vector!(ts::ClusteredState{T,N,R}, v) where {T,N,R}
+#
+#    nbasis = size(v,1)
+#    nroots = size(v,2)
+#
+#    length(ts) == nbasis || throw(DimensionMismatch)
+#    R == nroots || throw(DimensionMismatch)
+#
+#    idx = 1
+#    for (fock, tconfigs) in ts.data
+#        for (tconfig, coeffs) in tconfigs
+#            #ts[fock][tconfig] = MVector{R}(v[idx,:])
+#            @views coeffs .= v[idx,:]
+#            idx += 1
+#        end
+#    end
+#    nbasis == idx-1 || error("huh?", nbasis, " ", idx)
+#    return
+#end
 
 
 """
@@ -357,4 +408,5 @@ function add!(s1::ClusteredState, s2::ClusteredState)
     end
     #=}}}=#
 end
+
 

@@ -2,6 +2,16 @@ using LinearAlgebra
 using Printf
 using BenchmarkTools
 
+mutable struct LinOp
+    matvec
+    dim::Int
+end
+
+Base.size(lop::LinOp) = return (lop.dim,lop.dim)
+Base.:(*)(lop::LinOp, v::AbstractVector{T}) where {T} = return lop.matvec(v)
+Base.:(*)(lop::LinOp, v::AbstractMatrix{T}) where {T} = return lop.matvec(v)
+
+
 mutable struct Davidson
     op 
     dim::Int

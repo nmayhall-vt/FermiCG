@@ -1,6 +1,8 @@
 using Distributed
 using ThreadPools
 using JLD2
+using LinearMaps
+#using IterativeSolvers
 
 """
     build_full_H(ci_vector::ClusteredState, cluster_ops, clustered_ham::ClusteredOperator)
@@ -49,6 +51,130 @@ function build_full_H(ci_vector::ClusteredState, cluster_ops, clustered_ham::Clu
     return H
 end
 #=}}}=#
+
+
+"""
+    tps_ci_direct(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
+
+# Solve for eigenvectors/values in the basis defined by `ci_vector`. Use direct diagonalization. 
+"""
+function tps_ci_direct(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
+                      verbose   = 0) where {T,N,R}
+    #={{{=#
+    println()
+    println(" ===================================================================")
+    @printf("     Tensor Product State CI : \n")
+    println(" ===================================================================")
+    vec_out = deepcopy(ci_vector)
+    e0 = zeros(T,R)
+    @printf(" Hamiltonian matrix dimension = %5i: \n", length(ci_vector))
+    @printf(" %-50s", "Build full Hamiltonian matrix with dimension: ")
+    @time H = build_full_H_parallel(vec_out, cluster_ops, clustered_ham)
+    flush(stdout)
+    @printf(" %-50s", "Diagonalize: ")
+    if length(vec_out) > 1000
+        @time e0,v = Arpack.eigs(H, nev = R, which=:SR)
+    else
+        @time F = eigen(H)
+        e0 = F.values[1:R]
+        v = F.vectors[:,1:R]
+    end
+    set_vector!(vec_out, v)
+
+    clustered_S2 = extract_S2(ci_vector.clusters)
+    @printf(" %-50s", "Compute S2 expectation values: ")
+    @time s2 = compute_expectation_value(vec_out, cluster_ops, clustered_S2)
+    flush(stdout)
+    @printf(" %5s %12s %12s\n", "Root", "Energy", "S2") 
+    for r in 1:R
+        @printf(" %5s %12.8f %12.8f\n",r, e0[r], abs(s2[r]))
+    end
+
+    if verbose > 1
+        for r in 1:R
+            display(vec_out, root=r)
+        end
+    end
+
+    return e0, vec_out 
+end
+#=}}}=#
+
+
+
+"""
+    tps_ci_davidson(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
+
+# Solve for eigenvectors/values in the basis defined by `ci_vector`. Use iterative davidson solver. 
+"""
+function tps_ci_davidson(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
+                        v0 = nothing,
+                        conv_thresh = 1e-5,
+                        max_ss_vecs = 12,
+                        max_iter    = 40,
+                        shift       = nothing,
+                        verbose     = 0) where {T,N,R}
+    #={{{=#
+    println()
+    println(" ===================================================================")
+    @printf("     Tensor Product State CI : \n")
+    println(" ===================================================================")
+    vec_out = deepcopy(ci_vector)
+    e0 = zeros(T,R) 
+   
+    dim = length(ci_vector)
+    iters = 0
+
+    # tmp
+    H = build_full_H_parallel(vec_out, cluster_ops, clustered_ham)
+    
+    function matvec(v::AbstractMatrix)
+        iters += 1
+
+
+        #in = deepcopy(ci_vector) 
+        in = ClusteredState(ci_vector, R=size(v,2))
+        set_vector!(in, v)
+        sig = deepcopy(in)
+        zero!(sig)
+        #build_sigma!(sig, ci_vector, cluster_ops, clustered_ham, cache=cache)
+        sigv = get_vectors(sig)
+        
+        sigv = H*get_vectors(in)
+
+        return sigv
+    end
+
+    Hmap = FermiCG.LinOp(matvec, dim)
+
+    if v0 == nothing
+        # build random initial guess
+        #
+        v0 = rand(T,size(ci_vector)) .- .5 
+        v0[:,1] .= v0[:,1]./norm(v0[:,1])
+        for r in 2:R
+            #|vr> = |vr> - |v1><v1|vr> - |v2><v2|vr> - ... 
+            for r0 in 1:r-1 
+                v0[:,r] .-= v0[:,r0] .* (v0[:,r0]'*v0[:,r])
+            end
+            v0[:,r] .= v0[:,r]./norm(v0[:,r])
+        end
+        isapprox(det(v0'*v0), 1.0, atol=1e-14) || @warn "initial guess det(v0'v0) = ", det(v0'v0) 
+    end
+
+    #display(v0)
+    davidson = FermiCG.Davidson(Hmap, v0=v0, max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)
+    Adiag = diag(H) 
+    #FermiCG.solve(davidson)
+    @printf(" Now iterate: \n")
+    flush(stdout)
+    #@time FermiCG.iteration(davidson, Adiag=Adiag, iprint=2)
+    @time e,v = FermiCG.solve(davidson, Adiag=Adiag);
+    
+    return e, v 
+end
+#=}}}=#
+
 
 
 """

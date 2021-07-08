@@ -122,7 +122,6 @@ using Arpack
         @test isapprox(abs.(ref), abs.(e0), atol=1e-8)
     end
    
-    if true 
         nroots = 4
 
         ci_vector = FermiCG.ClusteredState(clusters, ref_fock, R=nroots)
@@ -158,6 +157,10 @@ using Arpack
 
         e0a, v0a = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=false, 
                                     thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=1e-2);
+        
+        e0b, v0b = FermiCG.tps_ci_direct(ci_vector, cluster_ops, clustered_ham);
+       
+        error("check")
         e2a, v1a = FermiCG.compute_pt2(v0a, cluster_ops, clustered_ham, thresh_foi=1e-8, matvec=3)
 
         ref = [-18.32916288
@@ -166,7 +169,6 @@ using Arpack
                -17.99499973]
 
         @test isapprox(abs.(ref), abs.(e0a+e2a), atol=1e-7)
-    end
 
         
     ci_vector = FermiCG.ClusteredState(clusters, ref_fock, R=nroots)
