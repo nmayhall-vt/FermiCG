@@ -122,53 +122,65 @@ using Arpack
         @test isapprox(abs.(ref), abs.(e0), atol=1e-8)
     end
    
-        nroots = 4
+    nroots = 4
 
-        ci_vector = FermiCG.ClusteredState(clusters, ref_fock, R=nroots)
+    ci_vector = FermiCG.ClusteredState(clusters, ref_fock, R=nroots)
 
-        #1 excitons 
-        ci_vector[ref_fock][ClusterConfig([2,1,1])] = [0,1,0,0]
-        ci_vector[ref_fock][ClusterConfig([1,2,1])] = [0,0,1,0]
-        ci_vector[ref_fock][ClusterConfig([1,1,2])] = [0,0,0,1]
+    #1 excitons 
+    ci_vector[ref_fock][ClusterConfig([2,1,1])] = [0,1,0,0]
+    ci_vector[ref_fock][ClusterConfig([1,2,1])] = [0,0,1,0]
+    ci_vector[ref_fock][ClusterConfig([1,1,2])] = [0,0,0,1]
 
-        e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=false,
-                                  thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=1e-2, conv_thresh=1e-4);
+    e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=false,
+                              thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=1e-2, conv_thresh=1e-4);
 
-        e2, v1 = FermiCG.compute_pt2(v0, cluster_ops, clustered_ham, thresh_foi=1e-8, matvec=3)
+    e2, v1 = FermiCG.compute_pt2(v0, cluster_ops, clustered_ham, thresh_foi=1e-8, matvec=3)
 
-        ref = [-18.32932467
-               -18.05349474
-               -18.02775313
-               -17.99514933
-              ]
-        @test isapprox(abs.(ref), abs.(e0+e2), atol=1e-7)
-
-
-        rotations = FermiCG.hosvd(v0, cluster_ops)
-        for ci in clusters
-            FermiCG.rotate!(cluster_ops[ci.idx], rotations[ci.idx])
-            FermiCG.rotate!(cluster_bases[ci.idx], rotations[ci.idx])
-            FermiCG.check_basis_orthogonality(cluster_bases[ci.idx])
-        end
-
-        #cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
-        #FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
+    ref = [-18.32932467
+           -18.05349474
+           -18.02775313
+           -17.99514933
+          ]
+    @test isapprox(abs.(ref), abs.(e0+e2), atol=1e-7)
 
 
-        e0a, v0a = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=false, 
-                                    thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=1e-2);
-        
-        e0b, v0b = FermiCG.tps_ci_direct(ci_vector, cluster_ops, clustered_ham);
-       
-        error("check")
-        e2a, v1a = FermiCG.compute_pt2(v0a, cluster_ops, clustered_ham, thresh_foi=1e-8, matvec=3)
+    rotations = FermiCG.hosvd(v0, cluster_ops)
+    for ci in clusters
+        FermiCG.rotate!(cluster_ops[ci.idx], rotations[ci.idx])
+        FermiCG.rotate!(cluster_bases[ci.idx], rotations[ci.idx])
+        FermiCG.check_basis_orthogonality(cluster_bases[ci.idx])
+    end
 
-        ref = [-18.32916288
-               -18.05357935
-               -18.02800015
-               -17.99499973]
+    #cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
+    #FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
 
-        @test isapprox(abs.(ref), abs.(e0a+e2a), atol=1e-7)
+
+    e0a, v0a = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=false, 
+                                thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=1e-2);
+
+    
+
+    H = FermiCG.build_full_H(v0a, cluster_ops, clustered_ham)
+    sig1 = H*FermiCG.get_vectors(v0a)
+    sig2 = FermiCG.tps_ci_matvec(v0a, cluster_ops, clustered_ham)
+
+    @test isapprox(norm(sig1-sig2), 0.0, atol=1e-14) 
+    
+    FermiCG.zero!(v0a)
+    e0b, v0b = FermiCG.tps_ci_direct(v0a, cluster_ops, clustered_ham);
+    e0c, v0c = FermiCG.tps_ci_davidson(v0a, cluster_ops, clustered_ham);
+
+    @test isapprox(abs.(e0a), abs.(e0b), atol=1e-12)
+    @test isapprox(abs.(e0a), abs.(e0c), atol=1e-12)
+    
+    e2a, v1a = FermiCG.compute_pt2(v0a, cluster_ops, clustered_ham, thresh_foi=1e-8, matvec=3)
+
+    ref = [-18.32916288
+           -18.05357935
+           -18.02800015
+           -17.99499973]
+
+    @test isapprox(abs.(ref), abs.(e0a+e2a), atol=1e-7)
 
         
     ci_vector = FermiCG.ClusteredState(clusters, ref_fock, R=nroots)

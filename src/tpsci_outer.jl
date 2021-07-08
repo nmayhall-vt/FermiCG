@@ -54,6 +54,97 @@ end
 
 
 """
+    build_full_H_parallel(ci_vector::ClusteredState, cluster_ops, clustered_ham::ClusteredOperator)
+
+Build full TPSCI Hamiltonian matrix in space spanned by `ci_vector`. This works in serial for the full matrix
+"""
+function build_full_H_parallel(ci_vector::ClusteredState, cluster_ops, clustered_ham::ClusteredOperator)
+#={{{=#
+    dim = length(ci_vector)
+    H = zeros(dim, dim)
+
+    jobs = []
+
+    zero_fock = TransferConfig([(0,0) for i in ci_vector.clusters])
+    bra_idx = 0
+    N = length(ci_vector.clusters)
+    
+
+    for (fock_bra, configs_bra) in ci_vector.data
+        for (config_bra, coeff_bra) in configs_bra
+            bra_idx += 1
+            #push!(jobs, (bra_idx, fock_bra, config_bra) )
+            #push!(jobs, (bra_idx, fock_bra, config_bra, H[bra_idx,:]) )
+            push!(jobs, (bra_idx, fock_bra, config_bra, zeros(dim)) )
+        end
+    end
+
+    function do_job(job)
+        fock_bra = job[2]
+        config_bra = job[3]
+        Hrow = job[4]
+        ket_idx = 0
+
+        for (fock_ket, configs_ket) in ci_vector.data
+            fock_trans = fock_bra - fock_ket
+
+            # check if transition is connected by H
+            if haskey(clustered_ham, fock_trans) == false
+                ket_idx += length(configs_ket)
+                continue
+            end
+
+            for (config_ket, coeff_ket) in configs_ket
+                ket_idx += 1
+                ket_idx <= job[1] || continue
+
+                for term in clustered_ham[fock_trans]
+                       
+                    #length(term.clusters) <= 2 || continue
+                    check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
+                    
+                    me = contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
+                    #if term isa ClusteredTerm4B
+                    #    @btime contract_matrix_element($term, $cluster_ops, $fock_bra, $config_bra, $fock_ket, $config_ket)
+                    #end
+                    Hrow[ket_idx] += me 
+                    #H[job[1],ket_idx] += me 
+                end
+
+            end
+
+        end
+    end
+
+    # because @threads divides evenly the loop, let's distribute thework more fairly
+    #mid = length(jobs) ÷ 2
+    #r = collect(1:length(jobs))
+    #perm = [r[1:mid] reverse(r[mid+1:end])]'[:]
+    #jobs = jobs[perm]
+    
+    #for job in jobs
+    Threads.@threads for job in jobs
+        do_job(job)
+        #@btime $do_job($job)
+    end
+
+    for job in jobs
+        H[job[1],:] .= job[4]
+    end
+
+    for i in 1:dim
+        @simd for j in i+1:dim
+            @inbounds H[i,j] = H[j,i]
+        end
+    end
+
+
+    return H
+end
+#=}}}=#
+
+
+"""
     tps_ci_direct(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
 
 # Solve for eigenvectors/values in the basis defined by `ci_vector`. Use direct diagonalization. 
@@ -125,28 +216,21 @@ function tps_ci_davidson(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustere
     dim = length(ci_vector)
     iters = 0
 
-    # tmp
-    H = build_full_H_parallel(vec_out, cluster_ops, clustered_ham)
     
     function matvec(v::AbstractMatrix)
         iters += 1
-
-
         #in = deepcopy(ci_vector) 
         in = ClusteredState(ci_vector, R=size(v,2))
         set_vector!(in, v)
         sig = deepcopy(in)
         zero!(sig)
         #build_sigma!(sig, ci_vector, cluster_ops, clustered_ham, cache=cache)
-        sigv = get_vectors(sig)
-        
-        sigv = H*get_vectors(in)
-
-        return sigv
+        return tps_ci_matvec(in, cluster_ops, clustered_ham)
     end
 
     Hmap = FermiCG.LinOp(matvec, dim)
 
+    Random.seed!(2)
     if v0 == nothing
         # build random initial guess
         #
@@ -161,17 +245,111 @@ function tps_ci_davidson(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustere
         end
         isapprox(det(v0'*v0), 1.0, atol=1e-14) || @warn "initial guess det(v0'v0) = ", det(v0'v0) 
     end
-
-    #display(v0)
-    davidson = FermiCG.Davidson(Hmap, v0=v0, max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)
-    Adiag = diag(H) 
+    #H = build_full_H_parallel(vec_out, cluster_ops, clustered_ham)
+    #sig1 = H*v0
+    #sig2 = Hmap*v0 
+    #del = sig1-sig2
+    #display(sig1-sig2)
+    #display(norm(sig1-sig2))
+    #error("check")
+    davidson = FermiCG.Davidson(Hmap, v0=get_vectors(ci_vector), 
+                                max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)
+    println(" Compute diagonal")
+    clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = "Hcmf") 
+    @time Hd = compute_diagonal(ci_vector, cluster_ops, clustered_ham_0)
+    println(" Compute <0|H0|0>")
+    @time E0 = compute_expectation_value(ci_vector, cluster_ops, clustered_ham_0)[1]
+    @time Eref = compute_expectation_value(ci_vector, cluster_ops, clustered_ham)[1]
+    Hd .+= Eref - E0
+    #display(Hd)
+    #Adiag = diag(H) 
     #FermiCG.solve(davidson)
     @printf(" Now iterate: \n")
     flush(stdout)
     #@time FermiCG.iteration(davidson, Adiag=Adiag, iprint=2)
-    @time e,v = FermiCG.solve(davidson, Adiag=Adiag);
+    #@time e,v = FermiCG.solve(davidson);
+    @time e,v = FermiCG.solve(davidson, Adiag=Hd);
+   
+    set_vector!(vec_out, v)
     
-    return e, v 
+    clustered_S2 = extract_S2(ci_vector.clusters)
+    @printf(" %-50s", "Compute S2 expectation values: ")
+    @time s2 = compute_expectation_value(vec_out, cluster_ops, clustered_S2)
+    flush(stdout)
+    @printf(" %5s %12s %12s\n", "Root", "Energy", "S2") 
+    for r in 1:R
+        @printf(" %5s %12.8f %12.8f\n",r, e[r], abs(s2[r]))
+    end
+
+    if verbose > 1
+        for r in 1:R
+            display(vec_out, root=r)
+        end
+    end
+
+    return e, vec_out 
+end
+#=}}}=#
+
+
+"""
+    tps_ci_matvec(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
+
+# Compute the action of `clustered_ham` on `ci_vector`. 
+"""
+function tps_ci_matvec(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
+#={{{=#
+
+    jobs = []
+
+    bra_idx = 0
+    for (fock_bra, configs_bra) in ci_vector.data
+        for (config_bra, coeff_bra) in configs_bra
+            bra_idx += 1
+            push!(jobs, (bra_idx, fock_bra, config_bra, coeff_bra, zeros(T,R)) )
+        end
+    end
+
+    function do_job(job)
+        fock_bra = job[2]
+        config_bra = job[3]
+        coeff_bra = job[4]
+        sig_out = job[5]
+
+        for (fock_ket, configs_ket) in ci_vector.data
+            fock_trans = fock_bra - fock_ket
+
+            # check if transition is connected by H
+            haskey(clustered_ham, fock_trans) || continue
+
+            for (config_ket, coeff_ket) in configs_ket
+                for term in clustered_ham[fock_trans]
+                    check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
+                    
+                    me = contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
+                    #if term isa ClusteredTerm4B
+                    #    @btime contract_matrix_element($term, $cluster_ops, $fock_bra, $config_bra, $fock_ket, $config_ket)
+                    #end
+                    sig_out .+= me .* ci_vector[fock_ket][config_ket] 
+                end
+
+            end
+
+        end
+    end
+
+    for job in jobs
+    #Threads.@threads for job in jobs
+        do_job(job)
+        #@btime $do_job($job)
+    end
+
+    sigv = zeros(size(ci_vector))
+    for job in jobs
+        sigv[job[1],:] .+= job[5]
+    end
+
+    return sigv
 end
 #=}}}=#
 
@@ -379,96 +557,6 @@ function print_tpsci_iter(ci_vector::ClusteredState{T,N,R}, it, e0, converged) w
 #        @printf("%13.8f ", e2[i])
 #    end
     println()
-end
-#=}}}=#
-
-"""
-    build_full_H_parallel(ci_vector::ClusteredState, cluster_ops, clustered_ham::ClusteredOperator)
-
-Build full TPSCI Hamiltonian matrix in space spanned by `ci_vector`. This works in serial for the full matrix
-"""
-function build_full_H_parallel(ci_vector::ClusteredState, cluster_ops, clustered_ham::ClusteredOperator)
-#={{{=#
-    dim = length(ci_vector)
-    H = zeros(dim, dim)
-
-    jobs = []
-
-    zero_fock = TransferConfig([(0,0) for i in ci_vector.clusters])
-    bra_idx = 0
-    N = length(ci_vector.clusters)
-    
-
-    for (fock_bra, configs_bra) in ci_vector.data
-        for (config_bra, coeff_bra) in configs_bra
-            bra_idx += 1
-            #push!(jobs, (bra_idx, fock_bra, config_bra) )
-            #push!(jobs, (bra_idx, fock_bra, config_bra, H[bra_idx,:]) )
-            push!(jobs, (bra_idx, fock_bra, config_bra, zeros(dim)) )
-        end
-    end
-
-    function do_job(job)
-        fock_bra = job[2]
-        config_bra = job[3]
-        Hrow = job[4]
-        ket_idx = 0
-
-        for (fock_ket, configs_ket) in ci_vector.data
-            fock_trans = fock_bra - fock_ket
-
-            # check if transition is connected by H
-            if haskey(clustered_ham, fock_trans) == false
-                ket_idx += length(configs_ket)
-                continue
-            end
-
-            for (config_ket, coeff_ket) in configs_ket
-                ket_idx += 1
-                ket_idx <= job[1] || continue
-
-                for term in clustered_ham[fock_trans]
-                       
-                    #length(term.clusters) <= 2 || continue
-                    check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
-                    
-                    me = contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
-                    #if term isa ClusteredTerm4B
-                    #    @btime contract_matrix_element($term, $cluster_ops, $fock_bra, $config_bra, $fock_ket, $config_ket)
-                    #end
-                    Hrow[ket_idx] += me 
-                    #H[job[1],ket_idx] += me 
-                end
-
-            end
-
-        end
-    end
-
-    # because @threads divides evenly the loop, let's distribute thework more fairly
-    #mid = length(jobs) ÷ 2
-    #r = collect(1:length(jobs))
-    #perm = [r[1:mid] reverse(r[mid+1:end])]'[:]
-    #jobs = jobs[perm]
-    
-    #for job in jobs
-    Threads.@threads for job in jobs
-        do_job(job)
-        #@btime $do_job($job)
-    end
-
-    for job in jobs
-        H[job[1],:] .= job[4]
-    end
-
-    for i in 1:dim
-        @simd for j in i+1:dim
-            @inbounds H[i,j] = H[j,i]
-        end
-    end
-
-
-    return H
 end
 #=}}}=#
 
