@@ -358,3 +358,24 @@ function add!(s1::ClusteredState, s2::ClusteredState)
     #=}}}=#
 end
 
+"""
+    function add_1excitonic_basis!(v::ClusteredState{T,N,R}, cb) where {T,N,R}
+
+For each `FockConfig` in `v`, add the single excitons to the current basis
+"""
+function add_1excitonic_basis!(v::ClusteredState{T,N,R}, cb) where {T,N,R}
+    for (fock, configs) in v.data
+        conf = MVector{N,Int16}([1 for i in 1:N])
+    
+        for ci in 1:N
+            for cix in 1:size(cb[ci][fock[ci]],2)
+                confi = deepcopy(conf)
+                confi[ci] = cix
+                v[fock][ClusterConfig(confi)] = zeros(T,R) 
+            end
+        end
+    end
+end
+
+
+

@@ -7,7 +7,7 @@ using PrettyTables
 #print(ENV)
 
 """
-	pyscf_do_scf(molecule::Molecule, conv_tol=1e-10)
+pyscf_do_scf(molecule::Molecule, conv_tol=1e-10)
 
 Use PySCF to compute Hartree-Fock for a given molecule and basis set
 and return a PYSCF mean field object
@@ -39,7 +39,7 @@ end
 
 
 """
-	make_pyscf_mole(molecule::Molecule)
+make_pyscf_mole(molecule::Molecule)
 
 Create a `pyscf.gto.Mole()` object
 """
@@ -60,7 +60,7 @@ function make_pyscf_mole(molecule::Molecule)
 end
 
 """
-	pyscf_write_molden(molecule::Molecule, C; filename="orbitals.molden")
+pyscf_write_molden(molecule::Molecule, C; filename="orbitals.molden")
 
 # Arguments
 - `molecule::Molecule`: Molecule object
@@ -80,7 +80,7 @@ end
 
 
 """
-	pyscf_write_molden(mf; filename="orbitals.molden")
+pyscf_write_molden(mf; filename="orbitals.molden")
 
 # Arguments
 - `mf`: PySCF mean field object
@@ -98,7 +98,7 @@ end
 
 
 """
-	pyscf_build_1e(mol::Molecule)
+pyscf_build_1e(mol::Molecule)
 
 build 1 electron integrals in AO basis 
 # Arguments
@@ -118,7 +118,7 @@ end
 
 
 """
-	pyscf_build_eri(mol::Molecule, c1::Matrix, c2::Matrix, c3::Matrix, c4::Matrix)
+pyscf_build_eri(mol::Molecule, c1::Matrix, c2::Matrix, c3::Matrix, c4::Matrix)
 
 build 2 electron integrals between different orbital spaces, (c1c2|c3c4) 
 # Arguments
@@ -152,7 +152,7 @@ end
 
 
 """
-	pyscf_get_jk(mol, density)
+pyscf_get_jk(mol, density)
 
 Build exchange matrix in AO basis
 
@@ -162,21 +162,21 @@ Build exchange matrix in AO basis
 
 """
 function pyscf_get_jk(mol::Molecule, density)
-	pyscf = pyimport("pyscf")
+    pyscf = pyimport("pyscf")
     pyscf.lib.num_threads(1)
 
     # 
     # get pyscf molecule type
     pymol = FermiCG.make_pyscf_mole(mol)
 
-	h0 = pyscf.gto.mole.energy_nuc(pymol)
-	h  = pyscf.scf.hf.get_hcore(pymol)
+    h0 = pyscf.gto.mole.energy_nuc(pymol)
+    h  = pyscf.scf.hf.get_hcore(pymol)
     j, k = pyscf.scf.hf.get_jk(pymol, density, hermi=1)
     return h, j, k
 end 
 
 """
-	pyscf_build_ints(mol, c_act, d1_embed)
+pyscf_build_ints(mol, c_act, d1_embed)
 
 build 1 and 2 electron integrals using a pyscf SCF object
 # Arguments
@@ -188,19 +188,19 @@ returns an `InCoreInts` type
 """
 function pyscf_build_ints(mol::Molecule, c_act, d1_embed)
 
-	pyscf = pyimport("pyscf")
+    pyscf = pyimport("pyscf")
     pyscf.lib.num_threads(1)
 
-	nact = size(c_act)[2]
-	#mycas = pyscf.mcscf.CASSCF(mf, length(active), 0)
+    nact = size(c_act)[2]
+    #mycas = pyscf.mcscf.CASSCF(mf, length(active), 0)
     # 
     # get pyscf molecule type
     pymol = FermiCG.make_pyscf_mole(mol)
 
-	h0 = pyscf.gto.mole.energy_nuc(pymol)
-	h  = pyscf.scf.hf.get_hcore(pymol)
+    h0 = pyscf.gto.mole.energy_nuc(pymol)
+    h  = pyscf.scf.hf.get_hcore(pymol)
     j, k = pyscf.scf.hf.get_jk(pymol, d1_embed, hermi=1)
-	
+
     # get core energy
     #h0 = tr(d1_embed * ( h + .5*j - .5*k))
     #mf = pyscf.scf.RHF(pymol)
@@ -209,29 +209,29 @@ function pyscf_build_ints(mol::Molecule, c_act, d1_embed)
 
     # now rotate to MO basis
     h = c_act' * h * c_act
-	j = c_act' * j * c_act;
-	k = c_act' * k * c_act;
-	h2 = pyscf.ao2mo.kernel(pymol, c_act, aosym="s4",compact=false)
-	h2 = reshape(h2, (nact, nact, nact, nact))
+    j = c_act' * j * c_act;
+    k = c_act' * k * c_act;
+    h2 = pyscf.ao2mo.kernel(pymol, c_act, aosym="s4",compact=false)
+    h2 = reshape(h2, (nact, nact, nact, nact))
 
-	# The use of d1_embed only really makes sense if it has zero electrons in the
-	# active space. Let's warn the user if that's not true
-	S = pymol.intor("int1e_ovlp_sph")
-	n_act = tr(S * d1_embed * S * c_act * c_act')
-	if isapprox(abs(n_act),0,atol=1e-8) == false
-		println(n_act)
-		display(d1_embed)
-		error(" I found embedded electrons in the active space?!")
-	end
+    # The use of d1_embed only really makes sense if it has zero electrons in the
+    # active space. Let's warn the user if that's not true
+    S = pymol.intor("int1e_ovlp_sph")
+    n_act = tr(S * d1_embed * S * c_act * c_act')
+    if isapprox(abs(n_act),0,atol=1e-8) == false
+        println(n_act)
+        display(d1_embed)
+        error(" I found embedded electrons in the active space?!")
+    end
 
-	#println(size(e2))
-	#println(h0)
+    #println(size(e2))
+    #println(h0)
 
-	h1 = h + j - .5*k;
-	#display(h + j - .5*k)
+    h1 = h + j - .5*k;
+    #display(h + j - .5*k)
 
-	h = InCoreInts(h0, h1, h2);
-	return h
+    h = InCoreInts(h0, h1, h2);
+    return h
 end
 
 #"""
@@ -261,7 +261,55 @@ end
 
 
 """
-	pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1, verbose=1)
+pyscf_fci_spin(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1, verbose=1)
+
+Use PySCF to compute Full CI
+"""
+function pyscf_fci_spin(ham, na, nb; max_cycle=40, conv_tol=1e-8, nroots=1, verbose=1)
+    # println(" Use PYSCF to compute FCI")
+    pyscf = pyimport("pyscf")
+    pyscf.lib.num_threads(1)
+    #nroots=1
+    fci = pyimport("pyscf.fci")
+    cisolver = pyscf.fci.direct_spin1.FCI()
+    cisolver.max_cycle = max_cycle
+    cisolver.conv_tol = conv_tol
+    nelec = na + nb
+    norb = size(ham.h1)[1]
+    efci, ci = cisolver.kernel(ham.h1, ham.h2, norb , (na,nb), ecore=0, nroots =nroots, verbose=verbose*100)
+    #display(efci)
+    #@printf(" Length of CI Vector: %i\n", length(ci[1]))
+    #println(size(ci[1]))
+    fci_dim = size(ci,1)*size(ci,2)
+    # d1 = cisolver.make_rdm1(ci, norb, nelec)
+
+    (d1a, d1b), (d2aa, d2ab, d2bb) = cisolver.make_rdm12s(ci, norb, (na,nb))
+    #@printf(" Energy2: %12.8f\n", FermiCG.compute_energy(ham.h0, ham.h1, ham.h2, d1a+d1b, d2))
+    # print(" PYSCF 1RDM: ")
+    F = eigen(d1a+d1b)
+    occs = F.values
+    sum_n = sum(occs)
+    # @printf(" Sum of diagonals = %12.8f\n", sum_n)
+    if verbose > 1
+        @printf(" Natural Orbital Occupations:\n")
+        [@printf(" %4i %12.8f\n",i,occs[i]) for i in 1:size(occs)[1] ]
+        @printf(" -----------------\n")
+        @printf(" %4s %12.8f\n\n","sum",sum_n)
+    end
+    if verbose>1
+        pretty_table(d1; formatters = ft_printf("%5.3f"), noheader=true)
+    end
+    if verbose>0
+        @printf(" FCI:        %12.8f %12.8f \n", efci+ham.h0, efci)
+    end
+
+    return efci, d1a, d1b, d2aa, d2ab, d2bb, ci
+end
+
+
+
+"""
+pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1, verbose=1)
 
 Use PySCF to compute Full CI
 """
