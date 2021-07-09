@@ -380,6 +380,20 @@ set all elements to random values, and orthogonalize
 function rand!(s::ClusteredState{T,N,R}) where {T,N,R}
     #={{{=#
     v0 = rand(T,size(s)) .- .5 
+    set_vector!(s,v0)
+    orthonormalize!(s)
+end
+#=}}}=#
+
+
+"""
+    function orthonormalize!(s::ClusteredState{T,N,R}) where {T,N,R}
+
+orthonormalize
+"""
+function orthonormalize!(s::ClusteredState{T,N,R}) where {T,N,R}
+    #={{{=#
+    v0 = get_vectors(s) 
     v0[:,1] .= v0[:,1]./norm(v0[:,1])
     for r in 2:R
         #|vr> = |vr> - |v1><v1|vr> - |v2><v2|vr> - ... 

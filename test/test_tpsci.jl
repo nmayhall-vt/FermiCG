@@ -173,7 +173,8 @@ using Arpack
 
     @test isapprox(abs.(e0a), abs.(e0b), atol=1e-10)
     @test isapprox(abs.(e0a), abs.(e0c), atol=1e-10)
-    
+   
+    println(" Now test pt2 correction")
     e2a, v1a = FermiCG.compute_pt2(v0a, cluster_ops, clustered_ham, thresh_foi=1e-8, matvec=3)
 
     ref = [-18.32916288
