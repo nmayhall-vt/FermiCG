@@ -164,14 +164,15 @@ using Arpack
     sig1 = H*FermiCG.get_vectors(v0a)
     sig2 = FermiCG.tps_ci_matvec(v0a, cluster_ops, clustered_ham)
 
-    @test isapprox(norm(sig1-sig2), 0.0, atol=1e-14) 
+    @test isapprox(norm(sig1-sig2), 0.0, atol=1e-12) 
     
-    FermiCG.zero!(v0a)
-    e0b, v0b = FermiCG.tps_ci_direct(v0a, cluster_ops, clustered_ham);
-    e0c, v0c = FermiCG.tps_ci_davidson(v0a, cluster_ops, clustered_ham);
+    guess = deepcopy(v0a)
+    FermiCG.rand!(guess)
+    e0b, v0b = FermiCG.tps_ci_direct(guess, cluster_ops, clustered_ham);
+    e0c, v0c = FermiCG.tps_ci_davidson(guess, cluster_ops, clustered_ham);
 
-    @test isapprox(abs.(e0a), abs.(e0b), atol=1e-12)
-    @test isapprox(abs.(e0a), abs.(e0c), atol=1e-12)
+    @test isapprox(abs.(e0a), abs.(e0b), atol=1e-10)
+    @test isapprox(abs.(e0a), abs.(e0c), atol=1e-10)
     
     e2a, v1a = FermiCG.compute_pt2(v0a, cluster_ops, clustered_ham, thresh_foi=1e-8, matvec=3)
 

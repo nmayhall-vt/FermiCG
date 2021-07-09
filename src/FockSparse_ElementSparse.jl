@@ -365,10 +365,34 @@ set all elements to zero
 function zero!(s::ClusteredState{T,N,R}) where {T,N,R}
     for (fock,configs) in s.data
         for (config,coeffs) in configs                
-            s.data[fock][config] = zeros(MVector{R,T})
+            s.data[fock][config] = zeros(size(MVector{R,T}))
+            #s.data[fock][config] = zeros(MVector{R,T})
         end
     end
 end
+
+
+"""
+    function rand!(s::ClusteredState{T,N,R}) where {T,N,R}
+
+set all elements to random values, and orthogonalize
+"""
+function rand!(s::ClusteredState{T,N,R}) where {T,N,R}
+    #={{{=#
+    v0 = rand(T,size(s)) .- .5 
+    v0[:,1] .= v0[:,1]./norm(v0[:,1])
+    for r in 2:R
+        #|vr> = |vr> - |v1><v1|vr> - |v2><v2|vr> - ... 
+        for r0 in 1:r-1 
+            v0[:,r] .-= v0[:,r0] .* (v0[:,r0]'*v0[:,r])
+        end
+        v0[:,r] .= v0[:,r]./norm(v0[:,r])
+    end
+    isapprox(det(v0'*v0), 1.0, atol=1e-14) || @warn "initial guess det(v0'v0) = ", det(v0'v0) 
+    set_vector!(s,v0)
+end
+#=}}}=#
+
 
 """
     clip!(s::ClusteredState; thresh=1e-5)
@@ -385,6 +409,7 @@ function clip!(s::ClusteredState; thresh=1e-5)
     prune_empty_fock_spaces!(s)
 end
 #=}}}=#
+
 
 """
     add!(s1::ClusteredState, s2::ClusteredState)
