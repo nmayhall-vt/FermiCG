@@ -122,7 +122,7 @@ function tuck_bound()
     return err1 && err2
 end
 
-@testset "tpsci" begin
+@testset "bounds" begin
     for i in 1:10
         @test tuck_bound()
         @test test1() 
