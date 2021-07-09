@@ -1,4 +1,5 @@
 using ThreadPools
+using ProgressMeter
 
 """
     compute_batched_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; 
@@ -13,7 +14,7 @@ function compute_batched_pt2(ci_vector_in::ClusteredState{T,N,R}, cluster_ops, c
         nbody=4, 
         H0="Hcmf",
         E0=nothing, #pass in <0|H0|0>, or compute it
-        thresh_foi=1e-8, 
+        thresh_foi=1e-9, 
         prescreen=false,
         verbose=0) where {T,N,R}
     #={{{=#
@@ -33,10 +34,12 @@ function compute_batched_pt2(ci_vector_in::ClusteredState{T,N,R}, cluster_ops, c
     clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = H0) 
     if E0 == nothing
         @printf(" %-50s", "Compute <0|H0|0>:")
-        @time E0 = compute_expectation_value(ci_vector, cluster_ops, clustered_ham_0)
+        @time E0 = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham_0)[1]
     end
     @printf(" %-50s", "Compute <0|H|0>:")
-    @time Evar = compute_expectation_value(ci_vector, cluster_ops, clustered_ham)
+    @time Evar = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham)[1]
+    flush(stdout)
+
 
     # 
     # define batches (FockConfigs present in resolvant)
@@ -111,15 +114,20 @@ function compute_batched_pt2(ci_vector_in::ClusteredState{T,N,R}, cluster_ops, c
     #BLAS.set_num_threads(1)
     flush(stdout)
 
-    @time for job in jobs_vec
+
+    #@time for job in jobs_vec
     #@qthreads for job in jobs_vec
-    #@time @Threads.threads for job in jobs_vec
+    print("|")
+    @Threads.threads for job in jobs_vec
         fock_bra = job[1]
         tid = Threads.threadid()
         e2_thread[tid] .+= _pt2_job(job[2], fock_bra, cluster_ops, nbody, thresh_foi,  
                  scr_f[tid], scr_i[tid], scr_m[tid],  prescreen, verbose, 
                  ci_vector, clustered_ham_0, E0)
+        print("-")
+        flush(stdout)
     end
+    println("|")
     flush(stdout)
     
     e2 = sum(e2_thread) 

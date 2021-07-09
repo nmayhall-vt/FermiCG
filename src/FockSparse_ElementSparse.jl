@@ -373,11 +373,11 @@ end
 
 
 """
-    function Random.rand!(s::ClusteredState{T,N,R}) where {T,N,R}
+    function rand!(s::ClusteredState{T,N,R}) where {T,N,R}
 
 set all elements to random values, and orthogonalize
 """
-function Random.rand!(s::ClusteredState{T,N,R}) where {T,N,R}
+function rand!(s::ClusteredState{T,N,R}) where {T,N,R}
     #={{{=#
     v0 = rand(T,size(s)) .- .5 
     set_vector!(s,v0)

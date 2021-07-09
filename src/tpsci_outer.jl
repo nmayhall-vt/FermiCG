@@ -153,7 +153,7 @@ function tps_ci_direct(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_
                       verbose   = 0) where {T,N,R}
     #={{{=#
     println()
-    @printf(" === Tensor Product State CI =======================================\n")
+    @printf(" |== Tensor Product State CI =======================================\n")
     vec_out = deepcopy(ci_vector)
     e0 = zeros(T,R)
     @printf(" Hamiltonian matrix dimension = %5i: \n", length(ci_vector))
@@ -185,7 +185,7 @@ function tps_ci_direct(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_
         end
     end
 
-    @printf(" ===================================================================\n")
+    @printf(" ==================================================================|\n")
     return e0, vec_out 
 end
 #=}}}=#
@@ -207,7 +207,7 @@ function tps_ci_davidson(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustere
                         verbose     = 0) where {T,N,R}
     #={{{=#
     println()
-    @printf(" === Tensor Product State CI =======================================\n")
+    @printf(" |== Tensor Product State CI =======================================\n")
     vec_out = deepcopy(ci_vector)
     e0 = zeros(T,R) 
    
@@ -264,7 +264,7 @@ function tps_ci_davidson(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustere
         end
     end
 
-    @printf(" ===================================================================\n")
+    @printf(" ==================================================================|\n")
     return e, vec_out 
 end
 #=}}}=#
@@ -359,6 +359,7 @@ end
             ci_max_iter  = 50,
             ci_max_ss_vecs = 12,
             davidson     = false,
+            max_mem_ci   = 3.0, 
             matvec       = 1) where {T,N,R}
 
 # Run TPSCI 
@@ -374,7 +375,8 @@ end
 - `ci_conv`     : convergence threshold for the inner CI step (only needed when davidson is used)
 - `ci_max_iter` : max iterations for inner CI step (only needed when davidson is used) 
 - `ci_max_ss_vecs`: max subspace size for inner CI step (only needed when davidson is used) 
-- `davidson`    : use davidson? changes to true after dimension 10k
+- `davidson`    : use davidson? changes to true after needing more than max_mem_ci
+- `max_mem_ci`  : maximum memory (Gb) allowed for storing full H. If more is needed, do Davidson. 
 """
 function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
     thresh_cipsi = 1e-2,
@@ -389,6 +391,7 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
     ci_max_iter  = 50,
     ci_max_ss_vecs = 12,
     davidson     = false,
+    max_mem_ci   = 3.0, 
     matvec       = 1) where {T,N,R}
 #={{{=#
     vec_var = deepcopy(ci_vector)
@@ -427,6 +430,7 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
             @printf(" Clip values < %8.1e         %6i → %6i\n", thresh_var, l1, l2)
             
             l1 = length(vec_var)
+            zero!(vec_pt)
             add!(vec_var, vec_pt)
             l2 = length(vec_var)
             @printf(" Add pt vector to current space %6i → %6i\n", l1, l2)
@@ -435,7 +439,9 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
         end
 
         e0 = nothing
-        if (length(vec_var) > 10000) || davidson == true
+        mem_needed = sizeof(zeros(T,size(vec_var)))*1e-9
+        @printf(" Memory needed to hold full CI matrix: %12.2e\n",mem_needed)
+        if (mem_needed > max_mem_ci) || davidson == true
             orthonormalize!(vec_var)
             e0, vec_var = tps_ci_davidson(vec_var, cluster_ops, clustered_ham,
                                    conv_thresh = ci_conv,
@@ -653,9 +659,7 @@ function compute_expectation_value(ci_vector::ClusteredState{T,N,R}, cluster_ops
             fock_trans = fock_bra - fock_ket
 
             # check if transition is connected by H
-            if haskey(clustered_ham, fock_trans) == false
-                continue
-            end
+            haskey(clustered_ham, fock_trans) || continue
 
             for (config_bra, coeff_bra) in configs_bra
                 for (config_ket, coeff_ket) in configs_ket
@@ -666,10 +670,15 @@ function compute_expectation_value(ci_vector::ClusteredState{T,N,R}, cluster_ops
                         length(term.clusters) <= nbody || continue
                         check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
 
-                        me += contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
+                        me += contract_matrix_element(term, cluster_ops, 
+                                                      fock_bra, config_bra, 
+                                                      fock_ket, config_ket)
                     end
 
-                    out += coeff_bra .* coeff_ket .* me
+                    #out .+= coeff_bra .* coeff_ket .* me
+                    for r in 1:R
+                        out[r] += coeff_bra[r] * coeff_ket[r] * me
+                    end
 
                 end
 
@@ -680,6 +689,85 @@ function compute_expectation_value(ci_vector::ClusteredState{T,N,R}, cluster_ops
     return out 
 end
 #=}}}=#
+
+"""
+    function compute_expectation_value_parallel(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
+"""
+function compute_expectation_value_parallel(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
+    #={{{=#
+
+    # 
+    # This will be were we collect our results
+    evals = zeros(T,R,R)
+
+    jobs = []
+
+    for (fock_bra, configs_bra) in ci_vector.data
+        for (config_bra, coeff_bra) in configs_bra
+            push!(jobs, (fock_bra, config_bra, coeff_bra, zeros(T,R,R)) )
+        end
+    end
+
+    function do_job(job)
+        fock_bra = job[1]
+        config_bra = job[2]
+        coeff_bra = job[3]
+        eval_job = job[4]
+        ket_idx = 0
+
+        for (fock_ket, configs_ket) in ci_vector.data
+            fock_trans = fock_bra - fock_ket
+
+            # check if transition is connected by H
+            if haskey(clustered_ham, fock_trans) == false
+                ket_idx += length(configs_ket)
+                continue
+            end
+
+            for (config_ket, coeff_ket) in configs_ket
+                #ket_idx += 1
+                #ket_idx <= job[1] || continue
+
+                me = 0.0
+                for term in clustered_ham[fock_trans]
+
+                    #length(term.clusters) <= 2 || continue
+                    check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
+
+                    me += contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
+                    #if term isa ClusteredTerm4B
+                    #    @btime contract_matrix_element($term, $cluster_ops, $fock_bra, $config_bra, $fock_ket, $config_ket)
+                    #end
+                    #Hrow[ket_idx] += me 
+                    #H[job[1],ket_idx] += me 
+                end
+                #
+                # now add the results
+                @inbounds for ri in 1:R
+                    @simd for rj in ri:R
+                        eval_job[ri,rj] += me * coeff_bra[ri] * coeff_ket[rj] 
+                        eval_job[rj,ri] = eval_job[ri,rj]
+                    end
+                end
+            end
+        end
+    end
+
+    #for job in jobs
+    Threads.@threads for job in jobs
+        do_job(job)
+        #@btime $do_job($job)
+    end
+
+    for job in jobs
+        evals .+= job[4]
+    end
+
+    return evals 
+end
+#=}}}=#
+
+
 
 
 """
