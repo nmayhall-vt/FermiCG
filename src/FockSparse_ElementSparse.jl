@@ -373,11 +373,11 @@ end
 
 
 """
-    function rand!(s::ClusteredState{T,N,R}) where {T,N,R}
+    function Random.rand!(s::ClusteredState{T,N,R}) where {T,N,R}
 
 set all elements to random values, and orthogonalize
 """
-function rand!(s::ClusteredState{T,N,R}) where {T,N,R}
+function Random.rand!(s::ClusteredState{T,N,R}) where {T,N,R}
     #={{{=#
     v0 = rand(T,size(s)) .- .5 
     set_vector!(s,v0)
@@ -438,11 +438,11 @@ function add!(s1::ClusteredState, s2::ClusteredState)
                 if haskey(s1[fock], config)
                     s1[fock][config] .+= s2[fock][config]
                 else
-                    s1[fock][config] = s2[fock][config]
+                    s1[fock][config] = deepcopy(s2[fock][config])
                 end
             end
         else
-            s1[fock] = s2[fock]
+            s1[fock] = deepcopy(s2[fock])
         end
     end
     #=}}}=#

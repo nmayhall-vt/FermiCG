@@ -1,5 +1,198 @@
 using ThreadPools
 
+"""
+    compute_batched_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; 
+        nbody=4, 
+        H0="Hcmf",
+        E0=nothing, #pass in <0|H0|0>, or compute it
+        thresh_foi=1e-8, 
+        prescreen=false,
+        verbose=1) where {T,N,R}
+"""
+function compute_batched_pt2(ci_vector_in::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; 
+        nbody=4, 
+        H0="Hcmf",
+        E0=nothing, #pass in <0|H0|0>, or compute it
+        thresh_foi=1e-8, 
+        prescreen=false,
+        verbose=0) where {T,N,R}
+    #={{{=#
+
+    println()
+    println(" |........................do batched PT2............................")
+
+    e2 = zeros(T,R)
+   
+    ci_vector = deepcopy(ci_vector_in)
+    clusters = ci_vector.clusters
+    norms = norm(ci_vector);
+    @printf(" Norms of input states:\n")
+    [@printf(" %12.8f\n",i) for i in norms]
+    orthonormalize!(ci_vector)
+    
+    clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = H0) 
+    if E0 == nothing
+        @printf(" %-50s", "Compute <0|H0|0>:")
+        @time E0 = compute_expectation_value(ci_vector, cluster_ops, clustered_ham_0)
+    end
+    @printf(" %-50s", "Compute <0|H|0>:")
+    @time Evar = compute_expectation_value(ci_vector, cluster_ops, clustered_ham)
+
+    # 
+    # define batches (FockConfigs present in resolvant)
+    jobs = Dict{FockConfig{N},Vector{Tuple}}()
+    for (fock_ket, configs_ket) in ci_vector.data
+        for (ftrans, terms) in clustered_ham
+            fock_x = ftrans + fock_ket
+
+            #
+            # check to make sure this fock config doesn't have negative or too many electrons in any cluster
+            all(f[1] >= 0 for f in fock_x) || continue 
+            all(f[2] >= 0 for f in fock_x) || continue 
+            all(f[1] <= length(clusters[fi]) for (fi,f) in enumerate(fock_x)) || continue 
+            all(f[2] <= length(clusters[fi]) for (fi,f) in enumerate(fock_x)) || continue 
+           
+            job_input = (terms, fock_ket, configs_ket)
+            if haskey(jobs, fock_x)
+                push!(jobs[fock_x], job_input)
+            else
+                jobs[fock_x] = [job_input]
+            end
+            
+        end
+    end
+
+    #
+    # prepare scratch arrays to help cut down on allocation in the threads
+    jobs_vec = []
+    for (fock_x, job) in jobs
+        push!(jobs_vec, (fock_x, job))
+    end
+
+    scr_f = Vector{Vector{Vector{Float64}} }()
+    scr_i = Vector{Vector{Vector{Int16}} }()
+    scr_m = Vector{Vector{MVector{N,Int16}} }()
+    nscr = 20 
+
+    scr1 = Vector{Vector{Float64}}()
+    scr2 = Vector{Vector{Float64}}()
+    scr3 = Vector{Vector{Float64}}()
+    scr4 = Vector{Vector{Float64}}()
+    tmp1 = Vector{MVector{N,Int16}}()
+    tmp2 = Vector{MVector{N,Int16}}()
+
+    e2_thread = Vector{Vector{Float64}}()
+    for tid in 1:Threads.nthreads()
+        push!(e2_thread, zeros(R))
+        push!(scr1, zeros(1000))
+        push!(scr2, zeros(1000))
+        push!(scr3, zeros(1000))
+        push!(scr4, zeros(1000))
+        push!(tmp1, zeros(Int16,N))
+        push!(tmp2, zeros(Int16,N))
+
+        tmp = Vector{Vector{Float64}}() 
+        [push!(tmp, zeros(Float64,10000)) for i in 1:nscr]
+        push!(scr_f, tmp)
+
+        tmp = Vector{Vector{Int16}}() 
+        [push!(tmp, zeros(Int16,10000)) for i in 1:nscr]
+        push!(scr_i, tmp)
+
+        tmp = Vector{MVector{N,Int16}}() 
+        [push!(tmp, zeros(Int16,N)) for i in 1:nscr]
+        push!(scr_m, tmp)
+    end
+
+
+
+    println(" Number of jobs:    ", length(jobs_vec))
+    println(" Number of threads: ", Threads.nthreads())
+    #BLAS.set_num_threads(1)
+    flush(stdout)
+
+    @time for job in jobs_vec
+    #@qthreads for job in jobs_vec
+    #@time @Threads.threads for job in jobs_vec
+        fock_bra = job[1]
+        tid = Threads.threadid()
+        e2_thread[tid] .+= _pt2_job(job[2], fock_bra, cluster_ops, nbody, thresh_foi,  
+                 scr_f[tid], scr_i[tid], scr_m[tid],  prescreen, verbose, 
+                 ci_vector, clustered_ham_0, E0)
+    end
+    flush(stdout)
+    
+    e2 = sum(e2_thread) 
+
+    #BLAS.set_num_threads(Threads.nthreads())
+
+    @printf(" %5s %12s %12s\n", "Root", "E(0)", "E(2)") 
+    for r in 1:R
+        @printf(" %5s %12.8f %12.8f\n",r, Evar[r], Evar[r] + e2[r])
+    end
+    println(" ..................................................................|")
+
+    return e2
+end
+#=}}}=#
+
+
+function _pt2_job(job, fock_x, cluster_ops, nbody, thresh, 
+                  scr_f, scr_i, scr_m, prescreen, verbose,
+                  ci_vector::ClusteredState{T,N,R}, clustered_ham_0, E0) where {T,N,R}
+    #={{{=#
+
+    sig = ClusteredState(ci_vector.clusters, T=T, R=R)
+    add_fockconfig!(sig, fock_x)
+
+    for jobi in job 
+
+        terms, fock_ket, configs_ket = jobi
+
+        for term in terms
+
+            length(term.clusters) <= nbody || continue
+
+            for (config_ket, coeff_ket) in configs_ket
+
+                #term isa ClusteredTerm2B || continue
+
+                contract_matvec_thread(term, cluster_ops, fock_x, fock_ket, config_ket, coeff_ket, 
+                                       sig[fock_x], 
+                                       scr_f, scr_i, scr_m, 
+                                       thresh=thresh, prescreen=prescreen)
+                #if term isa ClusteredTerm3B
+                    #@code_warntype contract_matvec_thread(term, cluster_ops, fock_x, fock_ket, config_ket, 
+                    #                                coeff_ket,  sig[fock_x],scr1, scr2, thresh=thresh)
+                    #@btime contract_matvec_thread($term, $cluster_ops, $fock_x, $fock_ket, $config_ket, 
+                    #                        $coeff_ket, $sig[$fock_x], $scr_f, $scr_i, $scr_m, thresh=$thresh)
+                #end
+            end
+        end
+    end
+    
+
+    project_out!(sig, ci_vector)
+    #verbose > 0 || println(" Fock(X): ", fock_x)
+    #verbose > 1 || println(" Length of FOIS vector: ", length(sig))
+    #verbose > 1 || println(" Compute diagonal")
+    Hd = compute_diagonal(sig, cluster_ops, clustered_ham_0)
+
+    
+
+    sig_v = get_vectors(sig)
+    v_pt  = zeros(size(sig_v,1))
+    
+    e2 = zeros(R)
+    for r in 1:R
+        v_pt .=  sig_v[:,r] ./ (E0[r] .- Hd)  
+        e2[r] = sum(sig_v[:,r] .* v_pt[:,r])
+        #verbose > 0 || @printf(" %5s %12.8f\n",r, e2[r])
+    end
+    
+    return e2 
+end
+#=}}}=#
 
 """
     open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
