@@ -711,6 +711,15 @@ function compute_expectation_value_parallel(ci_vector::ClusteredState{T,N,R}, cl
         end
     end
 
+    function _add_val!(eval_job, me, coeff_bra, coeff_ket)
+        for ri in 1:R
+            for rj in ri:R
+                @inbounds eval_job[ri,rj] += me * coeff_bra[ri] * coeff_ket[rj] 
+                #eval_job[rj,ri] = eval_job[ri,rj]
+            end
+        end
+    end
+
     function do_job(job)
         fock_bra = job[1]
         config_bra = job[2]
@@ -746,12 +755,15 @@ function compute_expectation_value_parallel(ci_vector::ClusteredState{T,N,R}, cl
                 end
                 #
                 # now add the results
-                @inbounds for ri in 1:R
-                    @simd for rj in ri:R
-                        eval_job[ri,rj] += me * coeff_bra[ri] * coeff_ket[rj] 
-                        eval_job[rj,ri] = eval_job[ri,rj]
-                    end
-                end
+                #@inbounds for ri in 1:R
+                #    @simd for rj in ri:R
+                _add_val!(eval_job, me, coeff_bra, coeff_ket)
+                #for ri in 1:R
+                #    for rj in ri:R
+                #        eval_job[ri,rj] += me * coeff_bra[ri] * coeff_ket[rj] 
+                #        #eval_job[rj,ri] = eval_job[ri,rj]
+                #    end
+                #end
             end
         end
     end
