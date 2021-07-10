@@ -439,8 +439,8 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
         end
 
         e0 = nothing
-        mem_needed = sizeof(zeros(T,size(vec_var)))*1e-9
-        @printf(" Memory needed to hold full CI matrix: %12.2e\n",mem_needed)
+        mem_needed = sizeof(zeros(T,length(vec_var),length(vec_var)))*1e-9
+        @printf(" Memory needed to hold full CI matrix: %12.1e (Gb)\n",mem_needed)
         if (mem_needed > max_mem_ci) || davidson == true
             orthonormalize!(vec_var)
             e0, vec_var = tps_ci_davidson(vec_var, cluster_ops, clustered_ham,
@@ -616,11 +616,13 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
     if E0 == nothing
         @printf(" %-50s", "Compute <0|H0|0>:")
         @time E0 = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham_0)
+        E0 = diag(E0)
         flush(stdout)
     end
 
     @printf(" %-50s", "Compute <0|H|0>:")
     @time Evar = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham)
+    Evar = diag(Evar)
     flush(stdout)
     
 
@@ -630,11 +632,11 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
     println()
     @printf(" %5s %12s %12s\n", "Root", "E(0)", "E(2)") 
     for r in 1:R
-        denom = 1.0 ./ (E0[r,r]/(norms[r]*norms[r]) .- Hd)  
+        denom = 1.0 ./ (E0[r]/(norms[r]*norms[r]) .- Hd)  
         v_pt[:,r] .= denom .* sig_v[:,r] 
         e2[r] = sum(sig_v[:,r] .* v_pt[:,r])
    
-        @printf(" %5s %12.8f %12.8f\n",r, Evar[r,r]/norms[r], Evar[r,r]/(norms[r]*norms[r]) + e2[r])
+        @printf(" %5s %12.8f %12.8f\n",r, Evar[r]/norms[r], Evar[r]/(norms[r]*norms[r]) + e2[r])
     end
 
     set_vector!(sig,v_pt)

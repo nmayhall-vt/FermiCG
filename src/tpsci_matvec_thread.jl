@@ -35,10 +35,12 @@ function compute_batched_pt2(ci_vector_in::ClusteredState{T,N,R}, cluster_ops, c
     if E0 == nothing
         @printf(" %-50s", "Compute <0|H0|0>:")
         @time E0 = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham_0)
+        E0 = diag(E0)
         flush(stdout)
     end
     @printf(" %-50s", "Compute <0|H|0>:")
     @time Evar = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham)
+    Evar = diag(Evar)
     flush(stdout)
 
 
@@ -137,7 +139,7 @@ function compute_batched_pt2(ci_vector_in::ClusteredState{T,N,R}, cluster_ops, c
 
     @printf(" %5s %12s %12s\n", "Root", "E(0)", "E(2)") 
     for r in 1:R
-        @printf(" %5s %12.8f %12.8f\n",r, Evar[r,r], Evar[r,r] + e2[r])
+        @printf(" %5s %12.8f %12.8f\n",r, Evar[r], Evar[r] + e2[r])
     end
     println(" ..................................................................|")
 
@@ -194,8 +196,8 @@ function _pt2_job(job, fock_x, cluster_ops, nbody, thresh,
     
     e2 = zeros(R)
     for r in 1:R
-        v_pt .=  sig_v[:,r] ./ (E0[r,r] .- Hd)  
-        e2[r] = sum(sig_v[:,r] .* v_pt[:,r])
+        v_pt .=  sig_v[:,r] ./ (E0[r] .- Hd)  
+        e2[r] = sum(sig_v[:,r] .* v_pt[:])
         #verbose > 0 || @printf(" %5s %12.8f\n",r, e2[r])
     end
     

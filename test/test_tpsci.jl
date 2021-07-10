@@ -175,14 +175,17 @@ using Arpack
     @test isapprox(abs.(e0a), abs.(e0c), atol=1e-10)
    
     println(" Now test pt2 correction")
-    e2a, v1a = FermiCG.compute_pt2(v0a, cluster_ops, clustered_ham, thresh_foi=1e-8, matvec=3)
 
     ref = [-18.32916288
            -18.05357935
            -18.02800015
            -17.99499973]
 
+    e2a, v1a = FermiCG.compute_pt2(v0a, cluster_ops, clustered_ham, thresh_foi=1e-8, matvec=3)
     @test isapprox(abs.(ref), abs.(e0a+e2a), atol=1e-7)
+    
+    e2b = FermiCG.compute_batched_pt2(v0a, cluster_ops, clustered_ham, thresh_foi=1e-8)
+    @test isapprox(abs.(ref), abs.(e0a+e2b), atol=1e-7)
 
         
     ci_vector = FermiCG.ClusteredState(clusters, ref_fock, R=nroots)
