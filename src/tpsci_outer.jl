@@ -582,14 +582,14 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
     #={{{=#
 
     println()
-    println(" .............................do PT2................................")
+    println(" |............................do PT2................................")
 
     e2 = zeros(T,R)
     
     norms = norm(ci_vector);
     println(" Norms of input states")
     [@printf(" %12.8f\n",i) for i in norms]
-    println(" Compute FOIS vector")
+    @printf(" %-50s", "Compute FOIS vector\n")
 
     if matvec == 1
         #@time sig = open_matvec(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
@@ -610,18 +610,18 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
     project_out!(sig, ci_vector)
     println(" Length of FOIS vector: ", length(sig))
     
-    println(" Compute diagonal")
+    @printf(" %-50s", "Compute diagonal")
     @time Hd = compute_diagonal(sig, cluster_ops, clustered_ham_0)
     
     if E0 == nothing
-        println(" Compute <0|H0|0>")
-        E0 = compute_expectation_value(ci_vector, cluster_ops, clustered_ham_0)
-        #[@printf(" %4i %12.8f\n", i, E0[i]) for i in 1:length(E0)]
+        @printf(" %-50s", "Compute <0|H0|0>:")
+        @time E0 = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham_0)
+        flush(stdout)
     end
 
-    println(" Compute <0|H|0>")
-    Evar = compute_expectation_value(ci_vector, cluster_ops, clustered_ham)
-    #[@printf(" %4i %12.8f\n", i, Evar[i]) for i in 1:length(Evar)]
+    @printf(" %-50s", "Compute <0|H|0>:")
+    @time Evar = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham)
+    flush(stdout)
     
 
     sig_v = get_vectors(sig)
@@ -630,14 +630,15 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
     println()
     @printf(" %5s %12s %12s\n", "Root", "E(0)", "E(2)") 
     for r in 1:R
-        denom = 1.0 ./ (E0[r]/(norms[r]*norms[r]) .- Hd)  
+        denom = 1.0 ./ (E0[r,r]/(norms[r]*norms[r]) .- Hd)  
         v_pt[:,r] .= denom .* sig_v[:,r] 
         e2[r] = sum(sig_v[:,r] .* v_pt[:,r])
    
-        @printf(" %5s %12.8f %12.8f\n",r, Evar[r]/norms[r], Evar[r]/(norms[r]*norms[r]) + e2[r])
+        @printf(" %5s %12.8f %12.8f\n",r, Evar[r,r]/norms[r], Evar[r,r]/(norms[r]*norms[r]) + e2[r])
     end
 
     set_vector!(sig,v_pt)
+    println(" ..................................................................|")
 
     return e2, sig 
 end
