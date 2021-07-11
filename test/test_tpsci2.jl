@@ -25,12 +25,16 @@ using Arpack
     push!(atoms,Atom(10,"H",[0, 4*a, 9*r]))
     push!(atoms,Atom(11,"H",[0, 5*a, 10*r]))
     push!(atoms,Atom(12,"H",[0, 5*a, 11*r]))
+    push!(atoms,Atom(13,"H",[0, 6*a, 12*r]))
+    push!(atoms,Atom(14,"H",[0, 6*a, 13*r]))
+    push!(atoms,Atom(15,"H",[0, 7*a, 14*r]))
+    push!(atoms,Atom(16,"H",[0, 7*a, 15*r]))
 
 
     clusters    = [(1:2),(3:4),(5:6),(7:8),(9:12)]
     init_fspace = [(1,1),(1,1),(1,1),(1,1),(2,2)]
-    clusters    = [(1:4),(5:8),(9:12)]
-    init_fspace = [(2,2),(2,2),(2,2)]
+    clusters    = [(1:4),(5:8),(9:12),(13:16)]
+    init_fspace = [(2,2),(2,2),(2,2),(2,2)]
     na = 6
     nb = 6
 

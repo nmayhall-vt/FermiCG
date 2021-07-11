@@ -1,3 +1,4 @@
+using StatProfilerHTML
 using ThreadPools
 using ProgressMeter
 
@@ -114,28 +115,32 @@ function compute_batched_pt2(ci_vector_in::ClusteredState{T,N,R}, cluster_ops, c
 
     println(" Number of jobs:    ", length(jobs_vec))
     println(" Number of threads: ", Threads.nthreads())
-    #BLAS.set_num_threads(1)
+    BLAS.set_num_threads(1)
     flush(stdout)
 
 
     #@time for job in jobs_vec
-    #@qthreads for job in jobs_vec
     print("|")
-    @Threads.threads for job in jobs_vec
-        fock_bra = job[1]
-        tid = Threads.threadid()
-        e2_thread[tid] .+= _pt2_job(job[2], fock_bra, cluster_ops, nbody, thresh_foi,  
-                 scr_f[tid], scr_i[tid], scr_m[tid],  prescreen, verbose, 
-                 ci_vector, clustered_ham_0, E0)
-        print("-")
-        flush(stdout)
+    #@profilehtml @Threads.threads for job in jobs_vec
+    t = @elapsed begin
+        #@qthreads for job in jobs_vec
+        @Threads.threads for job in jobs_vec
+            fock_bra = job[1]
+            tid = Threads.threadid()
+            e2_thread[tid] .+= _pt2_job(job[2], fock_bra, cluster_ops, nbody, thresh_foi,  
+                                        scr_f[tid], scr_i[tid], scr_m[tid],  prescreen, verbose, 
+                                        ci_vector, clustered_ham_0, E0)
+            #print("-")
+            #flush(stdout)
+        end
     end
     println("|")
     flush(stdout)
-    
+   
+    @printf(" Time spent computing E2 %12.1f (s)\n",t)
     e2 = sum(e2_thread) 
 
-    #BLAS.set_num_threads(Threads.nthreads())
+    BLAS.set_num_threads(Threads.nthreads())
 
     @printf(" %5s %12s %12s\n", "Root", "E(0)", "E(2)") 
     for r in 1:R
