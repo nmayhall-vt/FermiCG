@@ -192,27 +192,49 @@ function _pt2_job(job, fock_x, cluster_ops, nbody, thresh,
     #verbose > 1 || println(" Length of FOIS vector: ", length(sig))
     #verbose > 1 || println(" Compute diagonal")
     
-    #scr1 = scr_f[5]
-    #resize!(scr1, length(sig))
-    #scr1 = reshape2(scr1, (length(sig), 1))
-    
-    Hd = compute_diagonal(sig, cluster_ops, clustered_ham_0)
+    nx = length(sig)
 
+    Hd = scr_f[5]
+    resize!(Hd, nx)
+    Hd = reshape2(Hd, (nx, 1))
     
+    #Hd = compute_diagonal(sig, cluster_ops, clustered_ham_0)
+    fill!(Hd,0.0)
+    compute_diagonal!(Hd, sig, cluster_ops, clustered_ham_0)
+    
+    sig_v = scr_f[6]
+    resize!(sig_v, nx)
+    sig_v = reshape2(sig_v, size(sig))
+    fill!(sig_v,0.0)
+    
+    get_vectors!(sig_v, sig)
+    
+    #sig_v = get_vectors(sig)
 
-    sig_v = get_vectors(sig)
-    v_pt  = zeros(size(sig_v,1))
-    
+   
     e2 = zeros(R)
-    for r in 1:R
-        v_pt .=  sig_v[:,r] ./ (E0[r] .- Hd)  
-        e2[r] = sum(sig_v[:,r] .* v_pt[:])
-        #verbose > 0 || @printf(" %5s %12.8f\n",r, e2[r])
-    end
+
     
+    _sum_pt2(sig_v, e2, Hd, E0, R)
+
     return e2 
 end
 #=}}}=#
+
+function _sum_pt2(sig_v, e2, Hd, E0, R)
+    # put into a function to let compiler specialize
+    nx = length(Hd)
+    sig_vx = 0.0
+    Hdx = 0.0
+    @inbounds for x in 1:nx
+        Hdx = Hd[x]
+        @simd for r in 1:R
+            sig_vx = sig_v[x,r]
+            e2[r] += sig_vx*sig_vx / (E0[r] - Hdx) 
+            #verbose > 0 || @printf(" %5s %12.8f\n",r, e2[r])
+        end
+    end
+end
 
 """
     open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}

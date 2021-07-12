@@ -1151,6 +1151,7 @@ end
 Form the diagonal of the hamiltonan, `clustered_ham`, in the basis defined by `vector`
 """
 function compute_diagonal(vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
+    #={{{=#
     Hd = zeros(size(vector)[1])
     idx = 0
     zero_trans = TransferConfig([(0,0) for i in 1:N])
@@ -1172,6 +1173,38 @@ function compute_diagonal(vector::ClusteredState{T,N,R}, cluster_ops, clustered_
     end
     return Hd
 end
+#=}}}=#
+
+
+"""
+    compute_diagonal!(Hd, vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
+
+Form the diagonal of the hamiltonan, `clustered_ham`, in the basis defined by `vector`
+"""
+function compute_diagonal!(Hd, vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
+    #={{{=#
+    idx = 0
+    zero_trans = TransferConfig([(0,0) for i in 1:N])
+    for (fock_bra, configs_bra) in vector.data
+        for (config_bra, coeff_bra) in configs_bra
+            idx += 1
+            for term in clustered_ham[zero_trans]
+		    try
+			    Hd[idx] += contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_bra, config_bra)
+		    catch
+			    display(term)
+			    display(fock_bra)
+			    display(config_bra)
+			    error()
+		    end
+
+            end
+        end
+    end
+    return
+end
+#=}}}=#
+
 
 """
     expand_each_fock_space!(s::ClusteredState{T,N,R}, bases::Vector{ClusterBasis}) where {T,N,R}

@@ -140,6 +140,20 @@ function get_vectors(s::ClusteredState{T,N,R}) where {T,N,R}
 end
 
 """
+    get_vectors!(v, s::ClusteredState)
+"""
+function get_vectors!(v, s::ClusteredState{T,N,R}) where {T,N,R}
+    idx = 1
+    for (fock, configs) in s.data
+        for (config, coeff) in configs
+            v[idx,:] .= coeff[:]
+            idx += 1
+        end
+    end
+    return
+end
+
+"""
     function set_vector!(ts::ClusteredState{T,N,R}, v::Matrix{T}) where {T,N,R}
 
 Fill the coefficients of `ts` with the values in `v`
