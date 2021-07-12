@@ -186,12 +186,16 @@ function _pt2_job(job, fock_x, cluster_ops, nbody, thresh,
             end
         end
     end
-    
 
     project_out!(sig, ci_vector)
     #verbose > 0 || println(" Fock(X): ", fock_x)
     #verbose > 1 || println(" Length of FOIS vector: ", length(sig))
     #verbose > 1 || println(" Compute diagonal")
+    
+    #scr1 = scr_f[5]
+    #resize!(scr1, length(sig))
+    #scr1 = reshape2(scr1, (length(sig), 1))
+    
     Hd = compute_diagonal(sig, cluster_ops, clustered_ham_0)
 
     
