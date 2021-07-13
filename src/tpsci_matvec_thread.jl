@@ -225,7 +225,7 @@ function _pt2_job(job, fock_x, cluster_ops, nbody, thresh,
     #@btime compute_diagonal!($Hd, $sig, $cluster_ops, $clustered_ham_0)
     
     sig_v = scr_f[10]
-    resize!(sig_v, nx)
+    resize!(sig_v, nx*R)
     sig_v = reshape2(sig_v, size(sig))
     fill!(sig_v,0.0)
     
