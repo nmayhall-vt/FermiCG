@@ -115,7 +115,7 @@ function compute_batched_pt2(ci_vector_in::ClusteredState{T,N,R}, cluster_ops, c
 
     println(" Number of jobs:    ", length(jobs_vec))
     println(" Number of threads: ", Threads.nthreads())
-    #BLAS.set_num_threads(1)
+    BLAS.set_num_threads(1)
     flush(stdout)
 
 
