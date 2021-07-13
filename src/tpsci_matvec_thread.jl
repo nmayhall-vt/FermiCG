@@ -205,6 +205,9 @@ function _pt2_job(job, fock_x, cluster_ops, nbody, thresh,
         end
     end
 
+    #@btime project_out!($sig, $ci_vector)
+    #@time project_out!(sig, ci_vector)
+    
     project_out!(sig, ci_vector)
     #verbose > 0 || println(" Fock(X): ", fock_x)
     #verbose > 1 || println(" Length of FOIS vector: ", length(sig))
@@ -219,6 +222,7 @@ function _pt2_job(job, fock_x, cluster_ops, nbody, thresh,
     #Hd = compute_diagonal(sig, cluster_ops, clustered_ham_0)
     fill!(Hd,0.0)
     compute_diagonal!(Hd, sig, cluster_ops, clustered_ham_0)
+    #@btime compute_diagonal!($Hd, $sig, $cluster_ops, $clustered_ham_0)
     
     sig_v = scr_f[10]
     resize!(sig_v, nx)
@@ -230,7 +234,7 @@ function _pt2_job(job, fock_x, cluster_ops, nbody, thresh,
     #sig_v = get_vectors(sig)
 
    
-    e2 = zeros(R)
+    e2 = zeros(T,R)
 
     
     _sum_pt2(sig_v, e2, Hd, E0, R)
