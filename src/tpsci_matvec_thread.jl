@@ -115,16 +115,16 @@ function compute_batched_pt2(ci_vector_in::ClusteredState{T,N,R}, cluster_ops, c
 
     println(" Number of jobs:    ", length(jobs_vec))
     println(" Number of threads: ", Threads.nthreads())
-    BLAS.set_num_threads(1)
+    #BLAS.set_num_threads(1)
     flush(stdout)
 
 
-    #@time for job in jobs_vec
     print("|")
     #@profilehtml @Threads.threads for job in jobs_vec
     t = @elapsed begin
         #@qthreads for job in jobs_vec
         @Threads.threads for job in jobs_vec
+        #@time for job in jobs_vec
             fock_bra = job[1]
             tid = Threads.threadid()
             e2_thread[tid] .+= _pt2_job(job[2], fock_bra, cluster_ops, nbody, thresh_foi,  
@@ -140,7 +140,7 @@ function compute_batched_pt2(ci_vector_in::ClusteredState{T,N,R}, cluster_ops, c
     @printf(" Time spent computing E2 %12.1f (s)\n",t)
     e2 = sum(e2_thread) 
 
-    BLAS.set_num_threads(Threads.nthreads())
+    #BLAS.set_num_threads(Threads.nthreads())
 
     @printf(" %5s %12s %12s\n", "Root", "E(0)", "E(2)") 
     for r in 1:R
@@ -172,6 +172,24 @@ function _pt2_job(job, fock_x, cluster_ops, nbody, thresh,
             for (config_ket, coeff_ket) in configs_ket
 
                 #term isa ClusteredTerm2B || continue
+                #if (length(sig[fock_x]) > 0) && (term isa ClusteredTerm4B)
+                if (term isa ClusteredTerm4B)
+                    #println("1: ", length(sig[fock_x]))
+                    #@btime contract_matvec_thread($term, $cluster_ops, $fock_x, $fock_ket, $config_ket, $coeff_ket, 
+                    #                       $sig[$fock_x], 
+                    #                       $scr_f, $scr_i, $scr_m, 
+                    #                       thresh=$thresh, prescreen=$prescreen)
+                    #contract_matvec_thread(term, cluster_ops, fock_x, fock_ket, config_ket, coeff_ket, 
+                    #                   sig[fock_x], 
+                    #                   scr_f, scr_i, scr_m, 
+                    #                   thresh=thresh, prescreen=prescreen)
+                    #println("2: ", length(sig[fock_x]))
+                    #@profilehtml contract_matvec_thread(term, cluster_ops, fock_x, fock_ket, config_ket, coeff_ket, 
+                    #                   sig[fock_x], 
+                    #                   scr_f, scr_i, scr_m, 
+                    #                   thresh=thresh, prescreen=prescreen)
+                    #error("we good?")
+                end
 
                 contract_matvec_thread(term, cluster_ops, fock_x, fock_ket, config_ket, coeff_ket, 
                                        sig[fock_x], 
@@ -194,7 +212,7 @@ function _pt2_job(job, fock_x, cluster_ops, nbody, thresh,
     
     nx = length(sig)
 
-    Hd = scr_f[5]
+    Hd = scr_f[9]
     resize!(Hd, nx)
     Hd = reshape2(Hd, (nx, 1))
     
@@ -202,7 +220,7 @@ function _pt2_job(job, fock_x, cluster_ops, nbody, thresh,
     fill!(Hd,0.0)
     compute_diagonal!(Hd, sig, cluster_ops, clustered_ham_0)
     
-    sig_v = scr_f[6]
+    sig_v = scr_f[10]
     resize!(sig_v, nx)
     sig_v = reshape2(sig_v, size(sig))
     fill!(sig_v,0.0)
@@ -669,6 +687,10 @@ function contract_matvec_thread(   term::ClusteredTerm3B,
     tmp1 = scr_m[1]
     tmp2 = scr_m[2]
     
+    newI = UnitRange{Int16}(1,size(g1,2))
+    newJ = UnitRange{Int16}(1,size(g2,2))
+    newK = UnitRange{Int16}(1,size(g3,2))
+    
     if prescreen
         up_bound = upper_bound_thread(term.ints, gamma1, gamma2, gamma3,
                               scr1, scr2, scr3,
@@ -676,13 +698,37 @@ function contract_matvec_thread(   term::ClusteredTerm3B,
         if up_bound < thresh
             return 
         end
-    #    #newI, newJ, newK = upper_bound2(term.ints, gamma1, gamma2, gamma3, thresh, c=maximum(abs.(coef_ket)))
-    #    #minimum(length.([newI,newJ,newK])) > 0 || return out
+        #@btime newI, newJ, newK = upper_bound2($term.ints, $gamma1, $gamma2, $gamma3, $thresh, c=maximum(abs.($coef_ket)))
+        newI, newJ, newK = upper_bound2_thread(term.ints, gamma1, gamma2, gamma3, 
+                                                     scr_f, scr_i, thresh, c=maximum(abs, coef_ket))
+        minimum(length.([newI,newJ,newK])) > 0 || return 
+        
+
+        if true
+            gamma1 = scr_f[4]
+            gamma2 = scr_f[5]
+            gamma3 = scr_f[6]
+
+            resize!(gamma1, size(g1,1)*length(newI))
+            resize!(gamma2, size(g2,1)*length(newJ))
+            resize!(gamma3, size(g3,1)*length(newK))
+
+            gamma1 = reshape2(gamma1, (size(g1,1), length(newI)))
+            gamma2 = reshape2(gamma2, (size(g2,1), length(newJ)))
+            gamma3 = reshape2(gamma3, (size(g3,1), length(newK)))
+
+            _fill1!(gamma1, newI, g1, conf_ket[c1.idx])
+            _fill1!(gamma2, newJ, g2, conf_ket[c2.idx])
+            
+            #gamma1 .= g1[:,newI,conf_ket[c1.idx]]
+            #gamma2 .= g2[:,newJ,conf_ket[c2.idx]]
+            #gamma3 .= g3[:,newK,conf_ket[c3.idx]]
+        else
+            @views gamma1 = g1[:,newI,conf_ket[c1.idx]]
+            @views gamma2 = g2[:,newJ,conf_ket[c2.idx]]
+            @views gamma3 = g3[:,newK,conf_ket[c3.idx]]
+        end
     end
-    
-    newI = UnitRange{Int16}(1,size(g1,2))
-    newJ = UnitRange{Int16}(1,size(g2,2))
-    newK = UnitRange{Int16}(1,size(g3,2))
 
     # 
     # for K in G3
@@ -726,13 +772,19 @@ function contract_matvec_thread(   term::ClusteredTerm3B,
    
         mul!(scr1, v, gamma3)
         mul!(scr2, reshape2(scr1, (np,nq)), gamma2)
-        mul!(scr3, gamma1', scr2) 
 
             
         if prescreen
+            #println("3b")
             #@btime upper_bound_thread($gamma1, $scr2, c=maximum(abs.($coef_ket))) 
-            #upper_bound_thread(gamma1, scr2, c=maximum(abs.(coef_ket))) > thresh || continue
+            #println(size(gamma1))
+            #println(size(scr2))
+            #println(typeof(gamma1))
+            #println(typeof(scr2))
+            upper_bound_thread(gamma1, scr2, c=maximum(abs.(coef_ket))) > thresh || continue
         end
+        
+        mul!(scr3, gamma1', scr2) 
         
         #@btime _collect_significant_thread!($sig, $tmp_conf, $scr3, $coef_ket, $c1.idx, $c2.idx, $newI, $newJ, $thresh, $tmp2, $state_sign)
         _collect_significant_thread!(sig, tmp_conf, scr3, coef_ket, c1.idx, c2.idx, newI, newJ, thresh, tmp2, state_sign)
@@ -820,20 +872,58 @@ function contract_matvec_thread(   term::ClusteredTerm4B,
         if up_bound < thresh
             return 
         end
+        #println("a")
         #
         # screen phase 2: ignore indices for each cluster which will produce discarded terms
 
-        newI, newJ, newK, newL = upper_bound2_thread(term.ints, gamma1, gamma2, gamma3, gamma4, 
-                                                     scr_f, scr_i, thresh, c=maximum(abs, coef_ket))
         #@btime newI, newJ, newK, newL = upper_bound2_thread($term.ints, $gamma1, $gamma2, $gamma3, $gamma4, 
         #                                             $scr_f, $scr_i, $thresh, c=maximum(abs, $coef_ket))
 
-        minimum(length, [newI,newJ,newK,newL]) > 0 || return
+        newI, newJ, newK, newL = upper_bound2_thread(term.ints, gamma1, gamma2, gamma3, gamma4, 
+                                                     scr_f, scr_i, thresh, c=maximum(abs, coef_ket))
+        length(newI) > 0 || return
+        length(newJ) > 0 || return
+        length(newK) > 0 || return
+        length(newL) > 0 || return
+        #println("b")
 
-        @views gamma1 = g1[:,newI,conf_ket[c1.idx]]
-        @views gamma2 = g2[:,newJ,conf_ket[c2.idx]]
-        @views gamma3 = g3[:,newK,conf_ket[c3.idx]]
-        @views gamma4 = g4[:,newL,conf_ket[c4.idx]]
+
+        #
+        # While we could simply use a view, this creates a non-contiguous array and BLAS then does allocations
+        
+        if true 
+            gamma1 = scr_f[5]
+            gamma2 = scr_f[6]
+            gamma3 = scr_f[7]
+            gamma4 = scr_f[8]
+
+            resize!(gamma1, size(g1,1)*length(newI))
+            resize!(gamma2, size(g2,1)*length(newJ))
+            resize!(gamma3, size(g3,1)*length(newK))
+            resize!(gamma4, size(g4,1)*length(newL))
+
+            gamma1 = reshape2(gamma1, (size(g1,1), length(newI)))
+            gamma2 = reshape2(gamma2, (size(g2,1), length(newJ)))
+            gamma3 = reshape2(gamma3, (size(g3,1), length(newK)))
+            gamma4 = reshape2(gamma4, (size(g4,1), length(newL)))
+
+
+
+            _fill1!(gamma1, newI, g1, conf_ket[c1.idx])
+            _fill1!(gamma2, newJ, g2, conf_ket[c2.idx])
+            #_fill1!(gamma3, newK, g3, conf_ket[c3.idx])
+            #_fill1!(gamma4, newL, g4, conf_ket[c4.idx])
+
+            #gamma1 .= g1[:,newI,conf_ket[c1.idx]]
+            #gamma2 .= g2[:,newJ,conf_ket[c2.idx]]
+            #gamma3 .= g3[:,newK,conf_ket[c3.idx]]
+            #gamma4 .= g4[:,newL,conf_ket[c4.idx]]
+        else
+            @views gamma1 = g1[:,newI,conf_ket[c1.idx]]
+            @views gamma2 = g2[:,newJ,conf_ket[c2.idx]]
+            @views gamma3 = g3[:,newK,conf_ket[c3.idx]]
+            @views gamma4 = g4[:,newL,conf_ket[c4.idx]]
+        end
     end
 
     #
@@ -860,35 +950,69 @@ function contract_matvec_thread(   term::ClusteredTerm4B,
     
     scr3 = reshape2(scr3, (np,nJ))
     scr4 = reshape2(scr4, (nI,nJ))
-  
     
     v = reshape2(term.ints, (np*nq*nr,ns))
+    #@btime v = reshape2($term.ints, ($np*$nq*$nr,$ns))
 
 
 
     tmp1 .= conf_ket.config
 
+    a = 0.0
+    #@btime begin 
+    #    for L::Int16 in $newL 
+    #        $a += 1.0
+    #    end
+    #end
+
     for L::Int16 in newL 
             
         @views gamma4 = g4[:,L,conf_ket[c4.idx]]
+        #@btime @views gamma4 = $g4[:,$L,$conf_ket[$c4.idx]]
+        
         tmp1[c4.idx] = L
+        #@btime $tmp1[$c4.idx] = $L
             
         mul!(scr1, v, gamma4)
+        #@btime mul!($scr1, $v, $gamma4)
 
         for K::Int16 in newK 
 
             @views gamma3 = g3[:,K,conf_ket[c3.idx]]
+            #@btime @views $gamma3 = $g3[:,$K,$conf_ket[$c3.idx]]
 
             tmp1[c3.idx] = K
+            #@btime $tmp1[$c3.idx] = $K
+            
             tmp_conf = ClusterConfig(SVector(tmp1))
+            #@btime $tmp_conf = ClusterConfig(SVector($tmp1))
 
+            
             mul!(scr2, reshape2(scr1, (np*nq,nr)), gamma3)
+            #@btime mul!($scr2, reshape2($scr1, ($np*$nq,$nr)), $gamma3)
+           
+            #@views gamma2 = g2[:,:,conf_ket[c2.idx]]
+
+            # 
+            # this is allocating :( 
             mul!(scr3, reshape2(scr2, (np,nq)), gamma2)
-            mul!(scr4, gamma1', scr3)
+            #@btime mul!($scr3, reshape2($scr2, ($np,$nq)), $gamma2)
+            #display(typeof(gamma3))
+            #display(typeof(gamma2))
+            #println()
             if prescreen
-                #@btime upper_bound_thread($gamma1, $scr2, c=maximum(abs.($coef_ket))) 
+                #println("4b")
+                #@btime upper_bound_thread($gamma1, $scr3, c=maximum(abs.($coef_ket))) 
+                #println(size(gamma1))
+                #println(size(scr3))
+                #println(typeof(gamma1))
+                #println(typeof(scr3))
                 upper_bound_thread(gamma1, scr3, c=maximum(abs.(coef_ket))) > thresh || continue
             end
+            #println("c")
+            
+            mul!(scr4, gamma1', scr3)
+            #@btime mul!($scr4, $gamma1', $scr3)
 
             _collect_significant_thread!(sig, tmp_conf, scr4, coef_ket, c1.idx, c2.idx, newI, newJ, thresh, tmp2, state_sign)
         end
@@ -898,6 +1022,13 @@ function contract_matvec_thread(   term::ClusteredTerm4B,
 end
 #=}}}=#
 
+function _fill1!(gamma, idx, g, k)
+    @inbounds for i in 1:size(g,1)
+        for (II,I) in enumerate(idx) 
+            gamma[i,II] = g[i,I,k]
+        end
+    end
+end
 
 function _collect_significant_thread!(out, conf_ket, new_coeffs, coeff, c1idx, newI, thresh, tmp1) 
     #={{{=#
@@ -1092,6 +1223,118 @@ function upper_bound_thread(v::Array{Float64,4}, g1, g2, g3, g4, scr1, scr2, scr
             end
         end
     return bound
+end
+#=}}}=#
+
+
+"""
+    upper_bound2_thread(v::Array{Float64,4}, g1, g2, g3, 
+        scr_f::Vector{Vector{Float64}}, scr_i::Vector{Vector{Int16}}, thresh; 
+        c::Float64=1.0)
+
+    max(H_IJ(K)|_K <= sum_s (sum_pqr vpqrs max(g1[p,:]) * max(g2[q,:]) * |c| ) * |g3(r,K)|
+"""
+function upper_bound2_thread(v::Array{Float64,3}, g1, g2, g3, 
+        scr_f::Vector{Vector{Float64}}, scr_i::Vector{Vector{Int16}}, thresh; 
+        c::Float64=1.0)
+    #={{{=#
+        
+    
+        newI = scr_i[1]
+        newJ = scr_i[2]
+        newK = scr_i[3]
+        resize!(newI,0)
+        resize!(newJ,0)
+        resize!(newK,0)
+      
+        n1 = size(v,1)
+        n2 = size(v,2)
+        n3 = size(v,3)
+
+        n1 == size(g1,1) || throw(DimensionMismatch)
+        n2 == size(g2,1) || throw(DimensionMismatch)
+        n3 == size(g3,1) || throw(DimensionMismatch)
+       
+        pmax = scr_f[5]
+        qmax = scr_f[6]
+        rmax = scr_f[7]
+        
+        resize!(pmax,n1)
+        resize!(qmax,n2)
+        resize!(rmax,n3)
+
+
+        fill!(pmax, 0.0)
+        fill!(qmax, 0.0)
+        fill!(rmax, 0.0)
+
+        for p in 1:n1
+            @views pmax[p] = maximum(abs, g1[p,:])
+        end
+        for p in 1:n2
+            @views qmax[p] = maximum(abs, g2[p,:])
+        end
+        for p in 1:n3
+            @views rmax[p] = maximum(abs, g3[p,:])
+        end
+        
+        tmp = 0.0
+
+        mI = scr_f[9]
+        resize!(mI,size(g1,2))
+        fill!(mI, 0.0)
+        @inbounds for r in 1:n3
+            for q in 1:n2
+                tmp = qmax[q] * rmax[r] * abs(c) 
+                for p in 1:n1
+                    @views @. mI += abs(v[p,q,r]) * abs.(g1[p,:]) * tmp  
+                end
+            end
+        end
+
+        mJ = scr_f[10]
+        resize!(mJ,size(g2,2))
+        fill!(mJ, 0.0)
+        @inbounds for r in 1:n3
+            for p in 1:n1
+                tmp = pmax[p] * rmax[r] * abs(c)
+                for q in 1:n2
+                    @views @. mJ += abs(v[p,q,r]) * abs.(g2[q,:])  * tmp
+                end
+            end
+        end
+
+        mK = scr_f[11]
+        resize!(mK,size(g3,2))
+        fill!(mK, 0.0)
+        @inbounds for q in 1:n2
+            for p in 1:n1
+                tmp = pmax[p] * qmax[q] * abs(c)
+                for r in 1:n3
+                    @views @. mK += abs(v[p,q,r]) * abs.(g3[r,:]) * tmp 
+                end
+            end
+        end
+
+        for I in 1:size(g1,2)
+            if abs(mI[I]) > thresh
+                push!(newI,I)
+            end
+        end
+
+        for J in 1:size(g2,2)
+            if abs(mJ[J]) > thresh
+                push!(newJ,J)
+            end
+        end
+
+        for K in 1:size(g3,2)
+            if abs(mK[K]) > thresh
+                push!(newK,K)
+            end
+        end
+
+    return newI, newJ, newK
 end
 #=}}}=#
 

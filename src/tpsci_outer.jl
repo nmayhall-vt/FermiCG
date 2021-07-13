@@ -769,7 +769,8 @@ function compute_expectation_value_parallel(ci_vector::ClusteredState{T,N,R}, cl
     end
 
     #for job in jobs
-    Threads.@threads for job in jobs
+    #Threads.@threads for job in jobs
+    @qthreads for job in jobs
         do_job(job)
         #@btime $do_job($job)
     end
