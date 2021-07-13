@@ -917,7 +917,7 @@ function open_matvec_thread(ci_vector::ClusteredState{T,N,R}, cluster_ops, clust
         add!(sig, jobs_out[threadid])
     end
 
-    BLAS.set_num_threads(Threads.nthreads())
+    #BLAS.set_num_threads(Threads.nthreads())
     return sig
 end
 #=}}}=#
