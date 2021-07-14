@@ -106,9 +106,9 @@ using OrderedCollections
     
 
     H = FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
-    display(size(H))
-    display(H)
-    println()
+    #display(size(H))
+    #display(H)
+    #println()
 
     display(ci_vector,root=1)
     e,v = Arpack.eigs(H, nev = 8, which=:SR)
