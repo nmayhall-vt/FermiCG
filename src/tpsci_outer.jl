@@ -359,7 +359,7 @@ end
             ci_max_iter  = 50,
             ci_max_ss_vecs = 12,
             davidson     = false,
-            max_mem_ci   = 3.0, 
+            max_mem_ci   = 20.0, 
             matvec       = 1) where {T,N,R}
 
 # Run TPSCI 
@@ -391,7 +391,7 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
     ci_max_iter  = 50,
     ci_max_ss_vecs = 12,
     davidson     = false,
-    max_mem_ci   = 3.0, 
+    max_mem_ci   = 20.0, 
     matvec       = 1) where {T,N,R}
 #={{{=#
     vec_var = deepcopy(ci_vector)
