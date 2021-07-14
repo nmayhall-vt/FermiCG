@@ -8,7 +8,7 @@ using ProgressMeter
         H0="Hcmf",
         E0=nothing, #pass in <0|H0|0>, or compute it
         thresh_foi=1e-8, 
-        prescreen=false,
+        prescreen=true,
         verbose=1) where {T,N,R}
 """
 function compute_batched_pt2(ci_vector_in::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; 
@@ -16,7 +16,7 @@ function compute_batched_pt2(ci_vector_in::ClusteredState{T,N,R}, cluster_ops, c
         H0="Hcmf",
         E0=nothing, #pass in <0|H0|0>, or compute it
         thresh_foi=1e-9, 
-        prescreen=false,
+        prescreen=true,
         verbose=0) where {T,N,R}
     #={{{=#
 
