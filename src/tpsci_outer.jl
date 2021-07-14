@@ -439,8 +439,8 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
         end
 
         e0 = nothing
-        mem_needed = sizeof(zeros(T,length(vec_var),length(vec_var)))*1e-9
-        @printf(" Memory needed to hold full CI matrix: %12.1e (Gb)\n",mem_needed)
+        mem_needed = sizeof(T)*length(vec_var)*length(vec_var)*1e-9
+        @printf(" Memory needed to hold full CI matrix: %12.8f (Gb)\n",mem_needed)
         if (mem_needed > max_mem_ci) || davidson == true
             orthonormalize!(vec_var)
             e0, vec_var = tps_ci_davidson(vec_var, cluster_ops, clustered_ham,
