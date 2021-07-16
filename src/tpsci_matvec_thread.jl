@@ -119,19 +119,26 @@ function compute_batched_pt2(ci_vector_in::ClusteredState{T,N,R}, cluster_ops, c
     flush(stdout)
 
 
-    print("|")
+    tmp = Int(round(length(jobs_vec)/100))
+    println("   |----------------------------------------------------------------------------------------------------|")
+    println("   |0%                                                                                              100%|")
+    print("   |")
     #@profilehtml @Threads.threads for job in jobs_vec
     t = @elapsed begin
         #@qthreads for job in jobs_vec
-        @Threads.threads for job in jobs_vec
         #@time for job in jobs_vec
+        
+        @Threads.threads for (jobi,job) in collect(enumerate(jobs_vec))
+        #for (jobi,job) in collect(enumerate(jobs_vec))
             fock_bra = job[1]
             tid = Threads.threadid()
             e2_thread[tid] .+= _pt2_job(job[2], fock_bra, cluster_ops, nbody, thresh_foi,  
                                         scr_f[tid], scr_i[tid], scr_m[tid],  prescreen, verbose, 
                                         ci_vector, clustered_ham_0, E0)
-            #print("-")
-            #flush(stdout)
+            if  jobi%tmp == 0
+                print("-")
+                flush(stdout)
+            end
         end
     end
     println("|")
@@ -705,7 +712,9 @@ function contract_matvec_thread(   term::ClusteredTerm3B,
         #@btime newI, newJ, newK = upper_bound2($term.ints, $gamma1, $gamma2, $gamma3, $thresh, c=maximum(abs.($coef_ket)))
         newI, newJ, newK = upper_bound2_thread(term.ints, gamma1, gamma2, gamma3, 
                                                      scr_f, scr_i, thresh, c=maximum(abs, coef_ket))
-        minimum(length.([newI,newJ,newK])) > 0 || return 
+        length(newI) > 0 || return
+        length(newJ) > 0 || return
+        length(newK) > 0 || return
         
 
         if true
@@ -776,6 +785,7 @@ function contract_matvec_thread(   term::ClusteredTerm3B,
    
         mul!(scr1, v, gamma3)
         mul!(scr2, reshape2(scr1, (np,nq)), gamma2)
+        #@allocated mul!(scr2, reshape2(scr1, (np,nq)), gamma2) == 0 || error(" we allocated")
 
             
         if prescreen
@@ -789,6 +799,12 @@ function contract_matvec_thread(   term::ClusteredTerm3B,
         end
         
         mul!(scr3, gamma1', scr2) 
+        #@btime mul!($scr3, $gamma1', $scr2) 
+        #a = @allocated begin
+        #    mul!(scr3, gamma1', scr2)  
+        #end
+        #a == 0 || error(" we allocated: ", a)
+            
         
         #@btime _collect_significant_thread!($sig, $tmp_conf, $scr3, $coef_ket, $c1.idx, $c2.idx, $newI, $newJ, $thresh, $tmp2, $state_sign)
         _collect_significant_thread!(sig, tmp_conf, scr3, coef_ket, c1.idx, c2.idx, newI, newJ, thresh, tmp2, state_sign)
@@ -896,11 +912,21 @@ function contract_matvec_thread(   term::ClusteredTerm4B,
         # While we could simply use a view, this creates a non-contiguous array and BLAS then does allocations
         
         if true 
+            g1t = typeof(gamma1)
+            g2t = typeof(gamma1)
+            g3t = typeof(gamma1)
+            g4t = typeof(gamma1)
             gamma1 = scr_f[5]
             gamma2 = scr_f[6]
             gamma3 = scr_f[7]
             gamma4 = scr_f[8]
 
+            
+            #g1t == typeof(gamma1) || println(" here: ", g1t, " vs ", typeof(gamma1))
+            #g2t == typeof(gamma2) || println(" here: ", g2t, " vs ", typeof(gamma2))
+            #g3t == typeof(gamma3) || println(" here: ", g3t, " vs ", typeof(gamma3))
+            #g4t == typeof(gamma4) || println(" here: ", g4t, " vs ", typeof(gamma4))
+            
             resize!(gamma1, size(g1,1)*length(newI))
             resize!(gamma2, size(g2,1)*length(newJ))
             resize!(gamma3, size(g3,1)*length(newK))
@@ -998,9 +1024,14 @@ function contract_matvec_thread(   term::ClusteredTerm4B,
             #@views gamma2 = g2[:,:,conf_ket[c2.idx]]
 
             # 
-            # this is allocating :( 
+            # this is allocating :(  .... but only when threaded? actually @allocated doesn't work when threaded
             mul!(scr3, reshape2(scr2, (np,nq)), gamma2)
+            #a = @allocated begin
+            #    mul!(scr3, reshape2(scr2, (np,nq)), gamma2)
+            #end
+            #@allocated mul!(scr3, reshape2(scr2, (np,nq)), gamma2) == 0 || error("why allocate?")
             #@btime mul!($scr3, reshape2($scr2, ($np,$nq)), $gamma2)
+            
             #display(typeof(gamma3))
             #display(typeof(gamma2))
             #println()
@@ -1016,6 +1047,10 @@ function contract_matvec_thread(   term::ClusteredTerm4B,
             #println("c")
             
             mul!(scr4, gamma1', scr3)
+            #a = @allocated begin
+            #    mul!(scr4, gamma1', scr3)
+            #end
+            #a == 0 || error(" we allocated: ", a)
             #@btime mul!($scr4, $gamma1', $scr3)
 
             _collect_significant_thread!(sig, tmp_conf, scr4, coef_ket, c1.idx, c2.idx, newI, newJ, thresh, tmp2, state_sign)
@@ -1030,6 +1065,7 @@ function _fill1!(gamma, idx, g, k)
     @inbounds for i in 1:size(g,1)
         for (II,I) in enumerate(idx) 
             gamma[i,II] = g[i,I,k]
+            #gamma[i,II] = deepcopy(g[i,I,k])
         end
     end
 end
