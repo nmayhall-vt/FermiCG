@@ -379,20 +379,20 @@ end
 - `max_mem_ci`  : maximum memory (Gb) allowed for storing full H. If more is needed, do Davidson. 
 """
 function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
-    thresh_cipsi = 1e-2,
-    thresh_foi   = 1e-6,
-    thresh_asci  = 1e-2,
-    thresh_var   = -1.0,
-    max_iter     = 10,
-    conv_thresh  = 1e-4,
-    nbody        = 4,
-    incremental  = true,
-    ci_conv      = 1e-5,
-    ci_max_iter  = 50,
-    ci_max_ss_vecs = 12,
-    davidson     = false,
-    max_mem_ci   = 20.0, 
-    matvec       = 1) where {T,N,R}
+    thresh_cipsi    = 1e-2,
+    thresh_foi      = 1e-6,
+    thresh_asci     = 1e-2,
+    thresh_var      = -1.0,
+    max_iter        = 10,
+    conv_thresh     = 1e-4,
+    nbody           = 4,
+    incremental     = true,
+    ci_conv         = 1e-5,
+    ci_max_iter     = 50,
+    ci_max_ss_vecs  = 12,
+    davidson        = false,
+    max_mem_ci      = 20.0, 
+    matvec          = 1) where {T,N,R}
 #={{{=#
     vec_var = deepcopy(ci_vector)
     vec_pt = deepcopy(ci_vector)
@@ -404,12 +404,21 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
     
     clustered_S2 = extract_S2(ci_vector.clusters)
 
-    println(" ci_vector     :", size(ci_vector) ) 
-    println(" thresh_cipsi  :", thresh_cipsi ) 
-    println(" thresh_foi    :", thresh_foi   ) 
-    println(" thresh_asci   :", thresh_asci  ) 
-    println(" max_iter      :", max_iter     ) 
-    println(" conv_thresh   :", conv_thresh  ) 
+    println(" ci_vector     : ", size(ci_vector) ) 
+    println(" thresh_cipsi  : ", thresh_cipsi   ) 
+    println(" thresh_foi    : ", thresh_foi     ) 
+    println(" thresh_asci   : ", thresh_asci    ) 
+    println(" thresh_var    : ", thresh_var     ) 
+    println(" max_iter      : ", max_iter       ) 
+    println(" conv_thresh   : ", conv_thresh    ) 
+    println(" nbody         : ", nbody          ) 
+    println(" incremental   : ", incremental    ) 
+    println(" ci_conv       : ", ci_conv        ) 
+    println(" ci_max_iter   : ", ci_max_iter    ) 
+    println(" ci_max_ss_vecs: ", ci_max_ss_vecs ) 
+    println(" davidson      : ", davidson       ) 
+    println(" max_mem_ci    : ", max_mem_ci     ) 
+    println(" matvec        : ", matvec         ) 
     
     vec_asci_old = ClusteredState(ci_vector.clusters, R=R)
     sig = ClusteredState(ci_vector.clusters, R=R)
@@ -485,23 +494,22 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
         #add!(vec_pt, vec_pt_del)
         if incremental 
             if matvec == 1
-                @time del_sig_it = open_matvec_serial2(del_v0, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+                del_sig_it = open_matvec_serial2(del_v0, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
             elseif matvec == 2
-                @time del_sig_it = open_matvec_thread(del_v0, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+                del_sig_it = open_matvec_thread(del_v0, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
             elseif matvec == 3
-                @time del_sig_it = open_matvec_thread2(del_v0, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+                del_sig_it = open_matvec_thread2(del_v0, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
             else
                 error("wrong matvec")
             end
             flush(stdout)
             add!(sig, del_sig_it)
 
-            println(" Length of FOIS vector: ", length(sig))
             project_out!(sig, vec_asci)
             println(" Length of FOIS vector: ", length(sig))
 
 
-            println(" Compute diagonal")
+            @printf(" %-50s", "Compute diagonal: ")
             @time Hd = compute_diagonal(sig, cluster_ops, clustered_ham_0)
 
             sig_v = get_vectors(sig)
@@ -520,7 +528,7 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
             vec_pt = deepcopy(sig)
             set_vector!(vec_pt,v_pt)
         else
-            @time e2, vec_pt = compute_pt2(vec_asci, cluster_ops, clustered_ham, E0=Efock, thresh_foi=thresh_foi, matvec=matvec, nbody=nbody)
+            e2, vec_pt = compute_pt2(vec_asci, cluster_ops, clustered_ham, E0=Efock, thresh_foi=thresh_foi, matvec=matvec, nbody=nbody)
         end
         
         l1 = length(vec_pt)
@@ -583,21 +591,25 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
 
     println()
     println(" |............................do PT2................................")
+    println(" thresh_foi    :", thresh_foi   ) 
+    println(" prescreen     :", prescreen   ) 
+    println(" H0            :", H0   ) 
+    println(" nbody         :", nbody   ) 
 
     e2 = zeros(T,R)
     
     norms = norm(ci_vector);
     println(" Norms of input states")
     [@printf(" %12.8f\n",i) for i in norms]
-    @printf(" %-50s", "Compute FOIS vector\n")
+    println(" Compute FOIS vector")
 
     if matvec == 1
         #@time sig = open_matvec(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
-        @time sig = open_matvec_serial2(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi, prescreen=prescreen)
+        sig = open_matvec_serial2(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi, prescreen=prescreen)
     elseif matvec == 2
-        @time sig = open_matvec_thread(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+        sig = open_matvec_thread(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
     elseif matvec == 3
-        @time sig = open_matvec_thread2(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi, prescreen=prescreen)
+        sig = open_matvec_thread2(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi, prescreen=prescreen)
     else
         error("wrong matvec")
     end
@@ -795,6 +807,7 @@ This is essentially used for computing a PT correction outside of the subspace, 
 """
 function open_matvec(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 #={{{=#
+    println(" In open_matvec")
     sig = deepcopy(ci_vector)
     zero!(sig)
     clusters = ci_vector.clusters
@@ -858,6 +871,7 @@ filling the final vector
 """
 function open_matvec_thread(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 #={{{=#
+    println(" In open_matvec_thread")
     sig = deepcopy(ci_vector)
     zero!(sig)
     clusters = ci_vector.clusters

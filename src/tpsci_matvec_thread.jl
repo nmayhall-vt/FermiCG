@@ -17,11 +17,15 @@ function compute_batched_pt2(ci_vector_in::ClusteredState{T,N,R}, cluster_ops, c
         E0=nothing, #pass in <0|H0|0>, or compute it
         thresh_foi=1e-9, 
         prescreen=true,
-        verbose=0) where {T,N,R}
+        verbose=1) where {T,N,R}
     #={{{=#
 
     println()
     println(" |........................do batched PT2............................")
+    println(" thresh_foi    :", thresh_foi   ) 
+    println(" prescreen     :", prescreen   ) 
+    println(" H0            :", H0   ) 
+    println(" nbody         :", nbody   ) 
 
     e2 = zeros(T,R)
    
@@ -120,9 +124,9 @@ function compute_batched_pt2(ci_vector_in::ClusteredState{T,N,R}, cluster_ops, c
 
 
     tmp = Int(round(length(jobs_vec)/100))
-    println("   |----------------------------------------------------------------------------------------------------|")
-    println("   |0%                                                                                              100%|")
-    print("   |")
+    verbose < 1 || println("   |----------------------------------------------------------------------------------------------------|")
+    verbose < 1 || println("   |0%                                                                                              100%|")
+    verbose < 1 || print("   |")
     #@profilehtml @Threads.threads for job in jobs_vec
     t = @elapsed begin
         #@qthreads for job in jobs_vec
@@ -135,13 +139,15 @@ function compute_batched_pt2(ci_vector_in::ClusteredState{T,N,R}, cluster_ops, c
             e2_thread[tid] .+= _pt2_job(job[2], fock_bra, cluster_ops, nbody, thresh_foi,  
                                         scr_f[tid], scr_i[tid], scr_m[tid],  prescreen, verbose, 
                                         ci_vector, clustered_ham_0, E0)
-            if  jobi%tmp == 0
-                print("-")
-                flush(stdout)
+            if verbose > 0
+                if  jobi%tmp == 0
+                    print("-")
+                    flush(stdout)
+                end
             end
         end
     end
-    println("|")
+    verbose < 1 || println("|")
     flush(stdout)
    
     @printf(" Time spent computing E2 %12.1f (s)\n",t)
@@ -280,7 +286,7 @@ function open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clus
                              prescreen=true,
                              nbody=4) where {T,N,R}
 #={{{=#
-    println(" In open_matvec_thread2\n")
+    println(" In open_matvec_thread2")
     sig = deepcopy(ci_vector)
     zero!(sig)
     clusters = ci_vector.clusters
@@ -288,7 +294,8 @@ function open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clus
     #sig = ClusteredState(clusters)
     #sig = OrderedDict{FockConfig{N}, OrderedDict{NTuple{N,Int16}, MVector{T} }}()
 
-    for (fock_ket, configs_ket) in ci_vector.data
+    @printf(" %-50s", "Setup threaded jobs: ")
+    @time for (fock_ket, configs_ket) in ci_vector.data
         for (ftrans, terms) in clustered_ham
             fock_bra = ftrans + fock_ket
 
@@ -360,6 +367,7 @@ function open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clus
 
     #@time for job in jobs_vec
     #@qthreads for job in jobs_vec
+    @printf(" %-50s", "Compute matrix-vector: ")
     @time @Threads.threads for job in jobs_vec
         fock_bra = job[1]
         tid = Threads.threadid()
@@ -368,9 +376,9 @@ function open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clus
     end
     flush(stdout)
 
-    println(" Now collect thread results")
+    @printf(" %-50s", "Now collect thread results: ")
     flush(stdout)
-    for threadid in 1:Threads.nthreads()
+    @time for threadid in 1:Threads.nthreads()
         add!(sig, jobs_out[threadid])
     end
 
@@ -384,13 +392,14 @@ function open_matvec_serial2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clus
                              prescreen=true,
                              nbody=4) where {T,N,R}
 #={{{=#
-    println(" In open_matvec_serial2\n")
+    println(" In open_matvec_serial2")
     sig = deepcopy(ci_vector)
     zero!(sig)
     clusters = ci_vector.clusters
     jobs = Dict{FockConfig{N},Vector{Tuple}}()
 
-    for (fock_ket, configs_ket) in ci_vector.data
+    @printf(" %-50s", "Setup threaded jobs: ")
+    @time for (fock_ket, configs_ket) in ci_vector.data
         for (ftrans, terms) in clustered_ham
             fock_bra = ftrans + fock_ket
 
@@ -455,6 +464,7 @@ function open_matvec_serial2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clus
 
     println(" Number of jobs:    ", length(jobs_vec))
     flush(stdout)
+    @printf(" %-50s", "Compute matrix-vector: ")
     @time for job in jobs_vec
         fock_bra = job[1]
         tid = 1
@@ -463,8 +473,8 @@ function open_matvec_serial2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clus
     end
     flush(stdout)
 
-    println(" Now collect thread results")
     flush(stdout)
+    @printf(" %-50s", "Now collect thread results: ")
     @time for threadid in 1:1
         add!(sig, jobs_out[threadid])
     end
