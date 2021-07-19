@@ -300,10 +300,19 @@ end
 """
     scale!(s::ClusteredState,c)
 """
-function scale!(s::ClusteredState,c)
-    for (fock,configs) in s.data
-        for (config,coeff) in configs
-            s[fock][config] = coeff*c
+function scale!(s::ClusteredState{T,N,R},c;root=nothing) where {T,N,R}
+    if root == nothing
+        for (fock,configs) in s.data
+            for (config,coeff) in configs
+                s[fock][config] .= coeff.*c
+            end
+        end
+    else
+        root <= R || error("root>R")
+        for (fock,configs) in s.data
+            for (config,coeff) in configs
+                s[fock][config][root] = coeff[root]*c
+            end
         end
     end
 end

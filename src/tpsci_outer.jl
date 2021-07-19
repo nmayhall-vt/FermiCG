@@ -471,7 +471,7 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
         ovlps = []
         for r in 1:R
             if dot(vec_asci_old, vec_asci, r, r) < 0
-                scale!(vec_asci, -1.0)
+                scale!(vec_asci, -1.0, root=r)
             end
         end
         scale!(del_v0,-1.0)
