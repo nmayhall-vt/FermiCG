@@ -31,6 +31,7 @@ using IterTools
 include("Utils.jl")
 include("hosvd.jl")
 include("StringCI/StringCI.jl");
+include("SymDenseMats.jl");
 include("Solvers.jl");
 include("Hamiltonians.jl");
 include("Clusters.jl")
