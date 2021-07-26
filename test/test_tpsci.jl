@@ -174,7 +174,7 @@ using Arpack
     e0c, v0c = FermiCG.tps_ci_davidson(guess, cluster_ops, clustered_ham);
 
     @test isapprox(abs.(e0a), abs.(e0b), atol=1e-10)
-    @test isapprox(abs.(e0a), abs.(e0c), atol=1e-10)
+    @test isapprox(abs.(e0a), abs.(e0c), atol=1e-8)
    
     println(" Now test pt2 correction")
 
