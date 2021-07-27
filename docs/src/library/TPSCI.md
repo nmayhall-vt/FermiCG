@@ -48,7 +48,7 @@ Pages = ["TPSCI.md"]
 ## Documentation 
 ```@autodocs
 Modules = [FermiCG]
-Pages   = ["tpsci_inner.jl","tpsci_outer.jl"]
+Pages   = ["tpsci_inner.jl","tpsci_outer.jl","tpsci_matvec_thread.jl"]
 Order   = [:type, :function]
 Depth	= 2
 ```
