@@ -31,6 +31,29 @@ function ClusteredState(clusters; T=Float64, R=1)
 end
 
 """
+    function ClusteredState(v::ClusteredState{T,N,R}; T=T, R=R) where {T,N,R}
+
+Constructor creating a `ClusteredState` with the same basis as `v`, but with potentially different `R` and `T`. 
+Coefficients of new vector are 0.0
+
+# Arguments
+- `T`:  Type of data for coefficients
+- `R`:  Number of roots
+# Returns
+- `ClusteredState`
+"""
+function ClusteredState(v::ClusteredState{TT,NN,RR}; T=TT, R=RR) where {TT,NN,RR}
+    out = ClusteredState(v.clusters,T=T,R=R)
+    for (fock, configs) in v.data
+        add_fockconfig!(out,fock)
+        for (config, coeffs) in configs
+            out[fock][config] = zeros(T,R)
+        end
+    end
+    return out
+end
+
+"""
     ClusteredState(clusters::Vector{Cluster}, fconfig::FockConfig{N}; T=Float64, R=1) where {N}
 
 Constructor using only a single FockConfig. This allows us to turn the CMF state into a ClusteredState.
@@ -115,8 +138,25 @@ function get_vectors(s::ClusteredState{T,N,R}) where {T,N,R}
     end
     return v
 end
+
 """
-    set_vector!(s::ClusteredState)
+    get_vectors!(v, s::ClusteredState)
+"""
+function get_vectors!(v, s::ClusteredState{T,N,R}) where {T,N,R}
+    idx = 1
+    for (fock, configs) in s.data
+        for (config, coeff) in configs
+            v[idx,:] .= coeff[:]
+            idx += 1
+        end
+    end
+    return
+end
+
+"""
+    function set_vector!(ts::ClusteredState{T,N,R}, v::Matrix{T}) where {T,N,R}
+
+Fill the coefficients of `ts` with the values in `v`
 """
 function set_vector!(ts::ClusteredState{T,N,R}, v::Matrix{T}) where {T,N,R}
 
@@ -137,6 +177,31 @@ function set_vector!(ts::ClusteredState{T,N,R}, v::Matrix{T}) where {T,N,R}
     nbasis == idx-1 || error("huh?", nbasis, " ", idx)
     return
 end
+
+#"""
+#    function set_vector!(ts::ClusteredState{T,N,R}, v) where {T,N,R}
+#
+#Fill the coefficients of `ts` with the values in `v`
+#"""
+#function set_vector!(ts::ClusteredState{T,N,R}, v) where {T,N,R}
+#
+#    nbasis = size(v,1)
+#    nroots = size(v,2)
+#
+#    length(ts) == nbasis || throw(DimensionMismatch)
+#    R == nroots || throw(DimensionMismatch)
+#
+#    idx = 1
+#    for (fock, tconfigs) in ts.data
+#        for (tconfig, coeffs) in tconfigs
+#            #ts[fock][tconfig] = MVector{R}(v[idx,:])
+#            @views coeffs .= v[idx,:]
+#            idx += 1
+#        end
+#    end
+#    nbasis == idx-1 || error("huh?", nbasis, " ", idx)
+#    return
+#end
 
 
 """
@@ -235,10 +300,19 @@ end
 """
     scale!(s::ClusteredState,c)
 """
-function scale!(s::ClusteredState,c)
-    for (fock,configs) in s.data
-        for (config,coeff) in configs
-            s[fock][config] = coeff*c
+function scale!(s::ClusteredState{T,N,R},c;root=nothing) where {T,N,R}
+    if root == nothing
+        for (fock,configs) in s.data
+            for (config,coeff) in configs
+                s[fock][config] .= coeff.*c
+            end
+        end
+    else
+        root <= R || error("root>R")
+        for (fock,configs) in s.data
+            for (config,coeff) in configs
+                s[fock][config][root] = coeff[root]*c
+            end
         end
     end
 end
@@ -314,10 +388,48 @@ set all elements to zero
 function zero!(s::ClusteredState{T,N,R}) where {T,N,R}
     for (fock,configs) in s.data
         for (config,coeffs) in configs                
-            s.data[fock][config] = zeros(MVector{R,T})
+            s.data[fock][config] = zeros(size(MVector{R,T}))
+            #s.data[fock][config] = zeros(MVector{R,T})
         end
     end
 end
+
+
+"""
+    function rand!(s::ClusteredState{T,N,R}) where {T,N,R}
+
+set all elements to random values, and orthogonalize
+"""
+function rand!(s::ClusteredState{T,N,R}) where {T,N,R}
+    #={{{=#
+    v0 = rand(T,size(s)) .- .5 
+    set_vector!(s,v0)
+    orthonormalize!(s)
+end
+#=}}}=#
+
+
+"""
+    function orthonormalize!(s::ClusteredState{T,N,R}) where {T,N,R}
+
+orthonormalize
+"""
+function orthonormalize!(s::ClusteredState{T,N,R}) where {T,N,R}
+    #={{{=#
+    v0 = get_vectors(s) 
+    v0[:,1] .= v0[:,1]./norm(v0[:,1])
+    for r in 2:R
+        #|vr> = |vr> - |v1><v1|vr> - |v2><v2|vr> - ... 
+        for r0 in 1:r-1 
+            v0[:,r] .-= v0[:,r0] .* (v0[:,r0]'*v0[:,r])
+        end
+        v0[:,r] .= v0[:,r]./norm(v0[:,r])
+    end
+    isapprox(det(v0'*v0), 1.0, atol=1e-14) || @warn "initial guess det(v0'v0) = ", det(v0'v0) 
+    set_vector!(s,v0)
+end
+#=}}}=#
+
 
 """
     clip!(s::ClusteredState; thresh=1e-5)
@@ -335,6 +447,7 @@ function clip!(s::ClusteredState; thresh=1e-5)
 end
 #=}}}=#
 
+
 """
     add!(s1::ClusteredState, s2::ClusteredState)
 
@@ -348,13 +461,14 @@ function add!(s1::ClusteredState, s2::ClusteredState)
                 if haskey(s1[fock], config)
                     s1[fock][config] .+= s2[fock][config]
                 else
-                    s1[fock][config] = s2[fock][config]
+                    s1[fock][config] = deepcopy(s2[fock][config])
                 end
             end
         else
-            s1[fock] = s2[fock]
+            s1[fock] = deepcopy(s2[fock])
         end
     end
     #=}}}=#
 end
+
 

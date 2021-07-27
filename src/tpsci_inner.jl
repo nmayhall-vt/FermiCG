@@ -67,55 +67,22 @@ function contract_matrix_element(   term::ClusteredTerm2B,
     
     haskey(cluster_ops[c1.idx][term.ops[1]],  (fock_bra[c1.idx],fock_ket[c1.idx])) || return
     haskey(cluster_ops[c2.idx][term.ops[2]],  (fock_bra[c2.idx],fock_ket[c2.idx])) || return
+    #@btime haskey($cluster_ops[$c2.idx][$term.ops[2]],  ($fock_bra[$c2.idx],$fock_ket[$c2.idx])) 
     
-    gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
-    gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])]
+    #@views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
+    #@views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])]
+    
+    gamma1::Array{Float64,3} = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
+    gamma2::Array{Float64,3} = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])]
+    #gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
+    #gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])]
+    #@btime gamma2::Array{Float64,3} = $cluster_ops[$c2.idx][$term.ops[2]][($fock_bra[$c2.idx],$fock_ket[$c2.idx])]
+    #@views gamma1 = g1[:,bra[c1.idx],ket[c1.idx]]
+    #@views gamma2 = g2[:,bra[c2.idx],ket[c2.idx]]
     mat_elem = _contract(term.ints, gamma1, gamma2, bra[c1.idx], ket[c1.idx], bra[c2.idx], ket[c2.idx])
     #@btime _contract($term.ints, $gamma1, $gamma2, $bra[$c1.idx], $ket[$c1.idx], $bra[$c2.idx], $ket[$c2.idx])
     #@code_warntype  _contract(term.ints, gamma1, gamma2)
 
-    #error("here")
-    #if term.ops[1] == "aa" 
-    #    display(term)
-    #    println(mat_elem)
-    #end
-
-#    #
-#    # <I|xi|J> h(xi,xi') <K|xi|L>
-#    gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
-#    gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
-#    
-#    mat_elem = 0.0
-#    for i in 1:length(gamma1)
-#        @simd for j in 1:length(gamma2)
-#            mat_elem += gamma1[i]*term.ints[i,j]*gamma2[j]
-#        end
-#    end
-
-#    if length(term.ops[1]) == 1 && length(term.ops[2]) == 1 
-#        #
-#        # <I|p'|J> h(pq) <K|q|L>
-#        gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
-#        gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
-#        @tensor begin
-#            mat_elem = gamma1[p] * term.ints[p,q] * gamma2[q]
-#        end
-
-#    elseif length(term.ops[1]) == 2 && length(term.ops[2]) == 2 
-#        #
-#        # <I|p'q|J> v(pqrs) <K|rs|L>
-#        gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,:,bra[c1.idx],ket[c1.idx]]
-#        gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,:,bra[c2.idx],ket[c2.idx]]
-#        mat_elem = 0.0
-#        @tensor begin
-#            mat_elem = (gamma1[p,q] * term.ints[p,q,r,s]) * gamma2[r,s]
-#        end
-#    else
-#        display(term.ops)
-#        println(length(term.ops[1]) , length(term.ops[2]))
-#        throw(Exception)
-#    end
-        
     return state_sign * mat_elem
 end
 #=}}}=#
@@ -131,7 +98,7 @@ function contract_matrix_element(   term::ClusteredTerm3B,
                                     cluster_ops::Vector{ClusterOps},
                                     fock_bra::FockConfig, bra::ClusterConfig, 
                                     fock_ket::FockConfig, ket::ClusterConfig)
-#={{{=#
+    #={{{=#
     c1 = term.clusters[1]
     c2 = term.clusters[2]
     c3 = term.clusters[3]
@@ -161,20 +128,23 @@ function contract_matrix_element(   term::ClusteredTerm3B,
 
     #
     # <I|p'|J> h(pq) <K|q|L>
-#    @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
-#    @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
-#    @views gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,bra[c3.idx],ket[c3.idx]]
-#    mat_elem = _contract(term.ints, gamma1, gamma2, gamma3)
-    
-	haskey(cluster_ops[c1.idx][term.ops[1]],  (fock_bra[c1.idx],fock_ket[c1.idx])) || return
+    #    @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    #    @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+    #    @views gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,bra[c3.idx],ket[c3.idx]]
+    #    mat_elem = _contract(term.ints, gamma1, gamma2, gamma3)
+
+    haskey(cluster_ops[c1.idx][term.ops[1]],  (fock_bra[c1.idx],fock_ket[c1.idx])) || return
     haskey(cluster_ops[c2.idx][term.ops[2]],  (fock_bra[c2.idx],fock_ket[c2.idx])) || return
     haskey(cluster_ops[c3.idx][term.ops[3]],  (fock_bra[c3.idx],fock_ket[c3.idx])) || return
-    
-    gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
-    gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])]
-    gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])]
+
+    gamma1::Array{Float64,3} = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
+    gamma2::Array{Float64,3} = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])]
+    gamma3::Array{Float64,3} = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])]
+    #gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
+    #gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])]
+    #gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])]
     mat_elem = _contract(term.ints, gamma1, gamma2, gamma3, 
-        bra[c1.idx], ket[c1.idx], bra[c2.idx], ket[c2.idx], bra[c3.idx], ket[c3.idx])
+                         bra[c1.idx], ket[c1.idx], bra[c2.idx], ket[c2.idx], bra[c3.idx], ket[c3.idx])
     return state_sign * mat_elem
 end
 #=}}}=#

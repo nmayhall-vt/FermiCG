@@ -1289,7 +1289,7 @@ function rotate!(ops::ClusterOps,U::Dict{Tuple,Matrix{T}}) where T
 end
 #=}}}=#
 
-function check_basis_orthogonality(basis::ClusterBasis; thresh=1e-13)
+function check_basis_orthogonality(basis::ClusterBasis; thresh=1e-12)
     for (fspace,mat) in basis
         if check_orthogonality(mat,thresh=thresh) == false
             println(" Cluster:", basis.cluster)

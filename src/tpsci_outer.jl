@@ -1,6 +1,8 @@
 using Distributed
 using ThreadPools
 using JLD2
+using LinearMaps
+#using IterativeSolvers
 
 """
     build_full_H(ci_vector::ClusteredState, cluster_ops, clustered_ham::ClusteredOperator)
@@ -50,211 +52,6 @@ function build_full_H(ci_vector::ClusteredState, cluster_ops, clustered_ham::Clu
 end
 #=}}}=#
 
-
-"""
-    tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
-            thresh_cipsi = 1e-2,
-            thresh_foi   = 1e-6,
-            thresh_asci  = 1e-2,
-            thresh_var   = -1.0,
-            max_iter     = 10,
-            conv_thresh  = 1e-4,
-            nbody        = 4,
-            incremental  = true,
-            matvec       = 1) where {T,N,R}
-
-# Run TPSCI 
-- `thresh_cipsi`: threshold for which configurations to include in the variational space. Add if |c^{(1)}| > `thresh_cipsi`
-- `thresh_foi`  : threshold for which terms to keep in the H|0> vector used to form the first order wavefunction
-- `thresh_asci` : threshold for determining from which variational configurations  ``|c^{(0)}_i|`` > `thresh_asci` 
-- `thresh_var`  : threshold for clipping the result of the variational wavefunction. Not really needed default set to -1 (off)
-- `max_iter`    : maximum selected CI iterations
-- `conv_thresh` : stop selected CI iterations when energy change is smaller than `conv_thresh`
-- `nbody`       : only consider up to `nbody` terms when searching for new configurations
-- `incremental` : for the sigma vector incrementally between iterations
-- `matvec`      : which implementation of the matrix vector code
-"""
-function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
-    thresh_cipsi = 1e-2,
-    thresh_foi   = 1e-6,
-    thresh_asci  = 1e-2,
-    thresh_var   = -1.0,
-    max_iter     = 10,
-    conv_thresh  = 1e-4,
-    nbody        = 4,
-    incremental  = true,
-    matvec       = 1) where {T,N,R}
-#={{{=#
-    vec_var = deepcopy(ci_vector)
-    vec_pt = deepcopy(ci_vector)
-    length(ci_vector) > 0 || error(" input vector has zero length")
-    zero!(vec_pt)
-    e0 = zeros(T,R) 
-    e2 = zeros(T,R) 
-    e0_last = zeros(T,R)
-    
-    clustered_S2 = extract_S2(ci_vector.clusters)
-
-    println(" ci_vector     :", size(ci_vector) ) 
-    println(" thresh_cipsi  :", thresh_cipsi ) 
-    println(" thresh_foi    :", thresh_foi   ) 
-    println(" thresh_asci   :", thresh_asci  ) 
-    println(" max_iter      :", max_iter     ) 
-    println(" conv_thresh   :", conv_thresh  ) 
-    
-    vec_asci_old = ClusteredState(ci_vector.clusters, R=R)
-    sig = ClusteredState(ci_vector.clusters, R=R)
-    clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = "Hcmf") 
-
-    for it in 1:max_iter
-
-        println()
-        println(" ===================================================================")
-        @printf("     Selected CI Iteration: %4i epsilon: %12.8f\n", it,thresh_cipsi)
-        println(" ===================================================================")
-
-        if it > 1
-            l1 = length(vec_var)
-            clip!(vec_var, thresh=thresh_var)
-            l2 = length(vec_var)
-            @printf(" Clip values < %8.1e         %6i → %6i\n", thresh_var, l1, l2)
-            
-            l1 = length(vec_var)
-            add!(vec_var, vec_pt)
-            l2 = length(vec_var)
-            @printf(" Add pt vector to current space %6i → %6i\n", l1, l2)
-        end
-
-        @printf(" Build Hamiltonian matrix with dimension: %5i\n", length(vec_var))
-        flush(stdout)
-        #@time H = build_full_H(vec_var, cluster_ops, clustered_ham)
-        @time H = build_full_H_parallel(vec_var, cluster_ops, clustered_ham)
-        if length(vec_var) > 1000
-            e0,v = Arpack.eigs(H, nev = R, which=:SR)
-        else
-            F = eigen(H)
-            e0 = F.values[1:R]
-            v = F.vectors[:,1:R]
-        end
-        set_vector!(vec_var, v)
-        
-        s2 = compute_expectation_value(vec_var, cluster_ops, clustered_S2)
-        @printf(" %5s %12s %12s\n", "Root", "Energy", "S2") 
-        for r in 1:R
-            @printf(" %5s %12.8f %12.8f\n",r, e0[r], abs(s2[r]))
-        end
-
-        for r in 1:R
-            display(vec_var, root=r)
-        end
-        
-        # get barycentric energy <0|H0|0>
-        Efock = compute_expectation_value(vec_var, cluster_ops, clustered_ham_0)
-        #Efock = nothing
-        flush(stdout)
-        vec_asci = deepcopy(vec_var)
-        l1 = length(vec_asci)
-        clip!(vec_asci, thresh=thresh_asci)
-        l2 = length(vec_asci)
-        @printf(" Length of ASCI vector %8i → %8i \n", l1, l2)
-
-        #
-        # |sig_i> = H|v_i> = H|v_i-1> + H ( |v_i> - |v_i-1> )
-        #                  = |sig_i-1> + H|del_i>
-
-        del_v0 = deepcopy(vec_asci_old)
-        ovlps = []
-        for r in 1:R
-            if dot(vec_asci_old, vec_asci, r, r) < 0
-                scale!(vec_asci, -1.0)
-            end
-        end
-        scale!(del_v0,-1.0)
-        add!(del_v0, vec_asci)
-        println(" Norm of delta v:")
-        [@printf(" %12.8f\n",i) for i in norm(del_v0)]
-
-        vec_asci_old = deepcopy(vec_asci)
-
-        #_, vec_pt_del = compute_pt2(del_v0, cluster_ops, clustered_ham, E0=Efock, thresh_foi=thresh_foi, matvec=matvec, nbody=nbody)
-        #add!(vec_pt, vec_pt_del)
-        if incremental 
-            if matvec == 1
-                @time del_sig_it = open_matvec_serial2(del_v0, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
-            elseif matvec == 2
-                @time del_sig_it = open_matvec_thread(del_v0, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
-            elseif matvec == 3
-                @time del_sig_it = open_matvec_thread2(del_v0, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
-            else
-                error("wrong matvec")
-            end
-            flush(stdout)
-            add!(sig, del_sig_it)
-
-            println(" Length of FOIS vector: ", length(sig))
-            project_out!(sig, vec_asci)
-            println(" Length of FOIS vector: ", length(sig))
-
-
-            println(" Compute diagonal")
-            @time Hd = compute_diagonal(sig, cluster_ops, clustered_ham_0)
-
-            sig_v = get_vectors(sig)
-            v_pt  = zeros(size(sig_v))
-
-            println()
-            @printf(" %5s %12s %12s\n", "Root", "E(0)", "E(2)") 
-            for r in 1:R
-                denom = 1.0 ./ (Efock[r] .- Hd)  
-                v_pt[:,r] .= denom .* sig_v[:,r] 
-                e2[r] = sum(sig_v[:,r] .* v_pt[:,r])
-
-                @printf(" %5s %12.8f %12.8f\n",r, e0[r], e0[r] + e2[r])
-            end
-
-            vec_pt = deepcopy(sig)
-            set_vector!(vec_pt,v_pt)
-        else
-            @time e2, vec_pt = compute_pt2(vec_asci, cluster_ops, clustered_ham, E0=Efock, thresh_foi=thresh_foi, matvec=matvec, nbody=nbody)
-        end
-        
-        l1 = length(vec_pt)
-        clip!(vec_pt, thresh=thresh_cipsi)
-        l2 = length(vec_pt)
-        @printf(" Length of PT1  vector %8i → %8i \n", l1, l2)
-        #add!(vec_var, vec_pt)
-
-        if maximum(abs.(e0_last .- e0)) < conv_thresh
-            print_tpsci_iter(vec_var, it, e0, true)
-            break
-        else
-            print_tpsci_iter(vec_var, it, e0, false)
-            e0_last .= e0
-        end
-    end
-    return e0, vec_var 
-end
-#=}}}=#
-
-
-function print_tpsci_iter(ci_vector::ClusteredState{T,N,R}, it, e0, converged) where {T,N,R}
-#={{{=#
-    if converged 
-        @printf("*TPSCI Iter %-3i Dim: %-6i", it, length(ci_vector))
-    else
-        @printf(" TPSCI Iter %-3i Dim: %-6i", it, length(ci_vector))
-    end
-    @printf(" E(var): ")
-    for i in 1:R
-        @printf("%13.8f ", e0[i])
-    end
-#    @printf(" E(pt2): ")
-#    for i in 1:R
-#        @printf("%13.8f ", e2[i])
-#    end
-    println()
-end
-#=}}}=#
 
 """
     build_full_H_parallel(ci_vector::ClusteredState, cluster_ops, clustered_ham::ClusteredOperator)
@@ -346,12 +143,443 @@ function build_full_H_parallel(ci_vector::ClusteredState, cluster_ops, clustered
 end
 #=}}}=#
 
+
+"""
+    tps_ci_direct(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
+
+# Solve for eigenvectors/values in the basis defined by `ci_vector`. Use direct diagonalization. 
+"""
+function tps_ci_direct(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
+                      verbose   = 0) where {T,N,R}
+    #={{{=#
+    println()
+    @printf(" |== Tensor Product State CI =======================================\n")
+    vec_out = deepcopy(ci_vector)
+    e0 = zeros(T,R)
+    @printf(" Hamiltonian matrix dimension = %5i: \n", length(ci_vector))
+    @printf(" %-50s", "Build full Hamiltonian matrix with dimension: ")
+    @time H = build_full_H_parallel(vec_out, cluster_ops, clustered_ham)
+    flush(stdout)
+    @printf(" %-50s", "Diagonalize: ")
+    if length(vec_out) > 1000
+        @time e0,v = Arpack.eigs(H, nev = R, which=:SR)
+    else
+        @time F = eigen(H)
+        e0 = F.values[1:R]
+        v = F.vectors[:,1:R]
+    end
+    set_vector!(vec_out, v)
+
+    clustered_S2 = extract_S2(ci_vector.clusters)
+    @printf(" %-50s", "Compute S2 expectation values: ")
+    @time s2 = compute_expectation_value_parallel(vec_out, cluster_ops, clustered_S2)
+    flush(stdout)
+    @printf(" %5s %12s %12s\n", "Root", "Energy", "S2") 
+    for r in 1:R
+        @printf(" %5s %12.8f %12.8f\n",r, e0[r], abs(s2[r]))
+    end
+
+    if verbose > 1
+        for r in 1:R
+            display(vec_out, root=r)
+        end
+    end
+
+    @printf(" ==================================================================|\n")
+    return e0, vec_out 
+end
+#=}}}=#
+
+
+
+"""
+    tps_ci_davidson(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
+
+# Solve for eigenvectors/values in the basis defined by `ci_vector`. Use iterative davidson solver. 
+"""
+function tps_ci_davidson(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
+                        v0 = nothing,
+                        conv_thresh = 1e-5,
+                        max_ss_vecs = 12,
+                        max_iter    = 40,
+                        shift       = nothing,
+                        precond     = false,
+                        verbose     = 0) where {T,N,R}
+    #={{{=#
+    println()
+    @printf(" |== Tensor Product State CI =======================================\n")
+    vec_out = deepcopy(ci_vector)
+    e0 = zeros(T,R) 
+   
+    dim = length(ci_vector)
+    iters = 0
+
+    
+    function matvec(v::AbstractMatrix)
+        iters += 1
+        #in = deepcopy(ci_vector) 
+        in = ClusteredState(ci_vector, R=size(v,2))
+        set_vector!(in, v)
+        sig = deepcopy(in)
+        zero!(sig)
+        #build_sigma!(sig, ci_vector, cluster_ops, clustered_ham, cache=cache)
+        return tps_ci_matvec(in, cluster_ops, clustered_ham)
+    end
+
+    Hmap = FermiCG.LinOp(matvec, dim)
+
+    davidson = FermiCG.Davidson(Hmap, v0=get_vectors(ci_vector), 
+                                max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)
+
+    e = nothing
+    v = nothing
+    if precond
+        @printf(" %-50s", "Compute diagonal: ")
+        clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = "Hcmf") 
+        @time Hd = compute_diagonal(ci_vector, cluster_ops, clustered_ham_0)
+        @printf(" %-50s", "Compute <0|H0|0>: ")
+        @time E0 = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham_0)[1]
+        @time Eref = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham)[1]
+        Hd .+= Eref - E0
+        @printf(" Now iterate: \n")
+        flush(stdout)
+        @time e,v = FermiCG.solve(davidson, Adiag=Hd);
+    else
+        @time e,v = FermiCG.solve(davidson);
+    end
+    set_vector!(vec_out, v)
+    
+    clustered_S2 = extract_S2(ci_vector.clusters)
+    @printf(" %-50s", "Compute S2 expectation values: ")
+    @time s2 = compute_expectation_value_parallel(vec_out, cluster_ops, clustered_S2)
+    flush(stdout)
+    @printf(" %5s %12s %12s\n", "Root", "Energy", "S2") 
+    for r in 1:R
+        @printf(" %5s %12.8f %12.8f\n",r, e[r], abs(s2[r]))
+    end
+
+    if verbose > 1
+        for r in 1:R
+            display(vec_out, root=r)
+        end
+    end
+
+    @printf(" ==================================================================|\n")
+    return e, vec_out 
+end
+#=}}}=#
+
+
+"""
+    tps_ci_matvec(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
+
+# Compute the action of `clustered_ham` on `ci_vector`. 
+"""
+function tps_ci_matvec(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
+    #={{{=#
+
+    jobs = []
+
+    bra_idx = 0
+    for (fock_bra, configs_bra) in ci_vector.data
+        for (config_bra, coeff_bra) in configs_bra
+            bra_idx += 1
+            push!(jobs, (bra_idx, fock_bra, config_bra, coeff_bra, zeros(T,R)) )
+        end
+    end
+
+    function do_job(job)
+        fock_bra = job[2]
+        config_bra = job[3]
+        coeff_bra = job[4]
+        sig_out = job[5]
+    
+        for (fock_trans, terms) in clustered_ham
+            fock_ket = fock_bra - fock_trans
+
+            haskey(ci_vector.data, fock_ket) || continue
+            
+            configs_ket = ci_vector[fock_ket]
+
+
+            for (config_ket, coeff_ket) in configs_ket
+                for term in clustered_ham[fock_trans]
+                    check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
+    
+                    #norm(term.ints)*maximum(abs.(coeff_ket)) > 1e-5 || continue
+                    #@btime norm($term.ints)*maximum(abs.($coeff_ket)) > 1e-12 
+                    
+
+                    me = contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
+                    #if term isa ClusteredTerm4B
+                    #    @btime contract_matrix_element($term, $cluster_ops, $fock_bra, $config_bra, $fock_ket, $config_ket)
+                    #end
+                    @simd for r in 1:R
+                        @inbounds sig_out[r] += me * coeff_ket[r]
+                    end
+                    #@btime $sig_out .+= $me .* $ci_vector[$fock_ket][$config_ket] 
+                end
+
+            end
+
+        end
+    end
+
+    #for job in jobs
+    Threads.@threads for job in jobs
+        do_job(job)
+        #@btime $do_job($job)
+    end
+
+    sigv = zeros(size(ci_vector))
+    for job in jobs
+        #for r in 1:R
+        #    sigv[job[1],r] += job[5][r]
+        #end
+        sigv[job[1],:] .+= job[5]
+    end
+
+    return sigv
+end
+#=}}}=#
+
+
+
+"""
+    tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
+            thresh_cipsi = 1e-2,
+            thresh_foi   = 1e-6,
+            thresh_asci  = 1e-2,
+            thresh_var   = -1.0,
+            max_iter     = 10,
+            conv_thresh  = 1e-4,
+            nbody        = 4,
+            incremental  = true,
+            ci_conv      = 1e-5,
+            ci_max_iter  = 50,
+            ci_max_ss_vecs = 12,
+            davidson     = false,
+            max_mem_ci   = 20.0, 
+            matvec       = 1) where {T,N,R}
+
+# Run TPSCI 
+- `thresh_cipsi`: threshold for which configurations to include in the variational space. Add if |c^{(1)}| > `thresh_cipsi`
+- `thresh_foi`  : threshold for which terms to keep in the H|0> vector used to form the first order wavefunction
+- `thresh_asci` : threshold for determining from which variational configurations  ``|c^{(0)}_i|`` > `thresh_asci` 
+- `thresh_var`  : threshold for clipping the result of the variational wavefunction. Not really needed default set to -1 (off)
+- `max_iter`    : maximum selected CI iterations
+- `conv_thresh` : stop selected CI iterations when energy change is smaller than `conv_thresh`
+- `nbody`       : only consider up to `nbody` terms when searching for new configurations
+- `incremental` : for the sigma vector incrementally between iterations
+- `matvec`      : which implementation of the matrix vector code
+- `ci_conv`     : convergence threshold for the inner CI step (only needed when davidson is used)
+- `ci_max_iter` : max iterations for inner CI step (only needed when davidson is used) 
+- `ci_max_ss_vecs`: max subspace size for inner CI step (only needed when davidson is used) 
+- `davidson`    : use davidson? changes to true after needing more than max_mem_ci
+- `max_mem_ci`  : maximum memory (Gb) allowed for storing full H. If more is needed, do Davidson. 
+"""
+function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
+    thresh_cipsi    = 1e-2,
+    thresh_foi      = 1e-6,
+    thresh_asci     = 1e-2,
+    thresh_var      = -1.0,
+    max_iter        = 10,
+    conv_thresh     = 1e-4,
+    nbody           = 4,
+    incremental     = true,
+    ci_conv         = 1e-5,
+    ci_max_iter     = 50,
+    ci_max_ss_vecs  = 12,
+    davidson        = false,
+    max_mem_ci      = 20.0, 
+    matvec          = 1) where {T,N,R}
+#={{{=#
+    vec_var = deepcopy(ci_vector)
+    vec_pt = deepcopy(ci_vector)
+    length(ci_vector) > 0 || error(" input vector has zero length")
+    zero!(vec_pt)
+    e0 = zeros(T,R) 
+    e2 = zeros(T,R) 
+    e0_last = zeros(T,R)
+    
+    clustered_S2 = extract_S2(ci_vector.clusters)
+
+    println(" ci_vector     : ", size(ci_vector) ) 
+    println(" thresh_cipsi  : ", thresh_cipsi   ) 
+    println(" thresh_foi    : ", thresh_foi     ) 
+    println(" thresh_asci   : ", thresh_asci    ) 
+    println(" thresh_var    : ", thresh_var     ) 
+    println(" max_iter      : ", max_iter       ) 
+    println(" conv_thresh   : ", conv_thresh    ) 
+    println(" nbody         : ", nbody          ) 
+    println(" incremental   : ", incremental    ) 
+    println(" ci_conv       : ", ci_conv        ) 
+    println(" ci_max_iter   : ", ci_max_iter    ) 
+    println(" ci_max_ss_vecs: ", ci_max_ss_vecs ) 
+    println(" davidson      : ", davidson       ) 
+    println(" max_mem_ci    : ", max_mem_ci     ) 
+    println(" matvec        : ", matvec         ) 
+    
+    vec_asci_old = ClusteredState(ci_vector.clusters, R=R)
+    sig = ClusteredState(ci_vector.clusters, R=R)
+    clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = "Hcmf") 
+
+    for it in 1:max_iter
+
+        println()
+        println()
+        println(" ===================================================================")
+        @printf("     Selected CI Iteration: %4i epsilon: %12.8f\n", it,thresh_cipsi)
+        println(" ===================================================================")
+
+        if it > 1
+            l1 = length(vec_var)
+            clip!(vec_var, thresh=thresh_var)
+            l2 = length(vec_var)
+            @printf(" Clip values < %8.1e         %6i → %6i\n", thresh_var, l1, l2)
+            
+            l1 = length(vec_var)
+            zero!(vec_pt)
+            add!(vec_var, vec_pt)
+            l2 = length(vec_var)
+            @printf(" Add pt vector to current space %6i → %6i\n", l1, l2)
+        else
+            rand!(vec_var)
+        end
+
+        e0 = nothing
+        mem_needed = sizeof(T)*length(vec_var)*length(vec_var)*1e-9
+        @printf(" Memory needed to hold full CI matrix: %12.8f (Gb)\n",mem_needed)
+        flush(stdout)
+        if (mem_needed > max_mem_ci) || davidson == true
+            orthonormalize!(vec_var)
+            e0, vec_var = tps_ci_davidson(vec_var, cluster_ops, clustered_ham,
+                                   conv_thresh = ci_conv,
+                                   max_iter = ci_max_iter,
+                                   max_ss_vecs = ci_max_ss_vecs)
+        else
+            e0, vec_var = tps_ci_direct(vec_var, cluster_ops, clustered_ham)
+        end
+        flush(stdout)
+      
+
+
+        # get barycentric energy <0|H0|0>
+        Efock = compute_expectation_value_parallel(vec_var, cluster_ops, clustered_ham_0)
+        #Efock = nothing
+        flush(stdout)
+        vec_asci = deepcopy(vec_var)
+        l1 = length(vec_asci)
+        clip!(vec_asci, thresh=thresh_asci)
+        l2 = length(vec_asci)
+        @printf(" Length of ASCI vector %8i → %8i \n", l1, l2)
+
+        #
+        # |sig_i> = H|v_i> = H|v_i-1> + H ( |v_i> - |v_i-1> )
+        #                  = |sig_i-1> + H|del_i>
+
+        del_v0 = deepcopy(vec_asci_old)
+        ovlps = []
+        for r in 1:R
+            if dot(vec_asci_old, vec_asci, r, r) < 0
+                scale!(vec_asci, -1.0, root=r)
+            end
+        end
+        scale!(del_v0,-1.0)
+        add!(del_v0, vec_asci)
+        println(" Norm of delta v:")
+        [@printf(" %12.8f\n",i) for i in norm(del_v0)]
+
+        vec_asci_old = deepcopy(vec_asci)
+
+        #_, vec_pt_del = compute_pt2(del_v0, cluster_ops, clustered_ham, E0=Efock, thresh_foi=thresh_foi, matvec=matvec, nbody=nbody)
+        #add!(vec_pt, vec_pt_del)
+        if incremental 
+            if matvec == 1
+                del_sig_it = open_matvec_serial2(del_v0, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+            elseif matvec == 2
+                del_sig_it = open_matvec_thread(del_v0, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+            elseif matvec == 3
+                del_sig_it = open_matvec_thread2(del_v0, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+            else
+                error("wrong matvec")
+            end
+            flush(stdout)
+            add!(sig, del_sig_it)
+
+            project_out!(sig, vec_asci)
+            println(" Length of FOIS vector: ", length(sig))
+
+
+            @printf(" %-50s", "Compute diagonal: ")
+            flush(stdout)
+            @time Hd = compute_diagonal(sig, cluster_ops, clustered_ham_0)
+
+            sig_v = get_vectors(sig)
+            v_pt  = zeros(size(sig_v))
+
+            println()
+            @printf(" %5s %12s %12s\n", "Root", "E(0)", "E(2)") 
+            for r in 1:R
+                denom = 1.0 ./ (Efock[r] .- Hd)  
+                v_pt[:,r] .= denom .* sig_v[:,r] 
+                e2[r] = sum(sig_v[:,r] .* v_pt[:,r])
+
+                @printf(" %5s %12.8f %12.8f\n",r, e0[r], e0[r] + e2[r])
+            end
+            flush(stdout)
+
+            vec_pt = deepcopy(sig)
+            set_vector!(vec_pt,v_pt)
+        else
+            e2, vec_pt = compute_pt2(vec_asci, cluster_ops, clustered_ham, E0=Efock, thresh_foi=thresh_foi, matvec=matvec, nbody=nbody)
+        end
+        
+        l1 = length(vec_pt)
+        clip!(vec_pt, thresh=thresh_cipsi)
+        l2 = length(vec_pt)
+        @printf(" Length of PT1  vector %8i → %8i \n", l1, l2)
+        #add!(vec_var, vec_pt)
+
+        if maximum(abs.(e0_last .- e0)) < conv_thresh
+            print_tpsci_iter(vec_var, it, e0, true)
+            break
+        else
+            print_tpsci_iter(vec_var, it, e0, false)
+            e0_last .= e0
+        end
+    end
+    return e0, vec_var 
+end
+#=}}}=#
+
+
+function print_tpsci_iter(ci_vector::ClusteredState{T,N,R}, it, e0, converged) where {T,N,R}
+#={{{=#
+    if converged 
+        @printf("*TPSCI Iter %-3i Dim: %-6i", it, length(ci_vector))
+    else
+        @printf(" TPSCI Iter %-3i Dim: %-6i", it, length(ci_vector))
+    end
+    @printf(" E(var): ")
+    for i in 1:R
+        @printf("%13.8f ", e0[i])
+    end
+#    @printf(" E(pt2): ")
+#    for i in 1:R
+#        @printf("%13.8f ", e2[i])
+#    end
+    println()
+end
+#=}}}=#
+
 """
     compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; 
         nbody=4, 
         H0="Hcmf",
         E0=nothing, #pass in <0|H0|0>, or compute it
         thresh_foi=1e-8, 
+        prescreen=false,
         verbose=1,
         matvec=3) where {T,N,R}
 """
@@ -360,12 +588,17 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
         H0="Hcmf",
         E0=nothing, #pass in <0|H0|0>, or compute it
         thresh_foi=1e-8, 
+        prescreen=false,
         verbose=1,
         matvec=3) where {T,N,R}
     #={{{=#
 
     println()
-    println(" .............................do PT2................................")
+    println(" |............................do PT2................................")
+    println(" thresh_foi    :", thresh_foi   ) 
+    println(" prescreen     :", prescreen   ) 
+    println(" H0            :", H0   ) 
+    println(" nbody         :", nbody   ) 
 
     e2 = zeros(T,R)
     
@@ -376,11 +609,11 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
 
     if matvec == 1
         #@time sig = open_matvec(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
-        @time sig = open_matvec_serial2(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+        sig = open_matvec_serial2(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi, prescreen=prescreen)
     elseif matvec == 2
-        @time sig = open_matvec_thread(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+        sig = open_matvec_thread(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
     elseif matvec == 3
-        @time sig = open_matvec_thread2(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+        sig = open_matvec_thread2(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi, prescreen=prescreen)
     else
         error("wrong matvec")
     end
@@ -393,18 +626,20 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
     project_out!(sig, ci_vector)
     println(" Length of FOIS vector: ", length(sig))
     
-    println(" Compute diagonal")
+    @printf(" %-50s", "Compute diagonal")
     @time Hd = compute_diagonal(sig, cluster_ops, clustered_ham_0)
     
     if E0 == nothing
-        println(" Compute <0|H0|0>")
-        E0 = compute_expectation_value(ci_vector, cluster_ops, clustered_ham_0)
-        #[@printf(" %4i %12.8f\n", i, E0[i]) for i in 1:length(E0)]
+        @printf(" %-50s", "Compute <0|H0|0>:")
+        @time E0 = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham_0)
+        #E0 = diag(E0)
+        flush(stdout)
     end
 
-    println(" Compute <0|H|0>")
-    Evar = compute_expectation_value(ci_vector, cluster_ops, clustered_ham)
-    #[@printf(" %4i %12.8f\n", i, Evar[i]) for i in 1:length(Evar)]
+    @printf(" %-50s", "Compute <0|H|0>:")
+    @time Evar = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham)
+    #Evar = diag(Evar)
+    flush(stdout)
     
 
     sig_v = get_vectors(sig)
@@ -421,6 +656,7 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
     end
 
     set_vector!(sig,v_pt)
+    println(" ..................................................................|")
 
     return e2, sig 
 end
@@ -442,9 +678,7 @@ function compute_expectation_value(ci_vector::ClusteredState{T,N,R}, cluster_ops
             fock_trans = fock_bra - fock_ket
 
             # check if transition is connected by H
-            if haskey(clustered_ham, fock_trans) == false
-                continue
-            end
+            haskey(clustered_ham, fock_trans) || continue
 
             for (config_bra, coeff_bra) in configs_bra
                 for (config_ket, coeff_ket) in configs_ket
@@ -455,10 +689,15 @@ function compute_expectation_value(ci_vector::ClusteredState{T,N,R}, cluster_ops
                         length(term.clusters) <= nbody || continue
                         check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
 
-                        me += contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
+                        me += contract_matrix_element(term, cluster_ops, 
+                                                      fock_bra, config_bra, 
+                                                      fock_ket, config_ket)
                     end
 
-                    out += coeff_bra .* coeff_ket .* me
+                    #out .+= coeff_bra .* coeff_ket .* me
+                    for r in 1:R
+                        out[r] += coeff_bra[r] * coeff_ket[r] * me
+                    end
 
                 end
 
@@ -470,6 +709,99 @@ function compute_expectation_value(ci_vector::ClusteredState{T,N,R}, cluster_ops
 end
 #=}}}=#
 
+"""
+    function compute_expectation_value_parallel(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
+"""
+function compute_expectation_value_parallel(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
+    #={{{=#
+
+    # 
+    # This will be were we collect our results
+    evals = zeros(T,R)
+
+    jobs = []
+
+    for (fock_bra, configs_bra) in ci_vector.data
+        for (config_bra, coeff_bra) in configs_bra
+            push!(jobs, (fock_bra, config_bra, coeff_bra, zeros(T,R)) )
+        end
+    end
+
+    function _add_val!(eval_job, me, coeff_bra, coeff_ket)
+        for ri in 1:R
+            #for rj in ri:R
+            #    @inbounds eval_job[ri,rj] += me * coeff_bra[ri] * coeff_ket[rj] 
+            #    #eval_job[rj,ri] = eval_job[ri,rj]
+            #end
+            @inbounds eval_job[ri] += me * coeff_bra[ri] * coeff_ket[ri] 
+        end
+    end
+
+    function do_job(job)
+        fock_bra = job[1]
+        config_bra = job[2]
+        coeff_bra = job[3]
+        eval_job = job[4]
+        ket_idx = 0
+
+        for (fock_ket, configs_ket) in ci_vector.data
+            fock_trans = fock_bra - fock_ket
+
+            # check if transition is connected by H
+            if haskey(clustered_ham, fock_trans) == false
+                ket_idx += length(configs_ket)
+                continue
+            end
+
+            for (config_ket, coeff_ket) in configs_ket
+                #ket_idx += 1
+                #ket_idx <= job[1] || continue
+
+                me = 0.0
+                for term in clustered_ham[fock_trans]
+
+                    #length(term.clusters) <= 2 || continue
+                    check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
+
+                    me += contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
+                    #if term isa ClusteredTerm4B
+                    #    @btime contract_matrix_element($term, $cluster_ops, $fock_bra, $config_bra, $fock_ket, $config_ket)
+                    #end
+                    #Hrow[ket_idx] += me 
+                    #H[job[1],ket_idx] += me 
+                end
+                #
+                # now add the results
+                #@inbounds for ri in 1:R
+                #    @simd for rj in ri:R
+                _add_val!(eval_job, me, coeff_bra, coeff_ket)
+                #for ri in 1:R
+                #    for rj in ri:R
+                #        eval_job[ri,rj] += me * coeff_bra[ri] * coeff_ket[rj] 
+                #        #eval_job[rj,ri] = eval_job[ri,rj]
+                #    end
+                #end
+            end
+        end
+    end
+
+    #for job in jobs
+    #Threads.@threads for job in jobs
+    @qthreads for job in jobs
+        do_job(job)
+        #@btime $do_job($job)
+    end
+
+    for job in jobs
+        evals .+= job[4]
+    end
+
+    return evals 
+end
+#=}}}=#
+
+
+
 
 """
     open_matvec(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
@@ -480,6 +812,7 @@ This is essentially used for computing a PT correction outside of the subspace, 
 """
 function open_matvec(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 #={{{=#
+    println(" In open_matvec")
     sig = deepcopy(ci_vector)
     zero!(sig)
     clusters = ci_vector.clusters
@@ -543,6 +876,7 @@ filling the final vector
 """
 function open_matvec_thread(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 #={{{=#
+    println(" In open_matvec_thread")
     sig = deepcopy(ci_vector)
     zero!(sig)
     clusters = ci_vector.clusters
@@ -602,7 +936,7 @@ function open_matvec_thread(ci_vector::ClusteredState{T,N,R}, cluster_ops, clust
         add!(sig, jobs_out[threadid])
     end
 
-    BLAS.set_num_threads(Threads.nthreads())
+    #BLAS.set_num_threads(Threads.nthreads())
     return sig
 end
 #=}}}=#
@@ -837,6 +1171,7 @@ end
 Form the diagonal of the hamiltonan, `clustered_ham`, in the basis defined by `vector`
 """
 function compute_diagonal(vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
+    #={{{=#
     Hd = zeros(size(vector)[1])
     idx = 0
     zero_trans = TransferConfig([(0,0) for i in 1:N])
@@ -858,6 +1193,38 @@ function compute_diagonal(vector::ClusteredState{T,N,R}, cluster_ops, clustered_
     end
     return Hd
 end
+#=}}}=#
+
+
+"""
+    compute_diagonal!(Hd, vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
+
+Form the diagonal of the hamiltonan, `clustered_ham`, in the basis defined by `vector`
+"""
+function compute_diagonal!(Hd, vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
+    #={{{=#
+    idx = 0
+    zero_trans = TransferConfig([(0,0) for i in 1:N])
+    for (fock_bra, configs_bra) in vector.data
+        for (config_bra, coeff_bra) in configs_bra
+            idx += 1
+            for term in clustered_ham[zero_trans]
+		    try
+			    Hd[idx] += contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_bra, config_bra)
+		    catch
+			    display(term)
+			    display(fock_bra)
+			    display(config_bra)
+			    error()
+		    end
+
+            end
+        end
+    end
+    return
+end
+#=}}}=#
+
 
 """
     expand_each_fock_space!(s::ClusteredState{T,N,R}, bases::Vector{ClusterBasis}) where {T,N,R}
