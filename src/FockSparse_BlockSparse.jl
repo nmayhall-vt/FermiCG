@@ -61,7 +61,7 @@ function TuckerState(clusters::Vector{Cluster}, p_spaces::Vector{ClusterSubspace
 
     N = length(clusters)
     #s = TuckerState(clusters)
-    data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Array{Float64}}}()
+    data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Array{Float64}} }()
     ns = []
     for cssi in p_spaces 
         nsi = []
@@ -90,7 +90,7 @@ function TuckerState(clusters::Vector{Cluster}, p_spaces::Vector{ClusterSubspace
 #            end
 
             haskey(data, fockconfig) == false || error(" here:", fockconfig)
-            data[fockconfig] = OrderedDict(tuckconfig => zeros((size(tuckconfig)...,nroots)))
+            data[fockconfig] = OrderedDict(tuckconfig => zeros((size(tuckconfig)...,nroots)) )
             #add_fockconfig!(data,fockconfig) 
             #data[fockconfig][tuckconfig] = zeros((size(tuckconfig)...,nroots))  # todo - finish this
         end
