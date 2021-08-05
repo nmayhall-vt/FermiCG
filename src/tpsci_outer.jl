@@ -178,21 +178,49 @@ function tps_ci_direct( ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered
 
     if H_old != nothing
         v_old != nothing || error(" can't specify H_old w/out v_old")
+        v_new = ci_vector
+        
+        project_out!(v_new, v_old)
+        
+        v_tot = deepcopy(v_old)
+        add!(v_tot, v_new)
+
         dim_old = length(v_old)
-        dim_new = length(ci_vector)
-    
+        dim_new = length(v_new)
+            
+
+        # create indexing to find old indices in new space
+        indices = OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, Int}}()
+   
+        idx = 1
+        for (fock,configs) in v_tot.data
+            indices[fock] = OrderedDict{ClusterConfig{N}, Int}()
+            for (config,coeff) in configs
+                indices[fock][config] = idx
+                idx += 1
+            end
+        end
+
         dim = dim_old + dim_new
 
+        dim == length(v_tot) || error(" not adding up")
+
         H = zeros(T, dim, dim)
+
+
+        # add old H elements
+        _fill_H_block!(H, H_old, v_old, v_old, indices)
+
         @printf(" %-50s", "Build old/new Hamiltonian matrix with dimension: ")
-        @time H0v = build_full_H_parallel(v_old, ci_vector, cluster_ops, clustered_ham)
-        H[1:dim_old, 1:dim_old] .= H_old
-        H[1:dim_old,dim_old+1:dim] .= H0v
-        H[dim_old+1:dim,1:dim_old] .= H0v'
+        @time Htmp = build_full_H_parallel(v_old, v_new, cluster_ops, clustered_ham)
+        _fill_H_block!(H, Htmp, v_old, v_new, indices)
+        _fill_H_block!(H, Htmp', v_new, v_old, indices)
+
         @printf(" %-50s", "Build new/new Hamiltonian matrix with dimension: ")
-        @time H[dim_old+1:dim,dim_old+1:dim] .= build_full_H_parallel(ci_vector, ci_vector, cluster_ops, clustered_ham, sym=true)
-        vec_out = deepcopy(v_old)
-        add!(vec_out, ci_vector)
+        @time Htmp = build_full_H_parallel(v_new, v_new, cluster_ops, clustered_ham, sym=true)
+        _fill_H_block!(H, Htmp, v_new, v_new, indices)
+        
+        vec_out = deepcopy(v_tot)
     else
         @printf(" %-50s", "Build full Hamiltonian matrix with dimension: ")
         @time H = build_full_H_parallel(ci_vector, ci_vector, cluster_ops, clustered_ham, sym=true)
@@ -231,6 +259,30 @@ function tps_ci_direct( ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered
 end
 #=}}}=#
 
+function _fill_H_block!(H_big, H_small, v_l,v_r, indices)
+    #={{{=#
+    # Fill H_big with elements from H_small
+    idx_l = 1
+    for (fock_l,configs_l) in v_l.data
+        for (config_l,coeff_l) in configs_l
+            idx_l_tot = indices[fock_l][config_l]
+
+            idx_r = 1
+            for (fock_r,configs_r) in v_r.data
+                for (config_r,coeff_r) in configs_r
+                    idx_r_tot = indices[fock_r][config_r]
+
+                    H_big[idx_l_tot, idx_r_tot] = H_small[idx_l, idx_r]
+
+                    idx_r += 1
+                end
+            end
+
+            idx_l += 1
+        end
+    end
+end
+#=}}}=#
 
 
 """

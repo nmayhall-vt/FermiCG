@@ -8,7 +8,7 @@ using Random
 using PyCall
 using Arpack
 
-#@testset "tpsci" begin
+@testset "tpsci" begin
     atoms = []
 
     r = 1
@@ -209,5 +209,5 @@ using Arpack
     @test isapprox(norm(FermiCG.get_vectors(sig1) - FermiCG.get_vectors(sig3)), 0.0, atol=1e-16)
 
 
-#end
+end
 
