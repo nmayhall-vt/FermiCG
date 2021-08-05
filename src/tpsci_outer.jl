@@ -241,7 +241,7 @@ function tps_ci_direct( ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered
 
     clustered_S2 = extract_S2(ci_vector.clusters)
     @printf(" %-50s", "Compute S2 expectation values: ")
-    @time s2 = compute_expectation_value(vec_out, cluster_ops, clustered_S2)
+    @time s2 = compute_expectation_value_parallel(vec_out, cluster_ops, clustered_S2)
     flush(stdout)
     @printf(" %5s %12s %12s\n", "Root", "Energy", "S2") 
     for r in 1:R
@@ -331,8 +331,8 @@ function tps_ci_davidson(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustere
         clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = "Hcmf") 
         @time Hd = compute_diagonal(ci_vector, cluster_ops, clustered_ham_0)
         @printf(" %-50s", "Compute <0|H0|0>: ")
-        @time E0 = compute_expectation_value(ci_vector, cluster_ops, clustered_ham_0)[1]
-        @time Eref = compute_expectation_value(ci_vector, cluster_ops, clustered_ham)[1]
+        @time E0 = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham_0)[1]
+        @time Eref = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham)[1]
         Hd .+= Eref - E0
         @printf(" Now iterate: \n")
         flush(stdout)
@@ -344,7 +344,7 @@ function tps_ci_davidson(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustere
     
     clustered_S2 = extract_S2(ci_vector.clusters)
     @printf(" %-50s", "Compute S2 expectation values: ")
-    @time s2 = compute_expectation_value(vec_out, cluster_ops, clustered_S2)
+    @time s2 = compute_expectation_value_parallel(vec_out, cluster_ops, clustered_S2)
     flush(stdout)
     @printf(" %5s %12s %12s\n", "Root", "Energy", "S2") 
     for r in 1:R
@@ -554,6 +554,7 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
         e0 = nothing
         mem_needed = sizeof(T)*length(vec_var)*length(vec_var)*1e-9
         @printf(" Memory needed to hold full CI matrix: %12.8f (Gb)\n",mem_needed)
+        flush(stdout)
         if (mem_needed > max_mem_ci) || davidson == true
             orthonormalize!(vec_var)
             e0, vec_var = tps_ci_davidson(vec_var, cluster_ops, clustered_ham,
@@ -573,11 +574,12 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
             #v_new = vec_var 
 #            e0, vec_var, H = tps_ci_direct(vec_var, cluster_ops, clustered_ham)
         end
+        flush(stdout)
       
 
 
         # get barycentric energy <0|H0|0>
-        Efock = compute_expectation_value(vec_var, cluster_ops, clustered_ham_0)
+        Efock = compute_expectation_value_parallel(vec_var, cluster_ops, clustered_ham_0)
         #Efock = nothing
         flush(stdout)
         vec_asci = deepcopy(vec_var)
@@ -623,6 +625,7 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
 
 
             @printf(" %-50s", "Compute diagonal: ")
+            flush(stdout)
             @time Hd = compute_diagonal(sig, cluster_ops, clustered_ham_0)
 
             sig_v = get_vectors(sig)
@@ -637,6 +640,7 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
 
                 @printf(" %5s %12.8f %12.8f\n",r, e0[r], e0[r] + e2[r])
             end
+            flush(stdout)
 
             vec_pt = deepcopy(sig)
             set_vector!(vec_pt,v_pt)
@@ -744,13 +748,13 @@ function compute_pt2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ha
     if E0 == nothing
         @printf(" %-50s", "Compute <0|H0|0>:")
         @time E0 = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham_0)
-        E0 = diag(E0)
+        #E0 = diag(E0)
         flush(stdout)
     end
 
     @printf(" %-50s", "Compute <0|H|0>:")
     @time Evar = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham)
-    Evar = diag(Evar)
+    #Evar = diag(Evar)
     flush(stdout)
     
 
@@ -829,22 +833,23 @@ function compute_expectation_value_parallel(ci_vector::ClusteredState{T,N,R}, cl
 
     # 
     # This will be were we collect our results
-    evals = zeros(T,R,R)
+    evals = zeros(T,R)
 
     jobs = []
 
     for (fock_bra, configs_bra) in ci_vector.data
         for (config_bra, coeff_bra) in configs_bra
-            push!(jobs, (fock_bra, config_bra, coeff_bra, zeros(T,R,R)) )
+            push!(jobs, (fock_bra, config_bra, coeff_bra, zeros(T,R)) )
         end
     end
 
     function _add_val!(eval_job, me, coeff_bra, coeff_ket)
         for ri in 1:R
-            for rj in ri:R
-                @inbounds eval_job[ri,rj] += me * coeff_bra[ri] * coeff_ket[rj] 
-                #eval_job[rj,ri] = eval_job[ri,rj]
-            end
+            #for rj in ri:R
+            #    @inbounds eval_job[ri,rj] += me * coeff_bra[ri] * coeff_ket[rj] 
+            #    #eval_job[rj,ri] = eval_job[ri,rj]
+            #end
+            @inbounds eval_job[ri] += me * coeff_bra[ri] * coeff_ket[ri] 
         end
     end
 

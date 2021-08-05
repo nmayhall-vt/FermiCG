@@ -40,12 +40,12 @@ function compute_batched_pt2(ci_vector_in::ClusteredState{T,N,R}, cluster_ops, c
     if E0 == nothing
         @printf(" %-50s", "Compute <0|H0|0>:")
         @time E0 = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham_0)
-        E0 = diag(E0)
+        #E0 = diag(E0)
         flush(stdout)
     end
     @printf(" %-50s", "Compute <0|H|0>:")
     @time Evar = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham)
-    Evar = diag(Evar)
+    #Evar = diag(Evar)
     flush(stdout)
 
 
