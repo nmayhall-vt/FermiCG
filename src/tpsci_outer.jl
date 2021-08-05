@@ -178,12 +178,13 @@ function tps_ci_direct( ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered
 
     if H_old != nothing
         v_old != nothing || error(" can't specify H_old w/out v_old")
-        v_new = ci_vector
+        v_tot = deepcopy(ci_vector)
+        v_new = deepcopy(ci_vector)
         
         project_out!(v_new, v_old)
         
-        v_tot = deepcopy(v_old)
-        add!(v_tot, v_new)
+        #v_tot = deepcopy(v_old)
+        #add!(v_tot, v_new)
 
         dim_old = length(v_old)
         dim_new = length(v_new)
@@ -203,7 +204,7 @@ function tps_ci_direct( ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered
 
         dim = dim_old + dim_new
 
-        dim == length(v_tot) || error(" not adding up")
+        dim == length(v_tot) || error(" not adding up", dim_old, " ", dim_new, " ", length(v_tot))
 
         H = zeros(T, dim, dim)
 
@@ -232,6 +233,7 @@ function tps_ci_direct( ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered
     @printf(" %-50s", "Diagonalize: ")
     if length(vec_out) > 1000
         @time e0,v = Arpack.eigs(H, nev = R, which=:SR)
+        #@time e0,v = Arpack.eigs(H, nev = R, v0=get_vector(v_tot,root=1), which=:SR)
     else
         @time F = eigen(H)
         e0 = F.values[1:R]
@@ -564,12 +566,11 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
         else
             if it > 1 
                 # just update matrix
-                e0, vec_var, H = tps_ci_direct(v_new, cluster_ops, clustered_ham, 
+                e0, vec_var, H = tps_ci_direct(vec_var, cluster_ops, clustered_ham, 
                                                H_old = H,
                                                v_old = v_old)
             else
-                v_new = vec_var 
-                e0, vec_var, H = tps_ci_direct(v_new, cluster_ops, clustered_ham)
+                e0, vec_var, H = tps_ci_direct(vec_var, cluster_ops, clustered_ham)
             end
             #v_new = vec_var 
 #            e0, vec_var, H = tps_ci_direct(vec_var, cluster_ops, clustered_ham)
@@ -1422,12 +1423,15 @@ Project w out of v
     |v'> = |v> - |w><w|v>
 """
 function project_out!(v::ClusteredState, w::ClusteredState)
-    for (fock,configs) in v.data 
-        for (config, coeff) in configs
-            if haskey(w, fock)
-                if haskey(w[fock], config)
+    for (fock,configs) in w.data 
+        if haskey(v.data, fock)
+            for (config, coeff) in configs
+                if haskey(v.data[fock], config)
                     delete!(v.data[fock], config)
                 end
+            end
+            if length(v[fock]) == 0
+                delete!(v.data, fock)
             end
         end
     end
