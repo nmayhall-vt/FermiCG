@@ -178,6 +178,7 @@ function tps_ci_direct( ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered
     e0 = zeros(T,R)
     @printf(" Hamiltonian matrix dimension = %5i: \n", length(ci_vector))
     dim = length(ci_vector)
+    flush(stdout)
    
     precond == false || @warn("davidson preconditioning NYI")
 
