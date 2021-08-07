@@ -173,11 +173,11 @@ using Arpack
     
     guess = deepcopy(v0a)
     FermiCG.rand!(guess)
-    e0b, v0b = FermiCG.tps_ci_direct(guess, cluster_ops, clustered_ham);
-    e0c, v0c = FermiCG.tps_ci_davidson(guess, cluster_ops, clustered_ham);
+    e0b, v0b = FermiCG.tps_ci_direct(guess, cluster_ops, clustered_ham, conv_thresh=1e-9);
+    e0c, v0c = FermiCG.tps_ci_davidson(guess, cluster_ops, clustered_ham, conv_thresh=1e-9);
 
-    @test isapprox(abs.(e0a), abs.(e0b), atol=1e-10)
-    @test isapprox(abs.(e0a), abs.(e0c), atol=1e-8)
+    @test isapprox(abs.(e0a), abs.(e0b), atol=1e-9)
+    @test isapprox(abs.(e0a), abs.(e0c), atol=1e-9)
    
     println(" Now test pt2 correction")
 
