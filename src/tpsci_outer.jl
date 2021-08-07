@@ -284,24 +284,49 @@ function _fill_H_block!(H_big, H_small, v_l,v_r, indices)
     #={{{=#
     # Fill H_big with elements from H_small
     idx_l = 1
-    for (fock_l,configs_l) in v_l.data
-        for (config_l,coeff_l) in configs_l
-            idx_l_tot = indices[fock_l][config_l]
+    
+    idx_l = zeros(Int,length(v_l))
+    idx_r = zeros(Int,length(v_r))
 
-            idx_r = 1
-            for (fock_r,configs_r) in v_r.data
-                for (config_r,coeff_r) in configs_r
-                    idx_r_tot = indices[fock_r][config_r]
-
-                    H_big[idx_l_tot, idx_r_tot] = H_small[idx_l, idx_r]
-
-                    idx_r += 1
-                end
-            end
-
-            idx_l += 1
+    idx = 1
+    for (fock,configs) in v_l.data
+        for (config,coeff) in configs
+            idx_l[idx] = indices[fock][config]
+            idx += 1
         end
     end
+
+    idx = 1
+    for (fock,configs) in v_r.data
+        for (config,coeff) in configs
+            idx_r[idx] = indices[fock][config]
+            idx += 1
+        end
+    end
+
+    for (il,iil) in enumerate(idx_l)
+        for (ir,iir) in enumerate(idx_r)
+            H_big[iil,iir] = H_small[il,ir]
+        end
+    end
+#    for (fock_l,configs_l) in v_l.data
+#        for (config_l,coeff_l) in configs_l
+#            idx_l_tot = indices[fock_l][config_l]
+#
+#            idx_r = 1
+#            for (fock_r,configs_r) in v_r.data
+#                for (config_r,coeff_r) in configs_r
+#                    idx_r_tot = indices[fock_r][config_r]
+#
+#                    H_big[idx_l_tot, idx_r_tot] = H_small[idx_l, idx_r]
+#
+#                    idx_r += 1
+#                end
+#            end
+#
+#            idx_l += 1
+#        end
+#    end
 end
 #=}}}=#
 
