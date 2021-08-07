@@ -1435,6 +1435,13 @@ function project_out!(v::ClusteredState, w::ClusteredState)
             end
         end
     end
+    # I'm not sure why this is necessary
+    idx = 0
+    for (fock,configs) in v.data
+        for (config, coeffs) in v.data[fock]
+            idx += 1
+        end
+    end
 end
 
 
