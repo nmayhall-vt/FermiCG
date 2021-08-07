@@ -78,6 +78,7 @@ function print_iter(solver::Davidson)
         end
     end
     println("")
+    flush(stdout)
 end
 
 
