@@ -210,14 +210,18 @@ function tps_ci_direct( ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered
 
 
         # add old H elements
-        _fill_H_block!(H, H_old, v_old, v_old, indices)
+        @printf(" %-50s", "Fill old/old Hamiltonian: ")
+        flush(stdout)
+        @time _fill_H_block!(H, H_old, v_old, v_old, indices)
 
         @printf(" %-50s", "Build old/new Hamiltonian matrix with dimension: ")
+        flush(stdout)
         @time Htmp = build_full_H_parallel(v_old, v_new, cluster_ops, clustered_ham)
         _fill_H_block!(H, Htmp, v_old, v_new, indices)
         _fill_H_block!(H, Htmp', v_new, v_old, indices)
 
         @printf(" %-50s", "Build new/new Hamiltonian matrix with dimension: ")
+        flush(stdout)
         @time Htmp = build_full_H_parallel(v_new, v_new, cluster_ops, clustered_ham, sym=true)
         _fill_H_block!(H, Htmp, v_new, v_new, indices)
         
