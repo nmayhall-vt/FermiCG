@@ -41,9 +41,8 @@ specified by `cluster_bases`.
 """
 function CompressedTuckerState(clusters::Vector{Cluster}, 
         fconfig::FockConfig{N}, 
-        cluster_bases::Vector{ClusterBasis}) where {N} 
+        cluster_bases::Vector{ClusterBasis}; T=Float64) where {N} 
     #={{{=#
-    T = Float64
 
     # 
     # start by building the P and Q spaces needed

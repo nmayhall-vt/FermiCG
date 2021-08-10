@@ -1,3 +1,50 @@
+
+"""
+    function add_single_excitons(v::TuckerState{T,N,R}, clusters, fspace::FockConfig{N}) where {T,N,R}
+"""
+function add_single_excitons!(v::TuckerState{T,N,R}, clusters) where {T,N,R}
+    unfold!(v)
+    for (fspace,tconfigs) in v.data
+       
+        ref = Vector{UnitRange{Int}}() 
+        good = true
+        for ci in 1:N
+            if haskey(v.p_spaces[ci], fspace[ci])
+                push!(ref, v.p_spaces[ci][fspace[ci]])
+            else
+                good = false
+            end
+        end
+        good == true || continue
+
+        for ci in 1:N
+            config_i = deepcopy(ref)
+            config_i[ci] = v.q_spaces[ci][fspace[ci]]
+            tconf = TuckerConfig(config_i)
+            v[fspace][TuckerConfig(config_i)] = zeros(T,dim(tconf),R) 
+        end
+    end
+    return
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #
 #
 #       None of this probably works!!!

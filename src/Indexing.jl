@@ -89,7 +89,7 @@ Base.:(==)(x::TuckerConfig, y::TuckerConfig) = all(x.config .== y.config)
 
 Return total dimension of space indexed by `tc`
 """
-dim(tc::TuckerConfig) = prod(size(tc)) 
+dim(tc::TuckerConfig) = prod(length.(tc.config)) 
 
 """
     function Base.convert(::Type{FockConfig{N}}, in::Vector) where {N}

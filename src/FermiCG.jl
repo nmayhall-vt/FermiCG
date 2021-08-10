@@ -72,5 +72,6 @@ export ClusterBasis
 export ClusteredState
 export ClusterConfig 
 export FockConfig 
+export TuckerConfig 
 
 end
