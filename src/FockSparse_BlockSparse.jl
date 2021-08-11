@@ -473,11 +473,13 @@ function Base.display(s::TuckerState; root=1, thresh=1e-3)
             @printf("     %-16s%-20s%-20s\n", "-------", "", "----------")
             for (config, coeffs) in configs 
                 probi = coeffs[:,root]' * coeffs[:,root]
-                @printf("     %-16.3f%-20i", probi,length(coeffs))
-                for range in config 
-                    @printf("%4s", range)
+                if probi > thresh
+                    @printf("     %-16.3f%-20i", probi,length(coeffs))
+                    for range in config 
+                        @printf("%7s", range)
+                    end
+                    println()
                 end
-                println()
             end
             println()
         end

@@ -131,6 +131,17 @@ function replace(tc::TransferConfig, idx, fock)
     return TransferConfig(new)
 end
 """
+    function replace(tc::FockConfig, idx, fock)
+"""
+function replace(tc::FockConfig, idx, fock)
+    new = [tc.config...]
+    length(idx) == length(fock) || error("wrong dimensions")
+    for i in 1:length(idx)
+        new[idx[i]] = (convert(Int16, fock[i][1]), convert(Int16, fock[i][2])) 
+    end
+    return FockConfig(new)
+end
+"""
     function replace(cc::ClusterConfig{N}, idx, conf) where N
 """
 function replace(cc::ClusterConfig{N}, idx, conf) where N
@@ -140,6 +151,18 @@ function replace(cc::ClusterConfig{N}, idx, conf) where N
         new[idx[i]] = convert(Int16, conf[i])
     end
     return ClusterConfig(new)
+end
+"""
+    function replace(cc::TuckerConfig{N}, idx, conf) where N
+"""
+function replace(cc::TuckerConfig{N}, idx, conf) where N
+    new = [cc.config...]
+    #length(idx) == length(conf) || error("wrong dimensions")
+    for i in 1:length(idx)
+        new[idx[i]] = conf[i]
+        #new[idx[i]] = convert(Int16, conf[i])
+    end
+    return TuckerConfig(new)
 end
 
 

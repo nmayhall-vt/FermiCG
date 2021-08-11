@@ -1,30 +1,87 @@
 
 """
-    function add_single_excitons(v::TuckerState{T,N,R}, clusters, fspace::FockConfig{N}) where {T,N,R}
+    function add_single_excitons(v::TuckerState{T,N,R}) where {T,N,R}
+
+Add a Q space to all currently defined `TuckerConfigs`.
+Return new `TuckerState`
 """
-function add_single_excitons!(v::TuckerState{T,N,R}, clusters) where {T,N,R}
+function add_single_excitons(v::TuckerState{T,N,R}) where {T,N,R}
     unfold!(v)
+    out = deepcopy(v)
     for (fspace,tconfigs) in v.data
-       
-        ref = Vector{UnitRange{Int}}() 
-        good = true
-        for ci in 1:N
-            if haskey(v.p_spaces[ci], fspace[ci])
-                push!(ref, v.p_spaces[ci][fspace[ci]])
-            else
-                good = false
+        for (tconfig,coeffs) in tconfigs
+
+            for ci in 1:N
+                config_i = replace(tconfig, [ci], [v.q_spaces[ci][fspace[ci]]])
+                out[fspace][config_i] = zeros(T,dim(config_i),R) 
             end
         end
-        good == true || continue
 
+    end
+    return out
+end
+
+
+"""
+    function add_1electron_transfers(v::TuckerState{T,N,R}) where {T,N,R}
+"""
+function add_1electron_transfers(v::TuckerState{T,N,R}) where {T,N,R}
+    out = deepcopy(v)
+
+    unfold!(v)
+    for (fspace,tconfigs) in v.data
+
+        #alpha transfer
         for ci in 1:N
-            config_i = deepcopy(ref)
-            config_i[ci] = v.q_spaces[ci][fspace[ci]]
-            tconf = TuckerConfig(config_i)
-            v[fspace][TuckerConfig(config_i)] = zeros(T,dim(tconf),R) 
+            for cj in 1:N
+                ci != cj || continue 
+
+                fconfig_ij = replace(fspace, [ci,cj], [(fspace[ci][1]+1, fspace[ci][2]), 
+                                                       (fspace[ci][1]-1, fspace[ci][2])])
+
+
+                tconf = Vector{UnitRange{Int16}}()
+                for (ck,fk) in enumerate(fconfig_ij.config)
+                    if haskey(v.p_spaces[ck], fk)
+                        push!(tconf,v.p_spaces[ck][fk])
+                    else
+                        push!(tconf,v.q_spaces[ck][fk])
+                    end
+                end
+                tconf = TuckerConfig(tconf)
+
+                add_fockconfig!(out, fconfig_ij)
+
+                out[fconfig_ij][tconf] = zeros(T,dim(tconf),R) 
+            end
+        end
+
+        #beta transfer
+        for ci in 1:N
+            for cj in 1:N
+                ci != cj || continue 
+
+                fconfig_ij = replace(fspace, [ci,cj], [(fspace[ci][1], fspace[ci][2]+1), 
+                                                       (fspace[ci][1], fspace[ci][2]-1)])
+
+
+                tconf = Vector{UnitRange{Int16}}()
+                for (ck,fk) in enumerate(fconfig_ij.config)
+                    if haskey(v.p_spaces[ck], fk)
+                        push!(tconf,v.p_spaces[ck][fk])
+                    else
+                        push!(tconf,v.q_spaces[ck][fk])
+                    end
+                end
+                tconf = TuckerConfig(tconf)
+
+                add_fockconfig!(out, fconfig_ij)
+
+                out[fconfig_ij][tconf] = zeros(T,dim(tconf),R) 
+            end
         end
     end
-    return
+    return out
 end
 
 
