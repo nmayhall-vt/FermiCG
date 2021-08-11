@@ -84,6 +84,13 @@ using Test
     FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
 
 
-    v = FermiCG.TuckerState(clusters, FockConfig(init_fspace), cluster_bases)
+    v = FermiCG.TuckerState(clusters, FockConfig(init_fspace), cluster_bases, R=2)
+
+    v1 = FermiCG.add_1electron_transfers(v)
+    v2 = FermiCG.add_single_excitons(v1)
+
+    FermiCG.rand!(v2)
+    FermiCG.orthonormalize!(v2)
+    display(FermiCG.dot(v2,v2))
 
 #end

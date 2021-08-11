@@ -110,6 +110,8 @@ function Base.length(s::ClusteredState)
     end
     return l
 end
+
+#remove
 """
     get_vector(s::ClusteredState; root=1)
 """
@@ -290,6 +292,7 @@ function LinearAlgebra.norm(s::ClusteredState{T,N,R}) where {T,N,R}
     return norms
 end
 
+# todo: remove
 """
     normalize!(s::AbstractState)
 """

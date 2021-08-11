@@ -213,15 +213,16 @@ function dot(ts1::TuckerState{T,N,R1}, ts2::TuckerState{T,N,R2}) where {T,N,R1,R
 end
 
 """
-    scale!(ts::FermiCG.TuckerState, a)
-
 Scale `ts` by a constant `a`
 """
-function scale!(ts::TuckerState, a)
+function scale!(ts::TuckerState{T,N,R}, a::Vector{T}) where {T,N,R}
     #={{{=#
-    for (fock,configs) in ts
-        for (config,tuck) in configs 
-            ts[fock][config] .*= a 
+    unfold!(ts)
+    for r in 1:R
+        for (fock,configs) in ts
+            for (config,tuck) in configs 
+                ts[fock][config][:,r] .*= a[r] 
+            end
         end
     end
     #=}}}=#
@@ -365,9 +366,8 @@ function prune_empty_fock_spaces!(s::TuckerState)
     #end
 end
 """
-    get_vector(s::TuckerState)
 """
-function get_vector(ts::TuckerState)
+function get_vector(ts::TuckerState{T,N,R}) where {T,N,R}
     nroots = nothing 
     for (fock,configs) in ts
         for (config,coeffs) in configs
@@ -433,6 +433,12 @@ end
 """
 function eye!(s::TuckerState{T,N,R}) where {T,N,R}
     set_vector!(s, Matrix{T}(I,size(s)))
+end
+"""
+    rand!(s::TuckerState)
+"""
+function rand!(s::TuckerState{T,N,R}) where {T,N,R}
+    set_vector!(s, rand(T,size(s)))
 end
     
     
@@ -559,5 +565,27 @@ function expand_each_fock_space!(s::TuckerState, bases::Vector{ClusterBasis}; nr
 end
 # }}}
 
+
+
+"""
+    function orthonormalize!(s::TuckerState{T,N,R}) where {T,N,R}
+
+orthonormalize
+"""
+function orthonormalize!(s::TuckerState{T,N,R}) where {T,N,R}
+    #={{{=#
+    v0 = get_vector(s) 
+    v0[:,1] .= v0[:,1]./norm(v0[:,1])
+    for r in 2:R
+        #|vr> = |vr> - |v1><v1|vr> - |v2><v2|vr> - ... 
+        for r0 in 1:r-1 
+            v0[:,r] .-= v0[:,r0] .* (v0[:,r0]'*v0[:,r])
+        end
+        v0[:,r] .= v0[:,r]./norm(v0[:,r])
+    end
+    isapprox(det(v0'*v0), 1.0, atol=1e-14) || @warn "initial guess det(v0'v0) = ", det(v0'v0) 
+    set_vector!(s,v0)
+end
+#=}}}=#
 
 

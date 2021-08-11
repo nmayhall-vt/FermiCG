@@ -88,6 +88,60 @@ end
 
 
 
+"""
+Solve for ground state in the space spanned by `ci_vector`'s basis 
+"""
+function ci_solve(ci_vector::TuckerState{T,N,R}, cluster_ops, clustered_ham; tol=1e-5) where {T,N,R} 
+#={{{=#
+
+    @printf(" Solve CI with # variables = %i\n", length(ci_vector))
+    vec = deepcopy(ci_vector)
+    normalize!(vec)
+    #flush term cache
+    flush_cache(clustered_ham)
+    
+    Hmap = get_map(vec, cluster_ops, clustered_ham, cache=true)
+
+    v0 = get_vector(vec)
+    nr = size(v0)[2]
+   
+
+    cache=true
+    if cache
+        #@timeit to "cache" cache_hamiltonian(vec, vec, cluster_ops, clustered_ham)
+        @printf(" Build and cache each hamiltonian term in the current basis:\n")
+        flush(stdout)
+        @time cache_hamiltonian(vec, vec, cluster_ops, clustered_ham)
+        @printf(" done.\n")
+        flush(stdout)
+    end
+
+    #for (ftrans,terms) in clustered_ham
+    #    for term in terms
+    #        println("nick: ", length(term.cache))
+    #    end
+    #end
+
+    #cache_hamiltonian(ci_vector, ci_vector, cluster_ops, clustered_ham)
+    
+    davidson = Davidson(Hmap,v0=v0,max_iter=80, max_ss_vecs=40, nroots=nr, tol=tol)
+    #Adiag = StringCI.compute_fock_diagonal(problem,mf.mo_energy, e_mf)
+    #FermiCG.solve(davidson)
+    flush(stdout)
+    #@time FermiCG.iteration(davidson, Adiag=Adiag, iprint=2)
+    @time e,v = FermiCG.solve(davidson)
+    set_vector!(vec,v)
+    
+    #println(" Memory used by cache: ", mem_used_by_cache(clustered_ham))
+
+    #flush term cache
+    flush_cache(clustered_ham)
+
+    return e,vec
+end
+#=}}}=#
+
+
 
 
 
