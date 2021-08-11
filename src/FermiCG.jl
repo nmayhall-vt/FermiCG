@@ -31,6 +31,7 @@ using IterTools
 include("Utils.jl")
 include("hosvd.jl")
 include("StringCI/StringCI.jl");
+include("SymDenseMats.jl");
 include("Solvers.jl");
 include("Hamiltonians.jl");
 include("Clusters.jl")
@@ -51,6 +52,7 @@ include("bst.jl")
 include("tpsci_inner.jl")
 include("tpsci_matvec_thread.jl")
 include("tpsci_outer.jl")
+include("tpsci_helpers.jl")
 
 include("dense_inner.jl")
 include("dense_outer.jl")

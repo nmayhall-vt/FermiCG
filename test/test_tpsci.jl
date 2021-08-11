@@ -135,6 +135,9 @@ using Arpack
     #                          thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=1e-2, conv_thresh=1e-4);
     e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=true,
                               thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=1e-2, conv_thresh=1e-4);
+    
+    ci_vector4 = FermiCG.extract_roots(v0,[4])
+    # todo now add root following for tpsci
 
     e2, v1 = FermiCG.compute_pt2(v0, cluster_ops, clustered_ham, thresh_foi=1e-8, matvec=3)
 
@@ -170,11 +173,11 @@ using Arpack
     
     guess = deepcopy(v0a)
     FermiCG.rand!(guess)
-    e0b, v0b = FermiCG.tps_ci_direct(guess, cluster_ops, clustered_ham);
-    e0c, v0c = FermiCG.tps_ci_davidson(guess, cluster_ops, clustered_ham);
+    e0b, v0b = FermiCG.tps_ci_direct(guess, cluster_ops, clustered_ham, conv_thresh=1e-9);
+    e0c, v0c = FermiCG.tps_ci_davidson(guess, cluster_ops, clustered_ham, conv_thresh=1e-9);
 
-    @test isapprox(abs.(e0a), abs.(e0b), atol=1e-10)
-    @test isapprox(abs.(e0a), abs.(e0c), atol=1e-8)
+    @test isapprox(abs.(e0a), abs.(e0b), atol=1e-9)
+    @test isapprox(abs.(e0a), abs.(e0c), atol=1e-9)
    
     println(" Now test pt2 correction")
 
@@ -204,5 +207,7 @@ using Arpack
 
     @test isapprox(norm(FermiCG.get_vectors(sig1) - FermiCG.get_vectors(sig2)), 0.0, atol=1e-16)
     @test isapprox(norm(FermiCG.get_vectors(sig1) - FermiCG.get_vectors(sig3)), 0.0, atol=1e-16)
+
+
 end
 

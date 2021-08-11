@@ -472,3 +472,23 @@ function add!(s1::ClusteredState, s2::ClusteredState)
 end
 
 
+"""
+    function extract_roots(v::ClusteredState{T,N,R}, roots)
+
+Extract roots to give new `ClusteredState` 
+"""
+function extract_roots(v::ClusteredState{T,N,R}, roots) where {T,N,R}
+    vecs = get_vectors(v)[:,roots]
+
+    out = ClusteredState(v.clusters, T=T, R=length(roots))
+    for (fock,configs) in v.data
+        add_fockconfig!(out,fock)
+        for (config,coeffs) in configs
+            out[fock][config] = deepcopy(v[fock][config][roots])
+        end
+    end
+
+    return out
+end
+
+

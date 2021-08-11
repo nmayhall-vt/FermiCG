@@ -58,24 +58,30 @@ end
 
 Build full TPSCI Hamiltonian matrix in space spanned by `ci_vector`. This works in serial for the full matrix
 """
-function build_full_H_parallel(ci_vector::ClusteredState, cluster_ops, clustered_ham::ClusteredOperator)
+function build_full_H_parallel( ci_vector_l::ClusteredState{T,N,R}, ci_vector_r::ClusteredState{T,N,R}, 
+                                cluster_ops, clustered_ham::ClusteredOperator;
+                                sym=false) where {T,N,R}
 #={{{=#
-    dim = length(ci_vector)
-    H = zeros(dim, dim)
+    dim_l = length(ci_vector_l)
+    dim_r = length(ci_vector_r)
+    H = zeros(dim_l, dim_r)
 
+    dim_l == dim_r || sym == false || error(" dim_l!=dim_r yet sym==true")
+
+    if (dim_l == dim_r) && sym == false
+        @warn(" are you missing sym=true?")
+    end
     jobs = []
 
-    zero_fock = TransferConfig([(0,0) for i in ci_vector.clusters])
+    zero_fock = TransferConfig([(0,0) for i in 1:N])
     bra_idx = 0
-    N = length(ci_vector.clusters)
-    
 
-    for (fock_bra, configs_bra) in ci_vector.data
+    for (fock_bra, configs_bra) in ci_vector_l.data
         for (config_bra, coeff_bra) in configs_bra
             bra_idx += 1
             #push!(jobs, (bra_idx, fock_bra, config_bra) )
             #push!(jobs, (bra_idx, fock_bra, config_bra, H[bra_idx,:]) )
-            push!(jobs, (bra_idx, fock_bra, config_bra, zeros(dim)) )
+            push!(jobs, (bra_idx, fock_bra, config_bra, zeros(dim_r)) )
         end
     end
 
@@ -85,7 +91,7 @@ function build_full_H_parallel(ci_vector::ClusteredState, cluster_ops, clustered
         Hrow = job[4]
         ket_idx = 0
 
-        for (fock_ket, configs_ket) in ci_vector.data
+        for (fock_ket, configs_ket) in ci_vector_r.data
             fock_trans = fock_bra - fock_ket
 
             # check if transition is connected by H
@@ -96,7 +102,7 @@ function build_full_H_parallel(ci_vector::ClusteredState, cluster_ops, clustered
 
             for (config_ket, coeff_ket) in configs_ket
                 ket_idx += 1
-                ket_idx <= job[1] || continue
+                ket_idx <= job[1] || sym == false || continue
 
                 for term in clustered_ham[fock_trans]
                        
@@ -132,9 +138,11 @@ function build_full_H_parallel(ci_vector::ClusteredState, cluster_ops, clustered
         H[job[1],:] .= job[4]
     end
 
-    for i in 1:dim
-        @simd for j in i+1:dim
-            @inbounds H[i,j] = H[j,i]
+    if sym
+        for i in 1:dim_l
+            @simd for j in i+1:dim_l
+                @inbounds H[i,j] = H[j,i]
+            end
         end
     end
 
@@ -145,25 +153,107 @@ end
 
 
 """
-    tps_ci_direct(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
+    function tps_ci_direct( ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
+                        H_old    = nothing,
+                        v_old    = nothing,
+                        verbose   = 0) where {T,N,R}
 
 # Solve for eigenvectors/values in the basis defined by `ci_vector`. Use direct diagonalization. 
+
+If updating existing matrix, pass in H_old/v_old to avoid rebuilding that block
 """
-function tps_ci_direct(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
-                      verbose   = 0) where {T,N,R}
+function tps_ci_direct( ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
+                        conv_thresh = 1e-5,
+                        max_ss_vecs = 12,
+                        max_iter    = 40,
+                        shift       = nothing,
+                        precond     = false,
+                        H_old    = nothing,
+                        v_old    = nothing,
+                        verbose   = 0) where {T,N,R}
     #={{{=#
     println()
     @printf(" |== Tensor Product State CI =======================================\n")
     vec_out = deepcopy(ci_vector)
     e0 = zeros(T,R)
     @printf(" Hamiltonian matrix dimension = %5i: \n", length(ci_vector))
-    @printf(" %-50s", "Build full Hamiltonian matrix with dimension: ")
-    @time H = build_full_H_parallel(vec_out, cluster_ops, clustered_ham)
+    dim = length(ci_vector)
     flush(stdout)
-    @printf(" %-50s", "Diagonalize: ")
-    if length(vec_out) > 1000
-        @time e0,v = Arpack.eigs(H, nev = R, which=:SR)
+   
+    precond == false || @warn("davidson preconditioning NYI")
+
+    H = zeros(T, 1,1)
+
+    if H_old != nothing
+        v_old != nothing || error(" can't specify H_old w/out v_old")
+        v_tot = deepcopy(ci_vector)
+        v_new = deepcopy(ci_vector)
+        
+        project_out!(v_new, v_old)
+        
+        #v_tot = deepcopy(v_old)
+        #add!(v_tot, v_new)
+
+        dim_old = length(v_old)
+        dim_new = length(v_new)
+            
+
+        # create indexing to find old indices in new space
+        indices = OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, Int}}()
+   
+        idx = 1
+        for (fock,configs) in v_tot.data
+            indices[fock] = OrderedDict{ClusterConfig{N}, Int}()
+            for (config,coeff) in configs
+                indices[fock][config] = idx
+                idx += 1
+            end
+        end
+
+        dim = dim_old + dim_new
+
+        dim == length(v_tot) || error(" not adding up", dim_old, " ", dim_new, " ", length(v_tot))
+
+        H = zeros(T, dim, dim)
+
+
+        # add old H elements
+        @printf(" %-50s", "Fill old/old Hamiltonian: ")
+        flush(stdout)
+        @time _fill_H_block!(H, H_old, v_old, v_old, indices)
+
+        @printf(" %-50s", "Build old/new Hamiltonian matrix with dimension: ")
+        flush(stdout)
+        @time Htmp = build_full_H_parallel(v_old, v_new, cluster_ops, clustered_ham)
+        _fill_H_block!(H, Htmp, v_old, v_new, indices)
+        _fill_H_block!(H, Htmp', v_new, v_old, indices)
+
+        @printf(" %-50s", "Build new/new Hamiltonian matrix with dimension: ")
+        flush(stdout)
+        @time Htmp = build_full_H_parallel(v_new, v_new, cluster_ops, clustered_ham, sym=true)
+        _fill_H_block!(H, Htmp, v_new, v_new, indices)
+        
+        vec_out = deepcopy(v_tot)
     else
+        @printf(" %-50s", "Build full Hamiltonian matrix with dimension: ")
+        @time H = build_full_H_parallel(ci_vector, ci_vector, cluster_ops, clustered_ham, sym=true)
+    end
+        
+        
+
+    flush(stdout)
+    if length(vec_out) > 10
+        @printf(" Now diagonalize\n")
+        #@time e0,v = Arpack.eigs(H, nev = R, which=:SR)
+        #@time e0,v = Arpack.eigs(H, nev = R, v0=get_vector(v_tot,root=1), which=:SR)
+        davidson = FermiCG.Davidson(H, v0=get_vectors(ci_vector), 
+                                max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)
+        
+        time = @elapsed e0,v = FermiCG.solve(davidson);
+        @printf(" %-50s", "Diagonalization time: ")
+        @printf("%10.6f seconds\n",time)
+    else
+        @printf(" %-50s", "Diagonalize: \n")
         @time F = eigen(H)
         e0 = F.values[1:R]
         v = F.vectors[:,1:R]
@@ -186,10 +276,59 @@ function tps_ci_direct(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_
     end
 
     @printf(" ==================================================================|\n")
-    return e0, vec_out 
+    return e0, vec_out, H 
 end
 #=}}}=#
 
+function _fill_H_block!(H_big, H_small, v_l,v_r, indices)
+    #={{{=#
+    # Fill H_big with elements from H_small
+    idx_l = 1
+    
+    idx_l = zeros(Int,length(v_l))
+    idx_r = zeros(Int,length(v_r))
+
+    idx = 1
+    for (fock,configs) in v_l.data
+        for (config,coeff) in configs
+            idx_l[idx] = indices[fock][config]
+            idx += 1
+        end
+    end
+
+    idx = 1
+    for (fock,configs) in v_r.data
+        for (config,coeff) in configs
+            idx_r[idx] = indices[fock][config]
+            idx += 1
+        end
+    end
+
+    for (il,iil) in enumerate(idx_l)
+        for (ir,iir) in enumerate(idx_r)
+            H_big[iil,iir] = H_small[il,ir]
+        end
+    end
+#    for (fock_l,configs_l) in v_l.data
+#        for (config_l,coeff_l) in configs_l
+#            idx_l_tot = indices[fock_l][config_l]
+#
+#            idx_r = 1
+#            for (fock_r,configs_r) in v_r.data
+#                for (config_r,coeff_r) in configs_r
+#                    idx_r_tot = indices[fock_r][config_r]
+#
+#                    H_big[idx_l_tot, idx_r_tot] = H_small[idx_l, idx_r]
+#
+#                    idx_r += 1
+#                end
+#            end
+#
+#            idx_l += 1
+#        end
+#    end
+end
+#=}}}=#
 
 
 """
@@ -220,8 +359,8 @@ function tps_ci_davidson(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustere
         #in = deepcopy(ci_vector) 
         in = ClusteredState(ci_vector, R=size(v,2))
         set_vector!(in, v)
-        sig = deepcopy(in)
-        zero!(sig)
+        #sig = deepcopy(in)
+        #zero!(sig)
         #build_sigma!(sig, ci_vector, cluster_ops, clustered_ham, cache=cache)
         return tps_ci_matvec(in, cluster_ops, clustered_ham)
     end
@@ -423,6 +562,10 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
     vec_asci_old = ClusteredState(ci_vector.clusters, R=R)
     sig = ClusteredState(ci_vector.clusters, R=R)
     clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = "Hcmf") 
+    
+    H = zeros(T,size(ci_vector))
+   
+    v_old = deepcopy(ci_vector)
 
     for it in 1:max_iter
 
@@ -438,11 +581,18 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
             l2 = length(vec_var)
             @printf(" Clip values < %8.1e         %6i → %6i\n", thresh_var, l1, l2)
             
+            project_out!(vec_pt, vec_var)
+    
+            v_old = deepcopy(vec_var)
+            v_new = deepcopy(vec_pt)
+
             l1 = length(vec_var)
             zero!(vec_pt)
             add!(vec_var, vec_pt)
             l2 = length(vec_var)
+           
             @printf(" Add pt vector to current space %6i → %6i\n", l1, l2)
+            length(v_old) + length(v_new) == l2 || error(" not adding up", length(v_old)+length(v_new), " ", l2)
         else
             rand!(vec_var)
         end
@@ -458,7 +608,16 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
                                    max_iter = ci_max_iter,
                                    max_ss_vecs = ci_max_ss_vecs)
         else
-            e0, vec_var = tps_ci_direct(vec_var, cluster_ops, clustered_ham)
+            if it > 1 
+                # just update matrix
+                e0, vec_var, H = tps_ci_direct(vec_var, cluster_ops, clustered_ham, 
+                                               H_old = H,
+                                               v_old = v_old)
+            else
+                e0, vec_var, H = tps_ci_direct(vec_var, cluster_ops, clustered_ham)
+            end
+            #v_new = vec_var 
+#            e0, vec_var, H = tps_ci_direct(vec_var, cluster_ops, clustered_ham)
         end
         flush(stdout)
       
@@ -507,7 +666,6 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
             flush(stdout)
             add!(sig, del_sig_it)
 
-            project_out!(sig, vec_asci)
             println(" Length of FOIS vector: ", length(sig))
 
 
@@ -538,6 +696,9 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
         l1 = length(vec_pt)
         clip!(vec_pt, thresh=thresh_cipsi)
         l2 = length(vec_pt)
+            
+        project_out!(sig, vec_asci)
+        
         @printf(" Length of PT1  vector %8i → %8i \n", l1, l2)
         #add!(vec_var, vec_pt)
 
@@ -1306,13 +1467,23 @@ Project w out of v
     |v'> = |v> - |w><w|v>
 """
 function project_out!(v::ClusteredState, w::ClusteredState)
-    for (fock,configs) in v.data 
-        for (config, coeff) in configs
-            if haskey(w, fock)
-                if haskey(w[fock], config)
+    for (fock,configs) in w.data 
+        if haskey(v.data, fock)
+            for (config, coeff) in configs
+                if haskey(v.data[fock], config)
                     delete!(v.data[fock], config)
                 end
             end
+            if length(v[fock]) == 0
+                delete!(v.data, fock)
+            end
+        end
+    end
+    # I'm not sure why this is necessary
+    idx = 0
+    for (fock,configs) in v.data
+        for (config, coeffs) in v.data[fock]
+            idx += 1
         end
     end
 end
