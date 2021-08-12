@@ -93,4 +93,5 @@ using Test
     FermiCG.orthonormalize!(v2)
     display(FermiCG.dot(v2,v2))
 
+    FermiCG.ci_solve(v2, cluster_ops, clustered_ham);
 #end

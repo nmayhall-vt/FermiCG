@@ -443,6 +443,8 @@ end
 function build_sigma!(sigma_vector::TuckerState, ci_vector::TuckerState, cluster_ops, clustered_ham; nbody=4)
     #={{{=#
 
+    fold!(sigma_vector)
+    fold!(ci_vector)
     for (fock_bra, configs_bra) in sigma_vector
         for (fock_ket, configs_ket) in ci_vector
             fock_trans = fock_bra - fock_ket

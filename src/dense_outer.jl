@@ -6,6 +6,7 @@ Add a Q space to all currently defined `TuckerConfigs`.
 Return new `TuckerState`
 """
 function add_single_excitons(v::TuckerState{T,N,R}) where {T,N,R}
+#={{{=#
     unfold!(v)
     out = deepcopy(v)
     for (fspace,tconfigs) in v.data
@@ -20,12 +21,13 @@ function add_single_excitons(v::TuckerState{T,N,R}) where {T,N,R}
     end
     return out
 end
-
+#=}}}=#
 
 """
     function add_1electron_transfers(v::TuckerState{T,N,R}) where {T,N,R}
 """
 function add_1electron_transfers(v::TuckerState{T,N,R}) where {T,N,R}
+#={{{=#
     out = deepcopy(v)
 
     unfold!(v)
@@ -83,7 +85,7 @@ function add_1electron_transfers(v::TuckerState{T,N,R}) where {T,N,R}
     end
     return out
 end
-
+#=}}}=#
 
 
 
@@ -96,25 +98,48 @@ function ci_solve(ci_vector::TuckerState{T,N,R}, cluster_ops, clustered_ham; tol
 
     @printf(" Solve CI with # variables = %i\n", length(ci_vector))
     vec = deepcopy(ci_vector)
-    normalize!(vec)
+    orthonormalize!(vec)
     #flush term cache
     flush_cache(clustered_ham)
+    dim = length(ci_vector)
+    iters = 0
+    cache=true
+   
+    function matvec(v::AbstractMatrix)
+        iters += 1
+        
+        in = TuckerState(ci_vector, R=size(v,2))
+        
+        unfold!(in)
+        set_vector!(in, v)
+        
+        out = deepcopy(in)
+        zero!(out)
+        build_sigma!(out, in, cluster_ops, clustered_ham)
+        #build_sigma!(out, in, cluster_ops, clustered_ham, cache=cache)
+        unfold!(out)
+
+        flush(stdout)
+        return get_vector(out)
+    end
+
     
-    Hmap = get_map(vec, cluster_ops, clustered_ham, cache=true)
+    Hmap = FermiCG.LinOp(matvec, dim)
+    #Hmap = matvec(vec, cluster_ops, clustered_ham, cache=true)
 
     v0 = get_vector(vec)
     nr = size(v0)[2]
    
 
-    cache=true
-    if cache
-        #@timeit to "cache" cache_hamiltonian(vec, vec, cluster_ops, clustered_ham)
-        @printf(" Build and cache each hamiltonian term in the current basis:\n")
-        flush(stdout)
-        @time cache_hamiltonian(vec, vec, cluster_ops, clustered_ham)
-        @printf(" done.\n")
-        flush(stdout)
-    end
+#    cache=true
+#    if cache
+#        #@timeit to "cache" cache_hamiltonian(vec, vec, cluster_ops, clustered_ham)
+#        @printf(" Build and cache each hamiltonian term in the current basis:\n")
+#        flush(stdout)
+#        @time cache_hamiltonian(vec, vec, cluster_ops, clustered_ham)
+#        @printf(" done.\n")
+#        flush(stdout)
+#    end
 
     #for (ftrans,terms) in clustered_ham
     #    for term in terms

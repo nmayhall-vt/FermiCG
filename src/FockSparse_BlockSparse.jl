@@ -20,7 +20,7 @@ E.g., used in n-body Tucker
 """
 struct TuckerState{T,N,R} <: AbstractState 
     clusters::Vector{Cluster}
-    data::OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Array{T,2} }}
+    data::OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Array{T} }}
     p_spaces::Vector{ClusterSubspace}
     q_spaces::Vector{ClusterSubspace}
 end
@@ -116,6 +116,48 @@ end
 #=}}}=#
 
 
+
+"""
+    function TuckerState(v::TuckerState{T,N,R}; T=T, R=R) where {T,N,R}
+
+Constructor creating a `TuckerState` with the same basis as `v`, but with potentially different `R` and `T`. 
+Coefficients of new vector are 0.0
+
+# Arguments
+- `T`:  Type of data for coefficients
+- `R`:  Number of roots
+# Returns
+- `TuckerState`
+"""
+function TuckerState(v::TuckerState{TT,NN,RR}; T=TT, R=RR) where {TT,NN,RR}
+    out = TuckerState(v.clusters, v.p_spaces, v.q_spaces, T=T, R=R)
+    for (fock, configs) in v.data
+        add_fockconfig!(out,fock)
+        for (config, coeffs) in configs
+            out[fock][config] = zeros(T,dim(config),R)
+        end
+    end
+    return out
+end
+
+
+"""
+    TuckerState(clusters; T=Float64, R=1)
+
+Constructor creating an empty vector
+# Arguments
+- `clusters::Vector{Cluster}`
+- `T`:  Type of data for coefficients
+- `R`:  Number of roots
+# Returns
+- `TuckerState`
+"""
+function TuckerState(clusters, p_spaces, q_spaces; T=Float64, R=1)
+    N = length(clusters)
+    return TuckerState{T,N,R}(clusters,
+                              p_spaces, q_spaces, 
+                              OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, MVector{R,T}}}())
+end
 
 #"""
 #    TuckerState(clusters, p_spaces, q_spaces, foi; nroots=1)
@@ -238,9 +280,9 @@ function unfold!(ts::TuckerState{T,N,R}) where {T,N,R}
         #display(fock)
         for (config,coeffs) in configs 
             #length(size(coeffs)) == length(ts.clusters)+1 || error(" Can only unfold a folded vector")
-            if length(size(coeffs)) != length(ts.clusters)+1 
+            #if length(size(coeffs)) != length(ts.clusters)+1 
                 ts[fock][config] = reshape(coeffs, (prod(size(config)),R))
-            end
+            #end
         end
     end
 #=}}}=#
@@ -252,9 +294,9 @@ function fold!(ts::TuckerState{T,N,R}) where {T,N,R}
 #={{{=#
     for (fock,configs) in ts.data
         for (config,coeffs) in configs 
-            if length(size(coeffs)) != 2 
+            #if length(size(coeffs)) != 2
                 ts[fock][config] = reshape(coeffs, (size(config)...,R))
-            end
+            #end
         end
     end
 #=}}}=#
