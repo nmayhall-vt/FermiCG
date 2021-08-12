@@ -1,7 +1,3 @@
-using TensorOperations
-using Printf
-
-
 """
 replace this with table lookup
 """
@@ -33,3 +29,12 @@ function fiedler_sort(C,K)
     perm, = bubble_sort(fvec)
     return C[:,perm]
 end
+
+function Base.:+(a::Tuple{T,T}, b::Tuple{T,T}) where T<:Integer
+    return (a[1]+b[1], a[2]+b[2])
+end
+function Base.:-(a::Tuple{T,T}, b::Tuple{T,T}) where T<:Integer
+    return (a[1]-b[1], a[2]-b[2])
+end
+
+

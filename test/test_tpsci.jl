@@ -139,7 +139,7 @@ using Arpack
     ci_vector4 = FermiCG.extract_roots(v0,[4])
     # todo now add root following for tpsci
 
-    e2, v1 = FermiCG.compute_pt2(v0, cluster_ops, clustered_ham, thresh_foi=1e-8, matvec=3)
+    e2, v1 = FermiCG.compute_pt1_wavefunction(v0, cluster_ops, clustered_ham, thresh_foi=1e-8, matvec=3)
 
     ref = [-18.32932467
            -18.05349474
@@ -172,7 +172,8 @@ using Arpack
     @test isapprox(norm(sig1-sig2), 0.0, atol=1e-12) 
     
     guess = deepcopy(v0a)
-    FermiCG.rand!(guess)
+    FermiCG.randomize!(guess)
+    FermiCG.orthonormalize!(guess)
     e0b, v0b = FermiCG.tps_ci_direct(guess, cluster_ops, clustered_ham, conv_thresh=1e-9);
     e0c, v0c = FermiCG.tps_ci_davidson(guess, cluster_ops, clustered_ham, conv_thresh=1e-9);
 
@@ -186,10 +187,10 @@ using Arpack
            -18.02800015
            -17.99499973]
 
-    e2a, v1a = FermiCG.compute_pt2(v0a, cluster_ops, clustered_ham, thresh_foi=1e-8, matvec=3)
+    e2a, v1a = FermiCG.compute_pt1_wavefunction(v0a, cluster_ops, clustered_ham, thresh_foi=1e-8, matvec=3)
     @test isapprox(abs.(ref), abs.(e0a+e2a), atol=1e-7)
     
-    e2b = FermiCG.compute_batched_pt2(v0a, cluster_ops, clustered_ham, thresh_foi=1e-8)
+    e2b = FermiCG.compute_pt2_energy(v0a, cluster_ops, clustered_ham, thresh_foi=1e-8)
     @test isapprox(abs.(ref), abs.(e0a+e2b), atol=1e-7)
 
         
