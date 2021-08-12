@@ -1,6 +1,6 @@
 
 """
-    config::NTuple{N,Tuple{Int16,Int16}}
+    config::NTuple{N,FockIndex}
 
 Indexes a 'Change in fock space'. For instance, if `F1` and `F2` are distince `FockConfig` instances, 
 then `TransferConfig` is `F1-F2`.
@@ -8,10 +8,10 @@ then `TransferConfig` is `F1-F2`.
 e.g., `config = ((2,3), (2,2), (3,2))` is a 3 cluster configuration with 2, 2, 3 α and 3, 2, 2 β electrons, respectively.  
 """
 struct FockConfig{N} <: SparseIndex
-    config::NTuple{N,Tuple{Int16,Int16}}
+    config::NTuple{N,FockIndex}
 end
 
-FockConfig(in::Vector{Tuple{T,T}}) where T = convert(FockConfig{length(in)}, in)
+FockConfig(in::Vector{FockIndex}) where T = convert(FockConfig{length(in)}, in)
 
 
 """

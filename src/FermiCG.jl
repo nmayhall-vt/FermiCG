@@ -55,6 +55,7 @@ include("type_ClusterSubspace.jl")
 include("build_local_quantities.jl")
 
 #indexing
+const FockIndex = Tuple{Int16, Int16}
 include("type_SparseIndex.jl")
 include("type_ClusterConfig.jl")
 include("type_TransferConfig.jl")

@@ -1,6 +1,12 @@
-struct ClusterOps
+"""
     cluster::Cluster
-    data::Dict{String,Dict{Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}},Array}}
+    data::Dict{String,Dict{Tuple{FockIndex, FockIndex},Array{T,3}}}
+
+Local operator tensors
+"""
+struct ClusterOps{T}
+    cluster::Cluster
+    data::Dict{String,Dict{Tuple{FockIndex, FockIndex},Array{T,3}}}
 end
 
 Base.iterate(i::ClusterOps, state=1) = iterate(i.data, state)
@@ -21,10 +27,10 @@ function Base.display(co::ClusterOps)
         end
     end
 end
-function ClusterOps(ci::Cluster)
-    dic1 = Dict{Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}},Array{Float64}}()
+function ClusterOps(ci::Cluster; T=Float64)
+    dic1 = Dict{Tuple{FockIndex, FockIndex}, Array{T,3}}()
     dic2 = Dict{String,typeof(dic1)}() 
-    return ClusterOps(ci, dic2)
+    return ClusterOps{T}(ci, dic2)
 end
 
 """
@@ -32,7 +38,7 @@ end
 
 Rotate `ops` by unitary matrices in `U`
 """
-function rotate!(ops::ClusterOps,U::Dict{Tuple,Matrix{T}}) where T
+function rotate!(ops::ClusterOps{T},U::Dict{Tuple,Matrix{T}}) where T
 #={{{=#
     for (op,fspace_deltas) in ops
         #println(" Rotate ", op)
