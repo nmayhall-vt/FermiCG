@@ -69,6 +69,7 @@ include("type_BSTstate.jl")
 include("type_TPSCIstate.jl")
 
 include("type_ClusteredTerm.jl")
+include("type_ClusteredOperator.jl")
 #include("TPSCIstates.jl")
 
 include("tucker_inner.jl")
