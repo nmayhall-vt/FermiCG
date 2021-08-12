@@ -1,7 +1,7 @@
 using TimerOutputs
 
 """
-    block_sparse_tucker(input_vec::CompressedTuckerState, cluster_ops, clustered_ham;
+    block_sparse_tucker(input_vec::BSTstate, cluster_ops, clustered_ham;
         max_iter    = 20,
         max_iter_pt = 200, 
         nbody       = 4,
@@ -15,7 +15,7 @@ using TimerOutputs
         tol_tucker  = 1e-6)
 
 # Arguments
-- `input_vec::CompressedTuckerState`: initial state
+- `input_vec::BSTstate`: initial state
 - `cluster_ops`: local cluster operators
 - `clustered_ham::ClusteredOperator`: hamiltonian
 - `max_iter = 20`: max number of iterations
@@ -32,11 +32,11 @@ using TimerOutputs
 - `tol_tucker`: Convergence threshold for Tucker iterations (energy change)
 # Returns
 - `e_var::Float64`: the final variational energy
-- `v_var::CompressedTuckerState`: the final variational state
+- `v_var::BSTstate`: the final variational state
 
-See also: [`CompressedTuckerState`](@ref), [`Tucker`](@ref)
+See also: [`BSTstate`](@ref), [`Tucker`](@ref)
 """
-function block_sparse_tucker(input_vec::CompressedTuckerState, cluster_ops, clustered_ham;
+function block_sparse_tucker(input_vec::BSTstate, cluster_ops, clustered_ham;
         max_iter    = 20,
         max_iter_pt = 200, # max number of iterations for solving for PT1
         nbody       = 4,

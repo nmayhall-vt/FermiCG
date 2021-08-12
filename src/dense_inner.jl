@@ -438,9 +438,9 @@ end
 
 
 """
-    build_sigma!(sigma_vector::TuckerState, ci_vector::TuckerState, cluster_ops, clustered_ham, nbody=4)
+    build_sigma!(sigma_vector::BSstate, ci_vector::BSstate, cluster_ops, clustered_ham, nbody=4)
 """
-function build_sigma!(sigma_vector::TuckerState, ci_vector::TuckerState, cluster_ops, clustered_ham; nbody=4)
+function build_sigma!(sigma_vector::BSstate, ci_vector::BSstate, cluster_ops, clustered_ham; nbody=4)
     #={{{=#
 
     for (fock_bra, configs_bra) in sigma_vector
@@ -479,7 +479,7 @@ end
 
 Get LinearMap with takes a vector and returns action of H on that vector
 """
-function get_map(ci_vector::TuckerState, cluster_ops, clustered_ham; shift = nothing)
+function get_map(ci_vector::BSstate, cluster_ops, clustered_ham; shift = nothing)
     #={{{=#
     iters = 0
    
@@ -520,7 +520,7 @@ function get_map(ci_vector::TuckerState, cluster_ops, clustered_ham; shift = not
 end
 #=}}}=#
 
-function tucker_ci_solve!(ci_vector::TuckerState, cluster_ops, clustered_ham; tol=1e-5)
+function tucker_ci_solve!(ci_vector::BSstate, cluster_ops, clustered_ham; tol=1e-5)
 #={{{=#
     unfold!(ci_vector) 
     Hmap = get_map(ci_vector, cluster_ops, clustered_ham)
@@ -543,7 +543,7 @@ end
 
 
 
-function compress_blocks(ts::TuckerState; thresh=1e-7)
+function compress_blocks(ts::BSstate; thresh=1e-7)
     for (fock, tconfigs) in ts.data
         display(fock)
         for (tconfig, coeffs) in tconfigs

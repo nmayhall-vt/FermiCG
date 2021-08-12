@@ -14,7 +14,7 @@ Ax=b
 
 works for one root at a time
 """
-function tucker_cepa_solve!(ref_vector::TuckerState, ci_vector::TuckerState, cluster_ops, clustered_ham; tol=1e-5)
+function tucker_cepa_solve!(ref_vector::BSstate, ci_vector::BSstate, cluster_ops, clustered_ham; tol=1e-5)
 #={{{=#
     fold!(ref_vector) 
     fold!(ci_vector) 
@@ -83,14 +83,14 @@ function tucker_cepa_solve!(ref_vector::TuckerState, ci_vector::TuckerState, clu
 end#=}}}=#
 
 """
-    get_foi(v::TuckerState, clustered_ham, q_spaces; nroots=1, nbody=2)
+    get_foi(v::BSstate, clustered_ham, q_spaces; nroots=1, nbody=2)
 Compute the first-order interacting space as defined by clustered_ham
 
 e.g., 
  1(p') 3(r) 4(q's)  *  v[(1,1),(1,1),(1,1),(1,1)][1:1,1:1,1:1,1:1]  =>  v[(2,1), (1,1), (0,1), (1,1)][1:N, 1:1, 1:N, 1:N]
 """
-function get_foi(v::TuckerState, clustered_ham, q_spaces; nroots=1, nbody=2)
-    println(" Prepare empty TuckerState spanning the FOI of input")#={{{=#
+function get_foi(v::BSstate, clustered_ham, q_spaces; nroots=1, nbody=2)
+    println(" Prepare empty BSstate spanning the FOI of input")#={{{=#
     foi = deepcopy(v)
     na = 0
     nb = 0
@@ -174,22 +174,22 @@ function get_foi(v::TuckerState, clustered_ham, q_spaces; nroots=1, nbody=2)
 end
 
 """
-    get_nbody_tucker_space(v::TuckerState, p_spaces, q_spaces; nroots=1, nbody=2)
+    get_nbody_tucker_space(v::BSstate, p_spaces, q_spaces; nroots=1, nbody=2)
 Get a vector dimensioned according to the n-body Tucker scheme
-- `v::TuckerState` = reference P-space vector
+- `v::BSstate` = reference P-space vector
 - `p_spaces` = `Vector{ClusterSubspace}` denoting all the cluster P-spaces
 - `q_spaces` = `Vector{ClusterSubspace}` denoting all the cluster Q-spaces
 - `nbody`    = n-body order
 """
-function get_nbody_tucker_space(v::TuckerState, p_spaces, q_spaces, na, nb; nroots=1, nbody=2)
+function get_nbody_tucker_space(v::BSstate, p_spaces, q_spaces, na, nb; nroots=1, nbody=2)
     clusters = v.clusters
-    println(" Prepare empty TuckerState spanning the n-body Tucker space with nbody = ", nbody)#={{{=#
+    println(" Prepare empty BSstate spanning the n-body Tucker space with nbody = ", nbody)#={{{=#
     ci_vector = deepcopy(v)
     if nbody >= 1 
         for ci in clusters
             tmp_spaces = copy(p_spaces)
             tmp_spaces[ci.idx] = q_spaces[ci.idx]
-            FermiCG.add!(ci_vector, FermiCG.TuckerState(clusters, tmp_spaces, na, nb))
+            FermiCG.add!(ci_vector, FermiCG.BSstate(clusters, tmp_spaces, na, nb))
         end
     end
     if nbody >= 2 
@@ -199,7 +199,7 @@ function get_nbody_tucker_space(v::TuckerState, p_spaces, q_spaces, na, nb; nroo
                 tmp_spaces = copy(p_spaces)
                 tmp_spaces[ci.idx] = q_spaces[ci.idx]
                 tmp_spaces[cj.idx] = q_spaces[cj.idx]
-                FermiCG.add!(ci_vector, FermiCG.TuckerState(clusters, tmp_spaces, na, na))
+                FermiCG.add!(ci_vector, FermiCG.BSstate(clusters, tmp_spaces, na, na))
             end
         end
     end
@@ -213,7 +213,7 @@ function get_nbody_tucker_space(v::TuckerState, p_spaces, q_spaces, na, nb; nroo
                     tmp_spaces[ci.idx] = q_spaces[ci.idx]
                     tmp_spaces[cj.idx] = q_spaces[cj.idx]
                     tmp_spaces[ck.idx] = q_spaces[ck.idx]
-                    FermiCG.add!(ci_vector, FermiCG.TuckerState(clusters, tmp_spaces, na, na))
+                    FermiCG.add!(ci_vector, FermiCG.BSstate(clusters, tmp_spaces, na, na))
                 end
             end
         end
@@ -231,7 +231,7 @@ function get_nbody_tucker_space(v::TuckerState, p_spaces, q_spaces, na, nb; nroo
                         tmp_spaces[cj.idx] = q_spaces[cj.idx]
                         tmp_spaces[ck.idx] = q_spaces[ck.idx]
                         tmp_spaces[cl.idx] = q_spaces[cl.idx]
-                        FermiCG.add!(ci_vector, FermiCG.TuckerState(clusters, tmp_spaces, na, nb))
+                        FermiCG.add!(ci_vector, FermiCG.BSstate(clusters, tmp_spaces, na, nb))
                     end
                 end
             end

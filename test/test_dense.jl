@@ -277,12 +277,12 @@ ENV["PYTHON"] = Sys.which("python")
 
 
     nroots = 1
-    ci_vector = FermiCG.TuckerState(clusters, p_spaces, q_spaces, na, nb)
+    ci_vector = FermiCG.BSstate(clusters, p_spaces, q_spaces, na, nb)
     ref_vector = deepcopy(ci_vector)
 
     # for FOI space 
     foi_space = FermiCG.define_foi_space(ref_vector, clustered_ham, nbody=2) 
-    ci_vector = FermiCG.TuckerState(clusters, p_spaces, q_spaces, foi_space)
+    ci_vector = FermiCG.BSstate(clusters, p_spaces, q_spaces, foi_space)
     
     #
     # initialize with eye
@@ -291,9 +291,9 @@ ENV["PYTHON"] = Sys.which("python")
     
     #FermiCG.print_fock_occupations(ci_vector)
 
-    cts_ref  = FermiCG.CompressedTuckerState(ref_vector, thresh=-1);
+    cts_ref  = FermiCG.BSTstate(ref_vector, thresh=-1);
   
-    cts = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-5)
+    cts = FermiCG.BSTstate(ci_vector, thresh=1e-5)
     #display(cts_fois)
     if false  
         FermiCG.scale!(ci_vector, 1.0/sqrt(FermiCG.dot(ci_vector, ci_vector)[1]))
@@ -303,7 +303,7 @@ ENV["PYTHON"] = Sys.which("python")
         FermiCG.print_fock_occupations(ci_vector)
 
         println(" Now compress and resolve")
-        cts = FermiCG.CompressedTuckerState(ci_vector, thresh=1e-5)
+        cts = FermiCG.BSTstate(ci_vector, thresh=1e-5)
         #FermiCG.compress!(cts,thresh=1e-5)
         FermiCG.normalize!(cts)
         display(length(cts))

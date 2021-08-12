@@ -1,5 +1,5 @@
 """
-    compute_pt1_wavefunction(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; 
+    compute_pt1_wavefunction(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; 
         nbody=4, 
         H0="Hcmf",
         E0=nothing, #pass in <0|H0|0>, or compute it
@@ -8,7 +8,7 @@
         verbose=1,
         matvec=3) where {T,N,R}
 """
-function compute_pt1_wavefunction(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; 
+function compute_pt1_wavefunction(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; 
         nbody=4, 
         H0="Hcmf",
         E0=nothing, #pass in <0|H0|0>, or compute it
@@ -89,19 +89,19 @@ end
 
 
 """
-    open_matvec(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
+    open_matvec(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 
 Compute the action of the Hamiltonian on a tpsci state vector. Open here, means that we access the full FOIS 
 (restricted only by thresh), instead of the action of H on v within a subspace of configurations. 
 This is essentially used for computing a PT correction outside of the subspace, or used for searching in TPSCI.
 """
-function open_matvec(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
+function open_matvec(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 #={{{=#
     println(" In open_matvec")
     sig = deepcopy(ci_vector)
     zero!(sig)
     clusters = ci_vector.clusters
-    #sig = ClusteredState(clusters)
+    #sig = TPSCIstate(clusters)
     #sig = OrderedDict{FockConfig{N}, OrderedDict{NTuple{N,Int16}, MVector{T} }}()
     for (fock_ket, configs_ket) in ci_vector.data
         for (ftrans, terms) in clustered_ham
@@ -150,7 +150,7 @@ end
 
 
 """
-    open_matvec_thread(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
+    open_matvec_thread(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 
 Compute the action of the Hamiltonian on a tpsci state vector. Open here, means that we access the full FOIS 
 (restricted only by thresh), instead of the action of H on v within a subspace of configurations. 
@@ -159,14 +159,14 @@ This is essentially used for computing a PT correction outside of the subspace, 
 This parallellizes over FockConfigs in the output state, so it's not the most fine-grained, but it avoids data races in 
 filling the final vector
 """
-function open_matvec_thread(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
+function open_matvec_thread(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 #={{{=#
     println(" In open_matvec_thread")
     sig = deepcopy(ci_vector)
     zero!(sig)
     clusters = ci_vector.clusters
     jobs = Dict{FockConfig{N},Vector{Tuple}}()
-    #sig = ClusteredState(clusters)
+    #sig = TPSCIstate(clusters)
     #sig = OrderedDict{FockConfig{N}, OrderedDict{NTuple{N,Int16}, MVector{T} }}()
 
     for (fock_ket, configs_ket) in ci_vector.data
@@ -195,9 +195,9 @@ function open_matvec_thread(ci_vector::ClusteredState{T,N,R}, cluster_ops, clust
         push!(jobs_vec, (fock_bra, job))
     end
 
-    jobs_out = Vector{ClusteredState{T,N,R}}()
+    jobs_out = Vector{TPSCIstate{T,N,R}}()
     for tid in 1:Threads.nthreads()
-        push!(jobs_out, ClusteredState(clusters, T=T, R=R))
+        push!(jobs_out, TPSCIstate(clusters, T=T, R=R))
     end
 
 
@@ -254,7 +254,7 @@ end
 #=}}}=#
 
 """
-    open_matvec_parallel(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
+    open_matvec_parallel(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 
 Compute the action of the Hamiltonian on a tpsci state vector. Open here, means that we access the full FOIS 
 (restricted only by thresh), instead of the action of H on v within a subspace of configurations. 
@@ -263,7 +263,7 @@ This is essentially used for computing a PT correction outside of the subspace, 
 This parallellizes over FockConfigs in the output state, so it's not the most fine-grained, but it avoids data races in 
 filling the final vector
 """
-function open_matvec_parallel(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
+function open_matvec_parallel(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 #={{{=#
     
     sig = deepcopy(ci_vector)
@@ -274,7 +274,7 @@ function open_matvec_parallel(ci_vector::ClusteredState{T,N,R}, cluster_ops, clu
     println(" Copy data to each worker")
     @sync for pid in procs()
         @spawnat pid eval(:(ci_vector = deepcopy($ci_vector)))
-        @spawnat pid eval(:(sig_job = ClusteredState($clusters, R=$R)))
+        @spawnat pid eval(:(sig_job = TPSCIstate($clusters, R=$R)))
         @spawnat pid eval(:(cluster_ops = $cluster_ops))
         @spawnat pid eval(:(clusters = $clusters))
         @spawnat pid eval(:(thresh = $thresh))
@@ -308,9 +308,9 @@ function open_matvec_parallel(ci_vector::ClusteredState{T,N,R}, cluster_ops, clu
         push!(jobs_vec, (fock_bra, job))
     end
 
-    jobs_out = Dict{Int, ClusteredState{T,N,R}}()
+    jobs_out = Dict{Int, TPSCIstate{T,N,R}}()
     for pid in procs()
-        jobs_out[pid] = ClusteredState(clusters, T=T, R=R)
+        jobs_out[pid] = TPSCIstate(clusters, T=T, R=R)
     end
 
 
@@ -346,7 +346,7 @@ function _open_matvec_job_parallel(job, fock_bra, nbody, thresh, N, R, T)
 #={{{=#
     #sigfock = OrderedDict{ClusterConfig{N}, MVector{R, T} }()
 
-    #sig = ClusteredState(clusters,R=R)
+    #sig = TPSCIstate(clusters,R=R)
     add_fockconfig!(sig_job, fock_bra)
 
     for jobi in job 
@@ -373,9 +373,9 @@ end
 #=}}}=#
 
 """
-    open_matvec_parallel2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
+    open_matvec_parallel2(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 """
-function open_matvec_parallel2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
+function open_matvec_parallel2(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 #={{{=#
     sig = deepcopy(ci_vector)
     zero!(sig)
@@ -384,7 +384,7 @@ function open_matvec_parallel2(ci_vector::ClusteredState{T,N,R}, cluster_ops, cl
     println(" create empty sig vector on each worker")
     @sync for pid in procs()
         @spawnat pid eval(:(ci_vector = deepcopy($ci_vector)))
-        @spawnat pid eval(:(sig_job = ClusteredState($clusters, R=$R)))
+        @spawnat pid eval(:(sig_job = TPSCIstate($clusters, R=$R)))
         @spawnat pid eval(:(cluster_ops = $cluster_ops))
         @spawnat pid eval(:(clusters = $clusters))
         @spawnat pid eval(:(thresh = $thresh))

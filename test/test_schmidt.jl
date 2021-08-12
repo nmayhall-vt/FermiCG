@@ -88,7 +88,7 @@ using OrderedCollections
     clustered_ham = FermiCG.extract_ClusteredTerms(ints, clusters)
     cluster_ops = FermiCG.compute_cluster_ops(cb_est, ints);
 
-    ci_vector = FermiCG.ClusteredState(clusters)
+    ci_vector = FermiCG.TPSCIstate(clusters)
     FermiCG.expand_to_full_space!(ci_vector, cb_est, na, nb)
     display(ci_vector,thresh=-1)
 

@@ -1,5 +1,5 @@
 """
-    open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
+    open_matvec_thread2(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 
 Compute the action of the Hamiltonian on a tpsci state vector. Open here, means that we access the full FOIS 
 (restricted only by thresh), instead of the action of H on v within a subspace of configurations. 
@@ -8,7 +8,7 @@ This is essentially used for computing a PT correction outside of the subspace, 
 This parallellizes over FockConfigs in the output state, so it's not the most fine-grained, but it avoids data races in 
 filling the final vector
 """
-function open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham; 
+function open_matvec_thread2(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham; 
                              thresh=1e-9, 
                              prescreen=true,
                              nbody=4) where {T,N,R}
@@ -18,7 +18,7 @@ function open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clus
     zero!(sig)
     clusters = ci_vector.clusters
     jobs = Dict{FockConfig{N},Vector{Tuple}}()
-    #sig = ClusteredState(clusters)
+    #sig = TPSCIstate(clusters)
     #sig = OrderedDict{FockConfig{N}, OrderedDict{NTuple{N,Int16}, MVector{T} }}()
 
     @printf(" %-50s", "Setup threaded jobs: ")
@@ -60,9 +60,9 @@ function open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clus
     tmp1 = Vector{MVector{N,Int16}}()
     tmp2 = Vector{MVector{N,Int16}}()
 
-    jobs_out = Vector{ClusteredState{T,N,R}}()
+    jobs_out = Vector{TPSCIstate{T,N,R}}()
     for tid in 1:Threads.nthreads()
-        push!(jobs_out, ClusteredState(clusters, T=T, R=R))
+        push!(jobs_out, TPSCIstate(clusters, T=T, R=R))
         push!(scr1, zeros(1000))
         push!(scr2, zeros(1000))
         push!(scr3, zeros(1000))
@@ -114,7 +114,7 @@ function open_matvec_thread2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clus
 end
 #=}}}=#
 
-function open_matvec_serial2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham;
+function open_matvec_serial2(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham;
                              thresh=1e-9, 
                              prescreen=true,
                              nbody=4) where {T,N,R}
@@ -164,9 +164,9 @@ function open_matvec_serial2(ci_vector::ClusteredState{T,N,R}, cluster_ops, clus
     tmp1 = Vector{MVector{N,Int16}}()
     tmp2 = Vector{MVector{N,Int16}}()
 
-    jobs_out = Vector{ClusteredState{T,N,R}}()
+    jobs_out = Vector{TPSCIstate{T,N,R}}()
     for tid in 1:1
-        push!(jobs_out, ClusteredState(clusters, T=T, R=R))
+        push!(jobs_out, TPSCIstate(clusters, T=T, R=R))
         push!(scr1, zeros(1000))
         push!(scr2, zeros(1000))
         push!(scr3, zeros(1000))

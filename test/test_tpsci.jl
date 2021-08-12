@@ -111,7 +111,7 @@ using Arpack
 
     if true 
 
-        ci_vector = FermiCG.ClusteredState(clusters, ref_fock, R=nroots)
+        ci_vector = FermiCG.TPSCIstate(clusters, ref_fock, R=nroots)
 
 
         @time e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=true, 
@@ -124,7 +124,7 @@ using Arpack
    
     nroots = 4
 
-    ci_vector = FermiCG.ClusteredState(clusters, ref_fock, R=nroots)
+    ci_vector = FermiCG.TPSCIstate(clusters, ref_fock, R=nroots)
 
     #1 excitons 
     ci_vector[ref_fock][ClusterConfig([2,1,1])] = [0,1,0,0]
@@ -194,7 +194,7 @@ using Arpack
     @test isapprox(abs.(ref), abs.(e0a+e2b), atol=1e-7)
 
         
-    ci_vector = FermiCG.ClusteredState(clusters, ref_fock, R=nroots)
+    ci_vector = FermiCG.TPSCIstate(clusters, ref_fock, R=nroots)
     ci_vector[ref_fock][ClusterConfig([2,1,1])] = [0,1,0,0]
     ci_vector[ref_fock][ClusterConfig([1,2,1])] = [0,0,1,0]
     ci_vector[ref_fock][ClusterConfig([1,1,2])] = [0,0,0,1]

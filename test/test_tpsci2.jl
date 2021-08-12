@@ -114,7 +114,7 @@ using Arpack
     ref_fock = FermiCG.FockConfig(init_fspace)
 
 
-    ci_vector = FermiCG.ClusteredState(clusters, ref_fock, R=nroots)
+    ci_vector = FermiCG.TPSCIstate(clusters, ref_fock, R=nroots)
 
 
     FermiCG.rand!(ci_vector)

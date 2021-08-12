@@ -64,12 +64,12 @@ include("type_OperatorConfig.jl")
 include("Indexing.jl")
 
 include("type_AbstractState.jl")
-include("FockSparse_ElementSparse.jl")
-include("FockSparse_BlockSparse.jl")
-include("FockSparse_BlockSparseTucker.jl")
+include("type_BSstate.jl")
+include("type_BSTstate.jl")
+include("type_TPSCIstate.jl")
 
 include("type_ClusteredTerm.jl")
-#include("ClusteredStates.jl")
+#include("TPSCIstates.jl")
 
 include("tucker_inner.jl")
 include("tucker_outer.jl")
@@ -96,7 +96,7 @@ export Molecule
 export Atom
 export Cluster
 export ClusterBasis
-export ClusteredState
+export TPSCIstate
 export ClusterConfig 
 export FockConfig 
 

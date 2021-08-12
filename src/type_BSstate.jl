@@ -18,16 +18,16 @@ E.g., used in n-body Tucker
     p_spaces::Vector{ClusterSubspace}
     q_spaces::Vector{ClusterSubspace}
 """
-struct TuckerState{T,N} <: AbstractState 
+struct BSstate{T,N} <: AbstractState 
     clusters::Vector{Cluster}
     data::OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Array{T}}}
     p_spaces::Vector{ClusterSubspace}
     q_spaces::Vector{ClusterSubspace}
 end
-Base.haskey(ts::TuckerState, i) = return haskey(ts.data,i)
-Base.getindex(ts::TuckerState, i) = return ts.data[i]
-Base.setindex!(ts::TuckerState, i, j) = return ts.data[j] = i
-Base.iterate(ts::TuckerState, state=1) = iterate(ts.data, state)
+Base.haskey(ts::BSstate, i) = return haskey(ts.data,i)
+Base.getindex(ts::BSstate, i) = return ts.data[i]
+Base.setindex!(ts::BSstate, i, j) = return ts.data[j] = i
+Base.iterate(ts::BSstate, state=1) = iterate(ts.data, state)
 
 
 
@@ -38,7 +38,7 @@ Base.iterate(ts::TuckerState, state=1) = iterate(ts.data, state)
 
 
 """
-    TuckerState(clusters, p_spaces, q_spaces, foi; nroots=1)
+    BSstate(clusters, p_spaces, q_spaces, foi; nroots=1)
 
 Constructor
 - `clusters::Vector{Cluster}`
@@ -47,7 +47,7 @@ Constructor
 - `na::Int` Number of alpha
 - `nb::Int` Number of beta
 """
-function TuckerState(clusters::Vector{Cluster}, p_spaces::Vector{ClusterSubspace}, q_spaces::Vector{ClusterSubspace}, na, nb; nroots=1)
+function BSstate(clusters::Vector{Cluster}, p_spaces::Vector{ClusterSubspace}, q_spaces::Vector{ClusterSubspace}, na, nb; nroots=1)
    #={{{=#
     length(p_spaces) == length(clusters) || error("# of clusters don't match # of subspaces")
     length(p_spaces) == length(q_spaces) || error(" p_spaces/q_spaces don't have same length", length(p_space), length(q_space))
@@ -60,7 +60,7 @@ function TuckerState(clusters::Vector{Cluster}, p_spaces::Vector{ClusterSubspace
     end
 
     N = length(clusters)
-    #s = TuckerState(clusters)
+    #s = BSstate(clusters)
     data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Array{Float64}} }()
     ns = []
     for cssi in p_spaces 
@@ -95,12 +95,12 @@ function TuckerState(clusters::Vector{Cluster}, p_spaces::Vector{ClusterSubspace
             #data[fockconfig][tuckconfig] = zeros((size(tuckconfig)...,nroots))  # todo - finish this
         end
     end
-    return TuckerState(clusters, data, p_spaces, q_spaces) 
+    return BSstate(clusters, data, p_spaces, q_spaces) 
 #=}}}=#
 end
 
 """
-    TuckerState(clusters, p_spaces, q_spaces, foi; nroots=1)
+    BSstate(clusters, p_spaces, q_spaces, foi; nroots=1)
 
 Constructor to build state directly from a definition of a first order interacting space (or more generic even i suppose)
 - `clusters::Vector{Cluster}`
@@ -109,7 +109,7 @@ Constructor to build state directly from a definition of a first order interacti
 - `foi::OrderedDict{FockConfig,Vector{TuckerConfig}}` 
 - `nroots`
 """
-function TuckerState(clusters::Vector{Cluster}, p_spaces::Vector{ClusterSubspace}, q_spaces::Vector{ClusterSubspace}, 
+function BSstate(clusters::Vector{Cluster}, p_spaces::Vector{ClusterSubspace}, q_spaces::Vector{ClusterSubspace}, 
         foi::OrderedDict{FockConfig,Vector{TuckerConfig}}; nroots=1)
    #={{{=#
     length(p_spaces) == length(clusters) || error("# of clusters don't match # of subspaces")
@@ -122,7 +122,7 @@ function TuckerState(clusters::Vector{Cluster}, p_spaces::Vector{ClusterSubspace
         end
     end
 
-    #s = TuckerState(clusters)
+    #s = BSstate(clusters)
     data = OrderedDict{FockConfig,OrderedDict{TuckerConfig,Array}}()
     for (fock,tconfig_list) in foi
         data2 = OrderedDict{TuckerConfig,Array}()
@@ -132,13 +132,13 @@ function TuckerState(clusters::Vector{Cluster}, p_spaces::Vector{ClusterSubspace
 
         data[fock] = data2 
     end
-    return TuckerState(clusters, data, p_spaces, q_spaces) 
+    return BSstate(clusters, data, p_spaces, q_spaces) 
 #=}}}=#
 end
 """
-    +(ts1::FermiCG.TuckerState, ts2::FermiCG.TuckerState)
+    +(ts1::FermiCG.BSstate, ts2::FermiCG.BSstate)
 """
-function Base.:+(ts0::TuckerState, ts2::TuckerState)
+function Base.:+(ts0::BSstate, ts2::BSstate)
 #={{{=#
     ts1 = deepcopy(ts0)
     for (fock,configs) in ts2
@@ -159,11 +159,11 @@ function Base.:+(ts0::TuckerState, ts2::TuckerState)
 end
 
 """
-    add!(ts1::FermiCG.TuckerState, ts2::FermiCG.TuckerState)
+    add!(ts1::FermiCG.BSstate, ts2::FermiCG.BSstate)
 
 Add coeffs in `ts2` to `ts1`
 """
-function add!(ts1::TuckerState, ts2::TuckerState)
+function add!(ts1::BSstate, ts2::BSstate)
 #={{{=#
     for (fock,configs) in ts2
         if haskey(ts1, fock)
@@ -181,11 +181,11 @@ function add!(ts1::TuckerState, ts2::TuckerState)
 #=}}}=#
 end
 """
-    dot(ts1::FermiCG.TuckerState, ts2::FermiCG.TuckerState)
+    dot(ts1::FermiCG.BSstate, ts2::FermiCG.BSstate)
 
 Dot product between in `ts2` to `ts1`
 """
-function dot(ts1::TuckerState, ts2::TuckerState)
+function dot(ts1::BSstate, ts2::BSstate)
 #={{{=#
    
     unfold!(ts1)
@@ -226,11 +226,11 @@ function dot(ts1::TuckerState, ts2::TuckerState)
 end
 
 """
-    scale!(ts::FermiCG.TuckerState, a)
+    scale!(ts::FermiCG.BSstate, a)
 
 Scale `ts` by a constant `a`
 """
-function scale!(ts::TuckerState, a)
+function scale!(ts::BSstate, a)
     #={{{=#
     for (fock,configs) in ts
         for (config,tuck) in configs 
@@ -242,9 +242,9 @@ end
 
 
 """
-    unfold!(ts::TuckerState)
+    unfold!(ts::BSstate)
 """
-function unfold!(ts::TuckerState)
+function unfold!(ts::BSstate)
 #={{{=#
     for (fock,configs) in ts.data
         #display(fock)
@@ -265,9 +265,9 @@ function unfold!(ts::TuckerState)
 #=}}}=#
 end
 """
-    fold!(ts::TuckerState)
+    fold!(ts::BSstate)
 """
-function fold!(ts::TuckerState)
+function fold!(ts::BSstate)
 #={{{=#
     for (fock,configs) in ts.data
         for (config,coeffs) in configs 
@@ -281,11 +281,11 @@ function fold!(ts::TuckerState)
 end
 
 """
-    randomize!(ts::TuckerState; scale=1)
+    randomize!(ts::BSstate; scale=1)
 
 Add some random noise to the vector
 """
-function randomize!(ts::TuckerState; scale=1)
+function randomize!(ts::BSstate; scale=1)
     #={{{=#
     for (fock,configs) in ts
         for (config,coeffs) in configs 
@@ -296,11 +296,11 @@ function randomize!(ts::TuckerState; scale=1)
 end
 
 """
-    mult!(ts::TuckerState, A)
+    mult!(ts::BSstate, A)
 
 Multiple `ts` by a matrix A. This is a multiplication over global state index
 """
-function mult!(ts::TuckerState, A)
+function mult!(ts::BSstate, A)
     #={{{=#
     unfold!(ts)
     for (fock,configs) in ts
@@ -308,16 +308,15 @@ function mult!(ts::TuckerState, A)
             ts[fock][config] = coeffs * A
         end
     end
-    fold!(ts)
     #=}}}=#
 end
 
 """
-    orthogonalize!(ts::TuckerState)
+    orthogonalize!(ts::BSstate)
 
 Symmetric Orthogonalization of vectors in ts
 """
-function orthogonalize!(ts::TuckerState)
+function orthogonalize!(ts::BSstate)
     #={{{=#
     S = dot(ts,ts)
     F = eigen(S)
@@ -332,17 +331,17 @@ end
 
 
 """
-    add_fockconfig!(s::ClusteredState, fock::FockConfig)
+    add_fockconfig!(s::TPSCIstate, fock::FockConfig)
 """
-function add_fockconfig!(s::TuckerState, fock::FockConfig)
+function add_fockconfig!(s::BSstate, fock::FockConfig)
     s.data[fock] = OrderedDict{TuckerConfig, Array}()
     #s.data[fock] = OrderedDict{TuckerConfig, Array}(TuckerConfig([1:1 for i in 1:length(s.clusters)])=>[0.0])
 end
 
 """
-    Base.length(s::TuckerState)
+    Base.length(s::BSstate)
 """
-function Base.length(s::TuckerState)
+function Base.length(s::BSstate)
     l = 0
     for (fock,configs) in s.data 
         for (config,vector) in configs
@@ -352,11 +351,11 @@ function Base.length(s::TuckerState)
     return l
 end
 """
-    prune_empty_fock_spaces!(s::TuckerState)
+    prune_empty_fock_spaces!(s::BSstate)
         
 remove fock_spaces that don't have any configurations 
 """
-function prune_empty_fock_spaces!(s::TuckerState)
+function prune_empty_fock_spaces!(s::BSstate)
     focklist = keys(s.data)
     for fock in focklist 
         if length(s.data[fock]) == 0
@@ -372,9 +371,9 @@ function prune_empty_fock_spaces!(s::TuckerState)
     #end
 end
 """
-    get_vector(s::TuckerState)
+    get_vector(s::BSstate)
 """
-function get_vector(ts::TuckerState)
+function get_vector(ts::BSstate)
     nroots = nothing 
     for (fock,configs) in ts
         for (config,coeffs) in configs
@@ -403,9 +402,9 @@ function get_vector(ts::TuckerState)
     return v
 end
 """
-    set_vector!(s::TuckerState)
+    set_vector!(s::BSstate)
 """
-function set_vector!(ts::TuckerState, v)
+function set_vector!(ts::BSstate, v)
 
     length(size(v)) <= 2 || error(" Only takes matrices", size(v))
     nbasis = size(v)[1]
@@ -433,9 +432,9 @@ function set_vector!(ts::TuckerState, v)
     return 
 end
 """
-    zero!(s::TuckerState)
+    zero!(s::BSstate)
 """
-function zero!(s::TuckerState)
+function zero!(s::BSstate)
     for (fock, configs) in s
         for (config, coeffs) in configs
             fill!(s[fock][config], 0.0)
@@ -443,9 +442,9 @@ function zero!(s::TuckerState)
     end
 end
 """
-    eye!(s::TuckerState)
+    eye!(s::BSstate)
 """
-function eye!(s::TuckerState)
+function eye!(s::BSstate)
     idx1 = 1
     idx2 = 1
     for (fock, configs) in s
@@ -462,11 +461,11 @@ end
     
 
 """
-    Base.display(s::TuckerState; thresh=1e-3)
+    Base.display(s::BSstate; thresh=1e-3)
 
 Pretty print
 """
-function Base.display(s::TuckerState; root=1, thresh=1e-3)
+function Base.display(s::BSstate; root=1, thresh=1e-3)
 #={{{=#
     println()
     @printf(" --------------------------------------------------\n")
@@ -512,11 +511,11 @@ function Base.display(s::TuckerState; root=1, thresh=1e-3)
 #=}}}=#
 end
 """
-    print_fock_occupations(s::TuckerState; root=1, thresh=1e-3)
+    print_fock_occupations(s::BSstate; root=1, thresh=1e-3)
 
 Pretty print
 """
-function print_fock_occupations(s::TuckerState; root=1, thresh=1e-3)
+function print_fock_occupations(s::BSstate; root=1, thresh=1e-3)
 #={{{=#
 
     println()
@@ -556,12 +555,12 @@ end
 
 
 """
-    expand_each_fock_space!(s::TuckerState, bases)
+    expand_each_fock_space!(s::BSstate, bases)
 
 For each fock space sector defined, add all possible basis states 
 - `bases::Vector{ClusterBasis}` 
 """
-function expand_each_fock_space!(s::TuckerState, bases::Vector{ClusterBasis}; nroots=1)
+function expand_each_fock_space!(s::BSstate, bases::Vector{ClusterBasis}; nroots=1)
     # {{{
     println("\n Make each Fock-Block the full space")
     # create full space for each fock block defined

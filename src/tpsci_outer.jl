@@ -1,9 +1,9 @@
 """
-    build_full_H(ci_vector::ClusteredState, cluster_ops, clustered_ham::ClusteredOperator)
+    build_full_H(ci_vector::TPSCIstate, cluster_ops, clustered_ham::ClusteredOperator)
 
 Build full TPSCI Hamiltonian matrix in space spanned by `ci_vector`. This works in serial for the full matrix
 """
-function build_full_H(ci_vector::ClusteredState, cluster_ops, clustered_ham::ClusteredOperator)
+function build_full_H(ci_vector::TPSCIstate, cluster_ops, clustered_ham::ClusteredOperator)
 #={{{=#
     dim = length(ci_vector)
     H = zeros(dim, dim)
@@ -48,11 +48,11 @@ end
 
 
 """
-    build_full_H_parallel(ci_vector::ClusteredState, cluster_ops, clustered_ham::ClusteredOperator)
+    build_full_H_parallel(ci_vector::TPSCIstate, cluster_ops, clustered_ham::ClusteredOperator)
 
 Build full TPSCI Hamiltonian matrix in space spanned by `ci_vector`. This works in serial for the full matrix
 """
-function build_full_H_parallel( ci_vector_l::ClusteredState{T,N,R}, ci_vector_r::ClusteredState{T,N,R}, 
+function build_full_H_parallel( ci_vector_l::TPSCIstate{T,N,R}, ci_vector_r::TPSCIstate{T,N,R}, 
                                 cluster_ops, clustered_ham::ClusteredOperator;
                                 sym=false) where {T,N,R}
 #={{{=#
@@ -147,7 +147,7 @@ end
 
 
 """
-    function tps_ci_direct( ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
+    function tps_ci_direct( ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
                         H_old    = nothing,
                         v_old    = nothing,
                         verbose   = 0) where {T,N,R}
@@ -156,7 +156,7 @@ end
 
 If updating existing matrix, pass in H_old/v_old to avoid rebuilding that block
 """
-function tps_ci_direct( ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
+function tps_ci_direct( ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
                         conv_thresh = 1e-5,
                         max_ss_vecs = 12,
                         max_iter    = 40,
@@ -326,11 +326,11 @@ end
 
 
 """
-    tps_ci_davidson(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
+    tps_ci_davidson(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
 
 # Solve for eigenvectors/values in the basis defined by `ci_vector`. Use iterative davidson solver. 
 """
-function tps_ci_davidson(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
+function tps_ci_davidson(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
                         v0 = nothing,
                         conv_thresh = 1e-5,
                         max_ss_vecs = 12,
@@ -351,7 +351,7 @@ function tps_ci_davidson(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustere
     function matvec(v::AbstractMatrix)
         iters += 1
         #in = deepcopy(ci_vector) 
-        in = ClusteredState(ci_vector, R=size(v,2))
+        in = TPSCIstate(ci_vector, R=size(v,2))
         set_vector!(in, v)
         #sig = deepcopy(in)
         #zero!(sig)
@@ -404,11 +404,11 @@ end
 
 
 """
-    tps_ci_matvec(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
+    tps_ci_matvec(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
 
 # Compute the action of `clustered_ham` on `ci_vector`. 
 """
-function tps_ci_matvec(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
+function tps_ci_matvec(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
     #={{{=#
 
     jobs = []
@@ -479,7 +479,7 @@ end
 
 
 """
-    tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
+    tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
             thresh_cipsi = 1e-2,
             thresh_foi   = 1e-6,
             thresh_asci  = 1e-2,
@@ -511,7 +511,7 @@ end
 - `davidson`    : use davidson? changes to true after needing more than max_mem_ci
 - `max_mem_ci`  : maximum memory (Gb) allowed for storing full H. If more is needed, do Davidson. 
 """
-function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
+function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
     thresh_cipsi    = 1e-2,
     thresh_foi      = 1e-6,
     thresh_asci     = 1e-2,
@@ -553,8 +553,8 @@ function tpsci_ci(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::
     println(" max_mem_ci    : ", max_mem_ci     ) 
     println(" matvec        : ", matvec         ) 
     
-    vec_asci_old = ClusteredState(ci_vector.clusters, R=R)
-    sig = ClusteredState(ci_vector.clusters, R=R)
+    vec_asci_old = TPSCIstate(ci_vector.clusters, R=R)
+    sig = TPSCIstate(ci_vector.clusters, R=R)
     clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = "Hcmf") 
     
     H = zeros(T,size(ci_vector))
@@ -709,7 +709,7 @@ end
 #=}}}=#
 
 
-function print_tpsci_iter(ci_vector::ClusteredState{T,N,R}, it, e0, converged) where {T,N,R}
+function print_tpsci_iter(ci_vector::TPSCIstate{T,N,R}, it, e0, converged) where {T,N,R}
 #={{{=#
     if converged 
         @printf("*TPSCI Iter %-3i Dim: %-6i", it, length(ci_vector))
@@ -729,11 +729,11 @@ end
 #=}}}=#
 
 """
-    compute_expectation_value(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; nbody=4) where {T,N,R}
+    compute_expectation_value(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; nbody=4) where {T,N,R}
 
 Compute expectation value of a `ClusteredOperator` (`clustered_ham`) for state `ci_vector`
 """
-function compute_expectation_value(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; nbody=4) where {T,N,R}
+function compute_expectation_value(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; nbody=4) where {T,N,R}
     #={{{=#
 
     out = zeros(T,R)
@@ -776,9 +776,9 @@ end
 #=}}}=#
 
 """
-    function compute_expectation_value_parallel(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
+    function compute_expectation_value_parallel(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
 """
-function compute_expectation_value_parallel(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
+function compute_expectation_value_parallel(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
     #={{{=#
 
     # 
@@ -870,11 +870,11 @@ end
 
 
 """
-    compute_diagonal(vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
+    compute_diagonal(vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
 
 Form the diagonal of the hamiltonan, `clustered_ham`, in the basis defined by `vector`
 """
-function compute_diagonal(vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
+function compute_diagonal(vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
     #={{{=#
     Hd = zeros(size(vector)[1])
     idx = 0
@@ -901,11 +901,11 @@ end
 
 
 """
-    compute_diagonal!(Hd, vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
+    compute_diagonal!(Hd, vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
 
 Form the diagonal of the hamiltonan, `clustered_ham`, in the basis defined by `vector`
 """
-function compute_diagonal!(Hd, vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
+function compute_diagonal!(Hd, vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
     #={{{=#
     idx = 0
     zero_trans = TransferConfig([(0,0) for i in 1:N])
@@ -931,12 +931,12 @@ end
 
 
 """
-    expand_each_fock_space!(s::ClusteredState{T,N,R}, bases::Vector{ClusterBasis}) where {T,N,R}
+    expand_each_fock_space!(s::TPSCIstate{T,N,R}, bases::Vector{ClusterBasis}) where {T,N,R}
 
 For each fock space sector defined, add all possible basis states
 - `basis::Vector{ClusterBasis}` 
 """
-function expand_each_fock_space!(s::ClusteredState{T,N,R}, bases::Vector{ClusterBasis}) where {T,N,R}
+function expand_each_fock_space!(s::TPSCIstate{T,N,R}, bases::Vector{ClusterBasis}) where {T,N,R}
     # {{{
     println("\n Make each Fock-Block the full space")
     # create full space for each fock block defined
@@ -1004,12 +1004,12 @@ end
 
 
 """
-    project_out!(v::ClusteredState, w::ClusteredState)
+    project_out!(v::TPSCIstate, w::TPSCIstate)
 
 Project w out of v 
     |v'> = |v> - |w><w|v>
 """
-function project_out!(v::ClusteredState, w::ClusteredState)
+function project_out!(v::TPSCIstate, w::TPSCIstate)
     for (fock,configs) in w.data 
         if haskey(v.data, fock)
             for (config, coeff) in configs
@@ -1034,11 +1034,11 @@ end
 
 
 """
-    hosvd(ci_vector::ClusteredState{T,N,R}, cluster_ops; hshift=1e-8, truncate=-1) where {T,N,R}
+    hosvd(ci_vector::TPSCIstate{T,N,R}, cluster_ops; hshift=1e-8, truncate=-1) where {T,N,R}
 
-Peform HOSVD aka Tucker Decomposition of ClusteredState
+Peform HOSVD aka Tucker Decomposition of TPSCIstate
 """
-function hosvd(ci_vector::ClusteredState{T,N,R}, cluster_ops; hshift=1e-8, truncate=-1) where {T,N,R}
+function hosvd(ci_vector::TPSCIstate{T,N,R}, cluster_ops; hshift=1e-8, truncate=-1) where {T,N,R}
 #={{{=#
    
     cluster_rotations = []
@@ -1145,14 +1145,14 @@ end
 
 
 """
-    build_brdm(ci_vector::ClusteredState, ci, dims)
+    build_brdm(ci_vector::TPSCIstate, ci, dims)
     
 Build block reduced density matrix for `Cluster`,  `ci`
-- `ci_vector::ClusteredState` = input state
+- `ci_vector::TPSCIstate` = input state
 - `ci` = Cluster type for whihch we want the BRDM
 - `dims` = list of dimensions for each fock sector
 """
-function build_brdm(ci_vector::ClusteredState, ci, dims)
+function build_brdm(ci_vector::TPSCIstate, ci, dims)
     # {{{
     rdms = OrderedDict()
     for (fspace, configs) in ci_vector.data
@@ -1185,7 +1185,7 @@ end
 
 
 
-function dump_tpsci(filename::AbstractString, ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
+function dump_tpsci(filename::AbstractString, ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
     @save filename ci_vector cluster_ops clustered_ham
 end
 

@@ -10,11 +10,11 @@ using IterativeSolvers
 
 
 """
-    get_map(ci_vector::CompressedTuckerState, cluster_ops, clustered_ham)
+    get_map(ci_vector::BSTstate, cluster_ops, clustered_ham)
 
 Get LinearMap with takes a vector and returns action of H on that vector
 """
-function get_map(ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; shift = nothing, cache=false)
+function get_map(ci_vector::BSTstate, cluster_ops, clustered_ham; shift = nothing, cache=false)
     #={{{=#
     iters = 0
     
@@ -46,11 +46,11 @@ end
 #=}}}=#
 
 """
-    tucker_ci_solve(ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; tol=1e-5)
+    tucker_ci_solve(ci_vector::BSTstate, cluster_ops, clustered_ham; tol=1e-5)
 
 Solve for ground state in the space spanned by `ci_vector`'s compression vectors
 """
-function tucker_ci_solve(ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; tol=1e-5)
+function tucker_ci_solve(ci_vector::BSTstate, cluster_ops, clustered_ham; tol=1e-5)
 #={{{=#
 
     @printf(" Solve CI with # variables = %i\n", length(ci_vector))
@@ -107,11 +107,11 @@ end
 
 
 """
-    tucker_cepa_solve!(ref_vector::CompressedTuckerState, cepa_vector::CompressedTuckerState, cluster_ops, clustered_ham; tol=1e-5, cache=true)
+    tucker_cepa_solve!(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_ops, clustered_ham; tol=1e-5, cache=true)
 
 # Arguments
 - `ref_vector`: Input reference state. 
-- `cepa_vector`: CompressedTuckerState which defines the configurational space defining {X}. This 
+- `cepa_vector`: BSTstate which defines the configurational space defining {X}. This 
 should be the first-order interacting space (or some compressed version of it).
 - `cluster_ops`
 - `clustered_ham`
@@ -140,7 +140,7 @@ After solving, the Energy can be obtained as:
     
     E = (Eref + Hax*Cx) / (1 + Sax*Cx)
 """
-function tucker_cepa_solve(ref_vector::CompressedTuckerState, cepa_vector::CompressedTuckerState, cluster_ops, clustered_ham, cepa_shift="cepa", cepa_mit = 50; tol=1e-5, cache=true, max_iter=30, verbose=false)
+function tucker_cepa_solve(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_ops, clustered_ham, cepa_shift="cepa", cepa_mit = 50; tol=1e-5, cache=true, max_iter=30, verbose=false)
 #={{{=#
 
     sig = deepcopy(ref_vector)
@@ -306,11 +306,11 @@ function tucker_cepa_solve(ref_vector::CompressedTuckerState, cepa_vector::Compr
 end#=}}}=#
 
 """
-    tucker_cepa_solve!(ref_vector::CompressedTuckerState, cepa_vector::CompressedTuckerState, cluster_ops, clustered_ham; tol=1e-5, cache=true)
+    tucker_cepa_solve!(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_ops, clustered_ham; tol=1e-5, cache=true)
 
 # Arguments
 - `ref_vector`: Input reference state. 
-- `cepa_vector`: CompressedTuckerState which defines the configurational space defining {X}. This 
+- `cepa_vector`: BSTstate which defines the configurational space defining {X}. This 
 should be the first-order interacting space (or some compressed version of it).
 - `cluster_ops`
 - `clustered_ham`
@@ -338,7 +338,7 @@ Ax=b
 After solving, the Energy can be obtained as:
 E = (Eref + Hax*Cx) / (1 + Sax*Cx)
 """
-function tucker_cepa_solve2(ref_vector::CompressedTuckerState, cepa_vector::CompressedTuckerState, cluster_ops, clustered_ham; tol=1e-5, cache=true, max_iter=30, verbose=false, do_pt2=false)
+function tucker_cepa_solve2(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_ops, clustered_ham; tol=1e-5, cache=true, max_iter=30, verbose=false, do_pt2=false)
 #={{{=#
     sig = deepcopy(ref_vector)
     zero!(sig)
@@ -469,11 +469,11 @@ end#=}}}=#
 
 
 """
-    define_foi_space(v::CompressedTuckerState, clustered_ham; nbody=2)
+    define_foi_space(v::BSTstate, clustered_ham; nbody=2)
 Compute the first-order interacting space as defined by clustered_ham
 
 #Arguments
-- `v::CompressedTuckerState`: input state
+- `v::BSTstate`: input state
 - `clustered_ham`: Hamiltonian
 - `nbody`: allows one to limit (max 4body) terms in the Hamiltonian considered
 
@@ -481,8 +481,8 @@ Compute the first-order interacting space as defined by clustered_ham
 - `foi::OrderedDict{FockConfig,Vector{TuckerConfig}}`
 
 """
-function define_foi_space(cts::T, clustered_ham; nbody=2) where T<:Union{TuckerState, CompressedTuckerState}
-    println(" Define the FOI space for CompressedTuckerState. nbody = ", nbody)#={{{=#
+function define_foi_space(cts::T, clustered_ham; nbody=2) where T<:Union{BSstate, BSTstate}
+    println(" Define the FOI space for BSTstate. nbody = ", nbody)#={{{=#
 
     foi_space = OrderedDict{FockConfig,Vector{TuckerConfig}}()
 
@@ -564,13 +564,13 @@ end
 
 
 """
-    hylleraas_compressed_mp2(sig_in::CompressedTuckerState, ref::CompressedTuckerState,
+    hylleraas_compressed_mp2(sig_in::BSTstate, ref::BSTstate,
             cluster_ops, clustered_ham;
             H0 = "Hcmf", tol=1e-6, nbody=4, max_iter=40, verbose=1, do_pt = true, thresh=1e-8)
 
 - `H0`: ["H", "Hcmf"] 
 """
-function hylleraas_compressed_mp2(sig_in::CompressedTuckerState, ref::CompressedTuckerState,
+function hylleraas_compressed_mp2(sig_in::BSTstate, ref::BSTstate,
             cluster_ops, clustered_ham;
             H0 = "Hcmf", tol=1e-6, nbody=4, max_iter=100, verbose=1, do_pt = true, thresh=1e-8)
 #={{{=#
@@ -716,7 +716,7 @@ end#=}}}=#
 
 
 """
-    build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, cluster_ops, clustered_ham; 
+    build_compressed_1st_order_state(ket_cts::BSTstate{T,N}, cluster_ops, clustered_ham; 
         thresh=1e-7, 
         max_number=nothing, 
         nbody=4) where {T,N}
@@ -725,7 +725,7 @@ This is done only partially, where each term is recompressed after being compute
 Lots of overhead probably from compression, but never completely uncompresses.
 
 #Arguments
-- `cts::CompressedTuckerState`: input state
+- `cts::BSTstate`: input state
 - `cluster_ops`:
 - `clustered_ham`: Hamiltonian
 - `thresh`: Threshold for each HOSVD 
@@ -733,19 +733,19 @@ Lots of overhead probably from compression, but never completely uncompresses.
 - `nbody`: allows one to limit (max 4body) terms in the Hamiltonian considered
 
 #Returns
-- `v1::CompressedTuckerState`
+- `v1::BSTstate`
 
 """
-function build_compressed_1st_order_state(ket_cts::CompressedTuckerState{T,N}, cluster_ops, clustered_ham; 
+function build_compressed_1st_order_state(ket_cts::BSTstate{T,N}, cluster_ops, clustered_ham; 
         thresh=1e-7, 
         max_number=nothing, 
         nbody=4) where {T,N}
 #={{{=#
-    println(" Compute the 1st order wavefunction for CompressedTuckerState. nbody = ", nbody)
+    println(" Compute the 1st order wavefunction for BSTstate. nbody = ", nbody)
     flush(stdout)
     #
     # Initialize data for our output sigma, which we will convert to a
-    sig_cts = CompressedTuckerState(ket_cts.clusters, OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N}} }(),  ket_cts.p_spaces, ket_cts.q_spaces)
+    sig_cts = BSTstate(ket_cts.clusters, OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N}} }(),  ket_cts.p_spaces, ket_cts.q_spaces)
 
     data = OrderedDict{FockConfig{N}, OrderedDict{TuckerConfig{N}, Vector{Tucker{T,N}} } }()
 
@@ -988,7 +988,7 @@ end
 
 
 """
-    function do_fois_pt2(ref::CompressedTuckerState, cluster_ops, clustered_ham;
+    function do_fois_pt2(ref::BSTstate, cluster_ops, clustered_ham;
             H0          = "Hcmf",
             max_iter    = 50,
             nbody       = 4,
@@ -999,7 +999,7 @@ end
 
 Do PT2
 """
-function do_fois_pt2(ref::CompressedTuckerState, cluster_ops, clustered_ham;
+function do_fois_pt2(ref::BSTstate, cluster_ops, clustered_ham;
             H0          = "Hcmf",
             max_iter    = 50,
             nbody       = 4,
@@ -1054,7 +1054,7 @@ function do_fois_pt2(ref::CompressedTuckerState, cluster_ops, clustered_ham;
     return e_pt2, pt1_vec 
 end
 
-function do_fois_ci(ref::CompressedTuckerState, cluster_ops, clustered_ham;
+function do_fois_ci(ref::BSTstate, cluster_ops, clustered_ham;
             H0          = "Hcmf",
             max_iter    = 50,
             nbody       = 4,
@@ -1110,7 +1110,7 @@ end
     
 
 
-function do_fois_cepa(ref::CompressedTuckerState, cluster_ops, clustered_ham;
+function do_fois_cepa(ref::BSTstate, cluster_ops, clustered_ham;
             max_iter    = 20,
 	    cepa_shift  = "cepa",
 	    cepa_mit    = 30,
@@ -1180,12 +1180,12 @@ end
 
 
 """
-    project_out!(v::CompressedTuckerState, w::CompressedTuckerState; thresh=1e-16)
+    project_out!(v::BSTstate, w::BSTstate; thresh=1e-16)
 
 Project w out of v 
 |v'> = |v> - |w><w|v>
 """
-function project_out!(v::CompressedTuckerState, w::CompressedTuckerState; thresh=1e-16)
+function project_out!(v::BSTstate, w::BSTstate; thresh=1e-16)
     
     for (fock,tconfigs) in v 
         for (tconfig, tuck) in tconfigs

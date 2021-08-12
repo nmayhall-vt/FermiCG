@@ -10,25 +10,25 @@ e.g.
 - `p_spaces::Vector{ClusterSubspace}`
 - `q_spaces::Vector{ClusterSubspace}`
 """
-struct CompressedTuckerState{T,N} 
+struct BSTstate{T,N} 
     clusters::Vector{Cluster}
     data::OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N}}}
     p_spaces::Vector{ClusterSubspace}
     q_spaces::Vector{ClusterSubspace}
 end
-Base.haskey(ts::CompressedTuckerState, i) = return haskey(ts.data,i)
-Base.getindex(ts::CompressedTuckerState, i) = return ts.data[i]
-Base.setindex!(ts::CompressedTuckerState, i, j) = return ts.data[j] = i
-Base.iterate(ts::CompressedTuckerState, state=1) = iterate(ts.data, state)
-normalize!(ts::CompressedTuckerState) = scale!(ts, 1/sqrt(orth_dot(ts,ts)))
+Base.haskey(ts::BSTstate, i) = return haskey(ts.data,i)
+Base.getindex(ts::BSTstate, i) = return ts.data[i]
+Base.setindex!(ts::BSTstate, i, j) = return ts.data[j] = i
+Base.iterate(ts::BSTstate, state=1) = iterate(ts.data, state)
+normalize!(ts::BSTstate) = scale!(ts, 1/sqrt(orth_dot(ts,ts)))
 
 
 """
-    CompressedTuckerState(clusters::Vector{Cluster}, 
+    BSTstate(clusters::Vector{Cluster}, 
         fconfig::FockConfig{N}, 
         cluster_bases::Vector{ClusterBasis}) where {N} 
 
-Constructor using only a single FockConfig. This allows us to turn the CMF state into a CompressedTuckerState.
+Constructor using only a single FockConfig. This allows us to turn the CMF state into a BSTstate.
 As such, it chooses the ground state of each cluster in the Fock sector specified by `FockConfig` to be the 
 P space, and then the Q space is defined as the orthogonal complement of this state within the available basis, 
 specified by `cluster_bases`.
@@ -37,9 +37,9 @@ specified by `cluster_bases`.
 - `fconfig`: starting FockConfig 
 - `cluster_basis`: list of ClusterBasis types - needed to know the dimensions of the q-spaces
 # Returns
-- `CompressedTuckerState`
+- `BSTstate`
 """
-function CompressedTuckerState(clusters::Vector{Cluster}, 
+function BSTstate(clusters::Vector{Cluster}, 
         fconfig::FockConfig{N}, 
         cluster_bases::Vector{ClusterBasis}) where {N} 
     #={{{=#
@@ -63,7 +63,7 @@ function CompressedTuckerState(clusters::Vector{Cluster},
     end
 
     data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N}} }()
-    state = CompressedTuckerState(clusters, data, p_spaces, q_spaces) 
+    state = BSTstate(clusters, data, p_spaces, q_spaces) 
     add_fockconfig!(state, fconfig)
 
     factors = []
@@ -83,7 +83,7 @@ end
 
 
 """
-    CompressedTuckerState(clusters::Vector{Cluster}, 
+    BSTstate(clusters::Vector{Cluster}, 
         p_spaces::Vector{FermiCG.ClusterSubspace}, 
         q_spaces::Vector{FermiCG.ClusterSubspace}) 
 
@@ -93,9 +93,9 @@ Constructor - specify input p and q spaces
 - `p_spaces`: list of p space ranges for each cluster
 - `q_spaces`: list of q space ranges for each cluster
 # Returns
-- `CompressedTuckerState`
+- `BSTstate`
 """
-function CompressedTuckerState(clusters::Vector{Cluster}, 
+function BSTstate(clusters::Vector{Cluster}, 
         p_spaces::Vector{FermiCG.ClusterSubspace}, 
         q_spaces::Vector{FermiCG.ClusterSubspace}) 
     #={{{=#
@@ -116,24 +116,24 @@ function CompressedTuckerState(clusters::Vector{Cluster},
     data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N}} }()
      
     #data[fconfig][tconfig] = tdata
-    return CompressedTuckerState(clusters, data, p_spaces, q_spaces) 
+    return BSTstate(clusters, data, p_spaces, q_spaces) 
 #=}}}=#
 end
 
 
 """
-    CompressedTuckerState(ts::TuckerState; thresh=-1, max_number=nothing, verbose=0)
+    BSTstate(ts::BSstate; thresh=-1, max_number=nothing, verbose=0)
 
-Create a `CompressedTuckerState` from a `TuckerState` 
+Create a `BSTstate` from a `BSstate` 
 # Arguments
-- `ts::TuckerState`
+- `ts::BSstate`
 - `thresh=-1`: discard singular values smaller than `thresh`
 - `max_number=nothing`: if != `nothing`, only keep up to `max_number` singular vectors per SVD
 - `verbose=0`: print level
 # Returns 
-- `CompressedTuckerState`
+- `BSTstate`
 """
-function CompressedTuckerState(ts::TuckerState{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
+function BSTstate(ts::BSstate{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
 #={{{=#
     # make all AbstractState subtypes parametric
     nroots = nothing
@@ -147,14 +147,14 @@ function CompressedTuckerState(ts::TuckerState{T,N}; thresh=-1, max_number=nothi
         end
     end
 
-    nroots == 1 || error(" Conversion to CompressedTuckerState can only have 1 root")
+    nroots == 1 || error(" Conversion to BSTstate can only have 1 root")
 
     data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N} }}()
     for (fock, tconfigs) in ts.data
         for (tconfig, coeffs) in tconfigs
 
             #
-            # Since TuckerState has extra dimension for state index, remove that
+            # Since BSstate has extra dimension for state index, remove that
             tuck = Tucker(reshape(coeffs,size(coeffs)[1:end-1]), thresh=thresh, max_number=max_number, verbose=verbose)
             if length(tuck) > 0
                 if haskey(data, fock)
@@ -165,25 +165,25 @@ function CompressedTuckerState(ts::TuckerState{T,N}; thresh=-1, max_number=nothi
             end
         end
     end
-    return CompressedTuckerState(ts.clusters, data, ts.p_spaces, ts.q_spaces)
+    return BSTstate(ts.clusters, data, ts.p_spaces, ts.q_spaces)
 end
 #=}}}=#
 
 
 
 """
-    compress(ts::CompressedTuckerState{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
+    compress(ts::BSTstate{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
 
 Compress state via HOSVD
 # Arguments
-- `ts::CompressedTuckerState`
+- `ts::BSTstate`
 - `thresh = -1`: threshold for compression
 - `max_number`: only keep certain number of vectors per TuckerConfig
 - `verbose=0`: print level
 # Returns
-- `CompressedTuckerState`
+- `BSTstate`
 """
-function compress(ts::CompressedTuckerState{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
+function compress(ts::BSTstate{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
     d = OrderedDict{FockConfig{N}, OrderedDict{TuckerConfig{N}, Tucker{T,N}}}() 
     for (fock, tconfigs) in ts.data
         for (tconfig, coeffs) in tconfigs
@@ -198,18 +198,18 @@ function compress(ts::CompressedTuckerState{T,N}; thresh=-1, max_number=nothing,
             end
         end
     end
-    return CompressedTuckerState(ts.clusters, d, ts.p_spaces, ts.q_spaces)
+    return BSTstate(ts.clusters, d, ts.p_spaces, ts.q_spaces)
 end
 
 
 """
-    orth_add!(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
+    orth_add!(ts1::BSTstate, ts2::BSTstate)
 
 Add coeffs in `ts2` to `ts1`
 
 Note: this assumes `t1` and `t2` have the same compression vectors
 """
-function orth_add!(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
+function orth_add!(ts1::BSTstate, ts2::BSTstate)
 #={{{=#
     for (fock,configs) in ts2
         if haskey(ts1, fock)
@@ -228,13 +228,13 @@ function orth_add!(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
 end
 
 """
-    nonorth_add!(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
+    nonorth_add!(ts1::BSTstate, ts2::BSTstate)
 
 Add coeffs in `ts2` to `ts1`
 
 Note: this does not assume `t1` and `t2` have the same compression vectors
 """
-function nonorth_add!(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
+function nonorth_add!(ts1::BSTstate, ts2::BSTstate)
 #={{{=#
     for (fock,configs) in ts2
         if haskey(ts1, fock)
@@ -253,16 +253,16 @@ function nonorth_add!(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
 end
 
 """
-    add_fockconfig!(s::CompressedTuckerState, fock::FockConfig)
+    add_fockconfig!(s::BSTstate, fock::FockConfig)
 """
-function add_fockconfig!(s::CompressedTuckerState{T,N}, fock::FockConfig) where {T,N}
+function add_fockconfig!(s::BSTstate{T,N}, fock::FockConfig) where {T,N}
     s.data[fock] = OrderedDict{TuckerConfig, Tucker{T,N}}()
 end
 
 """
-    Base.length(s::CompressedTuckerState)
+    Base.length(s::BSTstate)
 """
-function Base.length(s::CompressedTuckerState)
+function Base.length(s::BSTstate)
     l = 0
     for (fock,tconfigs) in s.data
         for (tconfig, tuck) in tconfigs
@@ -290,11 +290,11 @@ function prune_empty_fock_spaces!(s::AbstractState)
     end
 end
 """
-    prune_empty_TuckerConfigs!(s::T) where T<:Union{TuckerState, CompressedTuckerState}
+    prune_empty_TuckerConfigs!(s::T) where T<:Union{BSstate, BSTstate}
 
 remove fock_spaces that don't have any configurations
 """
-function prune_empty_TuckerConfigs!(s::T) where T<:Union{TuckerState, CompressedTuckerState}
+function prune_empty_TuckerConfigs!(s::T) where T<:Union{BSstate, BSTstate}
     focklist = keys(s.data)
     for fock in focklist
         tconflist = keys(s.data[fock])
@@ -313,11 +313,11 @@ end
 
 
 """
-    get_vector(s::CompressedTuckerState)
+    get_vector(s::BSTstate)
 
 Return a vector of the variables. Note that this is the core tensors being returned
 """
-function get_vector(cts::CompressedTuckerState)
+function get_vector(cts::BSTstate)
 
     v = zeros(length(cts), 1)
     idx = 1
@@ -333,9 +333,9 @@ function get_vector(cts::CompressedTuckerState)
     return v
 end
 """
-    set_vector!(s::CompressedTuckerState)
+    set_vector!(s::BSTstate)
 """
-function set_vector!(ts::CompressedTuckerState, v)
+function set_vector!(ts::BSTstate, v)
 
     #length(size(v)) == 1 || error(" Only takes vectors", size(v))
     nbasis = size(v)[1]
@@ -354,9 +354,9 @@ function set_vector!(ts::CompressedTuckerState, v)
     return
 end
 """
-    zero!(s::CompressedTuckerState)
+    zero!(s::BSTstate)
 """
-function zero!(s::CompressedTuckerState)
+function zero!(s::BSTstate)
     for (fock, tconfigs) in s
         for (tconfig, tcoeffs) in tconfigs
             fill!(s[fock][tconfig].core, 0.0)
@@ -365,11 +365,11 @@ function zero!(s::CompressedTuckerState)
 end
 
 """
-    Base.display(s::CompressedTuckerState; thresh=1e-3)
+    Base.display(s::BSTstate; thresh=1e-3)
 
 Pretty print
 """
-function Base.display(s::CompressedTuckerState; thresh=1e-3)
+function Base.display(s::BSTstate; thresh=1e-3)
 #={{{=#
     println()
     @printf(" --------------------------------------------------\n")
@@ -418,11 +418,11 @@ function Base.display(s::CompressedTuckerState; thresh=1e-3)
 #=}}}=#
 end
 """
-    print_fock_occupations(s::CompressedTuckerState; thresh=1e-3)
+    print_fock_occupations(s::BSTstate; thresh=1e-3)
 
 Pretty print
 """
-function print_fock_occupations(s::CompressedTuckerState; thresh=1e-3)
+function print_fock_occupations(s::BSTstate; thresh=1e-3)
 #={{{=#
 
     println()
@@ -458,13 +458,13 @@ end
 
 
 """
-    dot(ts1::FermiCG.CompressedTuckerState, ts2::FermiCG.CompressedTuckerState)
+    dot(ts1::FermiCG.BSTstate, ts2::FermiCG.BSTstate)
 
 Dot product between `ts2` and `ts1`
 
 Warning: this assumes both `ts1` and `ts2` have the same tucker factors for each `TuckerConfig`
 """
-function orth_dot(ts1::CompressedTuckerState, ts2::CompressedTuckerState)
+function orth_dot(ts1::BSTstate, ts2::BSTstate)
 #={{{=#
     overlap = 0.0
     for (fock,configs) in ts2
@@ -481,11 +481,11 @@ end
 
 
 """
-    nonorth_dot(ts1::FermiCG.CompressedTuckerState, ts2::FermiCG.CompressedTuckerState; verbose=0)
+    nonorth_dot(ts1::FermiCG.BSTstate, ts2::FermiCG.BSTstate; verbose=0)
 
 Dot product between 1ts2` and `ts1` where each have their own Tucker factors
 """
-function nonorth_dot(ts1::CompressedTuckerState, ts2::CompressedTuckerState; verbose=0)
+function nonorth_dot(ts1::BSTstate, ts2::BSTstate; verbose=0)
 #={{{=#
     overlap = 0.0
     for (fock,configs) in ts2
@@ -503,11 +503,11 @@ function nonorth_dot(ts1::CompressedTuckerState, ts2::CompressedTuckerState; ver
 end
 
 """
-    scale!(ts::FermiCG.CompressedTuckerState, a::T<:Number)
+    scale!(ts::FermiCG.BSTstate, a::T<:Number)
 
 Scale `ts` by a constant
 """
-function scale!(ts::CompressedTuckerState, a::T) where T<:Number
+function scale!(ts::BSTstate, a::T) where T<:Number
     #={{{=#
     for (fock,configs) in ts
         for (config,tuck) in configs

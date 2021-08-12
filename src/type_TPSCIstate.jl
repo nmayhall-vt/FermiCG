@@ -6,16 +6,16 @@ using StaticArrays
 
 This represents an arbitrarily sparse state. E.g., used in TPSCI
 """
-struct ClusteredState{T,N,R} <: AbstractState 
+struct TPSCIstate{T,N,R} <: AbstractState 
     clusters::Vector{Cluster}
     data::OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, MVector{R,T}}}
 end
-Base.haskey(ts::ClusteredState, i) = return haskey(ts.data,i)
-#Base.iterate(ts::ClusteredState, state=1) = iterate(ts.data, state)
-#Base.eltype(::Type{ClusteredState{T,N,R}}) where {T,N,R} = OrderedDict{ClusterConfig{N}, MVector{R,T}} 
+Base.haskey(ts::TPSCIstate, i) = return haskey(ts.data,i)
+#Base.iterate(ts::TPSCIstate, state=1) = iterate(ts.data, state)
+#Base.eltype(::Type{TPSCIstate{T,N,R}}) where {T,N,R} = OrderedDict{ClusterConfig{N}, MVector{R,T}} 
 
 """
-    ClusteredState(clusters; T=Float64, R=1)
+    TPSCIstate(clusters; T=Float64, R=1)
 
 Constructor creating an empty vector
 # Arguments
@@ -23,27 +23,27 @@ Constructor creating an empty vector
 - `T`:  Type of data for coefficients
 - `R`:  Number of roots
 # Returns
-- `ClusteredState`
+- `TPSCIstate`
 """
-function ClusteredState(clusters; T=Float64, R=1)
+function TPSCIstate(clusters; T=Float64, R=1)
     N = length(clusters)
-    return ClusteredState{T,N,R}(clusters,OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, MVector{R,T}}}())
+    return TPSCIstate{T,N,R}(clusters,OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, MVector{R,T}}}())
 end
 
 """
-    function ClusteredState(v::ClusteredState{T,N,R}; T=T, R=R) where {T,N,R}
+    function TPSCIstate(v::TPSCIstate{T,N,R}; T=T, R=R) where {T,N,R}
 
-Constructor creating a `ClusteredState` with the same basis as `v`, but with potentially different `R` and `T`. 
+Constructor creating a `TPSCIstate` with the same basis as `v`, but with potentially different `R` and `T`. 
 Coefficients of new vector are 0.0
 
 # Arguments
 - `T`:  Type of data for coefficients
 - `R`:  Number of roots
 # Returns
-- `ClusteredState`
+- `TPSCIstate`
 """
-function ClusteredState(v::ClusteredState{TT,NN,RR}; T=TT, R=RR) where {TT,NN,RR}
-    out = ClusteredState(v.clusters,T=T,R=R)
+function TPSCIstate(v::TPSCIstate{TT,NN,RR}; T=TT, R=RR) where {TT,NN,RR}
+    out = TPSCIstate(v.clusters,T=T,R=R)
     for (fock, configs) in v.data
         add_fockconfig!(out,fock)
         for (config, coeffs) in configs
@@ -54,21 +54,21 @@ function ClusteredState(v::ClusteredState{TT,NN,RR}; T=TT, R=RR) where {TT,NN,RR
 end
 
 """
-    ClusteredState(clusters::Vector{Cluster}, fconfig::FockConfig{N}; T=Float64, R=1) where {N}
+    TPSCIstate(clusters::Vector{Cluster}, fconfig::FockConfig{N}; T=Float64, R=1) where {N}
 
-Constructor using only a single FockConfig. This allows us to turn the CMF state into a ClusteredState.
+Constructor using only a single FockConfig. This allows us to turn the CMF state into a TPSCIstate.
 # Arguments
 - `clusters`: vector of clusters types
 - `fconfig`: starting FockConfig
 - `T`:  Type of data for coefficients
 - `R`:  Number of roots
 # Returns
-- `ClusteredState`
+- `TPSCIstate`
 """
-function ClusteredState(clusters::Vector{Cluster}, fconfig::FockConfig{N}; T=Float64, R=1) where {N}
+function TPSCIstate(clusters::Vector{Cluster}, fconfig::FockConfig{N}; T=Float64, R=1) where {N}
     #={{{=#
 
-    state = ClusteredState(clusters, T=T, R=R)
+    state = TPSCIstate(clusters, T=T, R=R)
     add_fockconfig!(state, fconfig)
     conf = ClusterConfig([1 for i in 1:length(clusters)])
     state[fconfig][conf] = zeros(T,R) 
@@ -85,25 +85,25 @@ end
 
 
 """
-    add_fockconfig!(s::ClusteredState, fock::FockConfig)
+    add_fockconfig!(s::TPSCIstate, fock::FockConfig)
 """
-function add_fockconfig!(s::ClusteredState{T,N,R}, fock::FockConfig{N}) where {T<:Number,N,R}
+function add_fockconfig!(s::TPSCIstate{T,N,R}, fock::FockConfig{N}) where {T<:Number,N,R}
     s.data[fock] = OrderedDict{ClusterConfig{N}, MVector{R,T}}()
     #s.data[fock] = OrderedDict{ClusterConfig{N}, MVector{R,T}}(ClusterConfig([1 for i in 1:N]) => zeros(MVector{R,T}))
 end
 
 """
-    getindex(s::ClusteredState, fock::Vector{Tuple{T,T}}) where T<:Integer
+    getindex(s::TPSCIstate, fock::Vector{Tuple{T,T}}) where T<:Integer
 """
-#Base.getindex(s::ClusteredState, fock::Vector{Tuple{T,T}}) where T<:Integer = s.data[fock]
-@inline Base.getindex(s::ClusteredState, fock) = s.data[fock]
-@inline Base.setindex!(s::ClusteredState, a, b) = s.data[b] = a
+#Base.getindex(s::TPSCIstate, fock::Vector{Tuple{T,T}}) where T<:Integer = s.data[fock]
+@inline Base.getindex(s::TPSCIstate, fock) = s.data[fock]
+@inline Base.setindex!(s::TPSCIstate, a, b) = s.data[b] = a
 
 
-function Base.size(s::ClusteredState{T,N,R}) where {T,N,R}
+function Base.size(s::TPSCIstate{T,N,R}) where {T,N,R}
     return length(s),R
 end
-function Base.length(s::ClusteredState)
+function Base.length(s::TPSCIstate)
     l = 0
     for (fock,configs) in s.data 
         l += length(keys(configs))
@@ -111,9 +111,9 @@ function Base.length(s::ClusteredState)
     return l
 end
 """
-    get_vector(s::ClusteredState; root=1)
+    get_vector(s::TPSCIstate; root=1)
 """
-function get_vector(s::ClusteredState; root=1)
+function get_vector(s::TPSCIstate; root=1)
     v = zeros(length(s))
     idx = 1
     for (fock, configs) in s.data
@@ -125,9 +125,9 @@ function get_vector(s::ClusteredState; root=1)
     return v
 end
 """
-    get_vectors(s::ClusteredState)
+    get_vectors(s::TPSCIstate)
 """
-function get_vectors(s::ClusteredState{T,N,R}) where {T,N,R}
+function get_vectors(s::TPSCIstate{T,N,R}) where {T,N,R}
     v = zeros(T,length(s), R)
     idx = 1
     for (fock, configs) in s.data
@@ -140,9 +140,9 @@ function get_vectors(s::ClusteredState{T,N,R}) where {T,N,R}
 end
 
 """
-    get_vectors!(v, s::ClusteredState)
+    get_vectors!(v, s::TPSCIstate)
 """
-function get_vectors!(v, s::ClusteredState{T,N,R}) where {T,N,R}
+function get_vectors!(v, s::TPSCIstate{T,N,R}) where {T,N,R}
     idx = 1
     for (fock, configs) in s.data
         for (config, coeff) in configs
@@ -154,11 +154,11 @@ function get_vectors!(v, s::ClusteredState{T,N,R}) where {T,N,R}
 end
 
 """
-    function set_vector!(ts::ClusteredState{T,N,R}, v::Matrix{T}) where {T,N,R}
+    function set_vector!(ts::TPSCIstate{T,N,R}, v::Matrix{T}) where {T,N,R}
 
 Fill the coefficients of `ts` with the values in `v`
 """
-function set_vector!(ts::ClusteredState{T,N,R}, v::Matrix{T}) where {T,N,R}
+function set_vector!(ts::TPSCIstate{T,N,R}, v::Matrix{T}) where {T,N,R}
 
     nbasis = size(v,1)
     nroots = size(v,2)
@@ -179,11 +179,11 @@ function set_vector!(ts::ClusteredState{T,N,R}, v::Matrix{T}) where {T,N,R}
 end
 
 #"""
-#    function set_vector!(ts::ClusteredState{T,N,R}, v) where {T,N,R}
+#    function set_vector!(ts::TPSCIstate{T,N,R}, v) where {T,N,R}
 #
 #Fill the coefficients of `ts` with the values in `v`
 #"""
-#function set_vector!(ts::ClusteredState{T,N,R}, v) where {T,N,R}
+#function set_vector!(ts::TPSCIstate{T,N,R}, v) where {T,N,R}
 #
 #    nbasis = size(v,1)
 #    nroots = size(v,2)
@@ -205,11 +205,11 @@ end
 
 
 """
-    Base.display(s::ClusteredState; thresh=1e-3, root=1)
+    Base.display(s::TPSCIstate; thresh=1e-3, root=1)
 
 Pretty print
 """
-function Base.display(s::ClusteredState; thresh=1e-3, root=1)
+function Base.display(s::TPSCIstate; thresh=1e-3, root=1)
     @printf(" --------------------------------------------------\n")
     @printf(" ---------- Fockspaces in state ------: Dim = %5i  \n",length(s))
     @printf(" ----------                root ------:     = %5i  \n",root)
@@ -239,7 +239,7 @@ end
 
 Pretty print
 """
-function print_configs(s::ClusteredState; thresh=1e-3, root=1)
+function print_configs(s::TPSCIstate; thresh=1e-3, root=1)
     #display(keys(s.data))
     idx = 1
     for (fock,configs) in s.data
@@ -260,9 +260,9 @@ function print_configs(s::ClusteredState; thresh=1e-3, root=1)
 end
 
 """
-    norm(s::ClusteredState, root)
+    norm(s::TPSCIstate, root)
 """
-function LinearAlgebra.norm(s::ClusteredState, root)
+function LinearAlgebra.norm(s::TPSCIstate, root)
     norm = 0
     for (fock,configs) in s.data
         for (config,coeff) in configs
@@ -273,9 +273,9 @@ function LinearAlgebra.norm(s::ClusteredState, root)
 end
 
 """
-    norm(s::ClusteredState{T,N,R}) where {T,N,R}
+    norm(s::TPSCIstate{T,N,R}) where {T,N,R}
 """
-function LinearAlgebra.norm(s::ClusteredState{T,N,R}) where {T,N,R}
+function LinearAlgebra.norm(s::TPSCIstate{T,N,R}) where {T,N,R}
     norms = zeros(T,R)
     for (fock,configs) in s.data
         for (config,coeff) in configs
@@ -298,9 +298,9 @@ function normalize!(s::AbstractState)
 end
 
 """
-    scale!(s::ClusteredState,c)
+    scale!(s::TPSCIstate,c)
 """
-function scale!(s::ClusteredState{T,N,R},c;root=nothing) where {T,N,R}
+function scale!(s::TPSCIstate{T,N,R},c;root=nothing) where {T,N,R}
     if root == nothing
         for (fock,configs) in s.data
             for (config,coeff) in configs
@@ -318,9 +318,9 @@ function scale!(s::ClusteredState{T,N,R},c;root=nothing) where {T,N,R}
 end
     
 """
-    dot(v1::ClusteredState,v2::ClusteredState; r1=1, r2=1)
+    dot(v1::TPSCIstate,v2::TPSCIstate; r1=1, r2=1)
 """
-function dot(v1::ClusteredState{T,N,1},v2::ClusteredState{T,N,1}) where {T,N}
+function dot(v1::TPSCIstate{T,N,1},v2::TPSCIstate{T,N,1}) where {T,N}
     d = T(0)
     for (fock,configs) in v1.data
         haskey(v2.data, fock) || continue
@@ -333,9 +333,9 @@ function dot(v1::ClusteredState{T,N,1},v2::ClusteredState{T,N,1}) where {T,N}
 end
     
 """
-    dot(v1::ClusteredState,v2::ClusteredState; r1=1, r2=1)
+    dot(v1::TPSCIstate,v2::TPSCIstate; r1=1, r2=1)
 """
-function dot(v1::ClusteredState{T,N,R}, v2::ClusteredState{T,N,R}, r1, r2) where {T,N,R}
+function dot(v1::TPSCIstate{T,N,R}, v2::TPSCIstate{T,N,R}, r1, r2) where {T,N,R}
     d = T(0)
     for (fock,configs) in v1.data
         haskey(v2.data, fock) || continue
@@ -348,9 +348,9 @@ function dot(v1::ClusteredState{T,N,R}, v2::ClusteredState{T,N,R}, r1, r2) where
 end
     
 """
-    dot(v1::ClusteredState,v2::ClusteredState; r1=1, r2=1)
+    dot(v1::TPSCIstate,v2::TPSCIstate; r1=1, r2=1)
 """
-function orth!(v1::ClusteredState{T,N,R}) where {T,N,R}
+function orth!(v1::TPSCIstate{T,N,R}) where {T,N,R}
     d = T(0)
     F = svd(get_vectors(v1))
 
@@ -359,11 +359,11 @@ function orth!(v1::ClusteredState{T,N,R}) where {T,N,R}
 end
     
 """
-    prune_empty_fock_spaces!(s::ClusteredState)
+    prune_empty_fock_spaces!(s::TPSCIstate)
         
 remove fock_spaces that don't have any configurations 
 """
-function prune_empty_fock_spaces!(s::ClusteredState)
+function prune_empty_fock_spaces!(s::TPSCIstate)
     keylist = [keys(s.data)...]
     for fock in keylist
         if length(s[fock]) == 0
@@ -381,11 +381,11 @@ function prune_empty_fock_spaces!(s::ClusteredState)
 end
 
 """
-    zero!(s::ClusteredState)
+    zero!(s::TPSCIstate)
 
 set all elements to zero
 """
-function zero!(s::ClusteredState{T,N,R}) where {T,N,R}
+function zero!(s::TPSCIstate{T,N,R}) where {T,N,R}
     for (fock,configs) in s.data
         for (config,coeffs) in configs                
             s.data[fock][config] = zeros(size(MVector{R,T}))
@@ -396,11 +396,11 @@ end
 
 
 """
-    function randomize!(s::ClusteredState{T,N,R}) where {T,N,R}
+    function randomize!(s::TPSCIstate{T,N,R}) where {T,N,R}
 
 set all elements to random values, and orthogonalize
 """
-function randomize!(s::ClusteredState{T,N,R}) where {T,N,R}
+function randomize!(s::TPSCIstate{T,N,R}) where {T,N,R}
     #={{{=#
     v0 = rand(T,size(s)) .- .5 
     set_vector!(s,v0)
@@ -410,11 +410,11 @@ end
 
 
 """
-    function orthonormalize!(s::ClusteredState{T,N,R}) where {T,N,R}
+    function orthonormalize!(s::TPSCIstate{T,N,R}) where {T,N,R}
 
 orthonormalize
 """
-function orthonormalize!(s::ClusteredState{T,N,R}) where {T,N,R}
+function orthonormalize!(s::TPSCIstate{T,N,R}) where {T,N,R}
     #={{{=#
     v0 = get_vectors(s) 
     v0[:,1] .= v0[:,1]./norm(v0[:,1])
@@ -432,9 +432,9 @@ end
 
 
 """
-    clip!(s::ClusteredState; thresh=1e-5)
+    clip!(s::TPSCIstate; thresh=1e-5)
 """
-function clip!(s::ClusteredState; thresh=1e-5)
+function clip!(s::TPSCIstate; thresh=1e-5)
 #={{{=#
     for (fock,configs) in s.data
         for (config,coeff) in configs      
@@ -449,11 +449,11 @@ end
 
 
 """
-    add!(s1::ClusteredState, s2::ClusteredState)
+    add!(s1::TPSCIstate, s2::TPSCIstate)
 
 Add coeffs in `s2` to `s1`
 """
-function add!(s1::ClusteredState, s2::ClusteredState)
+function add!(s1::TPSCIstate, s2::TPSCIstate)
     #={{{=#
     for (fock,configs) in s2.data
         if haskey(s1, fock)
@@ -473,14 +473,14 @@ end
 
 
 """
-    function extract_roots(v::ClusteredState{T,N,R}, roots)
+    function extract_roots(v::TPSCIstate{T,N,R}, roots)
 
-Extract roots to give new `ClusteredState` 
+Extract roots to give new `TPSCIstate` 
 """
-function extract_roots(v::ClusteredState{T,N,R}, roots) where {T,N,R}
+function extract_roots(v::TPSCIstate{T,N,R}, roots) where {T,N,R}
     vecs = get_vectors(v)[:,roots]
 
-    out = ClusteredState(v.clusters, T=T, R=length(roots))
+    out = TPSCIstate(v.clusters, T=T, R=length(roots))
     for (fock,configs) in v.data
         add_fockconfig!(out,fock)
         for (config,coeffs) in configs

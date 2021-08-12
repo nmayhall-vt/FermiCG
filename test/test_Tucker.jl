@@ -191,7 +191,7 @@ for step in 1:n_steps
     p_spaces = Vector{FermiCG.ClusterSubspace}()
     q_spaces = Vector{FermiCG.ClusterSubspace}()
    
-    #ci_vector = FermiCG.TuckerState(clusters)
+    #ci_vector = FermiCG.BSstate(clusters)
     #FermiCG.add_fockconfig!(ci_vector, [(1,1),(1,1),(1,1)])
     #FermiCG.add_fockconfig!(ci_vector, [(2,1),(0,1),(1,1)])
     #FermiCG.add_fockconfig!(ci_vector, [(0,1),(2,1),(1,1)])
@@ -222,14 +222,14 @@ for step in 1:n_steps
     display.(q_spaces)
 
     nroots = 1
-    ci_vector = FermiCG.TuckerState(clusters, p_spaces, na, nb, nroots=nroots)
+    ci_vector = FermiCG.BSstate(clusters, p_spaces, na, nb, nroots=nroots)
     
     ref_vector = deepcopy(ci_vector)
     if true 
         for ci in clusters
             tmp_spaces = copy(p_spaces)
             tmp_spaces[ci.idx] = q_spaces[ci.idx]
-            FermiCG.add!(ci_vector, FermiCG.TuckerState(clusters, tmp_spaces, na, nb))
+            FermiCG.add!(ci_vector, FermiCG.BSstate(clusters, tmp_spaces, na, nb))
         end
     end
     if true 
@@ -239,7 +239,7 @@ for step in 1:n_steps
                 tmp_spaces = copy(p_spaces)
                 tmp_spaces[ci.idx] = q_spaces[ci.idx]
                 tmp_spaces[cj.idx] = q_spaces[cj.idx]
-                FermiCG.add!(ci_vector, FermiCG.TuckerState(clusters, tmp_spaces, na, na))
+                FermiCG.add!(ci_vector, FermiCG.BSstate(clusters, tmp_spaces, na, na))
             end
         end
     end
@@ -253,7 +253,7 @@ for step in 1:n_steps
                     tmp_spaces[ci.idx] = q_spaces[ci.idx]
                     tmp_spaces[cj.idx] = q_spaces[cj.idx]
                     tmp_spaces[ck.idx] = q_spaces[ck.idx]
-                    FermiCG.add!(ci_vector, FermiCG.TuckerState(clusters, tmp_spaces, na, na))
+                    FermiCG.add!(ci_vector, FermiCG.BSstate(clusters, tmp_spaces, na, na))
                 end
             end
         end
@@ -271,7 +271,7 @@ for step in 1:n_steps
                         tmp_spaces[cj.idx] = q_spaces[cj.idx]
                         tmp_spaces[ck.idx] = q_spaces[ck.idx]
                         tmp_spaces[cl.idx] = q_spaces[cl.idx]
-                        FermiCG.add!(ci_vector, FermiCG.TuckerState(clusters, tmp_spaces, na, nb))
+                        FermiCG.add!(ci_vector, FermiCG.BSstate(clusters, tmp_spaces, na, nb))
                     end
                 end
             end

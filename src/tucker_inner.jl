@@ -2,9 +2,9 @@ using Profile
 using BenchmarkTools
 
 """
-    build_sigma!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham)
+    build_sigma!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, clustered_ham)
 """
-function build_sigma_serial!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; nbody=4, cache=false)
+function build_sigma_serial!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, clustered_ham; nbody=4, cache=false)
     #={{{=#
 
     for (fock_bra, configs_bra) in sigma_vector
@@ -41,9 +41,9 @@ end
 
 
 """
-    build_sigma!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham)
+    build_sigma!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, clustered_ham)
 """
-function cache_hamiltonian_old(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; nbody=4)
+function cache_hamiltonian_old(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, clustered_ham; nbody=4)
     #={{{=#
     
 
@@ -81,7 +81,7 @@ function cache_hamiltonian_old(sigma_vector::CompressedTuckerState, ci_vector::C
     #=}}}=#
 end
 
-function cache_hamiltonian(bra::CompressedTuckerState, ket::CompressedTuckerState, cluster_ops, clustered_ham; nbody=4)
+function cache_hamiltonian(bra::BSTstate, ket::BSTstate, cluster_ops, clustered_ham; nbody=4)
     println(" Cache hamiltonian terms")
    
     keys_to_loop = [keys(clustered_ham.trans)...]
@@ -122,9 +122,9 @@ end
 
 
 """
-    build_sigma_parallel!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham)
+    build_sigma_parallel!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, clustered_ham)
 """
-function build_sigma!(sigma_vector::CompressedTuckerState, ci_vector::CompressedTuckerState, cluster_ops, clustered_ham; nbody=4, cache=false)
+function build_sigma!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, clustered_ham; nbody=4, cache=false)
     #={{{=#
 
     jobs = []

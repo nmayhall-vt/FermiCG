@@ -7,7 +7,7 @@ using HDF5
 using Random
 using PyCall
 
-@testset "CompressedTuckerState" begin
+@testset "BSTstate" begin
     atoms = []
 
     r = 1
@@ -108,10 +108,10 @@ using PyCall
 
     #
     # initialize with eye
-    ref_vector = FermiCG.TuckerState(clusters, p_spaces, q_spaces, na, nb)
+    ref_vector = FermiCG.BSstate(clusters, p_spaces, q_spaces, na, nb)
     FermiCG.set_vector!(ref_vector, Matrix(1.0I, length(ref_vector),nroots))
 
-    ref_vec  = FermiCG.CompressedTuckerState(ref_vector, thresh=-1);
+    ref_vec  = FermiCG.BSTstate(ref_vector, thresh=-1);
 
 
     e_var, v_var = FermiCG.block_sparse_tucker(ref_vec, cluster_ops, clustered_ham, nbody=2, 

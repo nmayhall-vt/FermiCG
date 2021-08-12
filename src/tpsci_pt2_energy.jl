@@ -1,5 +1,5 @@
 """
-    compute_pt2_energy(ci_vector::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; 
+    compute_pt2_energy(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; 
         nbody=4, 
         H0="Hcmf",
         E0=nothing, #pass in <0|H0|0>, or compute it
@@ -7,7 +7,7 @@
         prescreen=true,
         verbose=1) where {T,N,R}
 """
-function compute_pt2_energy(ci_vector_in::ClusteredState{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; 
+function compute_pt2_energy(ci_vector_in::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; 
         nbody=4, 
         H0="Hcmf",
         E0=nothing, #pass in <0|H0|0>, or compute it
@@ -164,10 +164,10 @@ end
 
 function _pt2_job(job, fock_x, cluster_ops, nbody, thresh, 
                   scr_f, scr_i, scr_m, prescreen, verbose,
-                  ci_vector::ClusteredState{T,N,R}, clustered_ham_0, E0) where {T,N,R}
+                  ci_vector::TPSCIstate{T,N,R}, clustered_ham_0, E0) where {T,N,R}
     #={{{=#
 
-    sig = ClusteredState(ci_vector.clusters, T=T, R=R)
+    sig = TPSCIstate(ci_vector.clusters, T=T, R=R)
     add_fockconfig!(sig, fock_x)
 
     for jobi in job 
