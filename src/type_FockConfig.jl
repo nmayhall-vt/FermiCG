@@ -11,7 +11,7 @@ struct FockConfig{N} <: SparseIndex
     config::NTuple{N,FockIndex}
 end
 
-FockConfig(in::Vector{FockIndex}) where T = convert(FockConfig{length(in)}, in)
+FockConfig(in::Vector{Tuple{T,T}}) where T = convert(FockConfig{length(in)}, in)
 
 
 """
@@ -20,6 +20,9 @@ FockConfig(in::Vector{FockIndex}) where T = convert(FockConfig{length(in)}, in)
 function Base.convert(::Type{FockConfig{N}}, in::Vector) where {N}
     return FockConfig{length(in)}(ntuple(i -> Tuple(convert.(Int16, in[i])), length(in)))
 end
+
+"""
+"""
 
 
 """

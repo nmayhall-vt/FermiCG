@@ -7,17 +7,17 @@
         prescreen=true,
         verbose=1) where {T,N,R}
 """
-function compute_pt2_energy(ci_vector_in::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; 
+function compute_pt2_energy(ci_vector_in::TPSCIstate{T,N,R}, cluster_ops, cluster_ops_local, clustered_ham::ClusteredOperator; 
         nbody=4, 
         H0="Hcmf",
         E0=nothing, #pass in <0|H0|0>, or compute it
-        thresh_foi=1e-9, 
+        thresh_foi=1e-7, 
         prescreen=true,
         verbose=1) where {T,N,R}
     #={{{=#
 
     println()
-    println(" |........................do batched PT2............................")
+    println(" |......................Compute PT2 Energy..........................")
     println(" thresh_foi    :", thresh_foi   ) 
     println(" prescreen     :", prescreen   ) 
     println(" H0            :", H0   ) 
@@ -35,12 +35,12 @@ function compute_pt2_energy(ci_vector_in::TPSCIstate{T,N,R}, cluster_ops, cluste
     clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = H0) 
     if E0 == nothing
         @printf(" %-50s", "Compute <0|H0|0>:")
-        @time E0 = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham_0)
+        @time E0 = compute_expectation_value_parallel(ci_vector, cluster_ops, cluster_ops_local, clustered_ham_0)
         #E0 = diag(E0)
         flush(stdout)
     end
     @printf(" %-50s", "Compute <0|H|0>:")
-    @time Evar = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham)
+    @time Evar = compute_expectation_value_parallel(ci_vector, cluster_ops, cluster_ops_local, clustered_ham)
     #Evar = diag(Evar)
     flush(stdout)
 
@@ -132,7 +132,7 @@ function compute_pt2_energy(ci_vector_in::TPSCIstate{T,N,R}, cluster_ops, cluste
         #for (jobi,job) in collect(enumerate(jobs_vec))
             fock_bra = job[1]
             tid = Threads.threadid()
-            e2_thread[tid] .+= _pt2_job(job[2], fock_bra, cluster_ops, nbody, thresh_foi,  
+            e2_thread[tid] .+= _pt2_job(job[2], fock_bra, cluster_ops, cluster_ops_local, nbody, thresh_foi,  
                                         scr_f[tid], scr_i[tid], scr_m[tid],  prescreen, verbose, 
                                         ci_vector, clustered_ham_0, E0)
             if verbose > 0
@@ -162,7 +162,7 @@ end
 #=}}}=#
 
 
-function _pt2_job(job, fock_x, cluster_ops, nbody, thresh, 
+function _pt2_job(job, fock_x, cluster_ops, cluster_ops_local, nbody, thresh, 
                   scr_f, scr_i, scr_m, prescreen, verbose,
                   ci_vector::TPSCIstate{T,N,R}, clustered_ham_0, E0) where {T,N,R}
     #={{{=#
@@ -180,36 +180,18 @@ function _pt2_job(job, fock_x, cluster_ops, nbody, thresh,
 
             for (config_ket, coeff_ket) in configs_ket
 
-                #term isa ClusteredTerm2B || continue
-                #if (length(sig[fock_x]) > 0) && (term isa ClusteredTerm4B)
-                if (term isa ClusteredTerm4B)
-                    #println("1: ", length(sig[fock_x]))
-                    #@btime contract_matvec_thread($term, $cluster_ops, $fock_x, $fock_ket, $config_ket, $coeff_ket, 
-                    #                       $sig[$fock_x], 
-                    #                       $scr_f, $scr_i, $scr_m, 
-                    #                       thresh=$thresh, prescreen=$prescreen)
-                    #contract_matvec_thread(term, cluster_ops, fock_x, fock_ket, config_ket, coeff_ket, 
-                    #                   sig[fock_x], 
-                    #                   scr_f, scr_i, scr_m, 
-                    #                   thresh=thresh, prescreen=prescreen)
-                    #println("2: ", length(sig[fock_x]))
-                    #@profilehtml contract_matvec_thread(term, cluster_ops, fock_x, fock_ket, config_ket, coeff_ket, 
-                    #                   sig[fock_x], 
-                    #                   scr_f, scr_i, scr_m, 
-                    #                   thresh=thresh, prescreen=prescreen)
-                    #error("we good?")
-                end
 
-                contract_matvec_thread(term, cluster_ops, fock_x, fock_ket, config_ket, coeff_ket, 
-                                       sig[fock_x], 
-                                       scr_f, scr_i, scr_m, 
-                                       thresh=thresh, prescreen=prescreen)
-                #if term isa ClusteredTerm3B
-                    #@code_warntype contract_matvec_thread(term, cluster_ops, fock_x, fock_ket, config_ket, 
-                    #                                coeff_ket,  sig[fock_x],scr1, scr2, thresh=thresh)
-                    #@btime contract_matvec_thread($term, $cluster_ops, $fock_x, $fock_ket, $config_ket, 
-                    #                        $coeff_ket, $sig[$fock_x], $scr_f, $scr_i, $scr_m, thresh=$thresh)
-                #end
+                if term isa ClusteredTerm1B
+                    contract_matvec_thread(term, cluster_ops_local, fock_x, fock_ket, config_ket, coeff_ket, 
+                                           sig[fock_x], 
+                                           scr_f, scr_i, scr_m, 
+                                           thresh=thresh, prescreen=prescreen)
+                else
+                    contract_matvec_thread(term, cluster_ops, fock_x, fock_ket, config_ket, coeff_ket, 
+                                           sig[fock_x], 
+                                           scr_f, scr_i, scr_m, 
+                                           thresh=thresh, prescreen=prescreen)
+                end
             end
         end
     end
@@ -230,7 +212,7 @@ function _pt2_job(job, fock_x, cluster_ops, nbody, thresh,
     
     #Hd = compute_diagonal(sig, cluster_ops, clustered_ham_0)
     fill!(Hd,0.0)
-    compute_diagonal!(Hd, sig, cluster_ops, clustered_ham_0)
+    compute_diagonal!(Hd, sig, cluster_ops, cluster_ops_local, clustered_ham_0)
     #@btime compute_diagonal!($Hd, $sig, $cluster_ops, $clustered_ham_0)
     
     sig_v = scr_f[10]

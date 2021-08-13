@@ -8,7 +8,7 @@
         verbose=1,
         matvec=3) where {T,N,R}
 """
-function compute_pt1_wavefunction(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; 
+function compute_pt1_wavefunction(ci_vector::TPSCIstate{T,N,R}, cluster_ops, cluster_ops_local, clustered_ham::ClusteredOperator; 
         nbody=4, 
         H0="Hcmf",
         E0=nothing, #pass in <0|H0|0>, or compute it
@@ -34,11 +34,11 @@ function compute_pt1_wavefunction(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clu
 
     if matvec == 1
         #@time sig = open_matvec(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
-        sig = open_matvec_serial2(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi, prescreen=prescreen)
+        sig = open_matvec_serial2(ci_vector, cluster_ops, cluster_ops_local, clustered_ham, nbody=nbody, thresh=thresh_foi, prescreen=prescreen)
     elseif matvec == 2
-        sig = open_matvec_thread(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+        sig = open_matvec_thread(ci_vector, cluster_ops, cluster_ops_local, clustered_ham, nbody=nbody, thresh=thresh_foi)
     elseif matvec == 3
-        sig = open_matvec_thread2(ci_vector, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi, prescreen=prescreen)
+        sig = open_matvec_thread2(ci_vector, cluster_ops, cluster_ops_local, clustered_ham, nbody=nbody, thresh=thresh_foi, prescreen=prescreen)
     else
         error("wrong matvec")
     end
@@ -52,17 +52,17 @@ function compute_pt1_wavefunction(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clu
     println(" Length of FOIS vector: ", length(sig))
     
     @printf(" %-50s", "Compute diagonal")
-    @time Hd = compute_diagonal(sig, cluster_ops, clustered_ham_0)
+    @time Hd = compute_diagonal(sig, cluster_ops, cluster_ops_local, clustered_ham_0)
     
     if E0 == nothing
         @printf(" %-50s", "Compute <0|H0|0>:")
-        @time E0 = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham_0)
+        @time E0 = compute_expectation_value_parallel(ci_vector, cluster_ops, cluster_ops_local, clustered_ham_0)
         #E0 = diag(E0)
         flush(stdout)
     end
 
     @printf(" %-50s", "Compute <0|H|0>:")
-    @time Evar = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham)
+    @time Evar = compute_expectation_value_parallel(ci_vector, cluster_ops, cluster_ops_local, clustered_ham)
     #Evar = diag(Evar)
     flush(stdout)
     
@@ -89,13 +89,13 @@ end
 
 
 """
-    open_matvec(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
+    open_matvec(ci_vector::TPSCIstate{T,N,R}, cluster_ops, cluster_ops_local, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 
 Compute the action of the Hamiltonian on a tpsci state vector. Open here, means that we access the full FOIS 
 (restricted only by thresh), instead of the action of H on v within a subspace of configurations. 
 This is essentially used for computing a PT correction outside of the subspace, or used for searching in TPSCI.
 """
-function open_matvec(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
+function open_matvec(ci_vector::TPSCIstate{T,N,R}, cluster_ops, cluster_ops_local, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 #={{{=#
     println(" In open_matvec")
     sig = deepcopy(ci_vector)
@@ -150,7 +150,7 @@ end
 
 
 """
-    open_matvec_thread(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
+    open_matvec_thread(ci_vector::TPSCIstate{T,N,R}, cluster_ops, cluster_ops_local, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 
 Compute the action of the Hamiltonian on a tpsci state vector. Open here, means that we access the full FOIS 
 (restricted only by thresh), instead of the action of H on v within a subspace of configurations. 
@@ -159,7 +159,7 @@ This is essentially used for computing a PT correction outside of the subspace, 
 This parallellizes over FockConfigs in the output state, so it's not the most fine-grained, but it avoids data races in 
 filling the final vector
 """
-function open_matvec_thread(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
+function open_matvec_thread(ci_vector::TPSCIstate{T,N,R}, cluster_ops, cluster_ops_local, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 #={{{=#
     println(" In open_matvec_thread")
     sig = deepcopy(ci_vector)
@@ -211,7 +211,7 @@ function open_matvec_thread(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered
     #@qthreads for job in jobs_vec
     Threads.@threads for job in jobs_vec
         fock_bra = job[1]
-        sigi = _open_matvec_job(job[2], fock_bra, cluster_ops, nbody, thresh, N, R, T)
+        sigi = _open_matvec_job(job[2], fock_bra, cluster_ops, cluster_ops_local, nbody, thresh, N, R, T)
         tmp = jobs_out[Threads.threadid()]
         jobs_out[Threads.threadid()][fock_bra] = sigi
     end
@@ -226,7 +226,7 @@ function open_matvec_thread(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered
 end
 #=}}}=#
 
-function _open_matvec_job(job, fock_bra, cluster_ops, nbody, thresh, N, R, T)
+function _open_matvec_job(job, fock_bra, cluster_ops, cluster_ops_local, nbody, thresh, N, R, T)
 #={{{=#
     sigfock = OrderedDict{ClusterConfig{N}, MVector{R, T} }()
 
@@ -240,12 +240,13 @@ function _open_matvec_job(job, fock_bra, cluster_ops, nbody, thresh, N, R, T)
 
             for (config_ket, coeff_ket) in configs_ket
 
-                sig_i = contract_matvec(term, cluster_ops, fock_bra, fock_ket, config_ket, coeff_ket, thresh=thresh)
-                #if term isa ClusteredTerm2B
-                #    @btime sig_i = contract_matvec($term, $cluster_ops, $fock_bra, $fock_ket, $config_ket, $coeff_ket, thresh=$thresh)
-                #    error("here")
-                #end
-                merge!(+, sigfock, sig_i)
+                if term isa ClusteredTerm1B
+                    sig_i = contract_matvec(term, cluster_ops_local, fock_bra, fock_ket, config_ket, coeff_ket, thresh=thresh)
+                    merge!(+, sigfock, sig_i)
+                else
+                    sig_i = contract_matvec(term, cluster_ops, fock_bra, fock_ket, config_ket, coeff_ket, thresh=thresh)
+                    merge!(+, sigfock, sig_i)
+                end
             end
         end
     end
@@ -254,7 +255,7 @@ end
 #=}}}=#
 
 """
-    open_matvec_parallel(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
+    open_matvec_parallel(ci_vector::TPSCIstate{T,N,R}, cluster_ops, cluster_ops_local, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 
 Compute the action of the Hamiltonian on a tpsci state vector. Open here, means that we access the full FOIS 
 (restricted only by thresh), instead of the action of H on v within a subspace of configurations. 
@@ -263,7 +264,7 @@ This is essentially used for computing a PT correction outside of the subspace, 
 This parallellizes over FockConfigs in the output state, so it's not the most fine-grained, but it avoids data races in 
 filling the final vector
 """
-function open_matvec_parallel(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
+function open_matvec_parallel(ci_vector::TPSCIstate{T,N,R}, cluster_ops, cluster_ops_local, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 #={{{=#
     
     sig = deepcopy(ci_vector)
@@ -359,12 +360,13 @@ function _open_matvec_job_parallel(job, fock_bra, nbody, thresh, N, R, T)
 
             for (config_ket, coeff_ket) in configs_ket
 
-                sig_i = contract_matvec(term, cluster_ops, fock_bra, fock_ket, config_ket, coeff_ket, thresh=thresh)
-                #if term isa ClusteredTerm4B
-                #    @btime sig_i = contract_matvec($term, $cluster_ops, $fock_bra, $fock_ket, $config_ket, $coeff_ket, thresh=$thresh)
-                #    error("here")
-                #end
-                merge!(+, sig_job[fock_bra], sig_i)
+                if term isa ClusteredTerm1B
+                    sig_i = contract_matvec(term, cluster_ops_local, fock_bra, fock_ket, config_ket, coeff_ket, thresh=thresh)
+                    merge!(+, sigfock, sig_i)
+                else
+                    sig_i = contract_matvec(term, cluster_ops, fock_bra, fock_ket, config_ket, coeff_ket, thresh=thresh)
+                    merge!(+, sigfock, sig_i)
+                end
             end
         end
     end
@@ -373,9 +375,9 @@ end
 #=}}}=#
 
 """
-    open_matvec_parallel2(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
+    open_matvec_parallel2(ci_vector::TPSCIstate{T,N,R}, cluster_ops, cluster_ops_local, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 """
-function open_matvec_parallel2(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
+function open_matvec_parallel2(ci_vector::TPSCIstate{T,N,R}, cluster_ops, cluster_ops_local, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 #={{{=#
     sig = deepcopy(ci_vector)
     zero!(sig)
@@ -441,7 +443,7 @@ function _do_job(ftrans, term)
 
         for (config_ket, coeff_ket) in configs_ket
 
-            sig_i = contract_matvec(term, cluster_ops, fock_bra, fock_ket, config_ket, coeff_ket, thresh=thresh)
+            sig_i = contract_matvec(term, cluster_ops, cluster_ops_local, fock_bra, fock_ket, config_ket, coeff_ket, thresh=thresh)
 
             merge!(+, sig_job[fock_bra], sig_i)
         end

@@ -34,8 +34,11 @@ using LinearMaps
 
 
 #####################################
-# Local Imports
-#
+
+# Constants
+const FockIndex = Tuple{Int16, Int16}
+
+# More general stuff 
 include("Utils.jl")
 include("hosvd.jl")
 include("StringCI/StringCI.jl");
@@ -47,6 +50,7 @@ include("type_Atom.jl");
 include("type_Molecule.jl");
 include("type_InCoreInts.jl");
 
+
 # Local data
 include("type_Cluster.jl")
 include("type_ClusterOps.jl")
@@ -55,7 +59,6 @@ include("type_ClusterSubspace.jl")
 include("build_local_quantities.jl")
 
 #indexing
-const FockIndex = Tuple{Int16, Int16}
 include("type_SparseIndex.jl")
 include("type_ClusterConfig.jl")
 include("type_TransferConfig.jl")

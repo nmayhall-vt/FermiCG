@@ -38,16 +38,18 @@ function compute_cluster_ops(cluster_bases::Vector{ClusterBasis},ints; T=Float64
         push!(clusters, ci.cluster)
     end
     
-    cluster_ops = Vector{ClusterOps}()
+    cluster_ops = Vector{ClusterOps{T,3}}()
+    cluster_ops_local = Vector{ClusterOps{T,2}}()
     for ci in clusters
-        push!(cluster_ops, ClusterOps(ci)) 
+        push!(cluster_ops, ClusterOps(ci,3)) 
+        push!(cluster_ops_local, ClusterOps(ci,2)) 
     end
 
 
     for ci in clusters
         cb = cluster_bases[ci.idx]
         
-        cluster_ops[ci.idx]["H"] = FermiCG.tdm_H(cb, subset(ints, ci.orb_list), verbose=0) 
+        cluster_ops_local[ci.idx]["H"] = FermiCG.tdm_H(cb, subset(ints, ci.orb_list), verbose=0) 
 
         cluster_ops[ci.idx]["A"], cluster_ops[ci.idx]["a"] = FermiCG.tdm_A(cb,"alpha") 
         cluster_ops[ci.idx]["B"], cluster_ops[ci.idx]["b"] = FermiCG.tdm_A(cb,"beta")
@@ -121,7 +123,7 @@ function compute_cluster_ops(cluster_bases::Vector{ClusterBasis},ints; T=Float64
 
         #
         # S2
-        cluster_ops[ci.idx]["S2"] = FermiCG.tdm_S2(cb, subset(ints, ci.orb_list), verbose=0) 
+        cluster_ops_local[ci.idx]["S2"] = FermiCG.tdm_S2(cb, subset(ints, ci.orb_list), verbose=0) 
 
         # Compute single excitation operator
         tmp = Dict{Tuple,Array}()
@@ -130,21 +132,21 @@ function compute_cluster_ops(cluster_bases::Vector{ClusterBasis},ints; T=Float64
         end
         cluster_ops[ci.idx]["E1"] = tmp 
 
-        #
-        # reshape data into 3index quantities: e.g., (pqr, I, J)
-        for opstring in keys(cluster_ops[ci.idx])
-            #opstring != "H" || continue
-            #opstring != "S2" || continue
-            for ftrans in keys(cluster_ops[ci.idx][opstring])
-                data = cluster_ops[ci.idx][opstring][ftrans]
-                dim1 = prod(size(data)[1:(length(size(data))-2)])
-                dim2 = size(data)[length(size(data))-1]
-                dim3 = size(data)[length(size(data))-0]
-                cluster_ops[ci.idx][opstring][ftrans] = copy(reshape(data, (dim1,dim2,dim3)))
-            end
-        end
+#        #
+#        # reshape data into 3index quantities: e.g., (pqr, I, J)
+#        for opstring in keys(cluster_ops[ci.idx])
+#            #opstring != "H" || continue
+#            #opstring != "S2" || continue
+#            for ftrans in keys(cluster_ops[ci.idx][opstring])
+#                data = cluster_ops[ci.idx][opstring][ftrans]
+#                dim1 = prod(size(data)[1:(length(size(data))-2)])
+#                dim2 = size(data)[length(size(data))-1]
+#                dim3 = size(data)[length(size(data))-0]
+#                cluster_ops[ci.idx][opstring][ftrans] = copy(reshape(data, (dim1,dim2,dim3)))
+#            end
+#        end
     end
-    return cluster_ops
+    return cluster_ops, cluster_ops_local
 end
     #=}}}=#
 
@@ -163,7 +165,7 @@ function tdm_H(cb::ClusterBasis{T}, ints; verbose=0) where T
     verbose == 0 || display(cb.cluster)
     norbs = length(cb.cluster)
 
-    dicti = Dict{Tuple{FockIndex, FockIndex},Array{T,3}}()
+    dicti = Dict{Tuple{FockIndex, FockIndex},Array{T,2}}()
     #
     # loop over fock-space transitions
     verbose == 0 || display(cb.cluster)
@@ -174,7 +176,7 @@ function tdm_H(cb::ClusterBasis{T}, ints; verbose=0) where T
         Hmap = StringCI.get_map(ints, problem)
 
         H = cb[fock]' * Matrix((Hmap * cb[fock]))
-        dicti[focktrans] = reshape(H, (1, size(H,1), size(H,2)))
+        dicti[focktrans] = H
 
         if verbose > 0
             for e in 1:size(cb[fock],2)
@@ -195,7 +197,7 @@ function tdm_S2(cb::ClusterBasis{T}, ints; verbose=0) where T
     verbose == 0 || display(cb.cluster)
     norbs = length(cb.cluster)
 
-    dicti = Dict{Tuple{FockIndex, FockIndex}, Array{T,3}}()
+    dicti = Dict{Tuple{FockIndex, FockIndex}, Array{T,2}}()
     #
     # loop over fock-space transitions
     verbose == 0 || display(cb.cluster)
@@ -206,7 +208,7 @@ function tdm_S2(cb::ClusterBasis{T}, ints; verbose=0) where T
 
         op = cb[fock]' * (StringCI.build_S2_matrix(problem) * cb[fock])
         
-        dicti[focktrans] = reshape(op, (1, size(op,1), size(op,2)))
+        dicti[focktrans] = op
 
         if verbose > 0
             for e in 1:size(cb[fock],2)
@@ -606,7 +608,7 @@ end
 
 Add effective local hamiltonians (local CASCI) type hamiltonians to a `ClusterOps` type for each `Cluster'
 """
-function add_cmf_operators!(ops::Vector{ClusterOps}, bases::Vector{ClusterBasis}, ints, Da, Db; verbose=0)
+function add_cmf_operators!(ops::Vector{ClusterOps{T,2}}, bases::Vector{ClusterBasis}, ints, Da, Db; verbose=0) where T
     #={{{=#
     n_clusters = length(bases)
     for ci_idx in 1:n_clusters
@@ -619,7 +621,7 @@ function add_cmf_operators!(ops::Vector{ClusterOps}, bases::Vector{ClusterBasis}
         ints_i = form_casci_ints(ints, ci, Da, Db)
 
 
-        dicti = Dict{Tuple,Array}()
+        dicti = Dict{Tuple{FockIndex, FockIndex},Array{T,2}}()
         
         #
         # loop over fock-space transitions
@@ -646,7 +648,10 @@ end
 
 
 """
-	form_schmidt_basis
+    function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db; 
+        thresh_schmidt=1e-3, thresh_orb=1e-8, thresh_ci=1e-6,do_embedding=true,
+        eig_nr=1, eig_max_cycles=200)
+
 thresh_orb      :   threshold for determining how many bath orbitals to include
 thresh_schmidt  :   threshold for determining how many singular vectors to include for cluster basis
 
@@ -655,7 +660,7 @@ Returns new basis for the cluster
 function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db; 
         thresh_schmidt=1e-3, thresh_orb=1e-8, thresh_ci=1e-6,do_embedding=true,
         eig_nr=1, eig_max_cycles=200)
-
+#={{{=#
     println()
     println("------------------------------------------------------------")
     @printf("Form Embedded Schmidt-style basis for Cluster %4i\n",ci.idx)
@@ -853,6 +858,7 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db;
     basis = FermiCG.StringCI.svd_state(v,problem,length(active),nkeep,thresh_schmidt)
     return basis
 end
+#=}}}=#
 
 
 """

@@ -8,9 +8,9 @@ Contraction for local (1body) terms. No contraction is needed,
 just a lookup from the correct operator
 """
 function contract_matrix_element(   term::ClusteredTerm1B, 
-                                    cluster_ops::Vector{ClusterOps},
+                                 cluster_ops::Vector{ClusterOps{T,2}},
                                     fock_bra::FockConfig, bra::ClusterConfig, 
-                                    fock_ket::FockConfig, ket::ClusterConfig)
+                                    fock_ket::FockConfig, ket::ClusterConfig) where T
 #={{{=#
     c1 = term.clusters[1]
     length(fock_bra) == length(fock_ket) || throw(Exception)
@@ -33,16 +33,16 @@ end
 #=}}}=#
 """
     contract_matrix_element(   term::ClusteredTerm2B, 
-                                    cluster_ops::Vector{ClusterOps},
+                                    cluster_ops::Vector{ClusterOps{T,3}},
                                     fock_bra::FockConfig, bra::ClusterConfig, 
                                     fock_ket::FockConfig, ket::ClusterConfig)
 
 Form TPSCI matrix element by contracting operators with integrals for 2body terms. 
 """
 function contract_matrix_element(   term::ClusteredTerm2B, 
-                                    cluster_ops::Vector{ClusterOps},
+                                    cluster_ops::Vector{ClusterOps{T,3}},
                                     fock_bra::FockConfig, bra::ClusterConfig, 
-                                    fock_ket::FockConfig, ket::ClusterConfig)
+                                    fock_ket::FockConfig, ket::ClusterConfig) where T
 #={{{=#
     #display(term)
     #println(bra, ket)
@@ -88,16 +88,16 @@ end
 #=}}}=#
 """
     contract_matrix_element(   term::ClusteredTerm3B, 
-                                    cluster_ops::Vector{ClusterOps},
+                                    cluster_ops::Vector{ClusterOps{T,3}},
                                     fock_bra::FockConfig, bra::ClusterConfig, 
                                     fock_ket::FockConfig, ket::ClusterConfig)
 
 Form TPSCI matrix element by contracting operators with integrals for 3body terms. 
 """
 function contract_matrix_element(   term::ClusteredTerm3B, 
-                                    cluster_ops::Vector{ClusterOps},
+                                    cluster_ops::Vector{ClusterOps{T,3}},
                                     fock_bra::FockConfig, bra::ClusterConfig, 
-                                    fock_ket::FockConfig, ket::ClusterConfig)
+                                    fock_ket::FockConfig, ket::ClusterConfig) where T
     #={{{=#
     c1 = term.clusters[1]
     c2 = term.clusters[2]
@@ -150,16 +150,16 @@ end
 #=}}}=#
 """
     contract_matrix_element(   term::ClusteredTerm4B, 
-                                    cluster_ops::Vector{ClusterOps},
+                                    cluster_ops::Vector{ClusterOps{T,3}},
                                     fock_bra::FockConfig, bra::ClusterConfig, 
                                     fock_ket::FockConfig, ket::ClusterConfig)
 
 Form TPSCI matrix element by contracting operators with integrals for 4body terms. 
 """
 function contract_matrix_element(   term::ClusteredTerm4B, 
-                                    cluster_ops::Vector{ClusterOps},
+                                    cluster_ops::Vector{ClusterOps{T,3}},
                                     fock_bra::FockConfig, bra::ClusterConfig, 
-                                    fock_ket::FockConfig, ket::ClusterConfig)
+                                    fock_ket::FockConfig, ket::ClusterConfig) where T
 #={{{=#
     c1 = term.clusters[1]
     c2 = term.clusters[2]
@@ -334,13 +334,13 @@ end
 
 """
     contract_matvec(   term::ClusteredTerm1B, 
-                                    cluster_ops::Vector{ClusterOps},
+                                    cluster_ops::Vector{ClusterOps{T,2}},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
                                     thresh=1e-9) where {T,R,N}
 """
 function contract_matvec(   term::ClusteredTerm1B, 
-                                    cluster_ops::Vector{ClusterOps},
+                                    cluster_ops::Vector{ClusterOps{T,2}},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
                                     thresh=1e-9) where {T,R,N}
@@ -370,13 +370,13 @@ end
 
 """
     contract_matvec(   term::ClusteredTerm2B, 
-                                    cluster_ops::Vector{ClusterOps},
+                                    cluster_ops::Vector{ClusterOps{T,3}},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
                                     thresh=1e-9) where {T,R,N}
 """
 function contract_matvec(   term::ClusteredTerm2B, 
-                                    cluster_ops::Vector{ClusterOps},
+                                    cluster_ops::Vector{ClusterOps{T,3}},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
                                     thresh=1e-9) where {T,R,N}
@@ -448,13 +448,13 @@ end
 
 """
     contract_matvec_M3(   term::ClusteredTerm3B, 
-                                    cluster_ops::Vector{ClusterOps},
+                                    cluster_ops::Vector{ClusterOps{T,3}},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
                                     thresh=1e-9) where {T,R,N}
 """
 function contract_matvec_M3(   term::ClusteredTerm3B, 
-                                    cluster_ops::Vector{ClusterOps},
+                                    cluster_ops::Vector{ClusterOps{T,3}},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
                                     thresh=1e-9) where {T,R,N}
@@ -523,13 +523,13 @@ end
 
 """
     contract_matvec_M4(   term::ClusteredTerm4B, 
-                                    cluster_ops::Vector{ClusterOps},
+                                    cluster_ops::Vector{ClusterOps{T,3}},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
                                     thresh=1e-9) where {T,R,N}
 """
 function contract_matvec_M4(   term::ClusteredTerm4B, 
-                                    cluster_ops::Vector{ClusterOps},
+                                    cluster_ops::Vector{ClusterOps{T,3}},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
                                     thresh=1e-9) where {T,R,N}
@@ -659,7 +659,7 @@ end
 #############################################################################################################################################
 """
     contract_matvec(   term::ClusteredTerm3B, 
-                                    cluster_ops::Vector{ClusterOps},
+                                    cluster_ops::Vector{ClusterOps{T,3}},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
                                     thresh=1e-9, prescreen=true) where {T,R,N}
@@ -667,7 +667,7 @@ end
 This version should only use M^2N^2 storage, and n^5 scaling n={MN}
 """
 function contract_matvec(   term::ClusteredTerm3B, 
-                                    cluster_ops::Vector{ClusterOps},
+                                    cluster_ops::Vector{ClusterOps{T,3}},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
                                     thresh=1e-9, prescreen=true) where {T,R,N}
@@ -752,7 +752,7 @@ end
 
 """
     contract_matvec(   term::ClusteredTerm4B, 
-                                    cluster_ops::Vector{ClusterOps},
+                                    cluster_ops::Vector{ClusterOps{T,3}},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
                                     thresh=1e-9, prescreen=true) where {T,R,N}
@@ -760,7 +760,7 @@ end
 This version should only use M^2N^2 storage, and n^5 scaling n={MN}
 """
 function contract_matvec(   term::ClusteredTerm4B, 
-                                    cluster_ops::Vector{ClusterOps},
+                                    cluster_ops::Vector{ClusterOps{T,3}},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T};
                                     thresh=1e-9, prescreen=true) where {T,R,N}

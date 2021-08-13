@@ -1,12 +1,12 @@
 """
     cluster::Cluster
-    data::Dict{String,Dict{Tuple{FockIndex, FockIndex},Array{T,3}}}
+    data::Dict{String,Dict{Tuple{FockIndex, FockIndex},Array{T,N}}}
 
 Local operator tensors
 """
-struct ClusterOps{T}
+struct ClusterOps{T,N}
     cluster::Cluster
-    data::Dict{String,Dict{Tuple{FockIndex, FockIndex},Array{T,3}}}
+    data::Dict{String,Dict{Tuple{FockIndex, FockIndex},Array{T,N}}}
 end
 
 Base.iterate(i::ClusterOps, state=1) = iterate(i.data, state)
@@ -27,10 +27,10 @@ function Base.display(co::ClusterOps)
         end
     end
 end
-function ClusterOps(ci::Cluster; T=Float64)
+function ClusterOps(ci::Cluster, N::Integer; T=Float64)
     dic1 = Dict{Tuple{FockIndex, FockIndex}, Array{T,3}}()
     dic2 = Dict{String,typeof(dic1)}() 
-    return ClusterOps{T}(ci, dic2)
+    return ClusterOps{T,N}(ci, dic2)
 end
 
 """
@@ -38,7 +38,7 @@ end
 
 Rotate `ops` by unitary matrices in `U`
 """
-function rotate!(ops::ClusterOps{T},U::Dict{Tuple,Matrix{T}}) where T
+function rotate!(ops::ClusterOps{T,N},U::Dict{Tuple,Matrix{T}}) where {T,N}
 #={{{=#
     for (op,fspace_deltas) in ops
         #println(" Rotate ", op)
@@ -49,16 +49,16 @@ function rotate!(ops::ClusterOps{T},U::Dict{Tuple,Matrix{T}}) where T
             if haskey(U, fspace_l)==true && haskey(U, fspace_r)==true
                 Ul = U[fspace_l]
                 Ur = U[fspace_r]
-                if length(size(tdm)) == 2
+                if N == 2
                     @tensoropt tmp[q,s] := Ul[p,q] * Ur[r,s] * tdm[p,r]
                     ops[op][fspace_delta] = tmp 
-                elseif length(size(tdm)) == 3
+                elseif N == 3
                     @tensoropt tmp[p,s,t] := Ul[q,s] * Ur[r,t] * tdm[p,q,r]
                     ops[op][fspace_delta] = tmp 
-                elseif length(size(tdm)) == 4
+                elseif N == 4
                     @tensoropt tmp[p,q,t,u] := Ul[r,t] * Ur[s,u] * tdm[p,q,r,s]
                     ops[op][fspace_delta] = tmp 
-                elseif length(size(tdm)) == 5
+                elseif N == 5
                     @tensoropt  tmp[p,q,r,u,v] := Ul[s,u] * Ur[t,v] * tdm[p,q,r,s,t]
                     ops[op][fspace_delta] = tmp 
                 else
@@ -67,16 +67,16 @@ function rotate!(ops::ClusterOps{T},U::Dict{Tuple,Matrix{T}}) where T
 
             elseif haskey(U, fspace_l)==true && haskey(U, fspace_r)==false
                 Ul = U[fspace_l]
-                if length(size(tdm)) == 2
+                if N == 2
                     @tensoropt tmp[q,r] := Ul[p,q] * tdm[p,r]
                     ops[op][fspace_delta] = tmp 
-                elseif length(size(tdm)) == 3
+                elseif N == 3
                     @tensoropt tmp[p,s,r] := Ul[q,s] * tdm[p,q,r]
                     ops[op][fspace_delta] = tmp 
-                elseif length(size(tdm)) == 4
+                elseif N == 4
                     @tensoropt tmp[p,q,t,s] := Ul[r,t] * tdm[p,q,r,s]
                     ops[op][fspace_delta] = tmp 
-                elseif length(size(tdm)) == 5
+                elseif N == 5
                     @tensoropt tmp[p,q,r,u,t] := Ul[s,u] * tdm[p,q,r,s,t]
                     ops[op][fspace_delta] = tmp 
                 else
@@ -85,16 +85,16 @@ function rotate!(ops::ClusterOps{T},U::Dict{Tuple,Matrix{T}}) where T
 
             elseif haskey(U, fspace_l)==false && haskey(U, fspace_r)==true
                 Ur = U[fspace_r]
-                if length(size(tdm)) == 2
+                if N == 2
                     @tensoropt tmp[p,s] := Ur[r,s] * tdm[p,r]
                     ops[op][fspace_delta] = tmp 
-                elseif length(size(tdm)) == 3
+                elseif N == 3
                     @tensoropt tmp[p,q,t] := Ur[r,t] * tdm[p,q,r]
                     ops[op][fspace_delta] = tmp 
-                elseif length(size(tdm)) == 4
+                elseif N == 4
                     @tensoropt tmp[p,q,r,u] := Ur[s,u] * tdm[p,q,r,s]
                     ops[op][fspace_delta] = tmp 
-                elseif length(size(tdm)) == 5
+                elseif N == 5
                     @tensoropt tmp[p,q,r,s,v] := Ur[t,v] * tdm[p,q,r,s,t]
                     ops[op][fspace_delta] = tmp 
                 else
