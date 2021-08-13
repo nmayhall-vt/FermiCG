@@ -36,7 +36,7 @@ using TimerOutputs
 
 See also: [`BSTstate`](@ref), [`Tucker`](@ref)
 """
-function block_sparse_tucker(input_vec::BSTstate, cluster_ops, clustered_ham;
+function block_sparse_tucker(input_vec::BSTstate, cluster_ops, cluster_ops_local, clustered_ham;
         max_iter    = 20,
         max_iter_pt = 200, # max number of iterations for solving for PT1
         nbody       = 4,
@@ -79,7 +79,7 @@ function block_sparse_tucker(input_vec::BSTstate, cluster_ops, clustered_ham;
         if resolve_ss
             println()
             @printf(" Solve zeroth-order problem. Dimension = %10i\n", length(ref_vec))
-            @timeit to "CI small" e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, tol=tol_ci)
+            @timeit to "CI small" e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, cluster_ops_local, clustered_ham, tol=tol_ci)
         end
         #       sig = deepcopy(ref_vec)
         #       zero!(sig)
@@ -91,14 +91,14 @@ function block_sparse_tucker(input_vec::BSTstate, cluster_ops, clustered_ham;
 
         tmp = deepcopy(ref_vec)
         zero!(tmp)
-        @timeit to "S2" build_sigma!(tmp, ref_vec, cluster_ops, clustered_S2)
+        @timeit to "S2" build_sigma!(tmp, ref_vec, cluster_ops, cluster_ops_local, clustered_S2)
         @printf(" <S^2> = %12.8f\n", orth_dot(tmp,ref_vec))
 
         #
         # Get First order wavefunction
         println()
         println(" Compute first order wavefunction. Reference space dim = ", length(ref_vec))
-        @timeit to "FOIS" pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+        @timeit to "FOIS" pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, cluster_ops_local, clustered_ham, nbody=nbody, thresh=thresh_foi)
 
         # 
         # Compress FOIS
@@ -120,7 +120,7 @@ function block_sparse_tucker(input_vec::BSTstate, cluster_ops, clustered_ham;
             # 
             println()
             println(" Compute PT vector. Reference space dim = ", length(ref_vec))
-            @timeit to "PT1" pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol_ci, do_pt=do_pt, max_iter=max_iter_pt, H0=H0)
+            @timeit to "PT1" pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, cluster_ops_local, clustered_ham; tol=tol_ci, do_pt=do_pt, max_iter=max_iter_pt, H0=H0)
             # 
             # Compress first order wavefunction 
             norm1 = orth_dot(pt1_vec, pt1_vec)
@@ -147,11 +147,11 @@ function block_sparse_tucker(input_vec::BSTstate, cluster_ops, clustered_ham;
         @printf(" Var  Compressed from:     %8i → %8i (thresh = %8.1e)\n", dim1, dim2, thresh_pt)
         normalize!(var_vec)
         @printf(" Solve in compressed FOIS. Dimension =   %10i\n", length(var_vec))
-        @timeit to "CI big" e_var, var_vec = tucker_ci_solve(var_vec, cluster_ops, clustered_ham, tol=tol_ci)
+        @timeit to "CI big" e_var, var_vec = tucker_ci_solve(var_vec, cluster_ops, cluster_ops_local, clustered_ham, tol=tol_ci)
 
         tmp = deepcopy(var_vec)
         zero!(tmp)
-        @timeit to "S2" build_sigma!(tmp, var_vec, cluster_ops, clustered_S2)
+        @timeit to "S2" build_sigma!(tmp, var_vec, cluster_ops, cluster_ops_local, clustered_S2)
         @printf(" <S^2> = %12.8f\n", orth_dot(tmp,var_vec))
 
         ref_vec = var_vec

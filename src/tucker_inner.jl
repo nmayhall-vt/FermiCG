@@ -2,9 +2,9 @@ using Profile
 using BenchmarkTools
 
 """
-    build_sigma!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, clustered_ham)
+    build_sigma!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, cluster_ops_local, clustered_ham)
 """
-function build_sigma_serial!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, clustered_ham; nbody=4, cache=false)
+function build_sigma_serial!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, cluster_ops_local, clustered_ham; nbody=4, cache=false)
     #={{{=#
 
     for (fock_bra, configs_bra) in sigma_vector
@@ -24,12 +24,17 @@ function build_sigma_serial!(sigma_vector::BSTstate, ci_vector::BSTstate, cluste
                     
                         check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
 
-                        coeff_bra.core .= form_sigma_block!(term, cluster_ops, fock_bra, config_bra,
-                                                            fock_ket, config_ket,
-                                                            coeff_bra, coeff_ket,
-                                                            cache=cache)
-
-
+                        if term isa ClusteredTerm1B
+                            coeff_bra.core .= form_sigma_block!(term, cluster_ops_local, fock_bra, config_bra,
+                                                                fock_ket, config_ket,
+                                                                coeff_bra, coeff_ket,
+                                                                cache=cache)
+                        else
+                            coeff_bra.core .= form_sigma_block!(term, cluster_ops, fock_bra, config_bra,
+                                                                fock_ket, config_ket,
+                                                                coeff_bra, coeff_ket,
+                                                                cache=cache)
+                        end
                     end
                 end
             end
@@ -41,9 +46,9 @@ end
 
 
 """
-    build_sigma!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, clustered_ham)
+    build_sigma!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, cluster_ops_local, clustered_ham)
 """
-function cache_hamiltonian_old(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, clustered_ham; nbody=4)
+function cache_hamiltonian_old(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, cluster_ops_local, clustered_ham; nbody=4)
     #={{{=#
     
 
@@ -68,10 +73,16 @@ function cache_hamiltonian_old(sigma_vector::BSTstate, ci_vector::BSTstate, clus
                         check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
                         
                         cache_key = OperatorConfig((fock_bra, fock_ket, config_bra, config_ket))
-                        term.cache[cache_key] = build_dense_H_term(term, cluster_ops, 
-                                                                   fock_bra, config_bra, coeff_bra, 
-                                                                   fock_ket, config_ket, coeff_ket)
 
+                        if term isa ClusteredTerm1B
+                            term.cache[cache_key] = build_dense_H_term(term, cluster_ops_local, 
+                                                                       fock_bra, config_bra, coeff_bra, 
+                                                                       fock_ket, config_ket, coeff_ket)
+                        else
+                            term.cache[cache_key] = build_dense_H_term(term, cluster_ops, 
+                                                                       fock_bra, config_bra, coeff_bra, 
+                                                                       fock_ket, config_ket, coeff_ket)
+                        end
                     end
                 end
             end
@@ -81,7 +92,7 @@ function cache_hamiltonian_old(sigma_vector::BSTstate, ci_vector::BSTstate, clus
     #=}}}=#
 end
 
-function cache_hamiltonian(bra::BSTstate, ket::BSTstate, cluster_ops, clustered_ham; nbody=4)
+function cache_hamiltonian(bra::BSTstate, ket::BSTstate, cluster_ops, cluster_ops_local, clustered_ham; nbody=4)
     println(" Cache hamiltonian terms")
    
     keys_to_loop = [keys(clustered_ham.trans)...]
@@ -110,9 +121,15 @@ function cache_hamiltonian(bra::BSTstate, ket::BSTstate, cluster_ops, clustered_
 
                         cache_key = OperatorConfig((fock_bra, fock_ket, config_bra, config_ket))
 
-                        term.cache[cache_key] = build_dense_H_term(term, cluster_ops, 
-                                                                   fock_bra, config_bra, tuck_bra, 
-                                                                   fock_ket, config_ket, tuck_ket)
+                        if term isa ClusteredTerm1B
+                            term.cache[cache_key] = build_dense_H_term(term, cluster_ops_local, 
+                                                                       fock_bra, config_bra, tuck_bra, 
+                                                                       fock_ket, config_ket, tuck_ket)
+                        else
+                            term.cache[cache_key] = build_dense_H_term(term, cluster_ops, 
+                                                                       fock_bra, config_bra, tuck_bra, 
+                                                                       fock_ket, config_ket, tuck_ket)
+                        end
                     end
                 end
             end
@@ -122,9 +139,9 @@ end
 
 
 """
-    build_sigma_parallel!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, clustered_ham)
+    build_sigma_parallel!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, cluster_ops_local, clustered_ham)
 """
-function build_sigma!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, clustered_ham; nbody=4, cache=false)
+function build_sigma!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, cluster_ops_local, clustered_ham; nbody=4, cache=false)
     #={{{=#
 
     jobs = []
@@ -156,19 +173,19 @@ function build_sigma!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, 
 
                     check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
 
-                    # these methods dispatched on type of term
-                    #coeff_bra.core .= form_sigma_block!(term, cluster_ops, fock_bra, config_bra,
-                    #                              fock_ket, config_ket,
-                    #                              coeff_bra, coeff_ket,
-                    #                              cache=cache)
-                    out = form_sigma_block!(term, cluster_ops, fock_bra, config_bra,
-                                                  fock_ket, config_ket,
-                                                  coeff_bra, coeff_ket,
-                                                  cache=cache)
-
-                    push!(output[Threads.threadid()], (fock_bra, config_bra, out))
-
-
+                    if term isa ClusteredTerm1B
+                        out = form_sigma_block!(term, cluster_ops_local, fock_bra, config_bra,
+                                                fock_ket, config_ket,
+                                                coeff_bra, coeff_ket,
+                                                cache=cache)
+                        push!(output[Threads.threadid()], (fock_bra, config_bra, out))
+                    else
+                        out = form_sigma_block!(term, cluster_ops, fock_bra, config_bra,
+                                                fock_ket, config_ket,
+                                                coeff_bra, coeff_ket,
+                                                cache=cache)
+                        push!(output[Threads.threadid()], (fock_bra, config_bra, out))
+                    end
                 end
             end
         end
@@ -199,7 +216,7 @@ end
 #
 #
 function form_sigma_block!(term::C,
-                            cluster_ops::Vector{ClusterOps},
+                           cluster_ops::Vector{<:ClusterOps},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             coeffs_bra::Tucker{T,N}, coeffs_ket::Tucker{T,N};
@@ -762,7 +779,7 @@ end
 #
 
 function form_sigma_block_expand(term::ClusteredTerm1B,
-                            cluster_ops::Vector{ClusterOps},
+                            cluster_ops::Vector{<:ClusterOps},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             coeffs_ket::Tucker{T,N};
@@ -845,7 +862,7 @@ end
 #=}}}=#
 
 function form_sigma_block_expand(term::ClusteredTerm2B,
-                            cluster_ops::Vector{ClusterOps},
+                            cluster_ops::Vector{<:ClusterOps},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             coeffs_ket::Tucker{T,N};
@@ -1012,7 +1029,7 @@ end
 #=}}}=#
 
 function form_sigma_block_expand(term::ClusteredTerm3B,
-                            cluster_ops::Vector{ClusterOps},
+                            cluster_ops::Vector{<:ClusterOps},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             coeffs_ket::Tucker{T,N};
@@ -1176,7 +1193,7 @@ end
 #=}}}=#
 
 function form_sigma_block_expand(term::ClusteredTerm4B,
-                            cluster_ops::Vector{ClusterOps},
+                            cluster_ops::Vector{<:ClusterOps},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             coeffs_ket::Tucker{T,N};

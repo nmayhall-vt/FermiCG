@@ -10,11 +10,11 @@ using IterativeSolvers
 
 
 """
-    get_map(ci_vector::BSTstate, cluster_ops, clustered_ham)
+    get_map(ci_vector::BSTstate, cluster_ops, cluster_ops_local, clustered_ham)
 
 Get LinearMap with takes a vector and returns action of H on that vector
 """
-function get_map(ci_vector::BSTstate, cluster_ops, clustered_ham; shift = nothing, cache=false)
+function get_map(ci_vector::BSTstate, cluster_ops, cluster_ops_local, clustered_ham; shift = nothing, cache=false)
     #={{{=#
     iters = 0
     
@@ -27,7 +27,7 @@ function get_map(ci_vector::BSTstate, cluster_ops, clustered_ham; shift = nothin
         #fold!(ci_vector)
         sig = deepcopy(ci_vector)
         zero!(sig)
-        build_sigma!(sig, ci_vector, cluster_ops, clustered_ham, cache=cache)
+        build_sigma!(sig, ci_vector, cluster_ops, cluster_ops_local, clustered_ham, cache=cache)
 
         #unfold!(ci_vector)
 
@@ -46,11 +46,11 @@ end
 #=}}}=#
 
 """
-    tucker_ci_solve(ci_vector::BSTstate, cluster_ops, clustered_ham; tol=1e-5)
+    tucker_ci_solve(ci_vector::BSTstate, cluster_ops, cluster_ops_local, clustered_ham; tol=1e-5)
 
 Solve for ground state in the space spanned by `ci_vector`'s compression vectors
 """
-function tucker_ci_solve(ci_vector::BSTstate, cluster_ops, clustered_ham; tol=1e-5)
+function tucker_ci_solve(ci_vector::BSTstate, cluster_ops, cluster_ops_local, clustered_ham; tol=1e-5)
 #={{{=#
 
     @printf(" Solve CI with # variables = %i\n", length(ci_vector))
@@ -59,7 +59,7 @@ function tucker_ci_solve(ci_vector::BSTstate, cluster_ops, clustered_ham; tol=1e
     #flush term cache
     flush_cache(clustered_ham)
     
-    Hmap = get_map(vec, cluster_ops, clustered_ham, cache=true)
+    Hmap = get_map(vec, cluster_ops, cluster_ops_local, clustered_ham, cache=true)
 
     v0 = get_vector(vec)
     nr = size(v0)[2]
@@ -70,7 +70,7 @@ function tucker_ci_solve(ci_vector::BSTstate, cluster_ops, clustered_ham; tol=1e
         #@timeit to "cache" cache_hamiltonian(vec, vec, cluster_ops, clustered_ham)
         @printf(" Build and cache each hamiltonian term in the current basis:\n")
         flush(stdout)
-        @time cache_hamiltonian(vec, vec, cluster_ops, clustered_ham)
+        @time cache_hamiltonian(vec, vec, cluster_ops, cluster_ops_local, clustered_ham)
         @printf(" done.\n")
         flush(stdout)
     end
@@ -81,7 +81,7 @@ function tucker_ci_solve(ci_vector::BSTstate, cluster_ops, clustered_ham; tol=1e
     #    end
     #end
 
-    #cache_hamiltonian(ci_vector, ci_vector, cluster_ops, clustered_ham)
+    #cache_hamiltonian(ci_vector, ci_vector, cluster_ops, cluster_ops_local, clustered_ham)
     
     davidson = Davidson(Hmap,v0=v0,max_iter=80, max_ss_vecs=40, nroots=nr, tol=tol)
     #Adiag = StringCI.compute_fock_diagonal(problem,mf.mo_energy, e_mf)
@@ -107,7 +107,7 @@ end
 
 
 """
-    tucker_cepa_solve!(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_ops, clustered_ham; tol=1e-5, cache=true)
+    tucker_cepa_solve!(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_ops, cluster_ops_local, clustered_ham; tol=1e-5, cache=true)
 
 # Arguments
 - `ref_vector`: Input reference state. 
@@ -140,12 +140,12 @@ After solving, the Energy can be obtained as:
     
     E = (Eref + Hax*Cx) / (1 + Sax*Cx)
 """
-function tucker_cepa_solve(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_ops, clustered_ham, cepa_shift="cepa", cepa_mit = 50; tol=1e-5, cache=true, max_iter=30, verbose=false)
+function tucker_cepa_solve(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_ops, cluster_ops_local, clustered_ham, cepa_shift="cepa", cepa_mit = 50; tol=1e-5, cache=true, max_iter=30, verbose=false)
 #={{{=#
 
     sig = deepcopy(ref_vector)
     zero!(sig)
-    build_sigma!(sig, ref_vector, cluster_ops, clustered_ham, cache=false)
+    build_sigma!(sig, ref_vector, cluster_ops, cluster_ops_local, clustered_ham, cache=false)
     e0 = nonorth_dot(ref_vector, sig)
     length(e0) == 1 || error("Only one state at a time please", e0)
     e0 = e0[1]
@@ -176,7 +176,7 @@ function tucker_cepa_solve(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_
 
     b = deepcopy(x_vector)
     zero!(b)
-    build_sigma!(b, ref_vector, cluster_ops, clustered_ham, cache=false)
+    build_sigma!(b, ref_vector, cluster_ops, cluster_ops_local, clustered_ham, cache=false)
     bv = -get_vector(b)
 
     @printf(" Overlap between <0|0>:          %18.12e\n", nonorth_dot(ref_vector, ref_vector, verbose=0))
@@ -238,8 +238,8 @@ function tucker_cepa_solve(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_
             #@printf(" Overlap between <1|0>:          %8.1e\n", nonorth_dot(x_vector, ref_vector, verbose=0))
             sig = deepcopy(x_vector)
             zero!(sig)
-            #build_sigma!(sig, x_vector, cluster_ops, clustered_ham, cache=false)
-            build_sigma!(sig, x_vector, cluster_ops, clustered_ham, cache=cache)
+            #build_sigma!(sig, x_vector, cluster_ops, cluster_ops_local, clustered_ham, cache=false)
+            build_sigma!(sig, x_vector, cluster_ops, cluster_ops_local, clustered_ham, cache=cache)
 
             tmp = deepcopy(x_vector)
             scale!(tmp, -eshift)
@@ -258,7 +258,7 @@ function tucker_cepa_solve(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_
         flush_cache(clustered_ham)
 
         if cache
-            @time cache_hamiltonian(x_vector, x_vector, cluster_ops, clustered_ham)
+            @time cache_hamiltonian(x_vector, x_vector, cluster_ops, cluster_ops_local, clustered_ham)
         end
        
         println(" Start CEPA iterations with dimension = ", length(x_vector))
@@ -275,13 +275,13 @@ function tucker_cepa_solve(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_
 
         sig = deepcopy(ref_vector)
         zero!(sig)
-        build_sigma!(sig,x_vector, cluster_ops, clustered_ham)
+        build_sigma!(sig,x_vector, cluster_ops, cluster_ops_local, clustered_ham)
         ecorr = nonorth_dot(sig,ref_vector)
         @printf(" Cepa: %18.12f\n", ecorr)
         
         sig = deepcopy(x_vector)
         zero!(sig)
-        build_sigma!(sig,ref_vector, cluster_ops, clustered_ham)
+        build_sigma!(sig,ref_vector, cluster_ops, cluster_ops_local, clustered_ham)
         ecorr = nonorth_dot(sig,x_vector)
         @printf(" Cepa: %18.12f\n", ecorr)
         
@@ -306,7 +306,7 @@ function tucker_cepa_solve(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_
 end#=}}}=#
 
 """
-    tucker_cepa_solve!(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_ops, clustered_ham; tol=1e-5, cache=true)
+    tucker_cepa_solve!(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_ops, cluster_ops_local, clustered_ham; tol=1e-5, cache=true)
 
 # Arguments
 - `ref_vector`: Input reference state. 
@@ -338,11 +338,11 @@ Ax=b
 After solving, the Energy can be obtained as:
 E = (Eref + Hax*Cx) / (1 + Sax*Cx)
 """
-function tucker_cepa_solve2(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_ops, clustered_ham; tol=1e-5, cache=true, max_iter=30, verbose=false, do_pt2=false)
+function tucker_cepa_solve2(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_ops, cluster_ops_local, clustered_ham; tol=1e-5, cache=true, max_iter=30, verbose=false, do_pt2=false)
 #={{{=#
     sig = deepcopy(ref_vector)
     zero!(sig)
-    build_sigma!(sig, ref_vector, cluster_ops, clustered_ham, cache=false)
+    build_sigma!(sig, ref_vector, cluster_ops, cluster_ops_local, clustered_ham, cache=false)
     e0 = nonorth_dot(ref_vector, sig)
     length(e0) == 1 || error("Only one state at a time please", e0)
     e0 = e0[1]
@@ -352,7 +352,7 @@ function tucker_cepa_solve2(ref_vector::BSTstate, cepa_vector::BSTstate, cluster
     if do_pt2
         sig = deepcopy(ref_vector)
         zero!(sig)
-        build_sigma!(sig, ref_vector, cluster_ops, clustered_ham, nbody=1)
+        build_sigma!(sig, ref_vector, cluster_ops, cluster_ops_local, clustered_ham, nbody=1)
         e0_1b = nonorth_dot(ref_vector, sig)
     end
 
@@ -381,7 +381,7 @@ function tucker_cepa_solve2(ref_vector::BSTstate, cepa_vector::BSTstate, cluster
 
     b = deepcopy(x_vector)
     zero!(b)
-    build_sigma!(b, ref_vector, cluster_ops, clustered_ham, cache=false)
+    build_sigma!(b, ref_vector, cluster_ops, cluster_ops_local, clustered_ham, cache=false)
     bv = -get_vector(b)
 
     
@@ -418,8 +418,8 @@ function tucker_cepa_solve2(ref_vector::BSTstate, cepa_vector::BSTstate, cluster
         #@printf(" Overlap between <1|0>:          %8.1e\n", nonorth_dot(x_vector, ref_vector, verbose=0))
         sig = deepcopy(x_vector)
         zero!(sig)
-        #build_sigma!(sig, x_vector, cluster_ops, clustered_ham, nbody=nbody, cache=false)
-        build_sigma!(sig, x_vector, cluster_ops, clustered_ham, cache=cache)
+        #build_sigma!(sig, x_vector, cluster_ops, cluster_ops_local, clustered_ham, nbody=nbody, cache=false)
+        build_sigma!(sig, x_vector, cluster_ops, cluster_ops_local, clustered_ham, cache=cache)
 
         tmp = deepcopy(x_vector)
         if do_pt2
@@ -453,7 +453,7 @@ function tucker_cepa_solve2(ref_vector::BSTstate, cepa_vector::BSTstate, cluster
 
     sig = deepcopy(ref_vector)
     zero!(sig)
-    @time build_sigma!(sig,x_vector, cluster_ops, clustered_ham)
+    @time build_sigma!(sig,x_vector, cluster_ops, cluster_ops_local, clustered_ham)
     ecorr = nonorth_dot(sig,ref_vector)
     @printf(" Cepa: %12.8f\n", ecorr)
     length(ecorr) == 1 || error(" Dimension Error", ecorr)
@@ -565,13 +565,13 @@ end
 
 """
     hylleraas_compressed_mp2(sig_in::BSTstate, ref::BSTstate,
-            cluster_ops, clustered_ham;
+            cluster_ops, cluster_ops_local, clustered_ham;
             H0 = "Hcmf", tol=1e-6, nbody=4, max_iter=40, verbose=1, do_pt = true, thresh=1e-8)
 
 - `H0`: ["H", "Hcmf"] 
 """
 function hylleraas_compressed_mp2(sig_in::BSTstate, ref::BSTstate,
-            cluster_ops, clustered_ham;
+            cluster_ops, cluster_ops_local, clustered_ham;
             H0 = "Hcmf", tol=1e-6, nbody=4, max_iter=100, verbose=1, do_pt = true, thresh=1e-8)
 #={{{=#
     
@@ -589,7 +589,7 @@ function hylleraas_compressed_mp2(sig_in::BSTstate, ref::BSTstate,
     #project_out!(sig, ref, thresh=thresh)
     @printf(" Build exact <X|V|0>\n")
     zero!(sig)
-    @time build_sigma!(sig, ref, cluster_ops, clustered_ham)
+    @time build_sigma!(sig, ref, cluster_ops, cluster_ops_local, clustered_ham)
     
     
     # (H0 - E0) |1> = X H |0>
@@ -600,7 +600,7 @@ function hylleraas_compressed_mp2(sig_in::BSTstate, ref::BSTstate,
     # get E_ref = <0|H|0>
     tmp = deepcopy(ref)
     zero!(tmp)
-    build_sigma!(tmp, ref, cluster_ops, clustered_ham)
+    build_sigma!(tmp, ref, cluster_ops, cluster_ops_local, clustered_ham)
     e_ref = orth_dot(ref, tmp)
     @printf(" <0|H|0> 0 : %12.8f\n",e_ref)
 
@@ -609,7 +609,7 @@ function hylleraas_compressed_mp2(sig_in::BSTstate, ref::BSTstate,
     # get E0 = <0|H0|0>
     tmp = deepcopy(ref)
     zero!(tmp)
-    build_sigma!(tmp, ref, cluster_ops, clustered_ham_0)
+    build_sigma!(tmp, ref, cluster_ops, cluster_ops_local, clustered_ham_0)
     e0 = orth_dot(ref,tmp)
     @printf(" <0|sig>  : %12.8f\n",nonorth_dot(ref,sig))
     @printf(" <0|H0|0>  : %12.8f\n",e0)
@@ -629,7 +629,7 @@ function hylleraas_compressed_mp2(sig_in::BSTstate, ref::BSTstate,
     # get <X|F|0>
     tmp = deepcopy(sig)
     zero!(tmp)
-    @time build_sigma!(tmp, ref, cluster_ops, clustered_ham_0)
+    @time build_sigma!(tmp, ref, cluster_ops, cluster_ops_local, clustered_ham_0)
 
     @printf(" Norm of <X|F|0> = %12.8f\n", sqrt(orth_dot(tmp,tmp)))
     b .+= get_vector(tmp)
@@ -666,7 +666,7 @@ function hylleraas_compressed_mp2(sig_in::BSTstate, ref::BSTstate,
         xl = deepcopy(sig)
         set_vector!(xr,x)
         zero!(xl)
-        build_sigma!(xl, xr, cluster_ops, clustered_ham_0, cache=true)
+        build_sigma!(xl, xr, cluster_ops, cluster_ops_local, clustered_ham_0, cache=true)
 
         # subtract off -E0|1>
         #
@@ -683,8 +683,8 @@ function hylleraas_compressed_mp2(sig_in::BSTstate, ref::BSTstate,
     @printf(" Norm of b         : %18.12f\n", sum(b.*b))
     flush_cache(clustered_ham_0)
     
-    @time cache_hamiltonian(sig, sig, cluster_ops, clustered_ham_0)
-    #@time cache_hamiltonian(sig, sig, cluster_ops, clustered_ham_0, nbody=1)
+    @time cache_hamiltonian(sig, sig, cluster_ops, cluster_ops_local, clustered_ham_0)
+    #@time cache_hamiltonian(sig, sig, cluster_ops, cluster_ops_local, clustered_ham_0, nbody=1)
 
     x_vector = zeros(dim)
     @time x, solver = cg!(x_vector, Axx, b, log=true, maxiter=max_iter, verbose=true, abstol=tol)
@@ -699,7 +699,7 @@ function hylleraas_compressed_mp2(sig_in::BSTstate, ref::BSTstate,
    
     tmp = deepcopy(ref)
     zero!(tmp)
-    build_sigma!(tmp,psi1, cluster_ops, clustered_ham)
+    build_sigma!(tmp,psi1, cluster_ops, cluster_ops_local, clustered_ham)
     ecorr = nonorth_dot(tmp,ref)
     @printf(" <1|1> = %12.8f\n", orth_dot(psi1,psi1))
     @printf(" <0|H|1> = %12.8f\n", ecorr)
@@ -716,7 +716,7 @@ end#=}}}=#
 
 
 """
-    build_compressed_1st_order_state(ket_cts::BSTstate{T,N}, cluster_ops, clustered_ham; 
+    build_compressed_1st_order_state(ket_cts::BSTstate{T,N}, cluster_ops, cluster_ops_local, clustered_ham; 
         thresh=1e-7, 
         max_number=nothing, 
         nbody=4) where {T,N}
@@ -736,11 +736,11 @@ Lots of overhead probably from compression, but never completely uncompresses.
 - `v1::BSTstate`
 
 """
-function build_compressed_1st_order_state(ket_cts::BSTstate{T,N}, cluster_ops, clustered_ham; 
+function build_compressed_1st_order_state(ket_cts::BSTstate{T,N}, cluster_ops, cluster_ops_local, clustered_ham; 
         thresh=1e-7, 
         max_number=nothing, 
         nbody=4) where {T,N}
-#={{{=#
+    #={{{=#
     println(" Compute the 1st order wavefunction for BSTstate. nbody = ", nbody)
     flush(stdout)
     #
@@ -779,7 +779,7 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N}, cluster_ops, c
         [push!(tmp, zeros(Float64,10000)) for i in 1:nscr]
         push!(scr, tmp)
     end
-       
+
     #for (fock_trans, terms) in clustered_ham
     keys_to_loop = [keys(clustered_ham.trans)...]
     println(" Number of tasks:", length(keys_to_loop))
@@ -839,6 +839,7 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N}, cluster_ops, c
                         push!(available, tmp)
                     end
 
+                    sig_tuck = deepcopy(ket_tuck)
 
                     #
                     # Now loop over cartesian product of available subspaces (those in X above) and
@@ -859,44 +860,60 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N}, cluster_ops, c
                         # Both the Compression and addition takes a fair amount of work.
 
 
-#                        if check_term(term, sig_fock, sig_tconfig, ket_fock, ket_tconfig) == false
-#       
-#                            println()
-#                            display(term.delta)
-#                            display(sig_fock - ket_fock)
-#                        end
+                        #                        if check_term(term, sig_fock, sig_tconfig, ket_fock, ket_tconfig) == false
+                        #       
+                        #                            println()
+                        #                            display(term.delta)
+                        #                            display(sig_fock - ket_fock)
+                        #                        end
                         check_term(term, sig_fock, sig_tconfig, ket_fock, ket_tconfig) || continue
 
 
-                        bound = calc_bound(term, cluster_ops,
-                                           sig_fock, sig_tconfig,
-                                           ket_fock, ket_tconfig, ket_tuck,
-                                           prescreen=thresh)
-                        if bound < sqrt(thresh)
-                            #continue
-                        end
-                        
+                        #                        bound = 0.0
+                        #                        if term isa ClusteredTerm1B
+                        #                            bound = calc_bound(term, cluster_ops_local, 
+                        #                                               sig_fock, sig_tconfig,
+                        #                                               ket_fock, ket_tconfig, ket_tuck,
+                        #                                               prescreen=thresh)
+                        #                        else
+                        #                            bound = calc_bound(term, cluster_ops, 
+                        #                                               sig_fock, sig_tconfig,
+                        #                                               ket_fock, ket_tconfig, ket_tuck,
+                        #                                               prescreen=thresh)
+                        #                        end
+                        #                        if bound < sqrt(thresh)
+                        #                            #continue
+                        #                        end
 
-                        sig_tuck = form_sigma_block_expand(term, cluster_ops,
-                                                           sig_fock, sig_tconfig,
-                                                           ket_fock, ket_tconfig, ket_tuck,
-                                                           max_number=max_number,
-                                                           prescreen=thresh)
-
-                        if (term isa ClusteredTerm2B) && false
-                            @btime del = form_sigma_block_expand2($term, $cluster_ops,
-                                                                $sig_fock, $sig_tconfig,
-                                                                $ket_fock, $ket_tconfig, $ket_tuck,
-                                                                $scr[Threads.threadid()],
-                                                                max_number=$max_number,
-                                                                prescreen=$thresh)
-                            #del = form_sigma_block_expand2(term, cluster_ops,
-                            #                                    sig_fock, sig_tconfig,
-                            #                                    ket_fock, ket_tconfig, ket_tuck,
-                            #                                    scr[Threads.threadid()],
-                            #                                    max_number=max_number,
-                            #                                    prescreen=thresh)
+                        if term isa ClusteredTerm1B
+                            sig_tuck = form_sigma_block_expand(term, cluster_ops_local,
+                                                               sig_fock, sig_tconfig,
+                                                               ket_fock, ket_tconfig, ket_tuck,
+                                                               max_number=max_number,
+                                                               prescreen=thresh)
+                        else
+                            sig_tuck = form_sigma_block_expand(term, cluster_ops,
+                                                               sig_fock, sig_tconfig,
+                                                               ket_fock, ket_tconfig, ket_tuck,
+                                                               max_number=max_number,
+                                                               prescreen=thresh)
                         end
+
+
+#                        if (term isa ClusteredTerm2B) && false
+#                            @btime del = form_sigma_block_expand2($term, $cluster_ops,
+#                                                                  $sig_fock, $sig_tconfig,
+#                                                                  $ket_fock, $ket_tconfig, $ket_tuck,
+#                                                                  $scr[Threads.threadid()],
+#                            max_number=$max_number,
+#                            prescreen=$thresh)
+#                            #del = form_sigma_block_expand2(term, cluster_ops,
+#                            #                                    sig_fock, sig_tconfig,
+#                            #                                    ket_fock, ket_tconfig, ket_tuck,
+#                            #                                    scr[Threads.threadid()],
+#                            #                                    max_number=max_number,
+#                            #                                    prescreen=thresh)
+#                        end
 
                         if length(sig_tuck) == 0
                             continue
@@ -904,10 +921,10 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N}, cluster_ops, c
                         if norm(sig_tuck) < thresh 
                             continue
                         end
-                       
+
                         sig_tuck = compress(sig_tuck, thresh=thresh)
 
-    
+
                         #sig_tuck = compress(sig_tuck, thresh=1e-16, max_number=max_number)
 
                         length(sig_tuck) > 0 || continue
@@ -959,28 +976,28 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N}, cluster_ops, c
         end
     end
 
-#    # 
-#    # project out A space
-#    for (fock,tconfigs) in sig_cts 
-#        for (tconfig, tuck) in tconfigs
-#            if haskey(ket_cts, fock)
-#                if haskey(ket_cts[fock], tconfig)
-#                    ket_tuck_A = ket_cts[fock][tconfig]
-#
-#                    ovlp = nonorth_dot(tuck, ket_tuck_A) / nonorth_dot(ket_tuck_A, ket_tuck_A)
-#                    tmp = scale(ket_tuck_A, -1.0 * ovlp)
-#                    #sig_cts[fock][tconfig] = nonorth_add(tuck, tmp, thresh=1e-16)
-#                end
-#            end
-#        end
-#    end
-   
-  
+    #    # 
+    #    # project out A space
+    #    for (fock,tconfigs) in sig_cts 
+    #        for (tconfig, tuck) in tconfigs
+    #            if haskey(ket_cts, fock)
+    #                if haskey(ket_cts[fock], tconfig)
+    #                    ket_tuck_A = ket_cts[fock][tconfig]
+    #
+    #                    ovlp = nonorth_dot(tuck, ket_tuck_A) / nonorth_dot(ket_tuck_A, ket_tuck_A)
+    #                    tmp = scale(ket_tuck_A, -1.0 * ovlp)
+    #                    #sig_cts[fock][tconfig] = nonorth_add(tuck, tmp, thresh=1e-16)
+    #                end
+    #            end
+    #        end
+    #    end
+
+
     # now combine Tuckers, project out reference space and multiply by resolvents
     #prune_empty_TuckerConfigs!(sig_cts)
     #return compress(sig_cts, thresh=thresh)
     return sig_cts
-#=}}}=#
+    #=}}}=#
 end
     
     
@@ -988,7 +1005,7 @@ end
 
 
 """
-    function do_fois_pt2(ref::BSTstate, cluster_ops, clustered_ham;
+    function do_fois_pt2(ref::BSTstate, cluster_ops, cluster_ops_local, clustered_ham;
             H0          = "Hcmf",
             max_iter    = 50,
             nbody       = 4,
@@ -999,7 +1016,7 @@ end
 
 Do PT2
 """
-function do_fois_pt2(ref::BSTstate, cluster_ops, clustered_ham;
+function do_fois_pt2(ref::BSTstate, cluster_ops, cluster_ops_local, clustered_ham;
             H0          = "Hcmf",
             max_iter    = 50,
             nbody       = 4,
@@ -1022,14 +1039,14 @@ function do_fois_pt2(ref::BSTstate, cluster_ops, clustered_ham;
     
     @printf(" Solve zeroth-order problem. Dimension = %10i\n", length(ref_vec))
     if opt_ref 
-        @time e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, tol=tol)
+        @time e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, cluster_ops_local, clustered_ham, tol=tol)
     end
 
     #
     # Get First order wavefunction
     println()
     println(" Compute FOIS. Reference space dim = ", length(ref_vec))
-    @time pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+    @time pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, cluster_ops_local, clustered_ham, nbody=nbody, thresh=thresh_foi)
 
     @printf(" Nick: %12.8f\n", sqrt(orth_dot(pt1_vec,pt1_vec)))
     project_out!(pt1_vec, ref)
@@ -1048,13 +1065,13 @@ function do_fois_pt2(ref::BSTstate, cluster_ops, clustered_ham;
     # 
     # Solve for first order wavefunction 
     println(" Compute PT vector. Reference space dim = ", length(ref_vec))
-    pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol, max_iter=max_iter, H0=H0)
+    pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, cluster_ops_local, clustered_ham; tol=tol, max_iter=max_iter, H0=H0)
     #@printf(" E(Ref)      = %12.8f\n", e0[1])
     @printf(" E(PT2) tot  = %12.8f\n", e_pt2)
     return e_pt2, pt1_vec 
 end
 
-function do_fois_ci(ref::BSTstate, cluster_ops, clustered_ham;
+function do_fois_ci(ref::BSTstate, cluster_ops, cluster_ops_local, clustered_ham;
             H0          = "Hcmf",
             max_iter    = 50,
             nbody       = 4,
@@ -1074,13 +1091,13 @@ function do_fois_ci(ref::BSTstate, cluster_ops, clustered_ham;
     # Solve variationally in reference space
     ref_vec = deepcopy(ref)
     @printf(" Solve zeroth-order problem. Dimension = %10i\n", length(ref_vec))
-    @time e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, tol=tol)
+    @time e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, cluster_ops_local, clustered_ham, tol=tol)
 
     #
     # Get First order wavefunction
     println()
     println(" Compute FOIS. Reference space dim = ", length(ref_vec))
-    @time pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+    @time pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, cluster_ops_local, clustered_ham, nbody=nbody, thresh=thresh_foi)
 
     @printf(" Nick: %12.8f\n", sqrt(orth_dot(pt1_vec,pt1_vec)))
     project_out!(pt1_vec, ref)
@@ -1100,8 +1117,8 @@ function do_fois_ci(ref::BSTstate, cluster_ops, clustered_ham;
     # 
     # Solve for first order wavefunction 
     println(" Compute CI energy in the space = ", length(ref_vec))
-    pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol, max_iter=max_iter, H0=H0)
-    eci, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, tol=tol)
+    pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, cluster_ops_local, clustered_ham; tol=tol, max_iter=max_iter, H0=H0)
+    eci, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, cluster_ops_local, clustered_ham, tol=tol)
     @printf(" E(Ref)      = %12.8f\n", e0[1])
     @printf(" E(CI) tot  = %12.8f\n", eci[1])
     return eci[1], ref_vec 
@@ -1110,7 +1127,7 @@ end
     
 
 
-function do_fois_cepa(ref::BSTstate, cluster_ops, clustered_ham;
+function do_fois_cepa(ref::BSTstate, cluster_ops, cluster_ops_local, clustered_ham;
             max_iter    = 20,
 	    cepa_shift  = "cepa",
 	    cepa_mit    = 30,
@@ -1134,20 +1151,20 @@ function do_fois_cepa(ref::BSTstate, cluster_ops, clustered_ham;
     println()
     ref_vec = deepcopy(ref)
     @printf(" Solve zeroth-order problem. Dimension = %10i\n", length(ref_vec))
-    @time e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, tol=tol)
+    @time e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, cluster_ops_local, clustered_ham, tol=tol)
 
     #
     # Get First order wavefunction
     println()
     println(" Compute FOIS. Reference space dim = ", length(ref_vec))
-    @time pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+    @time pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, cluster_ops_local, clustered_ham, nbody=nbody, thresh=thresh_foi)
 
     project_out!(pt1_vec, ref)
 
     if compress_type == "pt_vec"
 	println()
 	println(" Compute PT vector. Reference space dim = ", length(ref_vec))
-	pt1_vec, e_pt2 = hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol, do_pt=true)
+	pt1_vec, e_pt2 = hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, cluster_ops_local, clustered_ham; tol=tol, do_pt=true)
     end
 
     display(pt1_vec)
@@ -1169,7 +1186,7 @@ function do_fois_cepa(ref::BSTstate, cluster_ops, clustered_ham;
     cepa_vec = deepcopy(pt1_vec)
     zero!(cepa_vec)
     println(" Do CEPA: Dim = ", length(cepa_vec))
-    @time e_cepa, x_cepa = tucker_cepa_solve(ref_vec, cepa_vec, cluster_ops, clustered_ham, cepa_shift, cepa_mit,tol=tol, max_iter=max_iter, verbose=verbose)
+    @time e_cepa, x_cepa = tucker_cepa_solve(ref_vec, cepa_vec, cluster_ops, cluster_ops_local, clustered_ham, cepa_shift, cepa_mit,tol=tol, max_iter=max_iter, verbose=verbose)
 
     @printf(" E(cepa) corr =                 %12.8f\n", e_cepa)
     @printf(" X(cepa) norm =                 %12.8f\n", sqrt(orth_dot(x_cepa, x_cepa)))

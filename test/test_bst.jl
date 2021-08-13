@@ -80,13 +80,13 @@ using Test
                                                        rdm1a=Da, rdm1b=Db)
 
     clustered_ham = FermiCG.extract_ClusteredTerms(ints, clusters)
-    cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
-    FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
+    cluster_ops, cluster_ops_local = FermiCG.compute_cluster_ops(cluster_bases, ints);
+    FermiCG.add_cmf_operators!(cluster_ops_local, cluster_bases, ints, Da, Db);
 
 
     v = FermiCG.BSTstate(clusters, FockConfig(init_fspace), cluster_bases)
 
-    e_var, v_var = FermiCG.block_sparse_tucker(v, cluster_ops, clustered_ham,
+    e_var, v_var = FermiCG.block_sparse_tucker(v, cluster_ops, cluster_ops_local, clustered_ham,
                                                max_iter    = 20,
                                                max_iter_pt = 200, 
                                                nbody       = 4,
