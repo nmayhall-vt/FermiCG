@@ -18,7 +18,7 @@ Base.setindex!(cb::ClusterBasis,val,key) = cb.basis[key] = val
 Base.haskey(cb::ClusterBasis,key) = haskey(cb.basis, key)
 function Base.display(cb::ClusterBasis) 
     @printf(" ClusterBasis for Cluster: %4i\n",cb.cluster.idx)
-    norb = length(cb.cluster)
+    norb = Int16(length(cb.cluster))
     sum_total_dim = 0
     sum_dim = 0
     for (sector, vecs) in cb.basis
