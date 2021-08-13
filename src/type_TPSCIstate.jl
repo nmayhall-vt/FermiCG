@@ -110,6 +110,8 @@ function Base.length(s::TPSCIstate)
     end
     return l
 end
+
+#remove
 """
     get_vector(s::TPSCIstate; root=1)
 """
@@ -290,6 +292,7 @@ function LinearAlgebra.norm(s::TPSCIstate{T,N,R}) where {T,N,R}
     return norms
 end
 
+# todo: remove
 """
     normalize!(s::AbstractState)
 """

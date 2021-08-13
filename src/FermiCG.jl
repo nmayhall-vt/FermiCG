@@ -100,5 +100,6 @@ export ClusterBasis
 export TPSCIstate
 export ClusterConfig 
 export FockConfig 
+export TuckerConfig 
 
 end

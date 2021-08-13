@@ -26,6 +26,7 @@ dim(tc::TuckerConfig) = prod(size(tc))
 
 
 
+
 """
     function Base.convert(::Type{TuckerConfig{N}}, in::Vector{UnitRange{T}}) where {T,N}
 """
@@ -33,6 +34,18 @@ function Base.convert(::Type{TuckerConfig{N}}, in::Vector{UnitRange{T}}) where {
     return TuckerConfig{length(in)}(ntuple(i -> in[i], length(in)))
 end
 
+"""
+    function replace(cc::TuckerConfig{N}, idx, conf) where N
+"""
+function replace(cc::TuckerConfig{N}, idx, conf) where N
+    new = [cc.config...]
+    #length(idx) == length(conf) || error("wrong dimensions")
+    for i in 1:length(idx)
+        new[idx[i]] = conf[i]
+        #new[idx[i]] = convert(Int16, conf[i])
+    end
+    return TuckerConfig(new)
+end
 
 
 """

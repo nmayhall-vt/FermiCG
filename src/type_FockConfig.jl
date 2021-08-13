@@ -34,3 +34,15 @@ function dim(fc::FockConfig, clusters)
     end
     return dim
 end
+
+"""
+    function replace(tc::FockConfig, idx, fock)
+"""
+function replace(tc::FockConfig, idx, fock)
+    new = [tc.config...]
+    length(idx) == length(fock) || error("wrong dimensions")
+    for i in 1:length(idx)
+        new[idx[i]] = (convert(Int16, fock[i][1]), convert(Int16, fock[i][2]))
+    end
+    return FockConfig(new)
+end

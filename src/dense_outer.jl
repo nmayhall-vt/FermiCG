@@ -1,3 +1,186 @@
+
+"""
+    function add_single_excitons(v::BSstate{T,N,R}) where {T,N,R}
+
+Add a Q space to all currently defined `TuckerConfigs`.
+Return new `BSstate`
+"""
+function add_single_excitons(v::BSstate{T,N,R}) where {T,N,R}
+#={{{=#
+    unfold!(v)
+    out = deepcopy(v)
+    for (fspace,tconfigs) in v.data
+        for (tconfig,coeffs) in tconfigs
+
+            for ci in 1:N
+                config_i = replace(tconfig, [ci], [v.q_spaces[ci][fspace[ci]]])
+                out[fspace][config_i] = zeros(T,dim(config_i),R) 
+            end
+        end
+
+    end
+    return out
+end
+#=}}}=#
+
+"""
+    function add_1electron_transfers(v::BSstate{T,N,R}) where {T,N,R}
+"""
+function add_1electron_transfers(v::BSstate{T,N,R}) where {T,N,R}
+#={{{=#
+    out = deepcopy(v)
+
+    unfold!(v)
+    for (fspace,tconfigs) in v.data
+
+        #alpha transfer
+        for ci in 1:N
+            for cj in 1:N
+                ci != cj || continue 
+
+                fconfig_ij = replace(fspace, [ci,cj], [(fspace[ci][1]+1, fspace[ci][2]), 
+                                                       (fspace[ci][1]-1, fspace[ci][2])])
+
+
+                tconf = Vector{UnitRange{Int16}}()
+                for (ck,fk) in enumerate(fconfig_ij.config)
+                    if haskey(v.p_spaces[ck], fk)
+                        push!(tconf,v.p_spaces[ck][fk])
+                    else
+                        push!(tconf,v.q_spaces[ck][fk])
+                    end
+                end
+                tconf = TuckerConfig(tconf)
+
+                add_fockconfig!(out, fconfig_ij)
+
+                out[fconfig_ij][tconf] = zeros(T,dim(tconf),R) 
+            end
+        end
+
+        #beta transfer
+        for ci in 1:N
+            for cj in 1:N
+                ci != cj || continue 
+
+                fconfig_ij = replace(fspace, [ci,cj], [(fspace[ci][1], fspace[ci][2]+1), 
+                                                       (fspace[ci][1], fspace[ci][2]-1)])
+
+
+                tconf = Vector{UnitRange{Int16}}()
+                for (ck,fk) in enumerate(fconfig_ij.config)
+                    if haskey(v.p_spaces[ck], fk)
+                        push!(tconf,v.p_spaces[ck][fk])
+                    else
+                        push!(tconf,v.q_spaces[ck][fk])
+                    end
+                end
+                tconf = TuckerConfig(tconf)
+
+                add_fockconfig!(out, fconfig_ij)
+
+                out[fconfig_ij][tconf] = zeros(T,dim(tconf),R) 
+            end
+        end
+    end
+    return out
+end
+#=}}}=#
+
+
+
+
+"""
+Solve for ground state in the space spanned by `ci_vector`'s basis 
+"""
+function ci_solve(ci_vector::BSstate{T,N,R}, cluster_ops, clustered_ham; tol=1e-5) where {T,N,R} 
+#={{{=#
+
+    @printf(" Solve CI with # variables = %i\n", length(ci_vector))
+    vec = deepcopy(ci_vector)
+    orthonormalize!(vec)
+    #flush term cache
+    flush_cache(clustered_ham)
+    dim = length(ci_vector)
+    iters = 0
+    cache=true
+   
+    function matvec(v::AbstractMatrix)
+        iters += 1
+        
+        in = BSstate(ci_vector, R=size(v,2))
+        
+        unfold!(in)
+        set_vector!(in, v)
+        
+        out = deepcopy(in)
+        zero!(out)
+        build_sigma!(out, in, cluster_ops, clustered_ham)
+        #build_sigma!(out, in, cluster_ops, clustered_ham, cache=cache)
+        unfold!(out)
+
+        flush(stdout)
+        return get_vector(out)
+    end
+
+    
+    Hmap = FermiCG.LinOp(matvec, dim)
+    #Hmap = matvec(vec, cluster_ops, clustered_ham, cache=true)
+
+    v0 = get_vector(vec)
+    nr = size(v0)[2]
+   
+
+#    cache=true
+#    if cache
+#        #@timeit to "cache" cache_hamiltonian(vec, vec, cluster_ops, clustered_ham)
+#        @printf(" Build and cache each hamiltonian term in the current basis:\n")
+#        flush(stdout)
+#        @time cache_hamiltonian(vec, vec, cluster_ops, clustered_ham)
+#        @printf(" done.\n")
+#        flush(stdout)
+#    end
+
+    #for (ftrans,terms) in clustered_ham
+    #    for term in terms
+    #        println("nick: ", length(term.cache))
+    #    end
+    #end
+
+    #cache_hamiltonian(ci_vector, ci_vector, cluster_ops, clustered_ham)
+    
+    davidson = Davidson(Hmap,v0=v0,max_iter=80, max_ss_vecs=40, nroots=nr, tol=tol)
+    #Adiag = StringCI.compute_fock_diagonal(problem,mf.mo_energy, e_mf)
+    #FermiCG.solve(davidson)
+    flush(stdout)
+    #@time FermiCG.iteration(davidson, Adiag=Adiag, iprint=2)
+    @time e,v = FermiCG.solve(davidson)
+    set_vector!(vec,v)
+    
+    #println(" Memory used by cache: ", mem_used_by_cache(clustered_ham))
+
+    #flush term cache
+    flush_cache(clustered_ham)
+
+    return e,vec
+end
+#=}}}=#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #
 #
 #       None of this probably works!!!
