@@ -89,7 +89,7 @@ using Test
     v1 = FermiCG.add_1electron_transfers(v)
     v2 = FermiCG.add_single_excitons(v1)
 
-    FermiCG.rand!(v2)
+    FermiCG.randomize!(v2)
     FermiCG.orthonormalize!(v2)
     display(FermiCG.dot(v2,v2))
 

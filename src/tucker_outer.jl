@@ -52,8 +52,9 @@ Solve for ground state in the space spanned by `ci_vector`'s compression vectors
 """
 function tucker_ci_solve(ci_vector::BSTstate, cluster_ops, clustered_ham; tol=1e-5)
 #={{{=#
-
-    @printf(" Solve CI with # variables = %i\n", length(ci_vector))
+    @printf(" |== BST CI ========================================================\n")
+    @printf(" %-50s", "Solve CI with # variables: ")
+    @printf("%10i\n", length(ci_vector))
     vec = deepcopy(ci_vector)
     normalize!(vec)
     #flush term cache
@@ -67,11 +68,9 @@ function tucker_ci_solve(ci_vector::BSTstate, cluster_ops, clustered_ham; tol=1e
 
     cache=true
     if cache
-        #@timeit to "cache" cache_hamiltonian(vec, vec, cluster_ops, clustered_ham)
-        @printf(" Build and cache each hamiltonian term in the current basis:\n")
+        @printf(" %-50s", "Cache Hamiltonian: ")
         flush(stdout)
         @time cache_hamiltonian(vec, vec, cluster_ops, clustered_ham)
-        @printf(" done.\n")
         flush(stdout)
     end
 
@@ -84,11 +83,10 @@ function tucker_ci_solve(ci_vector::BSTstate, cluster_ops, clustered_ham; tol=1e
     #cache_hamiltonian(ci_vector, ci_vector, cluster_ops, clustered_ham)
     
     davidson = Davidson(Hmap,v0=v0,max_iter=80, max_ss_vecs=40, nroots=nr, tol=tol)
-    #Adiag = StringCI.compute_fock_diagonal(problem,mf.mo_energy, e_mf)
-    #FermiCG.solve(davidson)
     flush(stdout)
-    #@time FermiCG.iteration(davidson, Adiag=Adiag, iprint=2)
-    @time e,v = FermiCG.solve(davidson)
+    time = @elapsed e,v = FermiCG.solve(davidson)
+    @printf(" %-50s", "Diagonalization time: ")
+    @printf("%10.6f seconds\n",time)
     set_vector!(vec,v)
     
     #println(" Memory used by cache: ", mem_used_by_cache(clustered_ham))
@@ -96,6 +94,7 @@ function tucker_ci_solve(ci_vector::BSTstate, cluster_ops, clustered_ham; tol=1e
     #flush term cache
     flush_cache(clustered_ham)
 
+    @printf(" ==================================================================|\n")
     return e,vec
 end
 #=}}}=#

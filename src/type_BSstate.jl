@@ -476,12 +476,6 @@ end
 function eye!(s::BSstate{T,N,R}) where {T,N,R}
     set_vector!(s, Matrix{T}(I,size(s)))
 end
-"""
-    rand!(s::BSstate)
-"""
-function rand!(s::BSstate{T,N,R}) where {T,N,R}
-    set_vector!(s, rand(T,size(s)))
-end
     
     
 

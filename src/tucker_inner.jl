@@ -81,11 +81,14 @@ function cache_hamiltonian_old(sigma_vector::BSTstate, ci_vector::BSTstate, clus
     #=}}}=#
 end
 
-function cache_hamiltonian(bra::BSTstate, ket::BSTstate, cluster_ops, clustered_ham; nbody=4)
-    println(" Cache hamiltonian terms")
-   
+function cache_hamiltonian(bra::BSTstate, ket::BSTstate, cluster_ops, clustered_ham; nbody=4, verbose=0)
     keys_to_loop = [keys(clustered_ham.trans)...]
-    println(" Number of threaded jobs:", length(keys_to_loop))
+    
+    if verbose>0
+        @printf(" %-50s", " Number of threaded jobs:")
+        println(length(keys_to_loop))
+    end
+    
     Threads.@threads for ftrans in keys_to_loop
         terms = clustered_ham[ftrans]
         for term in terms
