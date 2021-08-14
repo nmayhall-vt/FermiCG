@@ -87,7 +87,7 @@ function block_sparse_tucker(input_vec::BSTstate, cluster_ops, clustered_ham;
         norm2 = orth_dot(ref_vec, ref_vec)
     
         @printf(" %-50s", "Ref state compressed from: ")
-        @printf("%10i → %10i (thresh = %8.1e)\n", dim1, dim2, thresh_var)
+        @printf("%10i → %-10i (thresh = %8.1e)\n", dim1, dim2, thresh_var)
         #@printf(" %-50s", "Norm of compressed state: ")
         #@printf("%10.6f\n", norm2)
 
@@ -135,7 +135,7 @@ function block_sparse_tucker(input_vec::BSTstate, cluster_ops, clustered_ham;
         norm2 = orth_dot(pt1_vec, pt1_vec)
         dim2 = length(pt1_vec)
         @printf(" %-50s", "FOIS compressed from: ")
-        @printf("%10i → %10i (thresh = %8.1e)\n", dim1, dim2, thresh_foi)
+        @printf("%10i → %-10i (thresh = %8.1e)\n", dim1, dim2, thresh_foi)
         #@printf(" %-50s%10.8f\n", "Norm of |1>: ",norm2)
         @printf(" %-48s%12.8f\n", "Overlap between <FOIS|0>: ",nonorth_dot(pt1_vec, ref_vec, verbose=0))
 
@@ -157,7 +157,7 @@ function block_sparse_tucker(input_vec::BSTstate, cluster_ops, clustered_ham;
             norm2 = orth_dot(pt1_vec, pt1_vec)
             dim2 = length(pt1_vec)
             @printf(" %-50s", "PT compressed from: ")
-            @printf("%10i → %10i (thresh = %8.1e)\n", dim1, dim2, thresh_pt)
+            @printf("%10i → %-10i (thresh = %8.1e)\n", dim1, dim2, thresh_pt)
             @printf(" %-50s%10.8f\n", "Norm of |1>: ",norm2)
             @printf(" %-50s%10.8f\n", "Overlap between <1|0>: ",nonorth_dot(pt1_vec, ref_vec, verbose=0))
         end
@@ -166,16 +166,19 @@ function block_sparse_tucker(input_vec::BSTstate, cluster_ops, clustered_ham;
         # Solve variationally in compressed FOIS 
         # CI
         println()
-        var_vec = deepcopy(ref_vec)
-        #zero!(pt1_vec)
-        @timeit to "add" nonorth_add!(var_vec, pt1_vec)
-        norm1 = orth_dot(var_vec, var_vec)
-        dim1 = length(var_vec)
-        @timeit to "compress" var_vec = compress(var_vec, thresh=thresh_pt)
-        dim2 = length(var_vec)
-        @printf(" %-50s", "Variational space compressed from: ")
-        @printf("%10i → %10i (thresh = %8.1e)\n", dim1, dim2, thresh_pt)
-        normalize!(var_vec)
+        time = @elapsed begin
+            var_vec = deepcopy(ref_vec)
+            #zero!(pt1_vec)
+            @timeit to "add" nonorth_add!(var_vec, pt1_vec)
+            norm1 = orth_dot(var_vec, var_vec)
+            dim1 = length(var_vec)
+            @timeit to "compress" var_vec = compress(var_vec, thresh=thresh_pt)
+            dim2 = length(var_vec)
+            @printf(" %-50s", "Variational space compressed from: ")
+            @printf("%10i → %-10i (thresh = %8.1e)\n", dim1, dim2, thresh_pt)
+            normalize!(var_vec)
+        end
+        @printf(" %-50s%10.6f seconds\n", "Add new space to variational space: ", time)
             
         @printf(" %-50s\n", "Solve in compressed FOIS: ")
         @timeit to "CI big" e_var, var_vec = tucker_ci_solve(var_vec, cluster_ops, clustered_ham, tol=tol_ci)

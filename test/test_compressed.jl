@@ -59,76 +59,54 @@ using PyCall
     # define clusters
     clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
     display(clusters)
-
+    
+    #
+    # do CMF
     rdm1 = zeros(size(ints.h1))
-
-    e_cmf, U, Da, Db  = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, 
-                                       max_iter_oo=40, verbose=0, gconv=1e-6, method="bfgs")
-    FermiCG.pyscf_write_molden(mol,Cl*U,filename="cmf.molden")
+    e_cmf, U, Da, Db  = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, rdm1, 
+                                       max_iter_oo=40, verbose=0, gconv=1e-6, 
+                                       method="bfgs")
     ints = FermiCG.orbital_rotation(ints,U)
 
     e_ref = e_cmf - ints.h0
 
-    max_roots = 100
-    # build Hamiltonian, cluster_basis and cluster ops
-    #display(Da)
-    #cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=2, max_roots=max_roots)
-    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=0, max_roots=max_roots, 
-                                                       init_fspace=init_fspace, rdm1a=Da, rdm1b=Db)
+    max_roots = 20
+
+    #
+    # form Cluster data
+    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=0, 
+                                                       max_roots=max_roots, 
+                                                       init_fspace=init_fspace, 
+                                                       rdm1a=Da, rdm1b=Db)
+
     clustered_ham = FermiCG.extract_ClusteredTerms(ints, clusters)
     cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
-
-
-
-    p_spaces = Vector{FermiCG.ClusterSubspace}()
-    q_spaces = Vector{FermiCG.ClusterSubspace}()
-
-    # define p spaces
-    for ci in clusters
-        tss = FermiCG.ClusterSubspace(ci)
-        tss[init_fspace[ci.idx]] = 1:1
-        push!(p_spaces, tss)
-    end
-
-    # define q spaces
-    for tssp in p_spaces 
-        tss = FermiCG.get_ortho_compliment(tssp, cluster_bases[tssp.cluster.idx])
-        push!(q_spaces, tss)
-    end
-
-    println(" ================= Cluster P Spaces ===================")
-    display.(p_spaces)
-    println(" ================= Cluster Q Spaces ===================")
-    display.(q_spaces)
-
     FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
 
 
-    nroots = 1
+    v = FermiCG.BSTstate(clusters, FockConfig(init_fspace), cluster_bases)
 
-    #
-    # initialize with eye
-    ref_vector = FermiCG.BSstate(clusters, p_spaces, q_spaces, na, nb)
-    FermiCG.set_vector!(ref_vector, Matrix(1.0I, length(ref_vector),nroots))
-
-    ref_vec  = FermiCG.BSTstate(ref_vector, thresh=-1);
-
+    ref_vec = v
 
     e_var, v_var = FermiCG.block_sparse_tucker(ref_vec, cluster_ops, clustered_ham, nbody=2, 
-                                                      thresh_foi=1e-7, 
-                                                      thresh_pt =1e-5,
-                                                      thresh_var=1e-4, 
-                                                      tol_ci=1e-10, tol_tucker=1e-4, do_pt=true)
+
+                                               resolve_ss  = true,
+                                               thresh_foi=sqrt(1e-7), 
+                                               thresh_pt =sqrt(1e-5),
+                                               thresh_var=sqrt(1e-4), 
+                                               tol_ci=1e-6, 
+                                               tol_tucker=1e-4, 
+                                               do_pt=true)
 
     @test isapprox(e_var[1], -18.33000292416142, atol=1e-8)
 
-    e_cepa, v_cepa = FermiCG.do_fois_cepa(ref_vec, cluster_ops, clustered_ham, thresh_foi=1e-8, max_iter=50, tol=1e-8)
+    e_cepa, v_cepa = FermiCG.do_fois_cepa(ref_vec, cluster_ops, clustered_ham, thresh_foi=1e-4, max_iter=50, tol=1e-8)
     @test isapprox(e_cepa[1], -18.330092885975663, atol=1e-8)
     
     #e_cepa, v_cepa = FermiCG.do_fois_cepa(v_var, cluster_ops, clustered_ham, thresh_foi=1e-10, max_iter=50, tol=1e-8)
     #@test isapprox(e_cepa[1], -18.330092885975663, atol=1e-8)
     
-    e_pt, v_pt = FermiCG.do_fois_pt2(ref_vec, cluster_ops, clustered_ham, thresh_foi=1e-8, max_iter=50, tol=1e-8)
+    e_pt, v_pt = FermiCG.do_fois_pt2(ref_vec, cluster_ops, clustered_ham, thresh_foi=1e-4, max_iter=50, tol=1e-8)
     @test isapprox(e_pt, -18.32863783512617, atol=1e-8)
 
     e_ci, v_ci = FermiCG.tucker_ci_solve(v_cepa, cluster_ops, clustered_ham)

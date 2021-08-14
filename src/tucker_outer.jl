@@ -138,7 +138,13 @@ After solving, the Energy can be obtained as:
     
     E = (Eref + Hax*Cx) / (1 + Sax*Cx)
 """
-function tucker_cepa_solve(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_ops, clustered_ham, cepa_shift="cepa", cepa_mit = 50; tol=1e-5, cache=true, max_iter=30, verbose=false)
+function tucker_cepa_solve(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_ops, clustered_ham, 
+                           cepa_shift="cepa", 
+                           cepa_mit = 50; 
+                           tol=1e-5, 
+                           cache=true, 
+                           max_iter=30, 
+                           verbose=false)
 #={{{=#
 
     sig = deepcopy(ref_vector)
@@ -209,6 +215,9 @@ function tucker_cepa_solve(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_
 
     Ec = 0
     Ecepa = 0
+    if cepa_shift == "cepa"
+        cepa_mit = 1
+    end
     for it in 1:cepa_mit 
 
     	bv = -get_vector(b)
@@ -245,31 +254,33 @@ function tucker_cepa_solve(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_
             return get_vector(sig)
         end
 
-        @printf(" Norm of b         : %18.12f\n", sum(bv.*bv))
+        @printf(" %-50s%10.6f\n", "Norm of b: ", sum(bv.*bv))
         
         dim = length(x_vector)
         Axx = LinearMap(mymatvec, dim, dim)
         #Axx = LinearMap(mymatvec, dim, dim; issymmetric=true, ismutating=false, ishermitian=true)
 
         #flush term cache
-        println(" Now flushing:")
+        #println(" Now flushing:")
         flush_cache(clustered_ham)
 
         if cache
+            @printf(" %-50s", "Cache zeroth-order Hamiltonian: ")
             @time cache_hamiltonian(x_vector, x_vector, cluster_ops, clustered_ham)
         end
        
         println(" Start CEPA iterations with dimension = ", length(x_vector))
-        x, solver = cg!(get_vector(x_vector), Axx,bv,log=true, maxiter=max_iter, verbose=verbose, abstol=tol)
+        time = @elapsed x, solver = cg!(get_vector(x_vector), Axx,bv,log=true, maxiter=max_iter, verbose=verbose, abstol=tol)
+        @printf(" %-50s%10.6f seconds\n", "Time to solve for CEPA with conjugate gradient: ", time)
         
         #flush term cache
-        println(" Now flushing:")
+        #println(" Now flushing:")
         flush_cache(clustered_ham)
 
         set_vector!(x_vector, x)
 
         SxC = nonorth_dot(Sx,x_vector)
-        @printf(" <A|X>C(X) = %18.12e\n", SxC)
+        @printf(" %-50s%10.2f\n", "<A|X>C(X): ", SxC)
 
         sig = deepcopy(ref_vector)
         zero!(sig)
@@ -700,7 +711,7 @@ function hylleraas_compressed_mp2(sig_in::BSTstate, ref::BSTstate,
     set_vector!(psi1,x_vector)
     
     SxC = orth_dot(Sx,psi1)
-    @printf(" %-50s%10.2f\n", "Overlap of <1|0>: ", SxC)
+    @printf(" %-50s%10.2f\n", "<A|X>C(X): ", SxC)
     #@printf(" <A|X>C(X) = %12.8f\n", SxC)
    
     tmp = deepcopy(ref)
@@ -713,7 +724,8 @@ function hylleraas_compressed_mp2(sig_in::BSTstate, ref::BSTstate,
     length(ecorr) == 1 || error(" Dimension Error", ecorr)
     ecorr = ecorr[1]
 
-    @printf(" E(PT2)  = %12.8f\n", (e_ref + ecorr)/(1+SxC))
+    @printf(" %-48s%12.8f\n", "E(PT2) corr: ", (e_ref + ecorr)/(1+SxC)-e_ref)
+    @printf(" %-48s%12.8f\n", "E(PT2): ", (e_ref + ecorr)/(1+SxC))
 
     return psi1, (ecorr+e_ref)/(1+SxC) 
 
@@ -1015,7 +1027,7 @@ function do_fois_pt2(ref::BSTstate, cluster_ops, clustered_ham;
             tol         = 1e-5,
             opt_ref     = true,
             verbose     = true)
-    @printf(" |== BST PT1 Wavefunction ==========================================\n")
+    @printf(" |== Solve for BST PT1 Wavefunction ================================\n")
     println(" H0          : ", H0          ) 
     println(" max_iter    : ", max_iter    ) 
     println(" nbody       : ", nbody       ) 
@@ -1025,22 +1037,24 @@ function do_fois_pt2(ref::BSTstate, cluster_ops, clustered_ham;
     println(" verbose     : ", verbose     ) 
     @printf("\n")
     @printf(" %-50s", "Length of Reference: ")
-    @printf("%10i\n", length(ci_vector))
+    @printf("%10i\n", length(ref))
 
     # 
     # Solve variationally in reference space
     ref_vec = deepcopy(ref)
     
     if opt_ref 
-        @printf(" %-50s", "Solve zeroth-order problem: ")
-        @time e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, tol=tol)
+        @printf(" %-50s\n", "Solve zeroth-order problem: ")
+        time = @elapsed e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, tol=tol)
+        @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
     end
 
     #
     # Get First order wavefunction
     println()
-    @printf(" %-50s", "Compute compressed FOIS: ")
-    @time pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+    @printf(" %-50s\n", "Compute compressed FOIS: ")
+    time = @elapsed pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+    @printf(" %-50s%10.6f seconds\n", "Time spend building compressed FOIS: ",time)
     project_out!(pt1_vec, ref)
 
     # 
@@ -1050,16 +1064,16 @@ function do_fois_pt2(ref::BSTstate, cluster_ops, clustered_ham;
     pt1_vec = compress(pt1_vec, thresh=thresh_foi)
     norm2 = sqrt(orth_dot(pt1_vec, pt1_vec))
     dim2 = length(pt1_vec)
-    @printf(" FOIS Compressed from:     %8i → %8i (thresh = %8.1e)\n", dim1, dim2, thresh_foi)
-    @printf(" Norm of |1>:              %12.8f → %12.8f (thresh = %8.1e)\n", norm1, norm2, thresh_foi)
-    @printf(" Overlap between <1|0>:    %12.1e\n", nonorth_dot(pt1_vec, ref_vec, verbose=0))
+    @printf(" %-50s%10i → %-10i (thresh = %8.1e)\n", "FOIS Compressed from: ", dim1, dim2, thresh_foi)
+    @printf(" %-50s%10.2e → %-10.2e (thresh = %8.1e)\n", "Norm of |1>: ",norm1, norm2, thresh_foi)
+    @printf(" %-50s%10.6f\n", "Overlap between <1|0>: ", nonorth_dot(pt1_vec, ref_vec, verbose=0))
 
     # 
     # Solve for first order wavefunction 
-    println(" Compute PT vector. Reference space dim = ", length(ref_vec))
+    @printf(" %-50s%10i\n", "Compute PT vector. Reference space dim: ", length(ref_vec))
     pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol, max_iter=max_iter, H0=H0)
     #@printf(" E(Ref)      = %12.8f\n", e0[1])
-    @printf(" E(PT2) tot  = %12.8f\n", e_pt2)
+    #@printf(" E(PT2) tot  = %12.8f\n", e_pt2)
     @printf(" ==================================================================|\n")
     return e_pt2, pt1_vec 
 end
@@ -1102,9 +1116,9 @@ function do_fois_ci(ref::BSTstate, cluster_ops, clustered_ham;
     pt1_vec = compress(pt1_vec, thresh=thresh_foi)
     norm2 = sqrt(orth_dot(pt1_vec, pt1_vec))
     dim2 = length(pt1_vec)
-    @printf(" FOIS Compressed from:     %8i → %8i (thresh = %8.1e)\n", dim1, dim2, thresh_foi)
-    @printf(" Norm of |1>:              %12.8f → %12.8f (thresh = %8.1e)\n", norm1, norm2, thresh_foi)
-    @printf(" Overlap between <1|0>:    %12.1e\n", nonorth_dot(pt1_vec, ref_vec, verbose=0))
+    @printf(" %-50s%10i → %-10i (thresh = %8.1e)\n", "FOIS Compressed from: ", dim1, dim2, thresh_foi)
+    @printf(" %-50s%10.2e → %-10.2e (thresh = %8.1e)\n", "Norm of |1>: ",norm1, norm2, thresh_foi)
+    @printf(" %-50s%10.6f\n", "Overlap between <1|0>: ", nonorth_dot(pt1_vec, ref_vec, verbose=0))
 
     nonorth_add!(ref_vec, pt1_vec)
     # 
@@ -1169,9 +1183,9 @@ function do_fois_cepa(ref::BSTstate, cluster_ops, clustered_ham;
     pt1_vec = compress(pt1_vec, thresh=thresh_foi)
     norm2 = orth_dot(pt1_vec, pt1_vec)
     dim2 = length(pt1_vec)
-    @printf(" FOIS Compressed from:     %8i → %8i (thresh = %8.1e)\n", dim1, dim2, thresh_foi)
-    @printf(" Norm of |1>:              %12.8f \n", norm2)
-    @printf(" Overlap between <1|0>:    %8.1e\n", nonorth_dot(pt1_vec, ref_vec, verbose=0))
+    @printf(" %-50s%10i → %-10i (thresh = %8.1e)\n", "FOIS Compressed from: ", dim1, dim2, thresh_foi)
+    @printf(" %-50s%10.2e → %-10.2e (thresh = %8.1e)\n", "Norm of |1>: ",norm1, norm2, thresh_foi)
+    @printf(" %-50s%10.6f\n", "Overlap between <1|0>: ", nonorth_dot(pt1_vec, ref_vec, verbose=0))
 
     # 
     # Solve CEPA 
