@@ -45,7 +45,7 @@ function block_sparse_tucker(input_vec::BSTstate, cluster_ops, clustered_ham;
         thresh_foi  = 1e-6,
         thresh_pt   = 1e-5,
         tol_ci      = 1e-5,
-	resolve_ss  = true,
+	resolve_ss  = false,
         do_pt       = true,
         tol_tucker  = 1e-6 )
     #={{{=#
@@ -88,14 +88,14 @@ function block_sparse_tucker(input_vec::BSTstate, cluster_ops, clustered_ham;
     
         @printf(" %-50s", "Ref state compressed from: ")
         @printf("%10i → %10i (thresh = %8.1e)\n", dim1, dim2, thresh_var)
-        @printf(" %-50s", "Norm of compressed state: ")
-        @printf("%10.6f\n", norm2)
+        #@printf(" %-50s", "Norm of compressed state: ")
+        #@printf("%10.6f\n", norm2)
 
         # 
         # Solve variationally in reference space
         if resolve_ss
     
-            @printf(" %-50s\n", "Solve zeroth-order problem: ")
+            @printf(" %-50s\n", "Get eigenstate for compressed reference space: ")
             flush(stdout)
             @timeit to "CI small" e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, tol=tol_ci)
         end
@@ -114,15 +114,14 @@ function block_sparse_tucker(input_vec::BSTstate, cluster_ops, clustered_ham;
         @time begin
             @timeit to "S2" build_sigma!(tmp, ref_vec, cluster_ops, clustered_S2)
         end
-        @printf(" %-50s%12.8f\n", "<S^2>: ", orth_dot(tmp,ref_vec))
+        @printf(" %-48s%12.8f\n", "<S^2>: ", orth_dot(tmp,ref_vec))
 
         #
         # Get First order wavefunction
         println()
-        println(" Compute first order wavefunction. Reference space dim = ", length(ref_vec))
-        @time begin
-            @timeit to "FOIS" pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
-        end
+        @printf(" %-50s%10i\n", "Compute FOIS. Reference space dim: ", length(ref_vec) )
+        time = @elapsed @timeit to "FOIS" pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+        @printf(" %-50s%10.6f seconds\n", "Total time spent building FOIS: ", time)
 
         # 
         # Compress FOIS
@@ -137,18 +136,19 @@ function block_sparse_tucker(input_vec::BSTstate, cluster_ops, clustered_ham;
         dim2 = length(pt1_vec)
         @printf(" %-50s", "FOIS compressed from: ")
         @printf("%10i → %10i (thresh = %8.1e)\n", dim1, dim2, thresh_foi)
-        @printf(" %-50s%10.8f\n", "Norm of |1>: ",norm2)
-        @printf(" %-50s%10.8f\n", "Overlap between <1|0>: ",nonorth_dot(pt1_vec, ref_vec, verbose=0))
+        #@printf(" %-50s%10.8f\n", "Norm of |1>: ",norm2)
+        @printf(" %-48s%12.8f\n", "Overlap between <FOIS|0>: ",nonorth_dot(pt1_vec, ref_vec, verbose=0))
 
         if do_pt
             #
             # 
             println()
             @printf(" %-50s%10i\n", "PT vector reference space dim: ",length(ref_vec))
-            @printf(" %-50s", "Compute PT vector: ")
-            @time begin
+            time = @elapsed begin
                 @timeit to "PT1" pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol_ci, do_pt=do_pt, max_iter=max_iter_pt, H0=H0)
             end
+            @printf(" %-50s%10.6f seconds\n", "Time spent compute PT1 vector: ", time)
+        
             # 
             # Compress first order wavefunction 
             norm1 = orth_dot(pt1_vec, pt1_vec)
@@ -187,18 +187,20 @@ function block_sparse_tucker(input_vec::BSTstate, cluster_ops, clustered_ham;
         @time begin
             @timeit to "S2" build_sigma!(tmp, var_vec, cluster_ops, clustered_S2)
         end
-        @printf(" %-50s%12.8f\n", "<S^2>: ", orth_dot(tmp,var_vec))
+        @printf(" %-48s%12.8f\n", "<S^2>: ", orth_dot(tmp,var_vec))
 
         ref_vec = var_vec
 
         @printf(" %-20s%12.8f\n", "E(Reference): ",e0[1])
         do_pt == false || @printf(" %-20s%12.8f\n", "E(PT2): ",e_pt2)
         @printf(" %-20s%12.8f\n", "E(BST): ",e_var[1])
-    	show(to)
+    	#show(to)
         println("")
 
         if abs(e_last[1] - e_var[1]) < tol_tucker 
             @printf("*Converged %-20s%12.8f\n", "E(BST): ",e_var[1])
+            show(to)
+            println()
             @printf(" ==================================================================|\n")
             return e_var, ref_vec
             break

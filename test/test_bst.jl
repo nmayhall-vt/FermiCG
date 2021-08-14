@@ -96,6 +96,7 @@ using Test
                                                thresh_pt   = sqrt(1e-5),
                                                tol_ci      = 1e-5,
                                                do_pt       = true,
+                                               resolve_ss  = true,
                                                tol_tucker  = 1e-4)
 
     @test isapprox(e_var[1], -18.329455008361652, atol=1e-8)
