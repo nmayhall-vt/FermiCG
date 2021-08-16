@@ -19,12 +19,14 @@ function Tucker_tot(A::Array{T,N}; thresh=-1, verbose=0) where {T,N}
     return Tucker{T,N}(core, NTuple{N}(factors))
 end
 function Tucker(A::Array{T,N}; thresh=-1, max_number=nothing, verbose=0, type="magnitude") where {T<:Number,N}
-    println(typeof(A))
-    core,factors = tucker_decompose([A], thresh=thresh, max_number=max_number, verbose=verbose, type=type)
+    core,factors = tucker_decompose((A,), thresh=thresh, max_number=max_number, verbose=verbose, type=type)
     return Tucker{T,N,1}((core,), NTuple{N}(factors))
 end
 function Tucker(A::Vector{Array{T,N}}; thresh=-1, max_number=nothing, verbose=0, type="magnitude") where {T<:Number,N}
-    println(typeof(A))
+    core,factors = tucker_decompose(A, thresh=thresh, max_number=max_number, verbose=verbose, type=type)
+    return Tucker{T,N,1}((core,), NTuple{N}(factors))
+end
+function Tucker(A::NTuple{R,Array{T,N}}; thresh=-1, max_number=nothing, verbose=0, type="magnitude") where {T<:Number,N,R}
     core,factors = tucker_decompose(A, thresh=thresh, max_number=max_number, verbose=verbose, type=type)
     return Tucker{T,N,1}((core,), NTuple{N}(factors))
 end
@@ -179,26 +181,36 @@ where cluster states are discarded based on the corresponding SVD
 - `type`: type of trunctation. "magnitude" discards values smaller than this number. 
     "sum" discards values such that the sum of discarded values is smaller than `thresh`.
 """
-function tucker_decompose(Av::Vector{Array{T,N}}; thresh=1e-7, max_number=nothing, verbose=1, type="magnitude") where {T,N}
+function tucker_decompose(Av::NTuple{R,Array{T,N}}; thresh=1e-7, max_number=nothing, verbose=1, type="magnitude") where {T,N,R}
     factors = Vector{Matrix{T}}()
-    R = length(Av)
-    if verbose > 0
-        println(" Tucker Decompose:", size(A))
-    end
+    #R = length(Av)
     
-    length(Av) > 0 || error(" can't decompose array with zero data")
+    length(Av) > 0 || error(DimensionMismatch)
     dims = size(Av[1])
-
     for r in 1:R
-        dims .== size(Av[r]) || error(DimensionMismatch)
+        all(dims .== size(Av[r])) || error(DimensionMismatch)
     end
+    verbose <= 0 || println(" Tucker Decompose:", size(Av[1]))
 
-    for i in 1:ndims(A)
-        idx = collect(1:ndims(A))
+    for i in 1:N
+        idx = collect(1:N)
         idx[i] = -1
         perm = sortperm(idx)
 
-        U,Σ, = svd(reshape(permutedims(A,perm), size(A,i), length(A)÷size(A,i))) 
+#        tmp = reshape(permutedims(Av[1],perm), size(Av[1],i), length(Av[1])÷size(Av[1],i))
+#        G = Symmetric(tmp*tmp')
+#        for r in 2:R
+#            tmp = reshape(permutedims(Av[r],perm), size(Av[r],i), length(Av[r])÷size(Av[r],i))
+#            G += tmp*tmp'
+#        end
+#        F = eigen(G) 
+#        F.values .= abs.(F.values)
+#        perm2 = sortperm(real(F.values), rev=true)
+#        Σ = sqrt.(F.values[perm2])
+#        Σ = abs.(F.values[perm2])
+#        U = F.vectors[:,perm2]
+        U,Σ, = svd(reshape(permutedims(Av[1],perm), size(Av[1],i), length(Av[1])÷size(Av[1],i))) 
+        #U,Σ, = svd(reshape(permutedims(A,perm), size(A,i), length(A)÷size(A,i))) 
    
 #        idx_l = collect(1:ndims(A))
 #        idx_r = collect(1:ndims(A))
@@ -213,7 +225,7 @@ function tucker_decompose(Av::Vector{Array{T,N}}; thresh=1e-7, max_number=nothin
 
         nkeep = 0
         if verbose > 0
-            @printf(" index dimension: %6i\n", size(A)[i])
+            @printf(" index dimension: %6i\n", dims[i])
         end
         nkeep = 0
         if type == "magnitude"
@@ -246,7 +258,7 @@ function tucker_decompose(Av::Vector{Array{T,N}}; thresh=1e-7, max_number=nothin
 
         push!(factors, U[:,1:nkeep])
     end
-    return transform_basis(A,factors), factors
+    return transform_basis(Av,NTuple{N,Matrix{T}}(factors)), factors
 end
 
 """
@@ -382,19 +394,21 @@ end
 
 """
 """
-function transform_basis(v::NTuple{R,Array{T,N}}, transforms::NTuple{N,Matrix{T}}; trans=false) where {T,N,R}
+function transform_basis(v::NTuple{R,Array{T,N}}, transforms::NTuple{N,Matrix{T}}; trans=false) where {T<:Number,N,R}
   #={{{=#
     vv = deepcopy(v)
     R > 0 || error(DimensionMismatch)
-    dims = [size(vv[1])...]
+    for i in 1:N
+        println(size(transforms[i]))
+    end
 
     for r in 1:R
-        dims .== [size(vv[r])...] || error(DimensionMismatch)
+        dims = [size(v[1])...]
+        all(dims .== [size(vv[r])...]) || error(DimensionMismatch)
         
         vvr = reshape(vv[r],dims[1],prod(dims[2:end]))
 
         for i in 1:N
-
             if trans
                 vvr = vvr' * transforms[i]'
                 dims[1] = size(transforms[i])[1]
@@ -416,7 +430,7 @@ end
 
 """
 """
-function transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}; trans=false) where {T,N}
+function transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}; trans=false) where {T<:Number,N}
   #={{{=#
     vv = deepcopy(v)
     dims = [size(vv)...]
@@ -441,7 +455,8 @@ function transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}; trans=f
 end
 #=}}}=#
 
-transform_basis(v::Array{T,N}, transforms; trans=false) where {T,N} = transform_basis(v, NTuple{N, Matrix{T}}(transforms), trans=trans)
+transform_basis(v::Array{T,N}, transforms::Vector{Matrix{T}}; trans=false) where {T,N} = transform_basis(v, NTuple{N, Matrix{T}}(transforms), trans=trans)
+#transform_basis(v::Vector{Array{T,N}}, transforms::Vector{Matrix{T}}; trans=false) where {T,N} = transform_basis(NTuple{length(v), Array{T}}(v), NTuple{N, Matrix{T}}(transforms), trans=trans)
 
 
 function unfold(A::AbstractArray{T,N}, i::Integer) where {T,N}

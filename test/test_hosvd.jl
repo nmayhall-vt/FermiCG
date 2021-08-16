@@ -25,8 +25,8 @@ using LinearAlgebra
     # Test basic Tucker stuff
     Random.seed!(2);
     A = rand(4,6,3,3,5)
-    tuck = FermiCG.Tucker(A, thresh=20, verbose=1)
-    tuck = FermiCG.Tucker([A], thresh=20, verbose=1)
+    #tuck = FermiCG.Tucker(A, thresh=20, verbose=1)
+    tuck = FermiCG.Tucker((A,), thresh=20, verbose=1)
     
     display(size(tuck.core))
     display(size.(tuck.factors))
