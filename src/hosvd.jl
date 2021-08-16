@@ -5,9 +5,10 @@ Simple Tucker (HOSVD) type
 - `factors::NTuple{N, Matrix{T}}`
 
 Tucker factors are stored as tall matrices
+the core tensor is actually a list of core tensors, to enable multistate calculations
 """
-struct Tucker{T, N} 
-    core::Array{T, N}
+struct Tucker{T,N,R} 
+    core::NTuple{R, Array{T,N}}
     factors::NTuple{N, Matrix{T}}
     #props::Dict{Symbol, Any}
 end
@@ -17,10 +18,17 @@ function Tucker_tot(A::Array{T,N}; thresh=-1, verbose=0) where {T,N}
     core,factors = tucker_decompose_tot(A, thresh=thresh, verbose=verbose)
     return Tucker{T,N}(core, NTuple{N}(factors))
 end
-function Tucker(A::Array{T,N}; thresh=-1, max_number=nothing, verbose=0, type="magnitude") where {T,N}
-    core,factors = tucker_decompose(A, thresh=thresh, max_number=max_number, verbose=verbose, type=type)
-    return Tucker{T,N}(core, NTuple{N}(factors))
+function Tucker(A::Array{T,N}; thresh=-1, max_number=nothing, verbose=0, type="magnitude") where {T<:Number,N}
+    println(typeof(A))
+    core,factors = tucker_decompose([A], thresh=thresh, max_number=max_number, verbose=verbose, type=type)
+    return Tucker{T,N,1}((core,), NTuple{N}(factors))
 end
+function Tucker(A::Vector{Array{T,N}}; thresh=-1, max_number=nothing, verbose=0, type="magnitude") where {T<:Number,N}
+    println(typeof(A))
+    core,factors = tucker_decompose(A, thresh=thresh, max_number=max_number, verbose=verbose, type=type)
+    return Tucker{T,N,1}((core,), NTuple{N}(factors))
+end
+
 recompose(t::Tucker{T,N}) where {T<:Number, N} = tucker_recompose(t.core, t.factors)
 dims_large(t::Tucker{T,N}) where {T<:Number, N} = return [size(f,1) for f in t.factors]
 dims_small(t::Tucker{T,N}) where {T<:Number, N} = return [size(f,2) for f in t.factors]
@@ -126,7 +134,7 @@ end
 
 Try to compress further 
 """
-function compress(t::Tucker{T,N}; thresh=1e-7, max_number=nothing, type="magnitude") where {T,N}
+function compress(t::Tucker{T,N,R}; thresh=1e-7, max_number=nothing, type="magnitude") where {T,N,R}
 
     length(t) > 0 || return t
     tt = Tucker(t.core, thresh=thresh, max_number=max_number, type=type)
@@ -171,16 +179,25 @@ where cluster states are discarded based on the corresponding SVD
 - `type`: type of trunctation. "magnitude" discards values smaller than this number. 
     "sum" discards values such that the sum of discarded values is smaller than `thresh`.
 """
-function tucker_decompose(A::Array{T,N}; thresh=1e-7, max_number=nothing, verbose=1, type="magnitude") where {T,N}
+function tucker_decompose(Av::Vector{Array{T,N}}; thresh=1e-7, max_number=nothing, verbose=1, type="magnitude") where {T,N}
     factors = Vector{Matrix{T}}()
+    R = length(Av)
     if verbose > 0
         println(" Tucker Decompose:", size(A))
     end
-    length(A) > 0 || error(" can't decompose array with zero data")
+    
+    length(Av) > 0 || error(" can't decompose array with zero data")
+    dims = size(Av[1])
+
+    for r in 1:R
+        dims .== size(Av[r]) || error(DimensionMismatch)
+    end
+
     for i in 1:ndims(A)
         idx = collect(1:ndims(A))
         idx[i] = -1
         perm = sortperm(idx)
+
         U,Σ, = svd(reshape(permutedims(A,perm), size(A,i), length(A)÷size(A,i))) 
    
 #        idx_l = collect(1:ndims(A))
@@ -360,6 +377,40 @@ function transform_basis(v::Array{T,N}, transform_list::Dict{Int,Matrix{T}}; tra
     end
 
     return reshape(vv,dims...)
+end
+#=}}}=#
+
+"""
+"""
+function transform_basis(v::NTuple{R,Array{T,N}}, transforms::NTuple{N,Matrix{T}}; trans=false) where {T,N,R}
+  #={{{=#
+    vv = deepcopy(v)
+    R > 0 || error(DimensionMismatch)
+    dims = [size(vv[1])...]
+
+    for r in 1:R
+        dims .== [size(vv[r])...] || error(DimensionMismatch)
+        
+        vvr = reshape(vv[r],dims[1],prod(dims[2:end]))
+
+        for i in 1:N
+
+            if trans
+                vvr = vvr' * transforms[i]'
+                dims[1] = size(transforms[i])[1]
+            else
+                vvr = vvr' * transforms[i]
+                dims[1] = size(transforms[i])[2]
+            end
+
+            dims = circshift(dims, -1) 
+            vv[r] .= reshape(vvr,dims[1],prod(dims[2:end]))
+        end
+            
+        vv[r] .= reshape(vv[r],dims...)
+    end
+
+    return vv 
 end
 #=}}}=#
 
