@@ -4,7 +4,7 @@ using Test
 using Random
 using LinearAlgebra 
 
-#@testset "Tuck" begin
+@testset "hosvd" begin
     atoms = []
     clusters = []
     na = 0
@@ -54,8 +54,9 @@ using LinearAlgebra
     tuckC = FermiCG.Tucker(C, thresh=-1, verbose=0)
 
     # test Tucker addition
-    test = tuckA + tuckB
-    @test isapprox(FermiCG.dot(tuckC,tuckC), FermiCG.dot(test,test), atol=1e-12)
+    test = FermiCG.nonorth_add(tuckA, tuckB)
+    @test isapprox(FermiCG.orth_dot(tuckC,tuckC), FermiCG.orth_dot(test,test), atol=1e-12)
+    @test isapprox(FermiCG.nonorth_dot(tuckC,tuckC), FermiCG.nonorth_dot(test,test), atol=1e-12)
 
 
     #
@@ -87,5 +88,5 @@ using LinearAlgebra
     #display((length(A2), size(A2)))
     
     
-#end
+end
 

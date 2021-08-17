@@ -10,9 +10,9 @@ e.g.
 - `p_spaces::Vector{ClusterSubspace}`
 - `q_spaces::Vector{ClusterSubspace}`
 """
-struct BSTstate{T,N} 
+struct BSTstate{T,N,R} 
     clusters::Vector{Cluster}
-    data::OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N}}}
+    data::OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N,R}}}
     p_spaces::Vector{ClusterSubspace}
     q_spaces::Vector{ClusterSubspace}
 end
@@ -20,7 +20,7 @@ Base.haskey(ts::BSTstate, i) = return haskey(ts.data,i)
 Base.getindex(ts::BSTstate, i) = return ts.data[i]
 Base.setindex!(ts::BSTstate, i, j) = return ts.data[j] = i
 Base.iterate(ts::BSTstate, state=1) = iterate(ts.data, state)
-normalize!(ts::BSTstate) = scale!(ts, 1/sqrt(orth_dot(ts,ts)))
+#normalize!(ts::BSTstate) = scale!(ts, 1/sqrt(orth_dot(ts,ts)))
 
 
 """
@@ -41,7 +41,7 @@ specified by `cluster_bases`.
 """
 function BSTstate(clusters::Vector{Cluster}, 
         fconfig::FockConfig{N}, 
-        cluster_bases::Vector{ClusterBasis}; T=Float64) where {N} 
+        cluster_bases::Vector{ClusterBasis}; T=Float64, R=1) where {N} 
     #={{{=#
 
     # 
@@ -61,7 +61,7 @@ function BSTstate(clusters::Vector{Cluster},
         push!(q_spaces, tss)
     end
 
-    data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N}} }()
+    data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N,R}} }()
     state = BSTstate(clusters, data, p_spaces, q_spaces) 
     add_fockconfig!(state, fconfig)
 
@@ -96,23 +96,12 @@ Constructor - specify input p and q spaces
 """
 function BSTstate(clusters::Vector{Cluster}, 
         p_spaces::Vector{FermiCG.ClusterSubspace}, 
-        q_spaces::Vector{FermiCG.ClusterSubspace}) 
+        q_spaces::Vector{FermiCG.ClusterSubspace};
+        T=Float64, R=1) 
     #={{{=#
 
     N = length(clusters)
-    T = Float64
-
-    #factors = []
-    #for ci in clusters
-    #    dim = length(p_spaces[ci.idx][init_fspace[ci.idx]])
-    #    push!(factors, 1.0Matrix(I, dim, 1))
-    #end
-    #factors = tuple(factors...) 
-    
-    #tconfig = TuckerConfig([p_spaces[ci.idx].data[init_fspace[ci.idx]] for ci in clusters])
-    #fconfig = FockConfig(init_fspace)
-    #tdata = Tucker(reshape([1.0], tuple(ones(Int64, N)...)), factors)
-    data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N}} }()
+    data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N,R}} }()
      
     #data[fconfig][tconfig] = tdata
     return BSTstate(clusters, data, p_spaces, q_spaces) 
@@ -121,7 +110,7 @@ end
 
 
 """
-    BSTstate(ts::BSstate; thresh=-1, max_number=nothing, verbose=0)
+    function BSTstate(ts::BSstate{T,N,R}; thresh=-1, max_number=nothing, verbose=0) where {T,N,R}
 
 Create a `BSTstate` from a `BSstate` 
 # Arguments
@@ -132,7 +121,7 @@ Create a `BSTstate` from a `BSstate`
 # Returns 
 - `BSTstate`
 """
-function BSTstate(ts::BSstate{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
+function BSTstate(ts::BSstate{T,N,R}; thresh=-1, max_number=nothing, verbose=0) where {T,N,R}
 #={{{=#
     # make all AbstractState subtypes parametric
     nroots = nothing
@@ -171,7 +160,7 @@ end
 
 
 """
-    compress(ts::BSTstate{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
+    compress(ts::BSTstate{T,N,R}; thresh=-1, max_number=nothing, verbose=0) where {T,N,R}
 
 Compress state via HOSVD
 # Arguments
@@ -182,8 +171,8 @@ Compress state via HOSVD
 # Returns
 - `BSTstate`
 """
-function compress(ts::BSTstate{T,N}; thresh=-1, max_number=nothing, verbose=0) where {T,N}
-    d = OrderedDict{FockConfig{N}, OrderedDict{TuckerConfig{N}, Tucker{T,N}}}() 
+function compress(ts::BSTstate{T,N,R}; thresh=-1, max_number=nothing, verbose=0) where {T,N,R}
+    d = OrderedDict{FockConfig{N}, OrderedDict{TuckerConfig{N}, Tucker{T,N,R}}}() 
     for (fock, tconfigs) in ts.data
         for (tconfig, coeffs) in tconfigs
             tmp = compress(ts.data[fock][tconfig], thresh=thresh, max_number=max_number)
@@ -214,13 +203,13 @@ function orth_add!(ts1::BSTstate, ts2::BSTstate)
         if haskey(ts1, fock)
             for (config,coeffs) in configs
                 if haskey(ts1[fock], config)
-                    ts1[fock][config].core .+= ts2[fock][config].core
+                    add!(ts1[fock][config].core, ts2[fock][config].core)
                 else
-                    ts1[fock][config] = ts2[fock][config]
+                    ts1[fock][config] = deepcopy(ts2[fock][config])
                 end
             end
         else
-            ts1[fock] = ts2[fock]
+            ts1[fock] = deepcopy(ts2[fock])
         end
     end
 #=}}}=#
@@ -239,13 +228,14 @@ function nonorth_add!(ts1::BSTstate, ts2::BSTstate)
         if haskey(ts1, fock)
             for (config,coeffs) in configs
                 if haskey(ts1[fock], config)
-                    ts1[fock][config] = ts1[fock][config] + ts2[fock][config] # note this is non-trivial work here
+                    #ts1[fock][config] = ts1[fock][config] + ts2[fock][config] # note this is non-trivial work here
+                    ts1[fock][config] = nonorth_add(ts1[fock][config], ts2[fock][config])
                 else
-                    ts1[fock][config] = ts2[fock][config]
+                    ts1[fock][config] = deepcopy(ts2[fock][config])
                 end
             end
         else
-            ts1[fock] = ts2[fock]
+            ts1[fock] = deepcopy(ts2[fock])
         end
     end
 #=}}}=#
@@ -310,32 +300,60 @@ function prune_empty_TuckerConfigs!(s::T) where T<:Union{BSstate, BSTstate}
     prune_empty_fock_spaces!(s)
 end
 
+"""
+    function orthonormalize!(s::BSTstate{T,N,R}) where {T,N,R}
+
+orthonormalize
+"""
+function orthonormalize!(s::BSTstate{T,N,R}) where {T,N,R}
+    #={{{=#
+    v0 = get_vectors(s) 
+    v0[:,1] .= v0[:,1]./norm(v0[:,1])
+    for r in 2:R
+        #|vr> = |vr> - |v1><v1|vr> - |v2><v2|vr> - ... 
+        for r0 in 1:r-1 
+            v0[:,r] .-= v0[:,r0] .* (v0[:,r0]'*v0[:,r])
+        end
+        v0[:,r] .= v0[:,r]./norm(v0[:,r])
+    end
+    isapprox(det(v0'*v0), 1.0, atol=1e-14) || @warn "initial guess det(v0'v0) = ", det(v0'v0) 
+    set_vectors!(s,v0)
+end
+#=}}}=#
+
+
 
 """
-    get_vector(s::BSTstate)
+    function get_vectors(ts::BSTstate{T,N,R}) where {T,N,R}
 
-Return a vector of the variables. Note that this is the core tensors being returned
+Return a matrix of the core tensors.
 """
-function get_vector(cts::BSTstate)
-
-    v = zeros(length(cts), 1)
+function get_vectors(ts::BSTstate{T,N,R}) where {T,N,R}
+#={{{=#
+    v = zeros(length(ts), R)
     idx = 1
-    for (fock, tconfigs) in cts
+    for (fock, tconfigs) in ts
         for (tconfig, tuck) in tconfigs
-            dims = size(tuck.core)
+            dims = size(tuck)
 
             dim1 = prod(dims)
-            v[idx:idx+dim1-1,:] = copy(reshape(tuck.core,dim1))
+            for r in 1:R
+                v[idx:idx+dim1-1,r] .= copy(reshape(tuck.core[r],dim1))
+            end
             idx += dim1
         end
     end
     return v
 end
-"""
-    set_vector!(s::BSTstate)
-"""
-function set_vector!(ts::BSTstate, v)
+#=}}}=#
 
+"""
+    function set_vectors!(ts::BSTstate{T,N,R}, v::Matrix{T}) where {T,N,R}
+
+Set the core tensors to `v`
+"""
+function set_vectors!(ts::BSTstate{T,N,R}, v) where {T,N,R}
+#={{{=#
     #length(size(v)) == 1 || error(" Only takes vectors", size(v))
     nbasis = size(v)[1]
 
@@ -345,35 +363,91 @@ function set_vector!(ts::BSTstate, v)
             dims = size(tuck)
 
             dim1 = prod(dims)
-            ts[fock][tconfig].core .= reshape(v[idx:idx+dim1-1], size(tuck.core))
+            for r in 1:R
+                ts[fock][tconfig].core[r] .= reshape(v[idx:idx+dim1-1], size(tuck.core[r]))
+            end
             idx += dim1
         end
     end
     nbasis == idx-1 || error("huh?", nbasis, " ", idx)
     return
 end
+#=}}}=#
+
+
+
+"""
+    function get_vector(ts::BSTstate{T,N,R}, root::Integer) where {T,N,R}
+
+Return a vector of the variables for `root`. Note that this is the core tensors being returned
+"""
+function get_vector(ts::BSTstate{T,N,R}, root::Integer) where {T,N,R}
+#={{{=#
+    v = zeros(length(cts), 1)
+    idx = 1
+    for (fock, tconfigs) in cts
+        for (tconfig, tuck) in tconfigs
+            dims = size(tuck.core[root])
+
+            dim1 = prod(dims)
+            v[idx:idx+dim1-1,:] = copy(reshape(tuck.core[root],dim1))
+            idx += dim1
+        end
+    end
+    return v
+end
+#=}}}=#
+
+"""
+    function set_vector!(ts::BSTstate{T,N,R}, v::Vector{T}, root::Integer) where {T,N,R}
+"""
+function set_vector!(ts::BSTstate{T,N,R}, v::Vector{T}, root::Integer) where {T,N,R}
+#={{{=#
+    #length(size(v)) == 1 || error(" Only takes vectors", size(v))
+    nbasis = size(v)[1]
+
+    idx = 1
+    for (fock, tconfigs) in ts
+        for (tconfig, tuck) in tconfigs
+            dims = size(tuck)
+
+            dim1 = prod(dims)
+            ts[fock][tconfig].core[root] .= reshape(v[idx:idx+dim1-1], size(tuck.core[root]))
+            idx += dim1
+        end
+    end
+    nbasis == idx-1 || error("huh?", nbasis, " ", idx)
+    return
+end
+#=}}}=#
+
 """
     zero!(s::BSTstate)
 """
-function zero!(s::BSTstate)
+function zero!(s::BSTstate{T,N,R}) where {T,N,R}
+#={{{=#
     for (fock, tconfigs) in s
         for (tconfig, tcoeffs) in tconfigs
-            fill!(s[fock][tconfig].core, 0.0)
+            for r in 1:R
+                fill!(s[fock][tconfig].core[r], zero(T))
+            end
         end
     end
 end
+#=}}}=#
 
 """
     Base.display(s::BSTstate; thresh=1e-3)
 
 Pretty print
 """
-function Base.display(s::BSTstate; thresh=1e-3)
+function Base.display(s::BSTstate; thresh=1e-3, root=1)
 #={{{=#
     println()
     @printf(" --------------------------------------------------\n")
     @printf(" ---------- # Fockspaces -------------------: %5i  \n",length(keys(s.data)))
     @printf(" ---------- # Configs    -------------------: %5i  \n",length(s))
+    @printf(" ---------- Root ---------------------------: %5i  \n",root)
     @printf(" --------------------------------------------------\n")
     @printf(" Printing contributions greater than: %f", thresh)
     @printf("\n")
@@ -385,8 +459,8 @@ function Base.display(s::BSTstate; thresh=1e-3)
 
         lenfull = 0
         for (config, tuck) in configs
-            prob += sum(tuck.core .* tuck.core)
-            len += length(tuck.core)
+            prob += sum(tuck.core[root] .* tuck.core[root])
+            len += length(tuck.core[root])
             lenfull += prod(dims_large(tuck))
         end
         if prob > thresh
@@ -401,8 +475,8 @@ function Base.display(s::BSTstate; thresh=1e-3)
             #@printf("     %-16s%-20s%-20s\n", "Weight", "", "Subspaces")
             #@printf("     %-16s%-20s%-20s\n", "-------", "", "----------")
             for (config, tuck) in configs
-                probi = sum(tuck.core .* tuck.core)
-                @printf("     %-16.3f%-10i%-10i", probi,length(tuck.core),prod(dims_large(tuck)))
+                probi = sum(tuck.core[root] .* tuck.core[root])
+                @printf("     %-16.3f%-10i%-10i", probi,length(tuck.core[root]),prod(dims_large(tuck)))
                 for range in config
                     @printf("%7s", range)
                 end
@@ -428,6 +502,7 @@ function print_fock_occupations(s::BSTstate; thresh=1e-3)
     @printf(" --------------------------------------------------\n")
     @printf(" ---------- # Fockspaces -------------------: %5i  \n",length(keys(s.data)))
     @printf(" ---------- # Configs    -------------------: %5i  \n",length(s))
+    @printf(" ---------- Root ---------------------------: %5i  \n",root)
     @printf(" --------------------------------------------------\n")
     @printf(" Printing contributions greater than: %f", thresh)
     @printf("\n")
@@ -438,8 +513,8 @@ function print_fock_occupations(s::BSTstate; thresh=1e-3)
         len = 0
         lenfull = 0
         for (config, tuck) in configs
-            prob += sum(tuck.core .* tuck.core)
-            len += length(tuck.core)
+            prob += sum(tuck.core[root] .* tuck.core[root])
+            len += length(tuck.core[root])
             lenfull += prod(dims_large(tuck))
         end
         if prob > thresh
@@ -457,24 +532,55 @@ end
 
 
 """
-    dot(ts1::FermiCG.BSTstate, ts2::FermiCG.BSTstate)
+    orth_overlap(ts1::FermiCG.BSTstate, ts2::FermiCG.BSTstate)
 
-Dot product between `ts2` and `ts1`
+Overlap between `ts2` and `ts1`
 
-Warning: this assumes both `ts1` and `ts2` have the same tucker factors for each `TuckerConfig`
+This assumes both `ts1` and `ts2` have the same tucker factors for each `TuckerConfig`
+Returns matrix of overlaps
 """
-function orth_dot(ts1::BSTstate, ts2::BSTstate)
-#={{{=#
-    overlap = 0.0
+function orth_overlap(ts1::BSTstate{T,N,R}, ts2::BSTstate{T,N,R}) where {T,N,R}
+    #={{{=#
+    overlap = zeros(T,R,R) 
     for (fock,configs) in ts2
         haskey(ts1, fock) || continue
         for (config,coeffs) in configs
             haskey(ts1[fock], config) || continue
-            overlap += sum(ts1[fock][config].core .* ts2[fock][config].core)
+            for ri in 1:R
+                for rj in ri:R
+                    overlap[ri,rj] += sum(ts1[fock][config].core[ri] .* ts2[fock][config].core[rj])
+                    overlap[rj,ri] = overlap[ri,rj]
+                end
+            end
         end
     end
     return overlap
-#=}}}=#
+    #=}}}=#
+end
+
+
+"""
+    orth_dot(ts1::FermiCG.BSTstate, ts2::FermiCG.BSTstate)
+
+Dot product between `ts2` and `ts1`
+
+Warning: this assumes both `ts1` and `ts2` have the same tucker factors for each `TuckerConfig`
+Returns vector of dot products
+"""
+function orth_dot(ts1::BSTstate{T,N,R}, ts2::BSTstate{T,N,R}) where {T,N,R}
+    #={{{=#
+    overlap = zeros(T,R) 
+    for (fock,configs) in ts2
+        haskey(ts1, fock) || continue
+        for (config,coeffs) in configs
+            haskey(ts1[fock], config) || continue
+            for r in 1:R
+                overlap[r] += sum(ts1[fock][config].core[r] .* ts2[fock][config].core[r])
+            end
+        end
+    end
+    return overlap
+    #=}}}=#
 end
 
 
@@ -484,21 +590,21 @@ end
 
 Dot product between 1ts2` and `ts1` where each have their own Tucker factors
 """
-function nonorth_dot(ts1::BSTstate, ts2::BSTstate; verbose=0)
-#={{{=#
-    overlap = 0.0
+function nonorth_dot(ts1::BSTstate{T,N,R}, ts2::BSTstate{T,N,R}; verbose=0) where {T,N,R}
+    #={{{=#
+    overlap = zeros(T,R)
     for (fock,configs) in ts2
         haskey(ts1, fock) || continue
         verbose == 0 || display(fock)
         for (config,coeffs) in configs
             haskey(ts1[fock], config) || continue
             verbose == 0 || display(config)
-            overlap += dot(ts1[fock][config] , ts2[fock][config])
+            overlap .+= nonorth_dot(ts1[fock][config] , ts2[fock][config])
             verbose == 0 || display(dot(ts1[fock][config] , ts2[fock][config]))
         end
     end
     return overlap
-#=}}}=#
+    #=}}}=#
 end
 
 """
@@ -506,11 +612,30 @@ end
 
 Scale `ts` by a constant
 """
-function scale!(ts::BSTstate, a::T) where T<:Number
+function scale!(ts::BSTstate{T,N,R}, a::T) where {T<:Number, N,R}
     #={{{=#
     for (fock,configs) in ts
         for (config,tuck) in configs
-            ts[fock][config].core .*= a
+            for r in 1:R
+                ts[fock][config].core[r] .*= a
+            end
+        end
+    end
+    #=}}}=#
+end
+
+"""
+    function scale!(ts::FermiCG.BSTstate{T,N,R}, a::Vector{T})
+
+Scale `ts` by a constant for each state,`R`
+"""
+function scale!(ts::BSTstate{T,N,R}, a::Vector{T}) where {T<:Number, N,R}
+    #={{{=#
+    for (fock,configs) in ts
+        for (config,tuck) in configs
+            for r in 1:R
+                ts[fock][config].core[r] .*= a[r] 
+            end
         end
     end
     #=}}}=#

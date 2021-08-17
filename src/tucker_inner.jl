@@ -82,6 +82,7 @@ function cache_hamiltonian_old(sigma_vector::BSTstate, ci_vector::BSTstate, clus
 end
 
 function cache_hamiltonian(bra::BSTstate, ket::BSTstate, cluster_ops, clustered_ham; nbody=4, verbose=0)
+#={{{=#
     keys_to_loop = [keys(clustered_ham.trans)...]
     
     if verbose>0
@@ -122,7 +123,7 @@ function cache_hamiltonian(bra::BSTstate, ket::BSTstate, cluster_ops, clustered_
         end
     end
 end
-
+#=}}}=#
 
 """
     build_sigma_parallel!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, clustered_ham)
@@ -188,7 +189,7 @@ function build_sigma!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, 
             fock_bra = out[1]
             config_bra = out[2]
             core = out[3]
-            sigma_vector[fock_bra][config_bra].core .+= core
+            add!(sigma_vector[fock_bra][config_bra].core, core)
         end
     end
     return
@@ -205,8 +206,8 @@ function form_sigma_block!(term::C,
                             cluster_ops::Vector{ClusterOps},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
-                            coeffs_bra::Tucker{T,N}, coeffs_ket::Tucker{T,N};
-                            cache=false ) where {T,N, C<:ClusteredTerm}
+                            coeffs_bra::Tucker{T,N,R}, coeffs_ket::Tucker{T,N,R};
+                            cache=false ) where {T,N,R, C<:ClusteredTerm}
     #={{{=#
     check_term(term, fock_bra, bra, fock_ket, ket) || throw(Exception) 
     #
@@ -412,7 +413,7 @@ end
 """
     Contract  Hamiltonian matrix (tensor) in Tucker basis with trial vector (Tucker)
 """
-function contract_dense_H_with_state(term::ClusteredTerm1B, op, state_sign, coeffs_bra::Tucker{T,N}, coeffs_ket::Tucker{T,N}) where {T,N}
+function contract_dense_H_with_state(term::ClusteredTerm1B, op, state_sign, coeffs_bra::Tucker{T,N,R}, coeffs_ket::Tucker{T,N,R}) where {T,N,R}
 #={{{=#
     c1 = term.clusters[1]
 
@@ -420,6 +421,8 @@ function contract_dense_H_with_state(term::ClusteredTerm1B, op, state_sign, coef
     #
     # form overlaps - needed when TuckerConfigs aren't the same because each does their own compression and has
     # distinct Tucker factors
+    #
+    # todo: PRECOMPUTE THIS!
     overlaps = Dict{Int,Matrix{T}}()
     s = 1.0 # this is the product of scalar overlaps that don't need tensor contractions
     for ci in 1:n_clusters
@@ -441,49 +444,54 @@ function contract_dense_H_with_state(term::ClusteredTerm1B, op, state_sign, coef
     indices[c1.idx] = 0
     perm,_ = bubble_sort(indices)
 
-    coeffs_bra2 = copy(coeffs_bra.core)
     #coeffs_ket2 = copy(coeffs_ket.core)
 
     #
     # multiply by overlaps first if the bra side is smaller,
     # otherwise multiply by Hamiltonian term first
-    coeffs_ket2 = transform_basis(coeffs_ket.core, overlaps, trans=true)
 
+    coeffs_bra2_out = [coeffs_bra.core...]
     #
     # Transpose to get contig data for blas (explicit copy?)
-    coeffs_ket2 = permutedims(coeffs_ket2, perm)
-    coeffs_bra2 = permutedims(coeffs_bra2, perm)
+    for r in 1:R
+        coeffs_ket2  = transform_basis(coeffs_ket.core[r], overlaps, trans=true)
 
-    #
-    # Reshape for matrix multiply, shouldn't do any copies, right?
-    dim1 = size(coeffs_ket2)
-    coeffs_ket2 = reshape(coeffs_ket2, dim1[1], prod(dim1[2:end]))
-    dim2 = size(coeffs_bra2)
-    coeffs_bra2 = reshape(coeffs_bra2, dim2[1], prod(dim2[2:end]))
+        coeffs_ket2 = permutedims(coeffs_ket2 , perm)
+        coeffs_bra2 = permutedims(coeffs_bra.core[r], perm)
 
-    #
-    # Reshape Hamiltonian term operator
-    # ... not needed for 1b term
+        #
+        # Reshape for matrix multiply, shouldn't do any copies, right?
+        dim1 = size(coeffs_ket2)
+        dim2 = size(coeffs_bra2)
+       
+        coeffs_ket2 = reshape(coeffs_ket2, dim1[1], prod(dim1[2:end]))
+        coeffs_bra2 = reshape(coeffs_bra2, dim2[1], prod(dim2[2:end]))
 
-    #
-    # Multiply
-    coeffs_bra2 .+= s .* (op * coeffs_ket2)
+        #
+        # Reshape Hamiltonian term operator
+        # ... not needed for 1b term
 
-    # now untranspose
-    perm,_ = bubble_sort(perm)
-    coeffs_bra2 = reshape(coeffs_bra2, dim2)
-    coeffs_bra2 = permutedims(coeffs_bra2,perm)
+        #
+        # Multiply
+        coeffs_bra2 += s .* (op * coeffs_ket2)
 
-    #
-    # multiply by overlaps now if the bra side is larger,
-    if length(coeffs_bra2) >= length(coeffs_ket2)
-        #coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
+        # now untranspose
+        perm,_ = bubble_sort(perm)
+        coeffs_bra2 = reshape(coeffs_bra2, dim2)
+        coeffs_bra2 = permutedims(coeffs_bra2,perm)
+
+#        #
+#        # multiply by overlaps now if the bra side is larger,
+#        if length(coeffs_bra2[r]) >= length(coeffs_ket2[r])
+#            #coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
+#        end
+        coeffs_bra2_out[r] = coeffs_bra2
     end
 
-    return coeffs_bra2
+    return ntuple(r->coeffs_bra2_out[r], R)
 end
 #=}}}=#
-function contract_dense_H_with_state(term::ClusteredTerm2B, op, state_sign, coeffs_bra::Tucker{T,N}, coeffs_ket::Tucker{T,N}) where {T,N}
+function contract_dense_H_with_state(term::ClusteredTerm2B, op, state_sign, coeffs_bra::Tucker{T,N,R}, coeffs_ket::Tucker{T,N,R}) where {T,N,R}
 #={{{=#
     c1 = term.clusters[1]
     c2 = term.clusters[2]
@@ -514,56 +522,56 @@ function contract_dense_H_with_state(term::ClusteredTerm2B, op, state_sign, coef
     indices[c2.idx] = 0
     perm,_ = bubble_sort(indices)
 
-    coeffs_bra2 = copy(coeffs_bra.core)
-    coeffs_ket2 = copy(coeffs_ket.core)
+    coeffs_bra2_out = [coeffs_bra.core...]
 
-    #
-    # multiply by overlaps first if the bra side is smaller,
-    # otherwise multiply by Hamiltonian term first
-    if length(coeffs_bra2) < length(coeffs_ket2)
-        #coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
+    for r in 1:R
+        coeffs_bra2 = deepcopy(coeffs_bra.core[r])
+        coeffs_ket2 = deepcopy(coeffs_ket.core[r])
+
+        #
+        # multiply by overlaps first if the bra side is smaller,
+        # otherwise multiply by Hamiltonian term first
+        if length(coeffs_bra2) < length(coeffs_ket2)
+            #coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
+        end
+        coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
+
+        #
+        # Transpose to get contig data for blas (explicit copy?)
+        coeffs_ket2 = permutedims(coeffs_ket2, perm)
+        coeffs_bra2 = permutedims(coeffs_bra2, perm)
+
+        #
+        # Reshape for matrix multiply, shouldn't do any copies, right?
+        dim1 = size(coeffs_ket2)
+        dim2 = size(coeffs_bra2)
+        
+        coeffs_ket2 = reshape(coeffs_ket2, dim1[1]*dim1[2], prod(dim1[3:end]))
+        coeffs_bra2 = reshape(coeffs_bra2, dim2[1]*dim2[2], prod(dim2[3:end]))
+
+        #
+        # Reshape Hamiltonian term operator
+        op = reshape(op, prod(size(op)[1:2]), prod(size(op)[3:4]))
+
+        #display(term)
+        ##display(overlaps)
+        #display((size(coeffs_bra2), size(coeffs_bra.core)))
+        #display(size(op'))
+        #display((size(coeffs_ket2), size(coeffs_ket.core)))
+        coeffs_bra2 .+= s .* (op' * coeffs_ket2)
+
+        coeffs_bra2 = reshape(coeffs_bra2, dim2)
+
+        # now untranspose
+        perm,_ = bubble_sort(perm)
+        coeffs_bra2 = permutedims(coeffs_bra2,perm)
+
+        coeffs_bra2_out[r] = coeffs_bra2
     end
-    coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
-
-    #
-    # Transpose to get contig data for blas (explicit copy?)
-    coeffs_ket2 = permutedims(coeffs_ket2, perm)
-    coeffs_bra2 = permutedims(coeffs_bra2, perm)
-
-    #
-    # Reshape for matrix multiply, shouldn't do any copies, right?
-    dim1 = size(coeffs_ket2)
-    coeffs_ket2 = reshape(coeffs_ket2, dim1[1]*dim1[2], prod(dim1[3:end]))
-    dim2 = size(coeffs_bra2)
-    coeffs_bra2 = reshape(coeffs_bra2, dim2[1]*dim2[2], prod(dim2[3:end]))
-
-    #
-    # Reshape Hamiltonian term operator
-    op = reshape(op, prod(size(op)[1:2]), prod(size(op)[3:4]))
-
-    #display(term)
-    ##display(overlaps)
-    #display((size(coeffs_bra2), size(coeffs_bra.core)))
-    #display(size(op'))
-    #display((size(coeffs_ket2), size(coeffs_ket.core)))
-    coeffs_bra2 .+= s .* (op' * coeffs_ket2)
-
-    coeffs_bra2 = reshape(coeffs_bra2, dim2)
-
-    # now untranspose
-    perm,_ = bubble_sort(perm)
-    coeffs_bra2 = permutedims(coeffs_bra2,perm)
-
-    #
-    # multiply by overlaps now if the bra side is larger,
-    if length(coeffs_bra2) >= length(coeffs_ket2)
-        #coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
-    end
-
-    return coeffs_bra2
+    return ntuple(r->coeffs_bra2_out[r], R)
 end
 #=}}}=#
-function contract_dense_H_with_state(term::ClusteredTerm3B, op, state_sign, coeffs_bra::Tucker{T,N}, coeffs_ket::Tucker{T,N}) where {T,N}
+function contract_dense_H_with_state(term::ClusteredTerm3B, op, state_sign, coeffs_bra::Tucker{T,N,R}, coeffs_ket::Tucker{T,N,R}) where {T,N,R}
 #={{{=#
     c1 = term.clusters[1]
     c2 = term.clusters[2]
@@ -597,53 +605,54 @@ function contract_dense_H_with_state(term::ClusteredTerm3B, op, state_sign, coef
     indices[c3.idx] = 0
     perm,_ = bubble_sort(indices)
 
-    coeffs_bra2 = copy(coeffs_bra.core)
-    coeffs_ket2 = copy(coeffs_ket.core)
+    coeffs_bra2_out = [coeffs_bra.core...]
 
-    #
-    # multiply by overlaps first if the bra side is smaller,
-    # otherwise multiply by Hamiltonian term first
-    if length(coeffs_bra2) < length(coeffs_ket2)
-        #coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
+    for r in 1:R
+        coeffs_bra2 = deepcopy(coeffs_bra.core[r])
+        coeffs_ket2 = deepcopy(coeffs_ket.core[r])
+
+        #
+        # multiply by overlaps first if the bra side is smaller,
+        # otherwise multiply by Hamiltonian term first
+        if length(coeffs_bra2) < length(coeffs_ket2)
+            #coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
+        end
+        coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
+
+        #
+        # Transpose to get contig data for blas (explicit copy?)
+        coeffs_ket2 = permutedims(coeffs_ket2, perm)
+        coeffs_bra2 = permutedims(coeffs_bra2, perm)
+
+        #
+        # Reshape for matrix multiply, shouldn't do any copies, right?
+        dim1 = size(coeffs_ket2)
+        dim2 = size(coeffs_bra2)
+
+        coeffs_ket2 = reshape(coeffs_ket2, dim1[1]*dim1[2]*dim1[3], prod(dim1[4:end]))
+        coeffs_bra2 = reshape(coeffs_bra2, dim2[1]*dim2[2]*dim2[3], prod(dim2[4:end]))
+
+        #
+        # Reshape Hamiltonian term operator
+        op = reshape(op, prod(size(op)[1:3]), prod(size(op)[4:6]))
+
+        #
+        # Multiply
+        coeffs_bra2 .+= s .* (op' * coeffs_ket2)
+
+        # now untranspose
+        perm,_ = bubble_sort(perm)
+        coeffs_bra2 = reshape(coeffs_bra2, dim2)
+        coeffs_bra2 = permutedims(coeffs_bra2,perm)
+
+        coeffs_bra2_out[r] = coeffs_bra2
     end
-    coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
 
-    #
-    # Transpose to get contig data for blas (explicit copy?)
-    coeffs_ket2 = permutedims(coeffs_ket2, perm)
-    coeffs_bra2 = permutedims(coeffs_bra2, perm)
-
-    #
-    # Reshape for matrix multiply, shouldn't do any copies, right?
-    dim1 = size(coeffs_ket2)
-    coeffs_ket2 = reshape(coeffs_ket2, dim1[1]*dim1[2]*dim1[3], prod(dim1[4:end]))
-    dim2 = size(coeffs_bra2)
-    coeffs_bra2 = reshape(coeffs_bra2, dim2[1]*dim2[2]*dim2[3], prod(dim2[4:end]))
-
-    #
-    # Reshape Hamiltonian term operator
-    op = reshape(op, prod(size(op)[1:3]), prod(size(op)[4:6]))
-
-    #
-    # Multiply
-    coeffs_bra2 .+= s .* (op' * coeffs_ket2)
-
-    # now untranspose
-    perm,_ = bubble_sort(perm)
-    coeffs_bra2 = reshape(coeffs_bra2, dim2)
-    coeffs_bra2 = permutedims(coeffs_bra2,perm)
-
-    #
-    # multiply by overlaps now if the bra side is larger,
-    if length(coeffs_bra2) >= length(coeffs_ket2)
-        #coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
-    end
-
-    return coeffs_bra2
+    return ntuple(r->coeffs_bra2_out[r], R)
 end
 #=}}}=#
-function contract_dense_H_with_state(term::ClusteredTerm4B, op, state_sign, coeffs_bra::Tucker{T,N}, coeffs_ket::Tucker{T,N}) where {T,N}
-#={{{=#
+function contract_dense_H_with_state(term::ClusteredTerm4B, op, state_sign, coeffs_bra::Tucker{T,N,R}, coeffs_ket::Tucker{T,N,R}) where {T,N,R}
+    #={{{=#
     c1 = term.clusters[1]
     c2 = term.clusters[2]
     c3 = term.clusters[3]
@@ -680,48 +689,50 @@ function contract_dense_H_with_state(term::ClusteredTerm4B, op, state_sign, coef
     indices[c4.idx] = 0
     perm,_ = bubble_sort(indices)
 
-    coeffs_bra2 = copy(coeffs_bra.core)
-    coeffs_ket2 = copy(coeffs_ket.core)
+    coeffs_bra2_out = [coeffs_bra.core...]
 
-    #
-    # multiply by overlaps first if the bra side is smaller,
-    # otherwise multiply by Hamiltonian term first
-    if length(coeffs_bra2) < length(coeffs_ket2)
-        #coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
+    for r in 1:R
+        coeffs_bra2 = deepcopy(coeffs_bra.core[r])
+        coeffs_ket2 = deepcopy(coeffs_ket.core[r])
+
+
+        #
+        # multiply by overlaps first if the bra side is smaller,
+        # otherwise multiply by Hamiltonian term first
+        if length(coeffs_bra2) < length(coeffs_ket2)
+            #coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
+        end
+        coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
+
+        #
+        # Transpose to get contig data for blas (explicit copy?)
+        coeffs_ket2 = permutedims(coeffs_ket2, perm)
+        coeffs_bra2 = permutedims(coeffs_bra2, perm)
+
+        #
+        # Reshape for matrix multiply, shouldn't do any copies, right?
+        dim1 = size(coeffs_ket2)
+        dim2 = size(coeffs_bra2)
+
+        coeffs_ket2 = reshape(coeffs_ket2, dim1[1]*dim1[2]*dim1[3]*dim1[4], prod(dim1[5:end]))
+        coeffs_bra2 = reshape(coeffs_bra2, dim2[1]*dim2[2]*dim2[3]*dim2[4], prod(dim2[5:end]))
+
+        #
+        # Reshape Hamiltonian term operator
+        op = reshape(op, prod(size(op)[1:4]), prod(size(op)[5:8]))
+
+        #
+        # Multiply
+        coeffs_bra2 .+= s .* (op' * coeffs_ket2)
+
+        # now untranspose
+        perm,_ = bubble_sort(perm)
+        coeffs_bra2 = reshape(coeffs_bra2, dim2)
+        coeffs_bra2 = permutedims(coeffs_bra2,perm)
+
+        coeffs_bra2_out[r] = coeffs_bra2
     end
-    coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
-
-    #
-    # Transpose to get contig data for blas (explicit copy?)
-    coeffs_ket2 = permutedims(coeffs_ket2, perm)
-    coeffs_bra2 = permutedims(coeffs_bra2, perm)
-
-    #
-    # Reshape for matrix multiply, shouldn't do any copies, right?
-    dim1 = size(coeffs_ket2)
-    coeffs_ket2 = reshape(coeffs_ket2, dim1[1]*dim1[2]*dim1[3]*dim1[4], prod(dim1[5:end]))
-    dim2 = size(coeffs_bra2)
-    coeffs_bra2 = reshape(coeffs_bra2, dim2[1]*dim2[2]*dim2[3]*dim2[4], prod(dim2[5:end]))
-
-    #
-    # Reshape Hamiltonian term operator
-    op = reshape(op, prod(size(op)[1:4]), prod(size(op)[5:8]))
-
-    #
-    # Multiply
-    coeffs_bra2 .+= s .* (op' * coeffs_ket2)
-
-    # now untranspose
-    perm,_ = bubble_sort(perm)
-    coeffs_bra2 = reshape(coeffs_bra2, dim2)
-    coeffs_bra2 = permutedims(coeffs_bra2,perm)
-
-    #
-    # multiply by overlaps now if the bra side is larger,
-    if length(coeffs_bra2) >= length(coeffs_ket2)
-        #coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
-    end
-    return coeffs_bra2
+    return ntuple(r->coeffs_bra2_out[r], R)
 end
 #=}}}=#
 
@@ -768,8 +779,8 @@ function form_sigma_block_expand(term::ClusteredTerm1B,
                             cluster_ops::Vector{ClusterOps},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
-                            coeffs_ket::Tucker{T,N};
-                            max_number=nothing, prescreen=1e-4) where {T,N}
+                            coeffs_ket::Tucker{T,N,R};
+                            max_number=nothing, prescreen=1e-4) where {T,N,R}
 #={{{=#
     #display(term)
     c1 = term.clusters[1]
@@ -793,7 +804,7 @@ function form_sigma_block_expand(term::ClusteredTerm1B,
     tensors = Vector{Array{T}}()
     indices = Vector{Vector{Int16}}()
     state_indices = -collect(1:n_clusters)
-    s = 1.0 # this is the product of scalar overlaps that don't need tensor contractions
+    s = state_sign # this is the product of scalar overlaps that don't need tensor contractions
 
     # if the compressed operator becomes a scalar, treat it as such
     if length(op) == 1
@@ -804,46 +815,31 @@ function form_sigma_block_expand(term::ClusteredTerm1B,
         push!(tensors, op)
         push!(indices, op_indices)
     end
-
-    push!(tensors, coeffs_ket.core)
     push!(indices, state_indices)
 
-    length(tensors) == length(indices) || error(" mismatch between operators and indices")
+    output_size = [size(coeffs_ket.core[1])...]
+    output_size[c1.idx] = size(op,1)
+    
+    # loop over global states
+    bra_cores = ntuple(r->zeros(T,output_size...), R)
+    for r in 1:R
 
-    bra_core = zeros(1,1)
-    if length(tensors) == 1
-        bra_core = coeffs_ket.core .* s
-    else
-        bra_core = @ncon(tensors, indices)
-        bra_core .= bra_core .* s
+        push!(tensors, coeffs_ket.core[r])
+
+        length(tensors) == length(indices) || error(" mismatch between operators and indices")
+        if length(tensors) == 1
+            # this means that all the overlaps and the operator is a scalar
+            bra_cores[r] .= coeffs_ket.core[r] .* s
+        else
+            bra_cores[r] .= @ncon(tensors, indices)
+            bra_cores[r] .= bra_cores[r] .* s
+        end
+        deleteat!(tensors,length(tensors))
     end
 
-    # first decompose the already partially decomposed core tensor
-    #
-    # Vket ~ Aket x U1 x U2 x ...
-    #
-    # then we modified the compressed coefficients in the ket, Aket
-    #
-    # to get Abra, which we then compress again.
-    #
-    # The active cluster tucker factors become identity matrices
-    #
-    # Abra ~ Bbra x UU1 x UU2 x ....
-    #
-    #
-    # e.g, V(IJK) = C(ijk) * U1(Ii) * U2(Jj) * U3(Kk)
-    #
-    # then C get's modified and furhter compressed
-    #
-    # V(IJK) = C(abc) * U1(ia) * U2(jb) * U3(kc) * U1(Ii) * U2(Jj) * U3(Kk)
-    # V(IJK) = C(abc) * (U1(ia) * U1(Ii)) * (U2(jb) * U2(Jj)) * (U3(kc) * U3(Kk))
-    # V(IJK) = C(abc) * U1(Ia)  * U2(Jb) * U3(Kc)
-    #
-
     new_factors = [coeffs_ket.factors[i] for i in 1:N]
-    new_factors[c1.idx] = Matrix(1.0I, size(bra_core,c1.idx), size(bra_core,c1.idx))
-    return Tucker(bra_core, NTuple{N}(new_factors))
-    
+    new_factors[c1.idx] = Matrix(1.0I, size(bra_cores[1],c1.idx), size(bra_cores[1],c1.idx)) 
+    return Tucker(bra_cores, NTuple{N}(new_factors))
 end
 #=}}}=#
 
@@ -851,8 +847,8 @@ function form_sigma_block_expand(term::ClusteredTerm2B,
                             cluster_ops::Vector{ClusterOps},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
-                            coeffs_ket::Tucker{T,N};
-                            max_number=nothing, prescreen=1e-4) where {T,N}
+                            coeffs_ket::Tucker{T,N,R};
+                            max_number=nothing, prescreen=1e-4) where {T,N,R}
     #={{{=#
     #display(term)
     #display.((fock_bra, fock_ket))
@@ -966,51 +962,37 @@ function form_sigma_block_expand(term::ClusteredTerm2B,
         push!(tensors, op)
         push!(indices, op_indices)
     end
-
-    push!(tensors, coeffs_ket.core)
     push!(indices, state_indices)
 
-    length(tensors) == length(indices) || error(" mismatch between operators and indices")
+    output_size = [size(coeffs_ket.core[1])...]
+    output_size[c1.idx] = size(op,3)
+    output_size[c2.idx] = size(op,4)
+    
+    # loop over global states
+    bra_cores = ntuple(r->zeros(T,output_size...), R)
+    for r in 1:R
 
-    bra_core = zeros(1,1)
-    if length(tensors) == 1
-        # this means that all the overlaps and the operator is a scalar
-        bra_core = coeffs_ket.core .* s
-    else
-        #display.(("a", size(coeffs_bra), size(coeffs_ket), "sizes: ", size.(overlaps), indices))
-        #display.(("a", size(coeffs_bra), size(coeffs_ket), "sizes: ", overlaps, indices))
-        bra_core = @ncon(tensors, indices)
-        bra_core .= bra_core .* s
+        push!(tensors, coeffs_ket.core[r])
+
+        length(tensors) == length(indices) || error(" mismatch between operators and indices")
+        #bra_core = zeros(1,1)
+        #bra_core = zeros(1,1)
+        if length(tensors) == 1
+            # this means that all the overlaps and the operator is a scalar
+            bra_cores[r] .= coeffs_ket.core[r] .* s
+        else
+            bra_cores[r] .= @ncon(tensors, indices)
+            bra_cores[r] .= bra_cores[r] .* s
+        end
+        deleteat!(tensors,length(tensors))
     end
-
-    # first decompose the already partially decomposed core tensor
-    #
-    # Vket ~ Aket x U1 x U2 x ...
-    #
-    # then we modified the compressed coefficients in the ket, Aket
-    #
-    # to get Abra, which we then compress again.
-    #
-    # The active cluster tucker factors become identity matrices
-    #
-    # Abra ~ Bbra x UU1 x UU2 x ....
-    #
-    #
-    # e.g, V(IJK) = C(ijk) * U1(Ii) * U2(Jj) * U3(Kk)
-    #
-    # then C get's modified and furhter compressed
-    #
-    # V(IJK) = C(abc) * U1(ia) * U2(jb) * U3(kc) * U1(Ii) * U2(Jj) * U3(Kk)
-    # V(IJK) = C(abc) * (U1(ia) * U1(Ii)) * (U2(jb) * U2(Jj)) * (U3(kc) * U3(Kk))
-    # V(IJK) = C(abc) * U1(Ia)  * U2(Jb) * U3(Kc)
-    #
 
     new_factors = [coeffs_ket.factors[i] for i in 1:N]
     #new_factors[c1.idx] = Matrix(1.0I, size(bra_core,c1.idx), size(bra_core,c1.idx))
     #new_factors[c2.idx] = Matrix(1.0I, size(bra_core,c2.idx), size(bra_core,c2.idx))
     new_factors[c1.idx] = new_factor1
     new_factors[c2.idx] = new_factor2 
-    return Tucker(bra_core, NTuple{N}(new_factors))
+    return Tucker(bra_cores, NTuple{N}(new_factors))
 end
 #=}}}=#
 
@@ -1018,8 +1000,8 @@ function form_sigma_block_expand(term::ClusteredTerm3B,
                             cluster_ops::Vector{ClusterOps},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
-                            coeffs_ket::Tucker{T,N};
-                            max_number=nothing, prescreen=1e-4) where {T,N}
+                            coeffs_ket::Tucker{T,N,R};
+                            max_number=nothing, prescreen=1e-4) where {T,N,R}
     #={{{=#
     #display(term)
     #display.((fock_bra, fock_ket))
@@ -1136,6 +1118,7 @@ function form_sigma_block_expand(term::ClusteredTerm3B,
     #
     # form overlaps - needed when TuckerConfigs aren't the same because each does their own compression and has
     # distinct Tucker factors
+    #tensors = Vector{NTuple{R,Array{T}} }()
     tensors = Vector{Array{T}}()
     indices = Vector{Vector{Int16}}()
     state_indices = -collect(1:n_clusters)
@@ -1152,28 +1135,39 @@ function form_sigma_block_expand(term::ClusteredTerm3B,
         push!(tensors, op)
         push!(indices, op_indices)
     end
-
-    push!(tensors, coeffs_ket.core)
     push!(indices, state_indices)
 
-    length(tensors) == length(indices) || error(" mismatch between operators and indices")
+    output_size = [size(coeffs_ket.core[1])...]
+    output_size[c1.idx] = size(op,4)
+    output_size[c2.idx] = size(op,5)
+    output_size[c3.idx] = size(op,6)
+    
+    # loop over global states
+    bra_cores = ntuple(r->zeros(T,output_size...), R)
+    for r in 1:R
 
-    bra_core = zeros(1,1)
-    if length(tensors) == 1
-        # this means that all the overlaps and the operator is a scalar
-        bra_core = coeffs_ket.core .* s
-    else
-        #display.(("a", size(coeffs_bra), size(coeffs_ket), "sizes: ", size.(overlaps), indices))
-        #display.(("a", size(coeffs_bra), size(coeffs_ket), "sizes: ", overlaps, indices))
-        bra_core = @ncon(tensors, indices)
-        bra_core .= bra_core .* s
+        push!(tensors, coeffs_ket.core[r])
+
+        length(tensors) == length(indices) || error(" mismatch between operators and indices")
+        #bra_core = zeros(1,1)
+        #bra_core = zeros(1,1)
+        if length(tensors) == 1
+            # this means that all the overlaps and the operator is a scalar
+            bra_cores[r] .= coeffs_ket.core[r] .* s
+        else
+            #display.(("a", size(coeffs_bra), size(coeffs_ket), "sizes: ", size.(overlaps), indices))
+            #display.(("a", size(coeffs_bra), size(coeffs_ket), "sizes: ", overlaps, indices))
+            bra_cores[r] .= @ncon(tensors, indices)
+            bra_cores[r] .= bra_cores[r] .* s
+        end
+        deleteat!(tensors,length(tensors))
     end
 
     new_factors = [coeffs_ket.factors[i] for i in 1:N]
     new_factors[c1.idx] = new_factor1
     new_factors[c2.idx] = new_factor2 
     new_factors[c3.idx] = new_factor3 
-    return Tucker(bra_core, NTuple{N}(new_factors))
+    return Tucker(bra_cores, NTuple{N}(new_factors))
 
 end
 #=}}}=#
@@ -1182,8 +1176,8 @@ function form_sigma_block_expand(term::ClusteredTerm4B,
                             cluster_ops::Vector{ClusterOps},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
-                            coeffs_ket::Tucker{T,N};
-                            max_number=nothing, prescreen=1e-4) where {T,N}
+                            coeffs_ket::Tucker{T,N,R};
+                            max_number=nothing, prescreen=1e-4) where {T,N,R}
 #={{{=#
     #display(term)
     #display.((fock_bra, fock_ket))
@@ -1335,20 +1329,29 @@ function form_sigma_block_expand(term::ClusteredTerm4B,
         push!(indices, op_indices)
     end
 
-    push!(tensors, coeffs_ket.core)
     push!(indices, state_indices)
 
-    length(tensors) == length(indices) || error(" mismatch between operators and indices")
+    output_size = [size(coeffs_ket.core[1])...]
+    output_size[c1.idx] = size(op,5)
+    output_size[c2.idx] = size(op,6)
+    output_size[c3.idx] = size(op,7)
+    output_size[c4.idx] = size(op,8)
+    
+    # loop over global states
+    bra_cores = ntuple(r->zeros(T,output_size...), R)
+    for r in 1:R
 
-    bra_core = zeros(1,1)
-    if length(tensors) == 1
-        # this means that all the overlaps and the operator is a scalar
-        bra_core = coeffs_ket.core .* s
-    else
-        #display.(("a", size(coeffs_bra), size(coeffs_ket), "sizes: ", size.(overlaps), indices))
-        #display.(("a", size(coeffs_bra), size(coeffs_ket), "sizes: ", overlaps, indices))
-        bra_core = @ncon(tensors, indices)
-        bra_core .= bra_core .* s
+        push!(tensors, coeffs_ket.core[r])
+
+        length(tensors) == length(indices) || error(" mismatch between operators and indices")
+        if length(tensors) == 1
+            # this means that all the overlaps and the operator is a scalar
+            bra_cores[r] .= coeffs_ket.core[r] .* s
+        else
+            bra_cores[r] .= @ncon(tensors, indices)
+            bra_cores[r] .= bra_cores[r] .* s
+        end
+        deleteat!(tensors,length(tensors))
     end
 
     new_factors = [coeffs_ket.factors[i] for i in 1:N]
@@ -1356,7 +1359,7 @@ function form_sigma_block_expand(term::ClusteredTerm4B,
     new_factors[c2.idx] = new_factor2 
     new_factors[c3.idx] = new_factor3 
     new_factors[c4.idx] = new_factor4 
-    return Tucker(bra_core, NTuple{N}(new_factors))
+    return Tucker(bra_cores, NTuple{N}(new_factors))
     
 end
 #=}}}=#
@@ -1365,9 +1368,9 @@ function form_sigma_block_expand2(term::ClusteredTerm2B,
                             cluster_ops::Vector{ClusterOps},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
-                            coeffs_ket::Tucker{T,N},
+                            coeffs_ket::Tucker{T,N,R},
                             scr::Vector{Vector{Float64}};  
-                            max_number=nothing, prescreen=1e-4) where {T,N}
+                            max_number=nothing, prescreen=1e-4) where {T,N,R}
     #={{{=#
     #display(term)
     #display.((fock_bra, fock_ket))
@@ -1548,8 +1551,8 @@ function calc_bound(term::ClusteredTerm1B,
                             cluster_ops::Vector{ClusterOps},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
-                            coeffs_ket::Tucker{T,N};
-                            prescreen=1e-4) where {T,N}
+                            coeffs_ket::Tucker{T,N,R};
+                            prescreen=1e-4) where {T,N,R}
     c1 = term.clusters[1]
     
     bound1 = norm(term.ints)*norm(coeffs_ket.core)
@@ -1563,8 +1566,8 @@ function calc_bound(term::ClusteredTerm2B,
                             cluster_ops::Vector{ClusterOps},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
-                            coeffs_ket::Tucker{T,N};
-                            prescreen=1e-4) where {T,N}
+                            coeffs_ket::Tucker{T,N,R};
+                            prescreen=1e-4) where {T,N,R}
     c1 = term.clusters[1]
     c2 = term.clusters[2]
     
@@ -1583,8 +1586,8 @@ function calc_bound(term::ClusteredTerm3B,
                             cluster_ops::Vector{ClusterOps},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
-                            coeffs_ket::Tucker{T,N};
-                            prescreen=1e-4) where {T,N}
+                            coeffs_ket::Tucker{T,N,R};
+                            prescreen=1e-4) where {T,N,R}
     c1 = term.clusters[1]
     c2 = term.clusters[2]
     c3 = term.clusters[3]
@@ -1606,8 +1609,8 @@ function calc_bound(term::ClusteredTerm4B,
                             cluster_ops::Vector{ClusterOps},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
-                            coeffs_ket::Tucker{T,N};
-                            prescreen=1e-4) where {T,N}
+                            coeffs_ket::Tucker{T,N,R};
+                            prescreen=1e-4) where {T,N,R}
     c1 = term.clusters[1]
     c2 = term.clusters[2]
     c3 = term.clusters[3]

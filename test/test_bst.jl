@@ -2,7 +2,7 @@ using FermiCG
 using Printf
 using Test
 
-@testset "BST" begin
+#@testset "BST" begin
 
     molecule = "
     H   0.0     0.0     0.0
@@ -114,4 +114,4 @@ using Test
     display(e_ci)
     @test isapprox(e_ci[1], -18.329649399280648, atol=1e-8)
 
-end
+#end

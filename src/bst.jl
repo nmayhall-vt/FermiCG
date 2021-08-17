@@ -36,7 +36,7 @@ using TimerOutputs
 
 See also: [`BSTstate`](@ref), [`Tucker`](@ref)
 """
-function block_sparse_tucker(input_vec::BSTstate, cluster_ops, clustered_ham;
+function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_ham;
         max_iter    = 20,
         max_iter_pt = 200, # max number of iterations for solving for PT1
         nbody       = 4,
@@ -47,7 +47,7 @@ function block_sparse_tucker(input_vec::BSTstate, cluster_ops, clustered_ham;
         tol_ci      = 1e-5,
 	resolve_ss  = false,
         do_pt       = true,
-        tol_tucker  = 1e-6 )
+        tol_tucker  = 1e-6 ) where {T,N,R}
     #={{{=#
     e_last = 0.0
     e0     = 0.0
@@ -82,7 +82,7 @@ function block_sparse_tucker(input_vec::BSTstate, cluster_ops, clustered_ham;
         dim1 = length(ref_vec)
         norm1 = orth_dot(ref_vec, ref_vec)
         ref_vec = compress(ref_vec, thresh=thresh_var)
-        normalize!(ref_vec)
+        orthonormalize!(ref_vec)
         dim2 = length(ref_vec)
         norm2 = orth_dot(ref_vec, ref_vec)
     
@@ -114,7 +114,12 @@ function block_sparse_tucker(input_vec::BSTstate, cluster_ops, clustered_ham;
         @time begin
             @timeit to "S2" build_sigma!(tmp, ref_vec, cluster_ops, clustered_S2)
         end
-        @printf(" %-48s%12.8f\n", "<S^2>: ", orth_dot(tmp,ref_vec))
+        s2 = orth_dot(tmp,ref_vec)
+        
+        @printf(" %5s %12s %12s\n", "Root", "Energy", "S2") 
+        for r in 1:R
+            @printf(" %5s %12.8f %12.8f\n",r, e0[r], abs(s2[r]))
+        end
 
         #
         # Get First order wavefunction
@@ -137,7 +142,11 @@ function block_sparse_tucker(input_vec::BSTstate, cluster_ops, clustered_ham;
         @printf(" %-50s", "FOIS compressed from: ")
         @printf("%10i → %-10i (thresh = %8.1e)\n", dim1, dim2, thresh_foi)
         #@printf(" %-50s%10.8f\n", "Norm of |1>: ",norm2)
-        @printf(" %-48s%12.8f\n", "Overlap between <FOIS|0>: ",nonorth_dot(pt1_vec, ref_vec, verbose=0))
+        
+        ovlp = nonorth_dot(pt1_vec, ref_vec, verbose=0)
+        for r in 1:R
+            @printf(" %5s %12.8f\n",r, ovlp[r])
+        end
 
         if do_pt
             #
@@ -158,8 +167,13 @@ function block_sparse_tucker(input_vec::BSTstate, cluster_ops, clustered_ham;
             dim2 = length(pt1_vec)
             @printf(" %-50s", "PT compressed from: ")
             @printf("%10i → %-10i (thresh = %8.1e)\n", dim1, dim2, thresh_pt)
-            @printf(" %-50s%10.8f\n", "Norm of |1>: ",norm2)
-            @printf(" %-50s%10.8f\n", "Overlap between <1|0>: ",nonorth_dot(pt1_vec, ref_vec, verbose=0))
+            @printf(" %-50s\n", "Norm of |1>: ")
+            [@printf("%10.8f ",norm2[r]) for r in 1:R]
+            println()
+            @printf(" %-50s", "Overlap between <1|0>: ")
+            ovlp = nonorth_dot(pt1_vec, ref_vec, verbose=0)
+            [@printf("%10.8f ",ovlp[r]) for r in 1:R]
+            println()
         end
 
         # 
@@ -176,7 +190,7 @@ function block_sparse_tucker(input_vec::BSTstate, cluster_ops, clustered_ham;
             dim2 = length(var_vec)
             @printf(" %-50s", "Variational space compressed from: ")
             @printf("%10i → %-10i (thresh = %8.1e)\n", dim1, dim2, thresh_pt)
-            normalize!(var_vec)
+            orthonormalize!(var_vec)
         end
         @printf(" %-50s%10.6f seconds\n", "Add new space to variational space: ", time)
             
@@ -190,13 +204,25 @@ function block_sparse_tucker(input_vec::BSTstate, cluster_ops, clustered_ham;
         @time begin
             @timeit to "S2" build_sigma!(tmp, var_vec, cluster_ops, clustered_S2)
         end
-        @printf(" %-48s%12.8f\n", "<S^2>: ", orth_dot(tmp,var_vec))
+        s2 = orth_dot(tmp,var_vec)
+        #@printf(" %5s %12s %12s\n", "Root", "Energy", "S2") 
+        #for r in 1:R
+        #    @printf(" %5s %12.8f %12.8f\n",r, e_var[r], abs(s2[r]))
+        #end
+        @printf(" %-20s", "E(Reference): ")
+        [@printf("%12.8f ", e0[r]) for r in 1:R]
+        println()
 
         ref_vec = var_vec
 
-        @printf(" %-20s%12.8f\n", "E(Reference): ",e0[1])
-        do_pt == false || @printf(" %-20s%12.8f\n", "E(PT2): ",e_pt2)
-        @printf(" %-20s%12.8f\n", "E(BST): ",e_var[1])
+        if do_pt
+            @printf(" %-20s", "E(PT2): ")
+            [@printf("%12.8f ", e_pt2[r]) for r in 1:R]
+            println()
+        end
+        @printf(" %-20s", "E(BST): ")
+        [@printf("%12.8f ", e_var[r]) for r in 1:R]
+        println()
     	#show(to)
         println("")
 

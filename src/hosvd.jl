@@ -27,12 +27,14 @@ function Tucker(A::NTuple{R,Array{T,N}}; thresh=-1, max_number=nothing, verbose=
     return Tucker{T,N,1}(core, NTuple{N}(factors))
 end
 #=}}}=#
+Tucker(A::Array{T,N},factors::NTuple{N, Matrix{T}}) where {T<:Number,N} = Tucker{T,N,1}((A,),factors)
 recompose(t::Tucker) = tucker_recompose(t.core, t.factors)
 dims_large(t::Tucker) = return [size(f,1) for f in t.factors]
 dims_small(t::Tucker) = return [size(f,2) for f in t.factors]
 Base.length(t::Tucker) = prod(dims_small(t))
-Base.size(t::Tucker) = size(t.core) 
+Base.size(t::Tucker) = dims_small(t) 
 Base.permutedims(t::Tucker{T,N,R}, perm) where {T,N,R} = Tucker{T,N,R}(permutedims(t.core, perm), t.factors[perm])
+Base.permutedims(t::NTuple{R,Array{T,N}}, perm) where {T,N,R} = ntuple(i->permutedims(t[i], perm), R) 
 
 
 """
@@ -43,7 +45,7 @@ Add together multiple Tucker instances. Assumed non-orthogonal.
 # Arguments
 - `tucks::Vector{Tucker{T,N}}`: Vector of Tucker objects
 """
-function add(tucks::Vector{Tucker{T,N,R}}; thresh=1e-10, max_number=nothing, type="magnitude") where {T<:Number,N,R}
+function nonorth_add(tucks::Vector{Tucker{T,N,R}}; thresh=1e-10, max_number=nothing, type="magnitude") where {T<:Number,N,R}
 #={{{=#
     # sort the Tucker objects to add. This puts them in a well-defined order for reproducibility.
     norms = norm.(tucks)
@@ -106,24 +108,23 @@ function add(tucks::Vector{Tucker{T,N,R}}; thresh=1e-10, max_number=nothing, typ
             push!(transforms, new_factors[i]'*tuck.factors[i])
         end
 
-        tmp = recompose(Tucker{T,N,R}(tuck.core, Tuple(transforms)))
-        for r in 1:R
-            new_core[r] .+= tmp[r]
-        end
+        #tmp = recompose(Tucker{T,N,R}(tuck.core, Tuple(transforms)))
+        #for r in 1:R
+        #    new_core[r] .+= tmp[r]
+        #end
         #new_core .= new_core .+ recompose(Tucker{T,N,R}(tuck.core, Tuple(transforms)))
+        add!(new_core, recompose(Tucker{T,N,R}(tuck.core, Tuple(transforms))))
     end
     return Tucker{T,N,R}(new_core, Tuple(new_factors))
 
 end
 #=}}}=#
 
-Base.:(+)(t1::Tucker, t2::Tucker) = add([t1, t2])
+#Base.:(+)(t1::Tucker, t2::Tucker) = nonorth_add([t1, t2])
 Base.:(+)(t1::NTuple{R,Array}, t2::NTuple{R,Array}) where R = ntuple(i->t1[i].+t2[i], R)
-Base.:(+)(t1::NTuple{R,Array}, t2::NTuple{R,Array}) where R = ntuple(i->t1[i].+t2[i], R)
+add!(t1::NTuple{R,Array}, t2::NTuple{R,Array}) where R = ntuple(i->t1[i] .= t1[i] .+ t2[i], R)
+nonorth_add(t1::Tucker, t2::Tucker; thresh=1e-7) = nonorth_add([t1,t2], thresh=thresh)
 
-nonorth_add(tl::Vector{Tucker}; thresh=1e-7) = add(tl, thresh=thresh)
-nonorth_add(t1::Tucker, t2::Tucker; thresh=1e-7) = add([t1,t2], thresh=thresh)
-nonorth_dot(t1, t2) = dot(t1,t2)
 function scale(t1::Tucker, a)
     t2core = t1.core .* a
     return Tucker(t2core, t1.factors)
@@ -156,11 +157,11 @@ end
 #=}}}=#
 
 """
-    dot(t1::Tucker{T,N}, t2::Tucker{T,N}) where {T,N}
+    function nonorth_dot(t1::Tucker{T,N,R}, t2::Tucker{T,N,R}) where {T,N,R}
 
 Note: This doesn't assume `t1` and `t2` have the same compression vectors 
 """
-function dot(t1::Tucker{T,N,R}, t2::Tucker{T,N,R}) where {T,N,R}
+function nonorth_dot(t1::Tucker{T,N,R}, t2::Tucker{T,N,R}) where {T,N,R}
 #={{{=#
     
     out = zeros(T,R)
@@ -178,6 +179,24 @@ function dot(t1::Tucker{T,N,R}, t2::Tucker{T,N,R}) where {T,N,R}
     #return sum(tucker_recompose(t1.core, overlaps) .* t2.core)
 end
 #=}}}=#
+
+"""
+    function orth_dot(t1::Tucker{T,N,R}, t2::Tucker{T,N,R}) where {T,N,R}
+
+Note: This assumes `t1` and `t2` have the same compression vectors 
+"""
+function orth_dot(t1::Tucker{T,N,R}, t2::Tucker{T,N,R}) where {T,N,R}
+#={{{=#
+    
+    out = zeros(T,R)
+    all(dims_large(t1) .== dims_large(t2)) || error(" t1 and t2 don't have same dimensions")
+    for r in 1:R
+        out[r] = sum(t1.core[r] .* t2.core[r])
+    end
+    return out
+end
+#=}}}=#
+
 
 """
     function tucker_decompose(A::Array{T,N}; thresh=1e-7, max_number=nothing, verbose=1, type="magnitude") where {T,N}

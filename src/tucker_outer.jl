@@ -22,7 +22,7 @@ function get_map(ci_vector::BSTstate, cluster_ops, clustered_ham; shift = nothin
     function mymatvec(v)
         iters += 1
 
-        set_vector!(ci_vector, v)
+        set_vectors!(ci_vector, v)
 
         #fold!(ci_vector)
         sig = deepcopy(ci_vector)
@@ -31,11 +31,11 @@ function get_map(ci_vector::BSTstate, cluster_ops, clustered_ham; shift = nothin
 
         #unfold!(ci_vector)
 
-        sig = get_vector(sig)
+        sig = get_vectors(sig)
 
         if shift != nothing
             # this is how we do CEPA
-            sig += shift * get_vector(ci_vector)
+            sig += shift * get_vectors(ci_vector)
         end
         flush(stdout)
 
@@ -56,13 +56,13 @@ function tucker_ci_solve(ci_vector::BSTstate, cluster_ops, clustered_ham; tol=1e
     @printf(" %-50s", "Solve CI with # variables: ")
     @printf("%10i\n", length(ci_vector))
     vec = deepcopy(ci_vector)
-    normalize!(vec)
+    orthonormalize!(vec)
     #flush term cache
     flush_cache(clustered_ham)
     
     Hmap = get_map(vec, cluster_ops, clustered_ham, cache=true)
 
-    v0 = get_vector(vec)
+    v0 = get_vectors(vec)
     nr = size(v0)[2]
    
 
@@ -86,7 +86,7 @@ function tucker_ci_solve(ci_vector::BSTstate, cluster_ops, clustered_ham; tol=1e
     flush(stdout)
     time = @elapsed e,v = FermiCG.solve(davidson)
     @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
-    set_vector!(vec,v)
+    set_vectors!(vec,v)
     
     #println(" Memory used by cache: ", mem_used_by_cache(clustered_ham))
 
@@ -181,7 +181,7 @@ function tucker_cepa_solve(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_
     b = deepcopy(x_vector)
     zero!(b)
     build_sigma!(b, ref_vector, cluster_ops, clustered_ham, cache=false)
-    bv = -get_vector(b)
+    bv = -get_vectors(b)
 
     @printf(" Overlap between <0|0>:          %18.12e\n", nonorth_dot(ref_vector, ref_vector, verbose=0))
     @printf(" Overlap between <1|0>:          %18.12e\n", nonorth_dot(x_vector, ref_vector, verbose=0))
@@ -220,7 +220,7 @@ function tucker_cepa_solve(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_
     end
     for it in 1:cepa_mit 
 
-    	bv = -get_vector(b)
+    	bv = -get_vectors(b)
         #n_clusters = 8
     	if cepa_shift == "cepa"
 	    shift = 0.0
@@ -238,10 +238,10 @@ function tucker_cepa_solve(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_
 	    exit()
 	end
 	eshift = e0+shift
-        bv .= bv .+ get_vector(Sx)* (eshift)
+        bv .= bv .+ get_vectors(Sx)* (eshift)
 
         function mymatvec(v)
-            set_vector!(x_vector, v)
+            set_vectors!(x_vector, v)
             #@printf(" Overlap between <1|0>:          %8.1e\n", nonorth_dot(x_vector, ref_vector, verbose=0))
             sig = deepcopy(x_vector)
             zero!(sig)
@@ -251,7 +251,7 @@ function tucker_cepa_solve(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_
             tmp = deepcopy(x_vector)
             scale!(tmp, -eshift)
             orth_add!(sig, tmp)
-            return get_vector(sig)
+            return get_vectors(sig)
         end
 
         @printf(" %-50s%10.6f\n", "Norm of b: ", sum(bv.*bv))
@@ -270,14 +270,14 @@ function tucker_cepa_solve(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_
         end
        
         println(" Start CEPA iterations with dimension = ", length(x_vector))
-        time = @elapsed x, solver = cg!(get_vector(x_vector), Axx,bv,log=true, maxiter=max_iter, verbose=verbose, abstol=tol)
+        time = @elapsed x, solver = cg!(get_vectors(x_vector), Axx,bv,log=true, maxiter=max_iter, verbose=verbose, abstol=tol)
         @printf(" %-50s%10.6f seconds\n", "Time to solve for CEPA with conjugate gradient: ", time)
         
         #flush term cache
         #println(" Now flushing:")
         flush_cache(clustered_ham)
 
-        set_vector!(x_vector, x)
+        set_vectors!(x_vector, x)
 
         SxC = nonorth_dot(Sx,x_vector)
         @printf(" %-50s%10.2f\n", "<A|X>C(X): ", SxC)
@@ -391,7 +391,7 @@ function tucker_cepa_solve2(ref_vector::BSTstate, cepa_vector::BSTstate, cluster
     b = deepcopy(x_vector)
     zero!(b)
     build_sigma!(b, ref_vector, cluster_ops, clustered_ham, cache=false)
-    bv = -get_vector(b)
+    bv = -get_vectors(b)
 
     
     #
@@ -417,13 +417,13 @@ function tucker_cepa_solve2(ref_vector::BSTstate, cepa_vector::BSTstate, cluster
         end
     end
 
-    bv .= bv .+ get_vector(Sx)*e0
+    bv .= bv .+ get_vectors(Sx)*e0
 
     @printf(" Norm of Sx overlap: %12.8f\n", orth_dot(Sx,Sx))
     @printf(" Norm of b         : %12.8f\n", sum(bv.*bv))
 
     function mymatvec(v)
-        set_vector!(x_vector, v)
+        set_vectors!(x_vector, v)
         #@printf(" Overlap between <1|0>:          %8.1e\n", nonorth_dot(x_vector, ref_vector, verbose=0))
         sig = deepcopy(x_vector)
         zero!(sig)
@@ -437,7 +437,7 @@ function tucker_cepa_solve2(ref_vector::BSTstate, cepa_vector::BSTstate, cluster
             scale!(tmp, -e0)
         end
         orth_add!(sig, tmp)
-        return get_vector(sig)
+        return get_vectors(sig)
     end
     dim = length(x_vector)
     Axx = LinearMap(mymatvec, dim, dim)
@@ -448,13 +448,13 @@ function tucker_cepa_solve2(ref_vector::BSTstate, cepa_vector::BSTstate, cluster
     flush_cache(clustered_ham)
    
     println(" Start CEPA iterations with dimension = ", length(x_vector))
-    x, solver = cg!(get_vector(x_vector), Axx,bv,log=true, maxiter=max_iter, verbose=verbose, abstol=tol)
+    x, solver = cg!(get_vectors(x_vector), Axx,bv,log=true, maxiter=max_iter, verbose=verbose, abstol=tol)
     
     #flush term cache
     println(" Now flushing:")
     flush_cache(clustered_ham)
 
-    set_vector!(x_vector, x)
+    set_vectors!(x_vector, x)
 
 
     SxC = orth_dot(Sx,x_vector)
@@ -579,9 +579,9 @@ end
 
 - `H0`: ["H", "Hcmf"] 
 """
-function hylleraas_compressed_mp2(sig_in::BSTstate, ref::BSTstate,
+function hylleraas_compressed_mp2(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R},
             cluster_ops, clustered_ham;
-            H0 = "Hcmf", tol=1e-6, nbody=4, max_iter=100, verbose=1, do_pt = true, thresh=1e-8)
+            H0 = "Hcmf", tol=1e-6, nbody=4, max_iter=100, verbose=1, do_pt = true, thresh=1e-8) where {T,N,R}
 #={{{=#
     
 #
@@ -612,7 +612,10 @@ function hylleraas_compressed_mp2(sig_in::BSTstate, ref::BSTstate,
     zero!(tmp)
     build_sigma!(tmp, ref, cluster_ops, clustered_ham)
     e_ref = orth_dot(ref, tmp)
-    @printf(" %-48s%12.8f\n", "Energy of reference state: ", e_ref)
+    @printf(" %5s %12s\n", "Root", "E(Ref)")
+    for r in 1:R
+        @printf(" %5s %12.8f\n",r, e_ref[r])
+    end
 
 
     # 
@@ -633,7 +636,7 @@ function hylleraas_compressed_mp2(sig_in::BSTstate, ref::BSTstate,
     #sig = compress(sig, thresh=thresh)
     #@printf(" <0|sig>  : %12.8f\n",nonorth_dot(ref,sig))
    
-    b = -get_vector(sig)
+    b = -get_vectors(sig)
     
     # 
     # get <X|F|0>
@@ -643,7 +646,7 @@ function hylleraas_compressed_mp2(sig_in::BSTstate, ref::BSTstate,
     @time build_sigma!(tmp, ref, cluster_ops, clustered_ham_0)
 
     #@printf(" %-50s%10.2f\n", "Norm of <X|F|0>: ", sqrt(orth_dot(tmp,tmp)))
-    b .+= get_vector(tmp)
+    b .+= get_vectors(tmp)
     
     #
     # Get Overlap <X|A>C(A)
@@ -658,24 +661,26 @@ function hylleraas_compressed_mp2(sig_in::BSTstate, ref::BSTstate,
                     # Ux(Ii') Ux(Jj') ...
                     #
                     # Cr(i,j,k...) S(ii') S(jj')...
-                    overlaps = []
+                    overlaps = Vector{Matrix{T}}() 
                     for i in 1:length(Sx.clusters)
                         push!(overlaps, ref_tuck.factors[i]' * tuck.factors[i])
                     end
-                    Sx[fock][tconfig].core .= transform_basis(ref_tuck.core, overlaps)
+                    for r in 1:R
+                        Sx[fock][tconfig].core[r] .= transform_basis(ref_tuck.core[r], overlaps)
+                    end
                 end
             end
         end
     end
 
-    b .= b .+ get_vector(Sx).*(e_ref - e0)
+    b .= b .+ get_vectors(Sx).*(e_ref - e0)
 
     
     function mymatvec(x)
 
         xr = deepcopy(sig)
         xl = deepcopy(sig)
-        set_vector!(xr,x)
+        set_vectors!(xr,x)
         zero!(xl)
         build_sigma!(xl, xr, cluster_ops, clustered_ham_0, cache=true)
 
@@ -685,7 +690,7 @@ function hylleraas_compressed_mp2(sig_in::BSTstate, ref::BSTstate,
         orth_add!(xl,xr)
         flush(stdout)
 
-        return get_vector(xl)
+        return get_vectors(xl)
     end
 
     dim = length(b)
@@ -701,17 +706,17 @@ function hylleraas_compressed_mp2(sig_in::BSTstate, ref::BSTstate,
     #todo:  setting initial value to zero only makes sense when our reference space is projected out. 
     #       if it's not, then we want to add the reference state components |guess> += |ref><ref|guess>
     #
-    x_vector = zeros(dim)
+    x_vector = zeros(dim,R)
     time = @elapsed x, solver = cg!(x_vector, Axx, b, log=true, maxiter=max_iter, verbose=true, abstol=tol)
     @printf(" %-50s%10.6f seconds\n", "Time to solve for PT1 with conjugate gradient: ", time)
     
     flush_cache(clustered_ham_0)
 
     psi1 = deepcopy(sig)
-    set_vector!(psi1,x_vector)
+    set_vectors!(psi1,x_vector)
     
     SxC = orth_dot(Sx,psi1)
-    @printf(" %-50s%10.2f\n", "<A|X>C(X): ", SxC)
+    #@printf(" %-50s%10.2f\n", "<A|X>C(X): ", SxC)
     #@printf(" <A|X>C(X) = %12.8f\n", SxC)
    
     tmp = deepcopy(ref)
@@ -724,10 +729,13 @@ function hylleraas_compressed_mp2(sig_in::BSTstate, ref::BSTstate,
     length(ecorr) == 1 || error(" Dimension Error", ecorr)
     ecorr = ecorr[1]
 
-    @printf(" %-48s%12.8f\n", "E(PT2) corr: ", (e_ref + ecorr)/(1+SxC)-e_ref)
-    @printf(" %-48s%12.8f\n", "E(PT2): ", (e_ref + ecorr)/(1+SxC))
+   
+    for r in 1:R
+        @printf(" State %3i: %-48s%12.8f\n", r, "E(PT2) corr: ", (e_ref[r] + ecorr[r])/(1+SxC[r])-e_ref[r])
+        @printf(" State %3i: %-48s%12.8f\n", r, "E(PT2): ", (e_ref[r] + ecorr[r])/(1+SxC[r]))
+    end
 
-    return psi1, (ecorr+e_ref)/(1+SxC) 
+    return psi1, (ecorr.+e_ref)./(1.0 .+ SxC) 
 
 end#=}}}=#
 
@@ -755,16 +763,16 @@ Lots of overhead probably from compression, but never completely uncompresses.
 - `v1::BSTstate`
 
 """
-function build_compressed_1st_order_state(ket_cts::BSTstate{T,N}, cluster_ops, clustered_ham; 
+function build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops, clustered_ham; 
         thresh=1e-7, 
         max_number=nothing, 
-        nbody=4) where {T,N}
+        nbody=4) where {T,N,R}
 #={{{=#
     #
     # Initialize data for our output sigma, which we will convert to a
-    sig_cts = BSTstate(ket_cts.clusters, OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N}} }(),  ket_cts.p_spaces, ket_cts.q_spaces)
+    sig_cts = BSTstate(ket_cts.clusters, OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N,R}} }(),  ket_cts.p_spaces, ket_cts.q_spaces)
 
-    data = OrderedDict{FockConfig{N}, OrderedDict{TuckerConfig{N}, Vector{Tucker{T,N}} } }()
+    data = OrderedDict{FockConfig{N}, OrderedDict{TuckerConfig{N}, Vector{Tucker{T,N,R}} } }()
 
     lk = ReentrantLock()
 
@@ -1198,7 +1206,7 @@ function do_fois_cepa(ref::BSTstate, cluster_ops, clustered_ham;
     @printf(" E(cepa) corr =                 %12.8f\n", e_cepa)
     @printf(" X(cepa) norm =                 %12.8f\n", sqrt(orth_dot(x_cepa, x_cepa)))
     nonorth_add!(x_cepa, ref_vec)
-    normalize!(x_cepa)
+    orthonormalize!(x_cepa)
     return e_cepa, x_cepa
 end
 
