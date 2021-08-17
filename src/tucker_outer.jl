@@ -138,13 +138,13 @@ After solving, the Energy can be obtained as:
     
     E = (Eref + Hax*Cx) / (1 + Sax*Cx)
 """
-function tucker_cepa_solve(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_ops, clustered_ham, 
+function tucker_cepa_solve(ref_vector::BSTstate{T,N,R}, cepa_vector::BSTstate, cluster_ops, clustered_ham, 
                            cepa_shift="cepa", 
                            cepa_mit = 50; 
                            tol=1e-5, 
                            cache=true, 
                            max_iter=30, 
-                           verbose=false)
+                           verbose=false) where {T,N,R}
 #={{{=#
 
     sig = deepcopy(ref_vector)
@@ -153,7 +153,7 @@ function tucker_cepa_solve(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_
     e0 = nonorth_dot(ref_vector, sig)
     length(e0) == 1 || error("Only one state at a time please", e0)
     e0 = e0[1]
-    @printf(" Reference Energy: %12.8f\n",e0)
+    @printf(" Reference Energy: %12.8f\n",e0[1])
 
     n_clusters = length(cepa_vector.clusters)
 
@@ -183,9 +183,9 @@ function tucker_cepa_solve(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_
     build_sigma!(b, ref_vector, cluster_ops, clustered_ham, cache=false)
     bv = -get_vectors(b)
 
-    @printf(" Overlap between <0|0>:          %18.12e\n", nonorth_dot(ref_vector, ref_vector, verbose=0))
-    @printf(" Overlap between <1|0>:          %18.12e\n", nonorth_dot(x_vector, ref_vector, verbose=0))
-    @printf(" Overlap between <1|1>:          %18.12e\n", nonorth_dot(x_vector, x_vector, verbose=0))
+    #@printf(" Overlap between <0|0>:          %18.12e\n", nonorth_dot(ref_vector, ref_vector, verbose=0))
+    #@printf(" Overlap between <1|0>:          %18.12e\n", nonorth_dot(x_vector, ref_vector, verbose=0))
+    #@printf(" Overlap between <1|1>:          %18.12e\n", nonorth_dot(x_vector, x_vector, verbose=0))
     
     #
     # Get Overlap <X|A>C(A)
@@ -209,8 +209,8 @@ function tucker_cepa_solve(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_
             end
         end
     end
-    @printf(" Norm of Sx overlap: %18.12f\n", orth_dot(Sx,Sx))
-    @printf(" Norm of b         : %18.12f\n", sum(bv.*bv))
+    #@printf(" Norm of Sx overlap: %18.12f\n", orth_dot(Sx,Sx))
+    #@printf(" Norm of b         : %18.12f\n", sum(bv.*bv))
 
 
     Ec = 0
@@ -280,28 +280,28 @@ function tucker_cepa_solve(ref_vector::BSTstate, cepa_vector::BSTstate, cluster_
         set_vectors!(x_vector, x)
 
         SxC = nonorth_dot(Sx,x_vector)
-        @printf(" %-50s%10.2f\n", "<A|X>C(X): ", SxC)
+        @printf(" %-50s%10.2f\n", "<A|X>C(X): ", SxC[1])
 
         sig = deepcopy(ref_vector)
         zero!(sig)
         build_sigma!(sig,x_vector, cluster_ops, clustered_ham)
         ecorr = nonorth_dot(sig,ref_vector)
-        @printf(" Cepa: %18.12f\n", ecorr)
+        @printf(" Cepa: %18.12f\n", ecorr[1])
         
         sig = deepcopy(x_vector)
         zero!(sig)
         build_sigma!(sig,ref_vector, cluster_ops, clustered_ham)
         ecorr = nonorth_dot(sig,x_vector)
-        @printf(" Cepa: %18.12f\n", ecorr)
+        @printf(" Cepa: %18.12f\n", ecorr[1])
         
         length(ecorr) == 1 || error(" Dimension Error", ecorr)
         ecorr = ecorr[1]
-        @printf(" <1|1> = %18.12f\n", orth_dot(x_vector,x_vector))
-        @printf(" <1|1> = %18.12f\n", sum(x.*x))
+        #@printf(" <1|1> = %18.12f\n", orth_dot(x_vector,x_vector))
+        #@printf(" <1|1> = %18.12f\n", sum(x.*x))
 
-        @printf(" E(CEPA) = %18.12f\n", (e0 + ecorr)/(1+SxC))
-	Ecepa = (e0 + ecorr)/(1+SxC)
-        @printf(" %s %18.12f\n",cepa_shift, (e0 + ecorr)/(1+SxC))
+        @printf(" E(CEPA) = %18.12f\n", (e0[1] + ecorr[1])/(1+SxC[1]))
+        Ecepa = (e0[1] + ecorr[1])/(1+SxC[1])
+        #@printf(" %s %18.12f\n",cepa_shift, (e0 + ecorr)/(1+SxC))
         @printf("Iter: %4d        %18.12f %18.12f \n",it,Ec ,Ecepa-e0)
 	if abs(Ec - (Ecepa-e0)) < 1e-6
             @printf(" Converged %s %18.12f\n",cepa_shift, (e0 + ecorr)/(1+SxC))
@@ -1027,14 +1027,14 @@ end
 
 Do PT2
 """
-function do_fois_pt2(ref::BSTstate, cluster_ops, clustered_ham;
+function do_fois_pt2(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
             H0          = "Hcmf",
             max_iter    = 50,
             nbody       = 4,
             thresh_foi  = 1e-6,
             tol         = 1e-5,
             opt_ref     = true,
-            verbose     = true)
+            verbose     = true) where {T,N,R}
     @printf(" |== Solve for BST PT1 Wavefunction ================================\n")
     println(" H0          : ", H0          ) 
     println(" max_iter    : ", max_iter    ) 
@@ -1067,14 +1067,17 @@ function do_fois_pt2(ref::BSTstate, cluster_ops, clustered_ham;
 
     # 
     # Compress FOIS
-    norm1 = sqrt(orth_dot(pt1_vec, pt1_vec))
+    norm1 = sqrt.(orth_dot(pt1_vec, pt1_vec))
     dim1 = length(pt1_vec)
     pt1_vec = compress(pt1_vec, thresh=thresh_foi)
-    norm2 = sqrt(orth_dot(pt1_vec, pt1_vec))
+    norm2 = sqrt.(orth_dot(pt1_vec, pt1_vec))
     dim2 = length(pt1_vec)
     @printf(" %-50s%10i → %-10i (thresh = %8.1e)\n", "FOIS Compressed from: ", dim1, dim2, thresh_foi)
-    @printf(" %-50s%10.2e → %-10.2e (thresh = %8.1e)\n", "Norm of |1>: ",norm1, norm2, thresh_foi)
-    @printf(" %-50s%10.6f\n", "Overlap between <1|0>: ", nonorth_dot(pt1_vec, ref_vec, verbose=0))
+    #@printf(" %-50s%10.2e → %-10.2e (thresh = %8.1e)\n", "Norm of |1>: ",norm1, norm2, thresh_foi)
+    @printf(" %-50s", "Overlap between <1|0>: ")
+    ovlp = nonorth_dot(pt1_vec, ref_vec, verbose=0)
+    [@printf("%10.6f\n", ovlp[r]) for r in 1:R]
+    println()
 
     # 
     # Solve for first order wavefunction 
@@ -1142,7 +1145,7 @@ end
     
 
 
-function do_fois_cepa(ref::BSTstate, cluster_ops, clustered_ham;
+function do_fois_cepa(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
             max_iter    = 20,
 	    cepa_shift  = "cepa",
 	    cepa_mit    = 30,
@@ -1150,7 +1153,7 @@ function do_fois_cepa(ref::BSTstate, cluster_ops, clustered_ham;
             thresh_foi  = 1e-6,
             tol         = 1e-5,
 	    compress_type= "matvec",
-            verbose     = true)
+            verbose     = true) where {T,N,R}
     @printf("\n-------------------------------------------------------\n")
     @printf(" Do CEPA\n")
     @printf("   thresh_foi              = %-8.1e\n", thresh_foi)
@@ -1192,8 +1195,11 @@ function do_fois_cepa(ref::BSTstate, cluster_ops, clustered_ham;
     norm2 = orth_dot(pt1_vec, pt1_vec)
     dim2 = length(pt1_vec)
     @printf(" %-50s%10i → %-10i (thresh = %8.1e)\n", "FOIS Compressed from: ", dim1, dim2, thresh_foi)
-    @printf(" %-50s%10.2e → %-10.2e (thresh = %8.1e)\n", "Norm of |1>: ",norm1, norm2, thresh_foi)
-    @printf(" %-50s%10.6f\n", "Overlap between <1|0>: ", nonorth_dot(pt1_vec, ref_vec, verbose=0))
+    #@printf(" %-50s%10.2e → %-10.2e (thresh = %8.1e)\n", "Norm of |1>: ",norm1, norm2, thresh_foi)
+    @printf(" %-50s", "Overlap between <1|0>: ")
+    ovlp = nonorth_dot(pt1_vec, ref_vec, verbose=0)
+    [@printf("%10.6f", ovlp[r]) for r in 1:R]
+    println()
 
     # 
     # Solve CEPA 
@@ -1203,8 +1209,8 @@ function do_fois_cepa(ref::BSTstate, cluster_ops, clustered_ham;
     println(" Do CEPA: Dim = ", length(cepa_vec))
     @time e_cepa, x_cepa = tucker_cepa_solve(ref_vec, cepa_vec, cluster_ops, clustered_ham, cepa_shift, cepa_mit,tol=tol, max_iter=max_iter, verbose=verbose)
 
-    @printf(" E(cepa) corr =                 %12.8f\n", e_cepa)
-    @printf(" X(cepa) norm =                 %12.8f\n", sqrt(orth_dot(x_cepa, x_cepa)))
+    @printf(" E(cepa) corr =                 %12.8f\n", e_cepa[1])
+    @printf(" X(cepa) norm =                 %12.8f\n", sqrt(orth_dot(x_cepa, x_cepa)[1]))
     nonorth_add!(x_cepa, ref_vec)
     orthonormalize!(x_cepa)
     return e_cepa, x_cepa

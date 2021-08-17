@@ -108,7 +108,7 @@ using Test
     
     e_pt, v_pt = FermiCG.do_fois_pt2(v, cluster_ops, clustered_ham, thresh_foi=1e-3, max_iter=50, tol=1e-8)
     display(e_pt)
-    @test isapprox(e_pt, -18.32697072976005, atol=1e-8)
+    @test isapprox(e_pt[1], -18.32697072976005, atol=1e-8)
 
     e_ci, v_ci = FermiCG.tucker_ci_solve(v_cepa, cluster_ops, clustered_ham)
     display(e_ci)

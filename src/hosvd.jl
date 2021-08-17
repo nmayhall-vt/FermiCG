@@ -28,6 +28,8 @@ function Tucker(A::NTuple{R,Array{T,N}}; thresh=-1, max_number=nothing, verbose=
 end
 #=}}}=#
 Tucker(A::Array{T,N},factors::NTuple{N, Matrix{T}}) where {T<:Number,N} = Tucker{T,N,1}((A,),factors)
+Tucker(A::Array{Array{T,N}},factors::NTuple{N, Matrix{T}}) where {T<:Number,N} = Tucker{T,N,1}(ntuple(i->A[i],length(A)),factors)
+
 recompose(t::Tucker) = tucker_recompose(t.core, t.factors)
 dims_large(t::Tucker) = return [size(f,1) for f in t.factors]
 dims_small(t::Tucker) = return [size(f,2) for f in t.factors]
