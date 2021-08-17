@@ -26,20 +26,21 @@ using LinearAlgebra
     Random.seed!(2);
     A = rand(4,6,3,3,5)
     #tuck = FermiCG.Tucker(A, thresh=20, verbose=1)
-    tuck = FermiCG.Tucker((A,), thresh=20, verbose=1)
+    tuck = FermiCG.Tucker((A,), thresh=10, verbose=1)
     
-    display(size(tuck.core))
+    display(size.(tuck.core))
     display(size.(tuck.factors))
     B = FermiCG.recompose(tuck)
     println()
+    println(FermiCG.dims_small(tuck))
     println(FermiCG.dims_large(tuck))
-    @test all(FermiCG.dims_small(tuck) .== [4, 1, 3, 3, 1])
+    @test all(FermiCG.dims_small(tuck) .== [1, 1, 1, 1, 1])
     @test all(FermiCG.dims_large(tuck) .== [4, 6, 3, 3, 5])
      
     A = rand(4,6,3,3,5)
     tuck = FermiCG.Tucker(A, thresh=-1, verbose=1)
     B = FermiCG.recompose(tuck)
-    @test isapprox(abs.(A), abs.(B), atol=1e-12)
+    @test isapprox(abs.(A), abs.(B[1]), atol=1e-12)
 
     A = rand(4,6,3,3,5)*.1
     B = rand(4,6,3,3,5)*.1
@@ -65,7 +66,7 @@ using LinearAlgebra
     trans1[2] = rand(6,5)
     trans1[4] = rand(3,2)
 
-    trans2 = []
+    trans2 = Vector{Matrix{Float64}}([])
     for i = 1:5
         if haskey(trans1, i)
             push!(trans2, trans1[i])
