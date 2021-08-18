@@ -46,12 +46,18 @@ using LinearAlgebra
     B = rand(4,6,3,3,5)*.1
     C = A+B
 
+
     #tuckA = FermiCG.Tucker(A, thresh=-1, verbose=1, max_number=2)
     #tuckB = FermiCG.Tucker(B, thresh=-1, verbose=1, max_number=2)
     #tuckC = FermiCG.Tucker(C, thresh=-1, verbose=1, max_number=2)
     tuckA = FermiCG.Tucker(A, thresh=-1, verbose=0)
     tuckB = FermiCG.Tucker(B, thresh=-1, verbose=0)
     tuckC = FermiCG.Tucker(C, thresh=-1, verbose=0)
+
+    tuckD = FermiCG.Tucker(tuckC, R=3)
+    FermiCG.randomize!(tuckD)
+
+    tuckDc = FermiCG.compress(tuckD)
 
     # test Tucker addition
     test = FermiCG.nonorth_add(tuckA, tuckB)

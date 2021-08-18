@@ -30,6 +30,7 @@ mutable struct Davidson
     ritz_v::Array{Float64,2}
     ritz_e::Vector{Float64}
     resid::Vector{Float64}
+    lindep::Float64
 end
 
 function Davidson(op; max_iter=100, max_ss_vecs=8, tol=1e-8, nroots=1, v0=nothing)
@@ -56,7 +57,8 @@ function Davidson(op; max_iter=100, max_ss_vecs=8, tol=1e-8, nroots=1, v0=nothin
                     zeros(dim,0),
                     zeros(nroots,nroots),
                     zeros(nroots),
-                    zeros(nroots))
+                    zeros(nroots),
+                    1.0)
 end
 
 function print_iter(solver::Davidson)
@@ -77,6 +79,8 @@ function print_iter(solver::Davidson)
             @printf("%5.1e  ", solver.resid[i])
         end
     end
+    @printf(" LinDep: ")
+    @printf("%5.1e* ", solver.lindep)
     println("")
     flush(stdout)
 end
@@ -127,9 +131,7 @@ function iteration(solver::Davidson; Adiag=nothing, iprint=0)
     # make sure these match
     all([abs(Hss1[i]-Hss[i])<1e-12 for i in 1:Base.length(Hss)]) || throw(Exception)
 
-    if iprint>0
-        println(" Determinant of subspace overlap: ",det(solver.vec_prev'*solver.vec_prev))
-    end
+    solver.lindep = det(solver.vec_prev'*solver.vec_prev)
     #Hss = solver.vec_curr' * sigma
     if iprint>0
         [@printf(" Ritz Value: %12.8f \n",i) for i in ritz_e]

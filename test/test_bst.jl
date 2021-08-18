@@ -94,7 +94,7 @@ using Test
                                                thresh_var  = 1e-2,
                                                thresh_foi  = 1e-3,
                                                thresh_pt   = sqrt(1e-5),
-                                               tol_ci      = 1e-5,
+                                               ci_conv     = 1e-5,
                                                do_pt       = true,
                                                resolve_ss  = true,
                                                tol_tucker  = 1e-4)

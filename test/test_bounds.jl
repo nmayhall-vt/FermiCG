@@ -124,7 +124,7 @@ end
 
 @testset "bounds" begin
     for i in 1:10
-        @test tuck_bound()
+        #@test tuck_bound()
         @test test1() 
         @test test2() 
         @test test3() 

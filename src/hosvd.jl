@@ -24,11 +24,27 @@ end
 function Tucker(A::NTuple{R,Array{T,N}}; thresh=-1, max_number=nothing, verbose=0, type="magnitude") where {T<:Number,N,R}
     #={{{=#
     core,factors = tucker_decompose(A, thresh=thresh, max_number=max_number, verbose=verbose, type=type)
-    return Tucker{T,N,1}(core, NTuple{N}(factors))
+    return Tucker{T,N,R}(core, NTuple{N}(factors))
 end
 #=}}}=#
 Tucker(A::Array{T,N},factors::NTuple{N, Matrix{T}}) where {T<:Number,N} = Tucker{T,N,1}((A,),factors)
-Tucker(A::Array{Array{T,N}},factors::NTuple{N, Matrix{T}}) where {T<:Number,N} = Tucker{T,N,1}(ntuple(i->A[i],length(A)),factors)
+Tucker(A::NTuple{R,Array{T,N}},factors::Array{Matrix{T}}) where {T<:Number,N,R} = Tucker{T,N,R}(A, ntuple(i->factors[i],N) )
+Tucker(A::Array{Array{T,N}},factors::NTuple{N, Matrix{T}}) where {T<:Number,N} = Tucker{T,N,length(A)}(ntuple(i->A[i],length(A)),factors)
+
+"""
+    function Tucker(t::Tucker{T,N,R}, n_roots::Integer) where {T,N,R}
+
+Create a new Tucker with a different number of core tensors; `R`=`n_roots`.
+New core tensors added are initialized to zero.
+"""
+function Tucker(t::Tucker{TT,NN,RR}; R=RR, T=TT) where {TT,NN,RR}
+    RR > 0 || error(DimensionMismatch)
+    cores = ntuple(ii->zeros(T,size(t.core[1])), R)
+    for rr in 1:min(R,RR)
+        cores[rr] .= t.core[rr]
+    end
+    return Tucker{T,NN,R}(cores, t.factors)
+end
 
 recompose(t::Tucker) = tucker_recompose(t.core, t.factors)
 dims_large(t::Tucker) = return [size(f,1) for f in t.factors]
@@ -38,6 +54,13 @@ Base.size(t::Tucker) = dims_small(t)
 Base.permutedims(t::Tucker{T,N,R}, perm) where {T,N,R} = Tucker{T,N,R}(permutedims(t.core, perm), t.factors[perm])
 Base.permutedims(t::NTuple{R,Array{T,N}}, perm) where {T,N,R} = ntuple(i->permutedims(t[i], perm), R) 
 
+
+function randomize!(t::Tucker{T,N,R}; seed=nothing) where {T,N,R}
+    seed == nothing || Random.seed!(seed)
+    for r in 1:R
+        t.core[r] .= rand(T,size(t.core[r]))
+    end
+end
 
 """
     add(tucks::Vector{Tucker{T,N}}; thresh=1e-10, max_number=nothing) where {T,N}

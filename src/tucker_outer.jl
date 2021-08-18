@@ -14,7 +14,7 @@ using IterativeSolvers
 
 Get LinearMap with takes a vector and returns action of H on that vector
 """
-function get_map(ci_vector::BSTstate, cluster_ops, clustered_ham; shift = nothing, cache=false)
+function get_map(ci_vector::BSTstate{T,N,R}, cluster_ops, clustered_ham; shift = nothing, cache=false) where {T,N,R}
     #={{{=#
     iters = 0
     
@@ -22,6 +22,7 @@ function get_map(ci_vector::BSTstate, cluster_ops, clustered_ham; shift = nothin
     function mymatvec(v)
         iters += 1
 
+        all(size(ci_vector) .== size(v)) || error(DimensionMismatch)
         set_vectors!(ci_vector, v)
 
         #fold!(ci_vector)
@@ -31,39 +32,66 @@ function get_map(ci_vector::BSTstate, cluster_ops, clustered_ham; shift = nothin
 
         #unfold!(ci_vector)
 
-        sig = get_vectors(sig)
+        sigv = get_vectors(sig)
 
         if shift != nothing
             # this is how we do CEPA
-            sig += shift * get_vectors(ci_vector)
+            sigv += shift * get_vectors(ci_vector)
         end
         flush(stdout)
 
-        return sig
+        return sigv
     end
     return LinearMap(mymatvec, dim, dim; issymmetric=true, ismutating=false, ishermitian=true)
 end
 #=}}}=#
 
 """
-    tucker_ci_solve(ci_vector::BSTstate, cluster_ops, clustered_ham; tol=1e-5)
+    function tucker_ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_ham; 
+                         conv_thresh = 1e-5,
+                         max_ss_vecs = 12,
+                         max_iter    = 40,
+                         shift       = nothing,
+                         precond     = false,
+                         verbose     = 0) where {T,N,R}
 
 Solve for ground state in the space spanned by `ci_vector`'s compression vectors
 """
-function tucker_ci_solve(ci_vector::BSTstate, cluster_ops, clustered_ham; tol=1e-5)
+function tucker_ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_ham; 
+                         conv_thresh = 1e-5,
+                         max_ss_vecs = 12,
+                         max_iter    = 40,
+                         shift       = nothing,
+                         precond     = false,
+                         verbose     = 0) where {T,N,R}
 #={{{=#
     @printf(" |== BST CI ========================================================\n")
     @printf(" %-50s", "Solve CI with # variables: ")
-    @printf("%10i\n", length(ci_vector))
-    vec = deepcopy(ci_vector)
+    @printf("%10i\n", length(ci_vector_in))
+    vec = deepcopy(ci_vector_in)
     orthonormalize!(vec)
     #flush term cache
     flush_cache(clustered_ham)
     
-    Hmap = get_map(vec, cluster_ops, clustered_ham, cache=true)
+    #Hmap = get_map(vec, cluster_ops, clustered_ham, cache=true)
+    iters = 0
+    
+    function matvec(v::AbstractMatrix)
+        iters += 1
+        #all(size(vec) .== size(v)) || error(DimensionMismatch)
+        vec_i = BSTstate(vec, R=size(v,2))
+        set_vectors!(vec_i, v)
 
+        sig = deepcopy(vec_i)
+        zero!(sig)
+        build_sigma!(sig, vec_i, cluster_ops, clustered_ham, cache=cache)
+
+        return get_vectors(sig) 
+    end
+
+    Hmap = FermiCG.LinOp(matvec, length(vec))
+    
     v0 = get_vectors(vec)
-    nr = size(v0)[2]
    
 
     cache=true
@@ -82,9 +110,9 @@ function tucker_ci_solve(ci_vector::BSTstate, cluster_ops, clustered_ham; tol=1e
 
     #cache_hamiltonian(ci_vector, ci_vector, cluster_ops, clustered_ham)
     
-    davidson = Davidson(Hmap,v0=v0,max_iter=80, max_ss_vecs=40, nroots=nr, tol=tol)
+    davidson = Davidson(Hmap,v0=v0,max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)
     flush(stdout)
-    time = @elapsed e,v = FermiCG.solve(davidson)
+    time = @elapsed e,v = FermiCG.solve(davidson, iprint=verbose)
     @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
     set_vectors!(vec,v)
     
@@ -673,13 +701,15 @@ function hylleraas_compressed_mp2(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R},
         end
     end
 
-    b .= b .+ get_vectors(Sx).*(e_ref - e0)
+    for r in 1:R
+        b[:,r] .+= get_vector(Sx,R)[:,1]*(e_ref[r] - e0[r])
+    end
 
     
     function mymatvec(x)
 
-        xr = deepcopy(sig)
-        xl = deepcopy(sig)
+        xr = BSTstate(sig, R=size(x,2))
+        xl = BSTstate(sig, R=size(x,2))
         set_vectors!(xr,x)
         zero!(xl)
         build_sigma!(xl, xr, cluster_ops, clustered_ham_0, cache=true)
@@ -1053,7 +1083,7 @@ function do_fois_pt2(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     
     if opt_ref 
         @printf(" %-50s\n", "Solve zeroth-order problem: ")
-        time = @elapsed e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, tol=tol)
+        time = @elapsed e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, conv_thresh=tol)
         @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
     end
 
@@ -1109,7 +1139,7 @@ function do_fois_ci(ref::BSTstate, cluster_ops, clustered_ham;
     # Solve variationally in reference space
     ref_vec = deepcopy(ref)
     @printf(" Solve zeroth-order problem. Dimension = %10i\n", length(ref_vec))
-    @time e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, tol=tol)
+    @time e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, conv_thresh=tol)
 
     #
     # Get First order wavefunction
@@ -1136,7 +1166,7 @@ function do_fois_ci(ref::BSTstate, cluster_ops, clustered_ham;
     # Solve for first order wavefunction 
     println(" Compute CI energy in the space = ", length(ref_vec))
     pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol, max_iter=max_iter, H0=H0)
-    eci, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, tol=tol)
+    eci, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, conv_thres=tol)
     @printf(" E(Ref)      = %12.8f\n", e0[1])
     @printf(" E(CI) tot  = %12.8f\n", eci[1])
     return eci[1], ref_vec 
@@ -1169,7 +1199,7 @@ function do_fois_cepa(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     println()
     ref_vec = deepcopy(ref)
     @printf(" Solve zeroth-order problem. Dimension = %10i\n", length(ref_vec))
-    @time e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, tol=tol)
+    @time e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, conv_thresh=tol)
 
     #
     # Get First order wavefunction
@@ -1223,7 +1253,7 @@ end
 Project w out of v 
 |v'> = |v> - |w><w|v>
 """
-function project_out!(v::BSTstate, w::BSTstate; thresh=1e-16)
+function project_out!(v::BSTstate{T,N,R}, w::BSTstate{T,N,R}; thresh=1e-16) where {T,N,R}
     
     for (fock,tconfigs) in v 
         for (tconfig, tuck) in tconfigs
@@ -1231,7 +1261,7 @@ function project_out!(v::BSTstate, w::BSTstate; thresh=1e-16)
                 if haskey(w[fock], tconfig)
                     w_tuck = w[fock][tconfig]
 
-                    ovlp = nonorth_dot(tuck, w_tuck) / nonorth_dot(w_tuck, w_tuck)
+                    ovlp = nonorth_dot(tuck, w_tuck) ./ nonorth_dot(w_tuck, w_tuck)
                     tmp = scale(w_tuck, -1.0 * ovlp)
                     v[fock][tconfig] = nonorth_add(tuck, tmp, thresh=thresh)
                 end

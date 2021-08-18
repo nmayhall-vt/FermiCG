@@ -20,6 +20,7 @@ Base.haskey(ts::BSTstate, i) = return haskey(ts.data,i)
 Base.getindex(ts::BSTstate, i) = return ts.data[i]
 Base.setindex!(ts::BSTstate, i, j) = return ts.data[j] = i
 Base.iterate(ts::BSTstate, state=1) = iterate(ts.data, state)
+Base.size(ts::BSTstate{T,N,R}) where {T,N,R} =  (length(ts), R)
 #normalize!(ts::BSTstate) = scale!(ts, 1/sqrt(orth_dot(ts,ts)))
 
 
@@ -77,6 +78,33 @@ function BSTstate(clusters::Vector{Cluster},
     
     state[fconfig][tconfig] = tdata
     return state
+#=}}}=#
+end
+
+
+"""
+
+Constructor - create copy, changing T and R optionally 
+# Arguments
+- `v`: input `BSTstate` object 
+- `T`: data type of new state 
+- `R`: number of roots in new state 
+# Returns
+- `BSTstate`
+"""
+function BSTstate(v::BSTstate{TT,N,RR}; T=TT, R=RR) where {TT,N,RR}
+    #={{{=#
+
+    data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N,R}} }()
+   
+    w = BSTstate{T,N,R}(v.clusters, data, v.p_spaces, v.q_spaces)
+    for (fock, tconfigs) in v.data
+        add_fockconfig!(w, fock)
+        for (tconfig, tuck) in tconfigs
+            w[fock][tconfig] = Tucker(tuck, R=R, T=T)
+        end
+    end
+    return w 
 #=}}}=#
 end
 
@@ -260,6 +288,16 @@ function Base.length(s::BSTstate)
     end
     return l
 end
+
+"""
+    eye!(s::BSTstate)
+"""
+function eye!(s::BSTstate{T,N,R}) where {T,N,R}
+    set_vectors!(s, Matrix{T}(I,size(s)))
+end
+    
+
+
 """
     prune_empty_fock_spaces!(s::AbstractState)
 
@@ -355,6 +393,7 @@ Set the core tensors to `v`
 function set_vectors!(ts::BSTstate{T,N,R}, v) where {T,N,R}
 #={{{=#
     #length(size(v)) == 1 || error(" Only takes vectors", size(v))
+    all(size(ts) .== size(v)) || throw(DimensionMismatch)
     nbasis = size(v)[1]
 
     idx = 1
@@ -364,7 +403,7 @@ function set_vectors!(ts::BSTstate{T,N,R}, v) where {T,N,R}
 
             dim1 = prod(dims)
             for r in 1:R
-                ts[fock][tconfig].core[r] .= reshape(v[idx:idx+dim1-1], size(tuck.core[r]))
+                ts[fock][tconfig].core[r] .= reshape(v[idx:idx+dim1-1,r], size(tuck.core[r]))
             end
             idx += dim1
         end
@@ -383,9 +422,10 @@ Return a vector of the variables for `root`. Note that this is the core tensors 
 """
 function get_vector(ts::BSTstate{T,N,R}, root::Integer) where {T,N,R}
 #={{{=#
-    v = zeros(length(cts), 1)
+    v = zeros(length(ts), 1)
+    root <= R || throw(DimensionMismatch)
     idx = 1
-    for (fock, tconfigs) in cts
+    for (fock, tconfigs) in ts
         for (tconfig, tuck) in tconfigs
             dims = size(tuck.core[root])
 
@@ -418,6 +458,18 @@ function set_vector!(ts::BSTstate{T,N,R}, v::Vector{T}, root::Integer) where {T,
     end
     nbasis == idx-1 || error("huh?", nbasis, " ", idx)
     return
+end
+#=}}}=#
+
+"""
+"""
+function randomize!(s::BSTstate{T,N,R}; seed=nothing) where {T,N,R}
+#={{{=#
+    for (fock, tconfigs) in s
+        for (tconfig, tcoeffs) in tconfigs
+            randomize!(s[fock][tconfig], seed=seed)
+        end
+    end
 end
 #=}}}=#
 

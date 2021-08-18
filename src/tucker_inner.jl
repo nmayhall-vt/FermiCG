@@ -476,9 +476,9 @@ function contract_dense_H_with_state(term::ClusteredTerm1B, op, state_sign, coef
         coeffs_bra2 += s .* (op * coeffs_ket2)
 
         # now untranspose
-        perm,_ = bubble_sort(perm)
+        perm2,_ = bubble_sort(perm)
         coeffs_bra2 = reshape(coeffs_bra2, dim2)
-        coeffs_bra2 = permutedims(coeffs_bra2,perm)
+        coeffs_bra2 = permutedims(coeffs_bra2,perm2)
 
 #        #
 #        # multiply by overlaps now if the bra side is larger,
@@ -524,6 +524,10 @@ function contract_dense_H_with_state(term::ClusteredTerm2B, op, state_sign, coef
 
     coeffs_bra2_out = [coeffs_bra.core...]
 
+    #
+    # Reshape Hamiltonian term operator
+    op2 = reshape(op, prod(size(op)[1:2]), prod(size(op)[3:4]))
+
     for r in 1:R
         coeffs_bra2 = deepcopy(coeffs_bra.core[r])
         coeffs_ket2 = deepcopy(coeffs_ket.core[r])
@@ -549,22 +553,18 @@ function contract_dense_H_with_state(term::ClusteredTerm2B, op, state_sign, coef
         coeffs_ket2 = reshape(coeffs_ket2, dim1[1]*dim1[2], prod(dim1[3:end]))
         coeffs_bra2 = reshape(coeffs_bra2, dim2[1]*dim2[2], prod(dim2[3:end]))
 
-        #
-        # Reshape Hamiltonian term operator
-        op = reshape(op, prod(size(op)[1:2]), prod(size(op)[3:4]))
-
         #display(term)
-        ##display(overlaps)
-        #display((size(coeffs_bra2), size(coeffs_bra.core)))
+        #display(overlaps)
+        #display((size(coeffs_bra2), size(coeffs_bra.core[r])))
         #display(size(op'))
-        #display((size(coeffs_ket2), size(coeffs_ket.core)))
-        coeffs_bra2 .+= s .* (op' * coeffs_ket2)
+        #display((size(coeffs_ket2), size(coeffs_ket.core[r])))
+        coeffs_bra2 .+= s .* (op2' * coeffs_ket2)
 
         coeffs_bra2 = reshape(coeffs_bra2, dim2)
 
         # now untranspose
-        perm,_ = bubble_sort(perm)
-        coeffs_bra2 = permutedims(coeffs_bra2,perm)
+        perm2,_ = bubble_sort(perm)
+        coeffs_bra2 = permutedims(coeffs_bra2,perm2)
 
         coeffs_bra2_out[r] = coeffs_bra2
     end
@@ -607,6 +607,10 @@ function contract_dense_H_with_state(term::ClusteredTerm3B, op, state_sign, coef
 
     coeffs_bra2_out = [coeffs_bra.core...]
 
+    #
+    # Reshape Hamiltonian term operator
+    op2 = reshape(op, prod(size(op)[1:3]), prod(size(op)[4:6]))
+
     for r in 1:R
         coeffs_bra2 = deepcopy(coeffs_bra.core[r])
         coeffs_ket2 = deepcopy(coeffs_ket.core[r])
@@ -633,17 +637,13 @@ function contract_dense_H_with_state(term::ClusteredTerm3B, op, state_sign, coef
         coeffs_bra2 = reshape(coeffs_bra2, dim2[1]*dim2[2]*dim2[3], prod(dim2[4:end]))
 
         #
-        # Reshape Hamiltonian term operator
-        op = reshape(op, prod(size(op)[1:3]), prod(size(op)[4:6]))
-
-        #
         # Multiply
-        coeffs_bra2 .+= s .* (op' * coeffs_ket2)
+        coeffs_bra2 .+= s .* (op2' * coeffs_ket2)
 
         # now untranspose
-        perm,_ = bubble_sort(perm)
+        perm2,_ = bubble_sort(perm)
         coeffs_bra2 = reshape(coeffs_bra2, dim2)
-        coeffs_bra2 = permutedims(coeffs_bra2,perm)
+        coeffs_bra2 = permutedims(coeffs_bra2,perm2)
 
         coeffs_bra2_out[r] = coeffs_bra2
     end
@@ -691,6 +691,10 @@ function contract_dense_H_with_state(term::ClusteredTerm4B, op, state_sign, coef
 
     coeffs_bra2_out = [coeffs_bra.core...]
 
+    #
+    # Reshape Hamiltonian term operator
+    op2 = reshape(op, prod(size(op)[1:4]), prod(size(op)[5:8]))
+
     for r in 1:R
         coeffs_bra2 = deepcopy(coeffs_bra.core[r])
         coeffs_ket2 = deepcopy(coeffs_ket.core[r])
@@ -718,17 +722,13 @@ function contract_dense_H_with_state(term::ClusteredTerm4B, op, state_sign, coef
         coeffs_bra2 = reshape(coeffs_bra2, dim2[1]*dim2[2]*dim2[3]*dim2[4], prod(dim2[5:end]))
 
         #
-        # Reshape Hamiltonian term operator
-        op = reshape(op, prod(size(op)[1:4]), prod(size(op)[5:8]))
-
-        #
         # Multiply
-        coeffs_bra2 .+= s .* (op' * coeffs_ket2)
+        coeffs_bra2 .+= s .* (op2' * coeffs_ket2)
 
         # now untranspose
-        perm,_ = bubble_sort(perm)
+        perm2,_ = bubble_sort(perm)
         coeffs_bra2 = reshape(coeffs_bra2, dim2)
-        coeffs_bra2 = permutedims(coeffs_bra2,perm)
+        coeffs_bra2 = permutedims(coeffs_bra2,perm2)
 
         coeffs_bra2_out[r] = coeffs_bra2
     end

@@ -1,18 +1,20 @@
 using TimerOutputs
 
 """
-    block_sparse_tucker(input_vec::BSTstate, cluster_ops, clustered_ham;
-        max_iter    = 20,
-        max_iter_pt = 200, 
-        nbody       = 4,
-        H0          = "Hcmf",
-        thresh_var  = 1e-4,
-        thresh_foi  = 1e-6,
-        thresh_pt   = 1e-5,
-        tol_ci      = 1e-5,
-	resolve_ss  = true,
-        do_pt       = true,
-        tol_tucker  = 1e-6)
+    function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_ham;
+        max_iter        = 20,
+        max_iter_pt     = 200, # max number of iterations for solving for PT1
+        nbody           = 4,
+        H0              = "Hcmf",
+        thresh_var      = 1e-4,
+        thresh_foi      = 1e-6,
+        thresh_pt       = 1e-5,
+        ci_conv         = 1e-5,
+        ci_max_iter     = 50,
+        ci_max_ss_vecs  = 12,
+	resolve_ss      = false,
+        do_pt           = true,
+        tol_tucker      = 1e-6 ) where {T,N,R}
 
 # Arguments
 - `input_vec::BSTstate`: initial state
@@ -26,7 +28,9 @@ using TimerOutputs
 - `thresh_var`: Compression threshold for the variational solution
 - `thresh_foi`: Compression threshold for the FOIS
 - `thresh_pt`: Compression threshold for the first-order wavefunction (if used)
-- `tol_ci`:     Convergence threshold for the CI (norm of residual)
+- `ci_conv`:     Convergence threshold for the CI (norm of residual)
+- `ci_max_iter`:    max iterations for CI problem
+- `ci_max_ss_vecs`: max number of subspace vectors for lanczos/davidson
 - `resolve_ss`:  After compressing previous variational state, should we resolve in new subspace?
 - `do_pt = true`: Compute pt1 wavefunction for finding updated compression basis?
 - `tol_tucker`: Convergence threshold for Tucker iterations (energy change)
@@ -37,17 +41,19 @@ using TimerOutputs
 See also: [`BSTstate`](@ref), [`Tucker`](@ref)
 """
 function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_ham;
-        max_iter    = 20,
-        max_iter_pt = 200, # max number of iterations for solving for PT1
-        nbody       = 4,
-        H0          = "Hcmf",
-        thresh_var  = 1e-4,
-        thresh_foi  = 1e-6,
-        thresh_pt   = 1e-5,
-        tol_ci      = 1e-5,
-	resolve_ss  = false,
-        do_pt       = true,
-        tol_tucker  = 1e-6 ) where {T,N,R}
+        max_iter        = 20,
+        max_iter_pt     = 200, # max number of iterations for solving for PT1
+        nbody           = 4,
+        H0              = "Hcmf",
+        thresh_var      = 1e-4,
+        thresh_foi      = 1e-6,
+        thresh_pt       = 1e-5,
+        ci_conv         = 1e-5,
+        ci_max_iter     = 50,
+        ci_max_ss_vecs  = 12,
+	resolve_ss      = false,
+        do_pt           = true,
+        tol_tucker      = 1e-6 ) where {T,N,R}
     #={{{=#
     e_last = 0.0
     e0     = 0.0
@@ -57,17 +63,19 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
     clustered_S2 = extract_S2(input_vec.clusters)
 
     to = TimerOutput()
-    println(" max_iter    : ", max_iter     ) 
-    println(" max_iter_pt : ", max_iter_pt  ) 
-    println(" nbody       : ", nbody        ) 
-    println(" H0          : ", H0           ) 
-    println(" thresh_var  : ", thresh_var   ) 
-    println(" thresh_foi  : ", thresh_foi   ) 
-    println(" thresh_pt   : ", thresh_pt    ) 
-    println(" tol_ci      : ", tol_ci       ) 
-    println(" resolve_ss  : ", resolve_ss   ) 
-    println(" do_pt       : ", do_pt        ) 
-    println(" tol_tucker  : ", tol_tucker   ) 
+    println(" max_iter       : ", max_iter       ) 
+    println(" max_iter_pt    : ", max_iter_pt    ) 
+    println(" nbody          : ", nbody          ) 
+    println(" H0             : ", H0             ) 
+    println(" thresh_var     : ", thresh_var     ) 
+    println(" thresh_foi     : ", thresh_foi     ) 
+    println(" thresh_pt      : ", thresh_pt      ) 
+    println(" ci_conv        : ", ci_conv        ) 
+    println(" ci_max_iter    : ", ci_max_iter    ) 
+    println(" ci_max_ss_vecs : ", ci_max_ss_vecs ) 
+    println(" resolve_ss     : ", resolve_ss     ) 
+    println(" do_pt          : ", do_pt          ) 
+    println(" tol_tucker     : ", tol_tucker     ) 
 
     for iter in 1:max_iter
         println()
@@ -97,7 +105,10 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
     
             @printf(" %-50s\n", "Get eigenstate for compressed reference space: ")
             flush(stdout)
-            @timeit to "CI small" e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, tol=tol_ci)
+            @timeit to "CI small" e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, 
+                                                                conv_thresh=ci_conv,
+                                                                max_iter    = ci_max_iter,
+                                                                max_ss_vecs = ci_max_ss_vecs)
         end
         #       sig = deepcopy(ref_vec)
         #       zero!(sig)
@@ -154,7 +165,7 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
             println()
             @printf(" %-50s%10i\n", "PT vector reference space dim: ",length(ref_vec))
             time = @elapsed begin
-                @timeit to "PT1" pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol_ci, do_pt=do_pt, max_iter=max_iter_pt, H0=H0)
+                @timeit to "PT1" pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=ci_conv, do_pt=do_pt, max_iter=max_iter_pt, H0=H0)
             end
             @printf(" %-50s%10.6f seconds\n", "Time spent compute PT1 vector: ", time)
         
@@ -195,7 +206,7 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
         @printf(" %-50s%10.6f seconds\n", "Add new space to variational space: ", time)
             
         @printf(" %-50s\n", "Solve in compressed FOIS: ")
-        @timeit to "CI big" e_var, var_vec = tucker_ci_solve(var_vec, cluster_ops, clustered_ham, tol=tol_ci)
+        @timeit to "CI big" e_var, var_vec = tucker_ci_solve(var_vec, cluster_ops, clustered_ham, conv_thresh=ci_conv)
 
         tmp = deepcopy(var_vec)
         zero!(tmp)
