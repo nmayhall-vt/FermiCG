@@ -182,6 +182,32 @@ end
 #=}}}=#
 
 """
+    function nonorth_overlap(t1::Tucker{T,N,R}, t2::Tucker{T,N,R}) where {T,N,R}
+
+Note: This doesn't assume `t1` and `t2` have the same compression vectors. Returns RxR overlap matrix 
+"""
+function nonorth_overlap(t1::Tucker{T,N,R}, t2::Tucker{T,N,R}) where {T,N,R}
+#={{{=#
+    
+    out = zeros(T,R,R)
+    overlaps = Dict{Int,Matrix{T}}()
+    all(dims_large(t1) .== dims_large(t2)) || error(" t1 and t2 don't have same dimensions")
+    for f in 1:N
+        #push!(overlaps, t1.factors[f]' * t2.factors[f])
+        overlaps[f] = t1.factors[f]' * t2.factors[f]
+    end
+    for ri in 1:R
+        for rj in ri:R
+            out[ri,rj] = sum(transform_basis(t1.core[ri], overlaps) .* t2.core[rj])
+            out[rj,ri] = out[ri,rj]
+        end
+    end
+    return out
+    #return sum(tucker_recompose(t1.core, overlaps) .* t2.core)
+end
+#=}}}=#
+
+"""
     function nonorth_dot(t1::Tucker{T,N,R}, t2::Tucker{T,N,R}) where {T,N,R}
 
 Note: This doesn't assume `t1` and `t2` have the same compression vectors 

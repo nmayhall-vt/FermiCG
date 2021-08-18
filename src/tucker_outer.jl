@@ -269,17 +269,20 @@ function tucker_cepa_solve(ref_vector::BSTstate{T,N,R}, cepa_vector::BSTstate, c
         bv .= bv .+ get_vectors(Sx)* (eshift)
 
         function mymatvec(v)
-            set_vectors!(x_vector, v)
-            #@printf(" Overlap between <1|0>:          %8.1e\n", nonorth_dot(x_vector, ref_vector, verbose=0))
-            sig = deepcopy(x_vector)
-            zero!(sig)
-            #build_sigma!(sig, x_vector, cluster_ops, clustered_ham, cache=false)
-            build_sigma!(sig, x_vector, cluster_ops, clustered_ham, cache=cache)
+            xr = BSTstate(x_vector, R=1)
+            xl = BSTstate(x_vector, R=1)
 
-            tmp = deepcopy(x_vector)
+            #display(size(xr))
+            #display(size(v))
+            length(xr) .== length(v) || throw(DimensionMismatch)
+            set_vector!(xr,v,1)
+            zero!(xl)
+            build_sigma!(xl, xr, cluster_ops, clustered_ham, cache=cache)
+
+            tmp = deepcopy(xr)
             scale!(tmp, -eshift)
-            orth_add!(sig, tmp)
-            return get_vectors(sig)
+            orth_add!(xl, tmp)
+            return get_vectors(xl)
         end
 
         @printf(" %-50s%10.6f\n", "Norm of b: ", sum(bv.*bv))
@@ -297,15 +300,20 @@ function tucker_cepa_solve(ref_vector::BSTstate{T,N,R}, cepa_vector::BSTstate, c
             @time cache_hamiltonian(x_vector, x_vector, cluster_ops, clustered_ham)
         end
        
-        println(" Start CEPA iterations with dimension = ", length(x_vector))
-        time = @elapsed x, solver = cg!(get_vectors(x_vector), Axx,bv,log=true, maxiter=max_iter, verbose=verbose, abstol=tol)
-        @printf(" %-50s%10.6f seconds\n", "Time to solve for CEPA with conjugate gradient: ", time)
-        
+        for r in 1:R
+            
+            println(" Start CEPA iterations with dimension = ", length(x_vector))
+            xv = get_vector(x_vector,r)
+            time = @elapsed x, solver = cg!(xv, Axx, bv[:,r],
+                                            log=true, maxiter=max_iter, verbose=verbose, abstol=tol)
+            @printf(" %-50s%10.6f seconds\n", "Time to solve for CEPA with conjugate gradient: ", time)
+
+            set_vector!(x_vector, xv[:,1], r)
+        end
         #flush term cache
         #println(" Now flushing:")
         flush_cache(clustered_ham)
 
-        set_vectors!(x_vector, x)
 
         SxC = nonorth_dot(Sx,x_vector)
         @printf(" %-50s%10.2f\n", "<A|X>C(X): ", SxC[1])
@@ -450,22 +458,27 @@ function tucker_cepa_solve2(ref_vector::BSTstate, cepa_vector::BSTstate, cluster
     @printf(" Norm of Sx overlap: %12.8f\n", orth_dot(Sx,Sx))
     @printf(" Norm of b         : %12.8f\n", sum(bv.*bv))
 
+    #
+    # Currently, we need to solve each root separately, this should be fixed
+    # by writing our own CG solver
     function mymatvec(v)
-        set_vectors!(x_vector, v)
+        
+        xr = BSTstate(sig, R=1)
+        xl = BSTstate(sig, R=1)
         #@printf(" Overlap between <1|0>:          %8.1e\n", nonorth_dot(x_vector, ref_vector, verbose=0))
-        sig = deepcopy(x_vector)
-        zero!(sig)
-        #build_sigma!(sig, x_vector, cluster_ops, clustered_ham, nbody=nbody, cache=false)
-        build_sigma!(sig, x_vector, cluster_ops, clustered_ham, cache=cache)
+        length(xr) .== length(x) || throw(DimensionMismatch)
+        set_vector!(xr,x,1)
+        zero!(xl)
+        build_sigma!(xl, xr, cluster_ops, clustered_ham, cache=cache)
 
-        tmp = deepcopy(x_vector)
+        tmp = deepcopy(xr)
         if do_pt2
             scale!(tmp, -e0_1b)
         else
             scale!(tmp, -e0)
         end
-        orth_add!(sig, tmp)
-        return get_vectors(sig)
+        orth_add!(xl, tmp)
+        return get_vectors(xl)
     end
     dim = length(x_vector)
     Axx = LinearMap(mymatvec, dim, dim)
@@ -700,17 +713,16 @@ function hylleraas_compressed_mp2(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R},
             end
         end
     end
-
-    for r in 1:R
-        b[:,r] .+= get_vector(Sx,R)[:,1]*(e_ref[r] - e0[r])
-    end
-
-    
+    #
+    # Currently, we need to solve each root separately, this should be fixed
+    # by writing our own CG solver
     function mymatvec(x)
 
-        xr = BSTstate(sig, R=size(x,2))
-        xl = BSTstate(sig, R=size(x,2))
-        set_vectors!(xr,x)
+        xr = BSTstate(sig, R=1)
+        xl = BSTstate(sig, R=1)
+       
+        length(xr) .== length(x) || throw(DimensionMismatch)
+        set_vector!(xr,x,1)
         zero!(xl)
         build_sigma!(xl, xr, cluster_ops, clustered_ham_0, cache=true)
 
@@ -723,27 +735,33 @@ function hylleraas_compressed_mp2(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R},
         return get_vectors(xl)
     end
 
-    dim = length(b)
-    Axx = LinearMap(mymatvec, dim, dim)
-
     #@printf(" Norm of b         : %18.12f\n", sum(b.*b))
     flush_cache(clustered_ham_0)
-    
     @printf(" %-50s", "Cache zeroth-order Hamiltonian: ")
     @time cache_hamiltonian(sig, sig, cluster_ops, clustered_ham_0)
-    #@time cache_hamiltonian(sig, sig, cluster_ops, clustered_ham_0, nbody=1)
-
-    #todo:  setting initial value to zero only makes sense when our reference space is projected out. 
-    #       if it's not, then we want to add the reference state components |guess> += |ref><ref|guess>
-    #
-    x_vector = zeros(dim,R)
-    time = @elapsed x, solver = cg!(x_vector, Axx, b, log=true, maxiter=max_iter, verbose=true, abstol=tol)
-    @printf(" %-50s%10.6f seconds\n", "Time to solve for PT1 with conjugate gradient: ", time)
-    
-    flush_cache(clustered_ham_0)
-
     psi1 = deepcopy(sig)
-    set_vectors!(psi1,x_vector)
+
+    for r in 1:R
+        b[:,r] .+= get_vector(Sx,R)[:,1]*(e_ref[r] - e0[r])
+
+
+        dim = length(b)
+        Axx = LinearMap(mymatvec, dim, dim)
+
+
+        #@time cache_hamiltonian(sig, sig, cluster_ops, clustered_ham_0, nbody=1)
+
+        #todo:  setting initial value to zero only makes sense when our reference space is projected out. 
+        #       if it's not, then we want to add the reference state components |guess> += |ref><ref|guess>
+        #
+        x_vector = zeros(dim)
+        time = @elapsed x, solver = cg!(x_vector, Axx, b, log=true, maxiter=max_iter, verbose=true, abstol=tol)
+        @printf(" %-50s%10.6f seconds\n", "Time to solve for PT1 with conjugate gradient: ", time)
+    
+        set_vector!(psi1,x_vector,r)
+    end
+        
+    flush_cache(clustered_ham_0)
     
     SxC = orth_dot(Sx,psi1)
     #@printf(" %-50s%10.2f\n", "<A|X>C(X): ", SxC)
@@ -1092,13 +1110,18 @@ function do_fois_pt2(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     println()
     @printf(" %-50s\n", "Compute compressed FOIS: ")
     time = @elapsed pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
-    @printf(" %-50s%10.6f seconds\n", "Time spend building compressed FOIS: ",time)
+    @printf(" %-50s%10.6f seconds\n", "Time spent building compressed FOIS: ",time)
+    display(orth_overlap(pt1_vec, pt1_vec))
+    display(eigen(get_vectors(pt1_vec)'*get_vectors(pt1_vec)))
     project_out!(pt1_vec, ref)
+    
+    display(orth_overlap(pt1_vec, pt1_vec))
 
     # 
     # Compress FOIS
     norm1 = sqrt.(orth_dot(pt1_vec, pt1_vec))
     dim1 = length(pt1_vec)
+    display(orth_overlap(pt1_vec, pt1_vec))
     pt1_vec = compress(pt1_vec, thresh=thresh_foi)
     norm2 = sqrt.(orth_dot(pt1_vec, pt1_vec))
     dim2 = length(pt1_vec)
@@ -1254,19 +1277,27 @@ Project w out of v
 |v'> = |v> - |w><w|v>
 """
 function project_out!(v::BSTstate{T,N,R}, w::BSTstate{T,N,R}; thresh=1e-16) where {T,N,R}
-    
-    for (fock,tconfigs) in v 
-        for (tconfig, tuck) in tconfigs
-            if haskey(w, fock)
-                if haskey(w[fock], tconfig)
-                    w_tuck = w[fock][tconfig]
 
-                    ovlp = nonorth_dot(tuck, w_tuck) ./ nonorth_dot(w_tuck, w_tuck)
-                    tmp = scale(w_tuck, -1.0 * ovlp)
-                    v[fock][tconfig] = nonorth_add(tuck, tmp, thresh=thresh)
-                end
-            end
-        end
-    end
+    ovlp = nonorth_overlap(w,v)
+    wv = -get_vectors(w)*ovlp
+    ww = deepcopy(w)
+    set_vectors!(ww,wv)
+    nonorth_add!(v, ww)
+
+
+    
+#    for (fock,tconfigs) in v 
+#        for (tconfig, tuck) in tconfigs
+#            if haskey(w, fock)
+#                if haskey(w[fock], tconfig)
+#                    w_tuck = w[fock][tconfig]
+#
+#                    ovlp = nonorth_dot(tuck, w_tuck) ./ nonorth_dot(w_tuck, w_tuck)
+#                    tmp = scale(w_tuck, -1.0 * ovlp)
+#                    v[fock][tconfig] = nonorth_add(tuck, tmp, thresh=thresh)
+#                end
+#            end
+#        end
+#    end
 end
 

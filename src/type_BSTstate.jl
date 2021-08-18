@@ -441,7 +441,7 @@ end
 """
     function set_vector!(ts::BSTstate{T,N,R}, v::Vector{T}, root::Integer) where {T,N,R}
 """
-function set_vector!(ts::BSTstate{T,N,R}, v::Vector{T}, root::Integer) where {T,N,R}
+function set_vector!(ts::BSTstate{T,N,R}, v::AbstractArray{T,1}, root::Integer) where {T,N,R}
 #={{{=#
     #length(size(v)) == 1 || error(" Only takes vectors", size(v))
     nbasis = size(v)[1]
@@ -629,6 +629,30 @@ function orth_dot(ts1::BSTstate{T,N,R}, ts2::BSTstate{T,N,R}) where {T,N,R}
             for r in 1:R
                 overlap[r] += sum(ts1[fock][config].core[r] .* ts2[fock][config].core[r])
             end
+        end
+    end
+    return overlap
+    #=}}}=#
+end
+
+
+
+"""
+    nonorth_overlap(ts1::FermiCG.BSTstate, ts2::FermiCG.BSTstate; verbose=0)
+
+Dot product between 1ts2` and `ts1` where each have their own Tucker factors
+"""
+function nonorth_overlap(ts1::BSTstate{T,N,R}, ts2::BSTstate{T,N,R}; verbose=0) where {T,N,R}
+    #={{{=#
+    overlap = zeros(T,R,R)
+    for (fock,configs) in ts2
+        haskey(ts1, fock) || continue
+        verbose == 0 || display(fock)
+        for (config,coeffs) in configs
+            haskey(ts1[fock], config) || continue
+            verbose == 0 || display(config)
+            overlap .+= nonorth_overlap(ts1[fock][config] , ts2[fock][config])
+            verbose == 0 || display(dot(ts1[fock][config] , ts2[fock][config]))
         end
     end
     return overlap
