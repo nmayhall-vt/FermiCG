@@ -109,6 +109,13 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
                                                                 conv_thresh=ci_conv,
                                                                 max_iter    = ci_max_iter,
                                                                 max_ss_vecs = ci_max_ss_vecs)
+        else
+            tmp = deepcopy(ref_vec)
+            zero!(tmp)
+            @printf(" %-50s", "Compute zeroth-order energy: ")
+            flush(stdout)
+            @time build_sigma!(tmp, ref_vec, cluster_ops, clustered_ham)
+            e0 = orth_dot(tmp,ref_vec)
         end
         #       sig = deepcopy(ref_vec)
         #       zero!(sig)
@@ -178,9 +185,6 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
             dim2 = length(pt1_vec)
             @printf(" %-50s", "PT compressed from: ")
             @printf("%10i → %-10i (thresh = %8.1e)\n", dim1, dim2, thresh_pt)
-            @printf(" %-50s\n", "Norm of |1>: ")
-            [@printf("%10.8f ",norm2[r]) for r in 1:R]
-            println()
             @printf(" %-50s", "Overlap between <1|0>: ")
             ovlp = nonorth_dot(pt1_vec, ref_vec, verbose=0)
             [@printf("%10.8f ",ovlp[r]) for r in 1:R]

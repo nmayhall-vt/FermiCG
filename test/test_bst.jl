@@ -23,6 +23,7 @@ using Test
     FermiCG.eye!(v)
     vv = FermiCG.get_vectors(v)
     FermiCG.orthonormalize!(v)
+    e_ci, v = FermiCG.tucker_ci_solve(v, cluster_ops, clustered_ham)
     e_var, v_var = FermiCG.block_sparse_tucker(v, cluster_ops, clustered_ham,
                                                max_iter    = 20,
                                                max_iter_pt = 200, 
@@ -33,7 +34,7 @@ using Test
                                                thresh_pt   = sqrt(1e-5),
                                                ci_conv     = 1e-5,
                                                do_pt       = true,
-                                               resolve_ss  = true,
+                                               resolve_ss  = false,
                                                tol_tucker  = 1e-4)
        
 #    for i in 1:4

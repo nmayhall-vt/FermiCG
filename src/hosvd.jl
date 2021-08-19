@@ -232,6 +232,24 @@ end
 #=}}}=#
 
 """
+    function nonorth_dot(t1::Tucker{T,N,R}, t2::Tucker{T,N,R}) where {T,N,R}
+
+Note: This doesn't assume `t1` and `t2` have the same compression vectors 
+"""
+function nonorth_dot(t1::Tucker{T,N,R1}, t2::Tucker{T,N,R2}, r1, r2) where {T,N,R1,R2}
+#={{{=#
+    
+    out = zero(T)
+    overlaps = Dict{Int,Matrix{T}}()
+    all(dims_large(t1) .== dims_large(t2)) || error(" t1 and t2 don't have same dimensions")
+    for f in 1:N
+        overlaps[f] = t1.factors[f]' * t2.factors[f]
+    end
+    return sum(transform_basis(t1.core[r1], overlaps) .* t2.core[r2])
+end
+#=}}}=#
+
+"""
     function orth_dot(t1::Tucker{T,N,R}, t2::Tucker{T,N,R}) where {T,N,R}
 
 Note: This assumes `t1` and `t2` have the same compression vectors 
