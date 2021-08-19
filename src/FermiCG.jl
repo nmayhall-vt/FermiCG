@@ -72,6 +72,7 @@ include("type_ClusteredOperator.jl")
 
 include("tucker_inner.jl")
 include("tucker_outer.jl")
+include("tucker_pt.jl")
 include("bst.jl")
 
 include("tpsci_inner.jl")

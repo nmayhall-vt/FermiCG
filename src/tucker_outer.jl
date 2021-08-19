@@ -627,184 +627,6 @@ end
 
 
 """
-    hylleraas_compressed_mp2(sig_in::BSTstate, ref::BSTstate,
-            cluster_ops, clustered_ham;
-            H0 = "Hcmf", tol=1e-6, nbody=4, max_iter=40, verbose=1, do_pt = true, thresh=1e-8)
-
-- `H0`: ["H", "Hcmf"] 
-"""
-function hylleraas_compressed_mp2(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R},
-            cluster_ops, clustered_ham;
-            H0 = "Hcmf", tol=1e-6, nbody=4, max_iter=100, verbose=1, do_pt = true, thresh=1e-8) where {T,N,R}
-#={{{=#
-    
-#
-            
-
-    clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = H0) 
-    
-    # 
-    # get <X|H|0>
-    #sig = compress(sig_in, thresh=thresh)
-    sig = deepcopy(sig_in)
-    @printf(" %-50s%10i\n", "Length of input      FOIS: ", length(sig_in))
-    #@printf(" %-50s%10i\n", "Length of compressed FOIS: ", length(sig))
-    #project_out!(sig, ref, thresh=thresh)
-    zero!(sig)
-            
-    @printf(" %-50s", "Build exact <X|V|0>: ")
-    @time build_sigma!(sig, ref, cluster_ops, clustered_ham)
-    
-    
-    # (H0 - E0) |1> = X H |0>
-
-    e2 = 0.0
-   
-    # 
-    # get E_ref = <0|H|0>
-    tmp = deepcopy(ref)
-    zero!(tmp)
-    build_sigma!(tmp, ref, cluster_ops, clustered_ham)
-    e_ref = orth_dot(ref, tmp)
-    if verbose > 0 
-        @printf(" %5s %12s\n", "Root", "E(Ref)")
-        for r in 1:R
-            @printf(" %5s %12.8f\n",r, e_ref[r])
-        end
-    end
-
-
-    # 
-    # get E0 = <0|H0|0>
-    tmp = deepcopy(ref)
-    zero!(tmp)
-    @printf(" %-50s", "Compute <0|H0|0>: ")
-    @time build_sigma!(tmp, ref, cluster_ops, clustered_ham_0)
-    e0 = orth_dot(ref,tmp)
-    #@printf(" <0|sig>  : %12.8f\n",nonorth_dot(ref,sig))
-    #@printf(" <0|H0|0>  : %12.8f\n",e0)
-
-
-    #@printf(" %-50s%10i\n", "Length of FOIS: ", length(sig))
-    
-   
-    #@printf(" Project out reference\n")
-    #sig = compress(sig, thresh=thresh)
-    #@printf(" <0|sig>  : %12.8f\n",nonorth_dot(ref,sig))
-   
-    b = -get_vectors(sig)
-    
-    # 
-    # get <X|F|0>
-    tmp = deepcopy(sig)
-    zero!(tmp)
-    @printf(" %-50s", "Compute <X|F|0>: ")
-    @time build_sigma!(tmp, ref, cluster_ops, clustered_ham_0)
-
-    #@printf(" %-50s%10.2f\n", "Norm of <X|F|0>: ", sqrt(orth_dot(tmp,tmp)))
-    b .+= get_vectors(tmp)
-    
-    #
-    # Get Overlap <X|A>C(A)
-    Sx = deepcopy(sig)
-    zero!(Sx)
-    for (fock,tconfigs) in Sx 
-        for (tconfig, tuck) in tconfigs
-            if haskey(ref, fock)
-                if haskey(ref[fock], tconfig)
-                    ref_tuck = ref[fock][tconfig]
-                    # Cr(i,j,k...) Ur(Ii) Ur(Jj) ...
-                    # Ux(Ii') Ux(Jj') ...
-                    #
-                    # Cr(i,j,k...) S(ii') S(jj')...
-                    overlaps = Vector{Matrix{T}}() 
-                    for i in 1:length(Sx.clusters)
-                        push!(overlaps, ref_tuck.factors[i]' * tuck.factors[i])
-                    end
-                    for r in 1:R
-                        Sx[fock][tconfig].core[r] .= transform_basis(ref_tuck.core[r], overlaps)
-                    end
-                end
-            end
-        end
-    end
-    #
-    # Currently, we need to solve each root separately, this should be fixed
-    # by writing our own CG solver
-    function mymatvec(x)
-
-        xr = BSTstate(sig, R=1)
-        xl = BSTstate(sig, R=1)
-      
-        #display(size(xr))
-        #display(size(x))
-        length(xr) .== length(x) || throw(DimensionMismatch)
-        set_vector!(xr,x,1)
-        zero!(xl)
-        build_sigma!(xl, xr, cluster_ops, clustered_ham_0, cache=true)
-
-        # subtract off -E0|1>
-        #
-        scale!(xr,-e0)
-        orth_add!(xl,xr)
-        flush(stdout)
-
-        return get_vectors(xl)
-    end
-
-    #@printf(" Norm of b         : %18.12f\n", sum(b.*b))
-    flush_cache(clustered_ham_0)
-    @printf(" %-50s", "Cache zeroth-order Hamiltonian: ")
-    @time cache_hamiltonian(sig, sig, cluster_ops, clustered_ham_0)
-    psi1 = deepcopy(sig)
-
-    for r in 1:R
-        br = b[:,r] .+ get_vector(Sx,R)[:,1] .* (e_ref[r] - e0[r])
-
-
-        dim = length(br)
-        Axx = LinearMap(mymatvec, dim, dim)
-
-
-        #@time cache_hamiltonian(sig, sig, cluster_ops, clustered_ham_0, nbody=1)
-
-        #todo:  setting initial value to zero only makes sense when our reference space is projected out. 
-        #       if it's not, then we want to add the reference state components |guess> += |ref><ref|guess>
-        #
-        x_vector = zeros(dim)
-        time = @elapsed x, solver = cg!(x_vector, Axx, br, log=true, maxiter=max_iter, verbose=true, abstol=tol)
-        @printf(" %-50s%10.6f seconds\n", "Time to solve for PT1 with conjugate gradient: ", time)
-    
-        set_vector!(psi1,x_vector,r)
-    end
-        
-    flush_cache(clustered_ham_0)
-    
-    SxC = orth_dot(Sx,psi1)
-    #@printf(" %-50s%10.2f\n", "<A|X>C(X): ", SxC)
-    #@printf(" <A|X>C(X) = %12.8f\n", SxC)
-   
-    tmp = deepcopy(ref)
-    zero!(tmp)
-    @printf(" %-50s", "Compute <0|H|1>: ")
-    @time build_sigma!(tmp,psi1, cluster_ops, clustered_ham)
-    ecorr = nonorth_dot(tmp,ref)
-    #@printf(" <1|1> = %12.8f\n", orth_dot(psi1,psi1))
-    #@printf(" <0|H|1> = %12.8f\n", ecorr)
-   
-    for r in 1:R
-        @printf(" State %3i: %-37s%12.8f\n", r, "E(PT2) corr: ", (e_ref[r] + ecorr[r])/(1+SxC[r])-e_ref[r])
-        @printf(" State %3i: %-37s%12.8f\n", r, "E(PT2): ", (e_ref[r] + ecorr[r])/(1+SxC[r]))
-    end
-
-    return psi1, (ecorr.+e_ref)./(1.0 .+ SxC) 
-
-end#=}}}=#
-
-
-
-
-"""
     build_compressed_1st_order_state(ket_cts::BSTstate{T,N}, cluster_ops, clustered_ham; 
         thresh=1e-7, 
         max_number=nothing, 
@@ -1074,87 +896,6 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops,
 end
     
     
-    
-
-
-"""
-    function do_fois_pt2(ref::BSTstate, cluster_ops, clustered_ham;
-            H0          = "Hcmf",
-            max_iter    = 50,
-            nbody       = 4,
-            thresh_foi  = 1e-6,
-            tol         = 1e-5,
-            opt_ref     = true,
-            verbose     = true)
-
-Do PT2
-"""
-function do_fois_pt2(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
-            H0          = "Hcmf",
-            max_iter    = 50,
-            nbody       = 4,
-            thresh_foi  = 1e-6,
-            tol         = 1e-5,
-            opt_ref     = true,
-            verbose     = true) where {T,N,R}
-    @printf(" |== Solve for BST PT1 Wavefunction ================================\n")
-    println(" H0          : ", H0          ) 
-    println(" max_iter    : ", max_iter    ) 
-    println(" nbody       : ", nbody       ) 
-    println(" thresh_foi  : ", thresh_foi  ) 
-    println(" tol         : ", tol         ) 
-    println(" opt_ref     : ", opt_ref     ) 
-    println(" verbose     : ", verbose     ) 
-    @printf("\n")
-    @printf(" %-50s", "Length of Reference: ")
-    @printf("%10i\n", length(ref))
-
-    # 
-    # Solve variationally in reference space
-    ref_vec = deepcopy(ref)
-    
-    if opt_ref 
-        @printf(" %-50s\n", "Solve zeroth-order problem: ")
-        time = @elapsed e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, conv_thresh=tol)
-        @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
-    end
-
-    #
-    # Get First order wavefunction
-    println()
-    @printf(" %-50s\n", "Compute compressed FOIS: ")
-    time = @elapsed pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
-    @printf(" %-50s%10.6f seconds\n", "Time spent building compressed FOIS: ",time)
-    #display(orth_overlap(pt1_vec, pt1_vec))
-    #display(eigen(get_vectors(pt1_vec)'*get_vectors(pt1_vec)))
-    project_out!(pt1_vec, ref)
-    
-    display(orth_overlap(pt1_vec, pt1_vec))
-
-    # 
-    # Compress FOIS
-    norm1 = sqrt.(orth_dot(pt1_vec, pt1_vec))
-    dim1 = length(pt1_vec)
-    pt1_vec = compress(pt1_vec, thresh=thresh_foi)
-    norm2 = sqrt.(orth_dot(pt1_vec, pt1_vec))
-    dim2 = length(pt1_vec)
-    @printf(" %-50s%10i → %-10i (thresh = %8.1e)\n", "FOIS Compressed from: ", dim1, dim2, thresh_foi)
-    #@printf(" %-50s%10.2e → %-10.2e (thresh = %8.1e)\n", "Norm of |1>: ",norm1, norm2, thresh_foi)
-    @printf(" %-50s", "Overlap between <1|0>: ")
-    ovlp = nonorth_dot(pt1_vec, ref_vec, verbose=0)
-    [@printf("%10.6f\n", ovlp[r]) for r in 1:R]
-    println()
-
-    # 
-    # Solve for first order wavefunction 
-    @printf(" %-50s%10i\n", "Compute PT vector. Reference space dim: ", length(ref_vec))
-    pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol, max_iter=max_iter, H0=H0)
-    #@printf(" E(Ref)      = %12.8f\n", e0[1])
-    #@printf(" E(PT2) tot  = %12.8f\n", e_pt2)
-    @printf(" ==================================================================|\n")
-    return e_pt2, pt1_vec 
-end
-
 function do_fois_ci(ref::BSTstate, cluster_ops, clustered_ham;
             H0          = "Hcmf",
             max_iter    = 50,
@@ -1291,22 +1032,27 @@ Project w out of v
 """
 function project_out!(v::BSTstate{T,N,Rv}, w::BSTstate{T,N,Rw}; thresh=1e-16) where {T,N,Rv,Rw}
 
-    for rw in 1:Rw
-        for (fock,tconfigs) in v 
-            for (tconfig, tuck) in tconfigs
-                if haskey(w, fock)
-                    if haskey(w[fock], tconfig)
-                        w_tuck = w[fock][tconfig]
+    S = nonorth_overlap(w,v)
+    wtmp = deepcopy(w)
+    set_vectors!(wtmp, -1.0*get_vectors(w)*S)
+    nonorth_add!(v,wtmp)
 
-                        for rv in 1:Rv
-                            ovlp = nonorth_dot(tuck, w_tuck, rv, rw) / nonorth_dot(w_tuck, w_tuck, rw, rw)
-                            tmp = scale(w_tuck, -1.0 * ovlp)
-                            v[fock][tconfig] = nonorth_add(tuck, tmp, thresh=thresh)
-                        end
-                    end
-                end
-            end
-        end
-    end
+#    for rw in 1:Rw
+#        for (fock,tconfigs) in v 
+#            for (tconfig, tuck) in tconfigs
+#                if haskey(w, fock)
+#                    if haskey(w[fock], tconfig)
+#                        w_tuck = w[fock][tconfig]
+#
+#                        for rv in 1:Rv
+#                            ovlp = nonorth_dot(tuck, w_tuck, rv, rw) / nonorth_dot(w_tuck, w_tuck, rw, rw)
+#                            tmp = scale(w_tuck, -1.0 * ovlp)
+#                            v[fock][tconfig] = nonorth_add(tuck, tmp, thresh=thresh)
+#                        end
+#                    end
+#                end
+#            end
+#        end
+#    end
 end
 

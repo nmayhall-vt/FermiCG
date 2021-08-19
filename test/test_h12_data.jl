@@ -40,8 +40,9 @@ using JLD2
     mf = FermiCG.pyscf_do_scf(mol)
     nbas = size(mf.mo_coeff)[1]
     ints = FermiCG.pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
-    #e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints, na, nb, conv_tol=1e-10,max_cycle=100, nroots=1);
+    #e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints, na, nb, conv_tol=1e-10,max_cycle=100, nroots=4);
     e_fci = -18.33022092
+    e_fci_states = [-18.33022092, -18.05457645, -18.02913048, -17.99661028]
 
     # localize orbitals
     C = mf.mo_coeff
@@ -75,6 +76,9 @@ end
 
 
 @testset "H12_CMF_basis" begin
+    
+    @load "_testdata_cmf_h6.jld2" ints Da Db e_cmf clusters init_fspace
+    
     max_roots = 20
 
     #

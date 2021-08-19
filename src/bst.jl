@@ -172,7 +172,7 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
             println()
             @printf(" %-50s%10i\n", "PT vector reference space dim: ",length(ref_vec))
             time = @elapsed begin
-                @timeit to "PT1" pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=ci_conv, do_pt=do_pt, max_iter=max_iter_pt, H0=H0)
+                @timeit to "PT1" pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=ci_conv, max_iter=max_iter_pt, H0=H0)
             end
             @printf(" %-50s%10.6f seconds\n", "Time spent compute PT1 vector: ", time)
         
