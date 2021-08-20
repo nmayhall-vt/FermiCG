@@ -82,7 +82,7 @@ function hylleraas_compressed_mp2(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R},
     sig = deepcopy(sig_in)
     @printf(" %-50s%10i\n", "Length of input      FOIS: ", length(sig_in))
     #@printf(" %-50s%10i\n", "Length of compressed FOIS: ", length(sig))
-    project_out!(sig, ref, thresh=thresh)
+    #project_out!(sig, ref)
     zero!(sig)
             
     @printf(" %-50s", "Build exact <X|V|0>: ")

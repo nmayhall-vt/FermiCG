@@ -3,6 +3,7 @@ using Printf
 using Test
 
 #@testset "BSTstate" begin
+if false
     @load "_testdata_cmf_h6.jld2"
     v = FermiCG.BSTstate(clusters, FockConfig(init_fspace), cluster_bases)
     
@@ -56,8 +57,8 @@ using Test
 #    end
 #
 #end
+end
 
-if false
 @testset "BST" begin
 
 
@@ -94,4 +95,5 @@ if false
     @test isapprox(e_ci[1], -18.329649399280648, atol=1e-8)
 
 end
+if false
 end
