@@ -81,9 +81,19 @@ function cache_hamiltonian_old(sigma_vector::BSTstate, ci_vector::BSTstate, clus
     #=}}}=#
 end
 
-function cache_hamiltonian(bra::BSTstate, ket::BSTstate, cluster_ops, clustered_ham; nbody=4, verbose=0)
+function cache_hamiltonian(bra::BSTstate{T,N,R}, ket::BSTstate{T,N,R}, cluster_ops, clustered_ham; nbody=4, verbose=0) where {T,N,R}
 #={{{=#
     keys_to_loop = [keys(clustered_ham.trans)...]
+    
+    # set up scratch arrays
+    nscr = 5
+    scr_f = Vector{Vector{Vector{T}} }()
+    for tid in 1:Threads.nthreads()
+        tmp = Vector{Vector{T}}() 
+        [push!(tmp, zeros(T,100000)) for i in 1:nscr]
+        push!(scr_f, tmp)
+    end
+   
     
     if verbose>0
         @printf(" %-50s", " Number of threaded jobs:")
@@ -116,7 +126,8 @@ function cache_hamiltonian(bra::BSTstate, ket::BSTstate, cluster_ops, clustered_
 
                         term.cache[cache_key] = build_dense_H_term(term, cluster_ops, 
                                                                    fock_bra, config_bra, tuck_bra, 
-                                                                   fock_ket, config_ket, tuck_ket)
+                                                                   fock_ket, config_ket, tuck_ket, 
+                                                                   scr_f[Threads.threadid()])
                     end
                 end
             end
@@ -128,7 +139,7 @@ end
 """
     build_sigma_parallel!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, clustered_ham)
 """
-function build_sigma!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, clustered_ham; nbody=4, cache=false)
+function build_sigma!(sigma_vector::BSTstate{T,N,R}, ci_vector::BSTstate{T,N,R}, cluster_ops, clustered_ham; nbody=4, cache=false) where {T,N,R}
     #={{{=#
 
     jobs = []
@@ -137,6 +148,15 @@ function build_sigma!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, 
         for (config_bra, tuck_bra) in configs_bra
             push!(jobs, [fock_bra, config_bra])
         end
+    end
+    
+    # set up scratch arrays
+    nscr = 5
+    scr_f = Vector{Vector{Vector{T}} }()
+    for tid in 1:Threads.nthreads()
+        tmp = Vector{Vector{T}}() 
+        [push!(tmp, zeros(T,100000)) for i in 1:nscr]
+        push!(scr_f, tmp)
     end
    
     function do_job(job)
@@ -168,6 +188,7 @@ function build_sigma!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, 
                     out = form_sigma_block!(term, cluster_ops, fock_bra, config_bra,
                                                   fock_ket, config_ket,
                                                   coeff_bra, coeff_ket,
+                                                  scr_f[Threads.threadid()],
                                                   cache=cache)
 
                     push!(output[Threads.threadid()], (fock_bra, config_bra, out))
@@ -206,7 +227,8 @@ function form_sigma_block!(term::C,
                             cluster_ops::Vector{ClusterOps},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
-                            coeffs_bra::Tucker{T,N,R}, coeffs_ket::Tucker{T,N,R};
+                            coeffs_bra::Tucker{T,N,R}, coeffs_ket::Tucker{T,N,R},
+                            scr_f::Vector{Vector{T}};
                             cache=false ) where {T,N,R, C<:ClusteredTerm}
     #={{{=#
     check_term(term, fock_bra, bra, fock_ket, ket) || throw(Exception) 
@@ -232,8 +254,11 @@ function form_sigma_block!(term::C,
 
         #
         # build the dense H term
-        op = build_dense_H_term(term, cluster_ops, fock_bra, bra, coeffs_bra, fock_ket, ket, coeffs_ket)
-        
+        op = build_dense_H_term(term, cluster_ops, fock_bra, bra, coeffs_bra, fock_ket, ket, coeffs_ket, scr_f)
+        #if term isa ClusteredTerm3B
+        #    @btime op = build_dense_H_term($term, $cluster_ops, $fock_bra, $bra, $coeffs_bra, $fock_ket, $ket, $coeffs_ket, $scr_f)
+        # #   error("please stop")
+        #end
         #if cache
         #    term.cache[cache_key] = op
         #end
@@ -250,7 +275,8 @@ end
 """
     Contract integrals and ClusterOps to form dense 4-body Hamiltonian matrix (tensor) in Tucker basis
 """
-function build_dense_H_term(term::ClusteredTerm1B, cluster_ops, fock_bra, bra, coeffs_bra::Tucker, fock_ket, ket, coeffs_ket::Tucker)
+function build_dense_H_term(term::ClusteredTerm1B, cluster_ops, fock_bra, bra, coeffs_bra::Tucker, fock_ket, ket, coeffs_ket::Tucker,
+                            scr_f::Vector{Vector{T}}) where T
 #={{{=#
     c1 = term.clusters[1]
     op = Array{Float64}[]
@@ -264,94 +290,158 @@ function build_dense_H_term(term::ClusteredTerm1B, cluster_ops, fock_bra, bra, c
     return op
 end
 #=}}}=#
-function build_dense_H_term(term::ClusteredTerm2B, cluster_ops, fock_bra, bra, coeffs_bra::Tucker, fock_ket, ket, coeffs_ket::Tucker)
+function build_dense_H_term(term::ClusteredTerm2B, cluster_ops, fock_bra, bra, coeffs_bra::Tucker, fock_ket, ket, coeffs_ket::Tucker, 
+                            scr_f::Vector{Vector{T}}) where T
 #={{{=#
     c1 = term.clusters[1]
     c2 = term.clusters[2]
-    op = Array{Float64}[]
 
     #
     # Compress Gammas using the cluster's Tucker factors
     # e.g.,
     #   Gamma(pqr, I, J) Ul(I,k) Ur(J,l) = Gamma(pqr, k, l) where k and l are compressed indices
-    @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    gamma1m::Array{Float64,3} = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
+    gamma2m::Array{Float64,3} = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])]
+    @views gamma1 = gamma1m[:,bra[c1.idx],ket[c1.idx]]
+    @views gamma2 = gamma2m[:,bra[c2.idx],ket[c2.idx]]
+    #@btime @views gamma1::Array{Float64,3} = $cluster_ops[$c1.idx][$term.ops[1]][($fock_bra[$c1.idx],$fock_ket[$c1.idx])][:,$bra[$c1.idx],$ket[$c1.idx]]
     Ul = coeffs_bra.factors[c1.idx]
     Ur = coeffs_ket.factors[c1.idx]
-    @tensor begin
-        tmp[p,k,J] := Ul[I,k] * gamma1[p,I,J]
-        g1[p,k,l] := Ur[J,l] * tmp[p,k,J]
-    end
-    #g1 = _compress_local_operator(gamma1, Ul, Ur)
-    #g1 = @ncon([gamma1, U1, U2], [[-1,2,3], [2,-2], [3,-3]])
 
-    @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
+    tmp = scr_f[1]
+    g1  = scr_f[2]
+    g2  = scr_f[3]
+
+    resize!(tmp, size(Ul,2) * size(gamma1,1) * size(gamma1,3))
+    resize!(g1, size(Ul,2) * size(Ur,2) * size(gamma1,1))
+    
+    tmp = reshape2(tmp, (size(gamma1,1), size(Ul,2), size(gamma1,3)))
+    g1 = reshape2(g1, (size(gamma1,1), size(Ul,2), size(Ur,2)))
+    
+    @tensor begin
+        tmp[p,k,J] = Ul[I,k] * gamma1[p,I,J]
+        g1[p,k,l] = Ur[J,l] * tmp[p,k,J]
+    end
+
     Ul = coeffs_bra.factors[c2.idx]
     Ur = coeffs_ket.factors[c2.idx]
+    
+    tmp = scr_f[1]
+    resize!(tmp, size(Ul,2) * size(gamma2,1) * size(gamma2,3))
+    resize!(g2, size(Ul,2) * size(Ur,2) * size(gamma2,1))
+    
+    tmp = reshape2(tmp, (size(gamma2,1), size(Ul,2), size(gamma2,3)))
+    g2 = reshape2(g2, (size(gamma2,1), size(Ul,2), size(Ur,2)))
+    
     @tensor begin
-        tmp[p,k,J] := Ul[I,k] * gamma2[p,I,J]
-        g2[p,k,l] := Ur[J,l] * tmp[p,k,J]
+        tmp[p,k,J] = Ul[I,k] * gamma2[p,I,J]
+        g2[p,k,l] = Ur[J,l] * tmp[p,k,J]
     end
-    #g2 = @ncon([gamma2, U1, U2], [[-1,2,3], [2,-2], [3,-3]])
-    #display(("g1/2", size(g1), size(g2)))
 
+    tmp2 = scr_f[4]
+    resize!(tmp2, size(term.ints,2) * size(g1,3) * size(g1,2) )
+    tmp2 = reshape2(tmp2, (size(term.ints,2), size(g1,3), size(g1,2)))
+    
     @tensor begin
-        op[q,J,I] := term.ints[p,q] * g1[p,I,J]
-        op[J,L,I,K] := op[q,J,I] * g2[q,K,L]
+        tmp2[q,J,I] = term.ints[p,q] * g1[p,I,J]
+        op[J,L,I,K] := tmp2[q,J,I] * g2[q,K,L]
     end
 
     return op
 end
 #=}}}=#
-function build_dense_H_term(term::ClusteredTerm3B, cluster_ops, fock_bra, bra, coeffs_bra::Tucker, fock_ket, ket, coeffs_ket::Tucker)
+function build_dense_H_term(term::ClusteredTerm3B, cluster_ops, fock_bra, bra, coeffs_bra::Tucker, fock_ket, ket, coeffs_ket::Tucker,
+                            scr_f::Vector{Vector{T}}) where T
 #={{{=#
     c1 = term.clusters[1]
     c2 = term.clusters[2]
     c3 = term.clusters[3]
-    op = Array{Float64}[]
 
     #
     # Compress Gammas using the cluster's Tucker factors
     # e.g.,
     #   Gamma(pqr, I, J) Ul(I,k) Ur(J,l) = Gamma(pqr, k, l) where k and l are compressed indices
-    @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    gamma1m::Array{Float64,3} = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
+    gamma2m::Array{Float64,3} = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])]
+    gamma3m::Array{Float64,3} = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])]
+    @views gamma1 = gamma1m[:,bra[c1.idx],ket[c1.idx]]
+    @views gamma2 = gamma2m[:,bra[c2.idx],ket[c2.idx]]
+    @views gamma3 = gamma3m[:,bra[c3.idx],ket[c3.idx]]
+    
     Ul = coeffs_bra.factors[c1.idx]
     Ur = coeffs_ket.factors[c1.idx]
+    
+    tmp1 = scr_f[1]
+    tmp2 = scr_f[2]
+    g1  = scr_f[3]
+    g2  = scr_f[4]
+    g3  = scr_f[5]
+
+    resize!(tmp1, size(Ul,2) * size(gamma1,1) * size(gamma1,3))
+    resize!(g1, size(Ul,2) * size(Ur,2) * size(gamma1,1))
+    
+    tmp1 = reshape2(tmp1, (size(gamma1,1), size(Ul,2), size(gamma1,3)))
+    g1 = reshape2(g1, (size(gamma1,1), size(Ul,2), size(Ur,2)))
+    
     @tensor begin
-        tmp[p,k,J] := Ul[I,k] * gamma1[p,I,J]
-        g1[p,k,l] := Ur[J,l] * tmp[p,k,J]
+        tmp1[p,k,J] = Ul[I,k] * gamma1[p,I,J]
+        g1[p,k,l] = Ur[J,l] * tmp1[p,k,J]
     end
 
-    @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
     Ul = coeffs_bra.factors[c2.idx]
     Ur = coeffs_ket.factors[c2.idx]
+    
+    tmp1 = scr_f[1]
+    resize!(tmp1, size(gamma2,1) * size(Ul,2) * size(gamma2,3))
+    resize!(g2, size(Ul,2) * size(Ur,2) * size(gamma2,1))
+    
+    tmp1 = reshape2(tmp1, (size(gamma2,1), size(Ul,2), size(gamma2,3)))
+    g2 = reshape2(g2, (size(gamma2,1), size(Ul,2), size(Ur,2)))
+    
     @tensor begin
-        tmp[p,k,J] := Ul[I,k] * gamma2[p,I,J]
-        g2[p,k,l] := Ur[J,l] * tmp[p,k,J]
+        tmp1[p,k,J] := Ul[I,k] * gamma2[p,I,J]
+        g2[p,k,l] := Ur[J,l] * tmp1[p,k,J]
     end
     #display(("g1/2", size(g1), size(g2)))
 
-    @views gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,bra[c3.idx],ket[c3.idx]]
     Ul = coeffs_bra.factors[c3.idx]
     Ur = coeffs_ket.factors[c3.idx]
+    
+    tmp1 = scr_f[1]
+    resize!(tmp1, size(Ul,2) * size(gamma3,1) * size(gamma3,3))
+    resize!(g3, size(Ul,2) * size(Ur,2) * size(gamma3,1))
+    
+    tmp1 = reshape2(tmp1, (size(gamma3,1), size(Ul,2), size(gamma3,3)))
+    g3 = reshape2(g3, (size(gamma3,1), size(Ul,2), size(Ur,2)))
+    
     @tensor begin
-        tmp[p,k,J] := Ul[I,k] * gamma3[p,I,J]
-        g3[p,k,l] := Ur[J,l] * tmp[p,k,J]
+        tmp1[p,k,J] = Ul[I,k] * gamma3[p,I,J]
+        g3[p,k,l] = Ur[J,l] * tmp1[p,k,J]
     end
 
     #
     # Now contract into 3body term
     #
     # h(p,q) * g1(p,I,J) * g2(q,K,L) = op(J,L,I,K)
+    
+    tmp1 = scr_f[1]
+    tmp2 = scr_f[2]
+    resize!(tmp1, size(term.ints,2) * size(term.ints,3) * size(g1,2) * size(g1,3))
+    resize!(tmp2, size(term.ints,3) * size(g1,2) * size(g1,3) * size(g2,2) * size(g2,3))
+    
+    tmp1 = reshape2(tmp1, (size(term.ints,2), size(term.ints,3), size(g1,2), size(g1,3)))
+    tmp2 = reshape2(tmp2, (size(term.ints,3), size(g1,2), size(g1,3), size(g2,2), size(g2,3)))
     @tensor begin
-        op[q,r,I,J] := term.ints[p,q,r] * g1[p,I,J]
-        op[r,I,J,K,L] := op[q,r,I,J] * g2[q,K,L]
-        op[J,L,N,I,K,M] := op[r,I,J,K,L] * g3[r,M,N]
+        tmp1[q,r,I,J] = term.ints[p,q,r] * g1[p,I,J]
+        tmp2[r,I,J,K,L] = tmp1[q,r,I,J] * g2[q,K,L]
+        op[J,L,N,I,K,M] := tmp2[r,I,J,K,L] * g3[r,M,N]
     end
 
     return op
 end
 #=}}}=#
-function build_dense_H_term(term::ClusteredTerm4B, cluster_ops, fock_bra, bra, coeffs_bra::Tucker, fock_ket, ket, coeffs_ket::Tucker)
+function build_dense_H_term(term::ClusteredTerm4B, cluster_ops, fock_bra, bra, coeffs_bra::Tucker, fock_ket, ket, coeffs_ket::Tucker,
+                            scr_f::Vector{Vector{T}}) where T
 #={{{=#
     c1 = term.clusters[1]
     c2 = term.clusters[2]
