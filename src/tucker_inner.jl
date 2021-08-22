@@ -101,6 +101,7 @@ function cache_hamiltonian(bra::BSTstate{T,N,R}, ket::BSTstate{T,N,R}, cluster_o
     end
     
     Threads.@threads for ftrans in keys_to_loop
+        scr = scr_f[Threads.threadid()]
         terms = clustered_ham[ftrans]
         for term in terms
                
@@ -123,6 +124,11 @@ function cache_hamiltonian(bra::BSTstate{T,N,R}, ket::BSTstate{T,N,R}, cluster_o
                         check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
 
                         cache_key = OperatorConfig((fock_bra, fock_ket, config_bra, config_ket))
+                        #if term isa ClusteredTerm4B
+                        #    @btime op = build_dense_H_term($term, $cluster_ops, $fock_bra, $config_bra, $tuck_bra, 
+                        #                                   $fock_ket, $config_ket, $tuck_ket, $scr)
+                        #    error("please stop")
+                        #end
 
                         term.cache[cache_key] = build_dense_H_term(term, cluster_ops, 
                                                                    fock_bra, config_bra, tuck_bra, 
@@ -264,6 +270,10 @@ function form_sigma_block!(term::C,
         #end
     end
 
+    #if term isa ClusteredTerm2B
+    #    @btime contract_dense_H_with_state($term, $op, $state_sign, $coeffs_bra, $coeffs_ket)
+    #    error("please stop")
+    #end
     return contract_dense_H_with_state(term, op, state_sign, coeffs_bra, coeffs_ket)
 end
 #=}}}=#
@@ -692,11 +702,6 @@ function contract_dense_H_with_state(term::ClusteredTerm2B, op, state_sign, coef
         coeffs_ket2 = reshape(coeffs_ket2, dim1[1]*dim1[2], prod(dim1[3:end]))
         coeffs_bra2 = reshape(coeffs_bra2, dim2[1]*dim2[2], prod(dim2[3:end]))
 
-        #display(term)
-        #display(overlaps)
-        #display((size(coeffs_bra2), size(coeffs_bra.core[r])))
-        #display(size(op'))
-        #display((size(coeffs_ket2), size(coeffs_ket.core[r])))
         coeffs_bra2 .+= s .* (op2' * coeffs_ket2)
 
         coeffs_bra2 = reshape(coeffs_bra2, dim2)
