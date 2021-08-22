@@ -645,13 +645,16 @@ function contract_dense_H_with_state(term::ClusteredTerm2B, op, state_sign, coef
     c1 = term.clusters[1]
     c2 = term.clusters[2]
 
-    n_clusters = N 
     #
     # form overlaps - needed when TuckerConfigs aren't the same because each does their own compression and has
     # distinct Tucker factors
-    overlaps = Dict{Int,Matrix{T}}()
+    overlaps = Vector{Matrix{T}}()
+    #overlaps = Dict{Int,Matrix{T}}()
+    tensors = Vector{Array{T}}()
+    indices = Vector{Vector{Int16}}()
+    state_indices = -collect(1:N)
     s = state_sign # this is the product of scalar overlaps that don't need tensor contractions
-    for ci in 1:n_clusters
+    for ci in 1:N
         ci != c1.idx || continue
         ci != c2.idx || continue
 
@@ -661,58 +664,51 @@ function contract_dense_H_with_state(term::ClusteredTerm2B, op, state_sign, coef
         if length(S) == 1
             s *= S[1]
         else
-            overlaps[ci] = S
+            op_indices = [c1.idx, c2.idx, -c1.idx, -c2.idx]
+            state_indices[c1.idx] = c1.idx
+            state_indices[c2.idx] = c2.idx
+            push!(tensors, op)
+            push!(indices, op_indices)
+        end
+    end
+    push!(indices, state_indices)
+
+    output_size = [size(coeffs_ket.core[1])...]
+    output_size[c1.idx] = size(op,3)
+    output_size[c2.idx] = size(op,4)
+
+    # todo: 
+    #   make the calling function use this in-place to avoid the copy
+    tmp = deepcopy(coeffs_bra)
+    
+    is_scalar = true 
+    for t in tensors
+        if length(t) > 1
+            is_scalar = false
+            break
         end
     end
 
-
-    indices = collect(1:n_clusters)
-    indices[c1.idx] = 0
-    indices[c2.idx] = 0
-    perm,_ = bubble_sort(indices)
-
-    coeffs_bra2_out = [coeffs_bra.core...]
-
-    #
-    # Reshape Hamiltonian term operator
-    op2 = reshape(op, prod(size(op)[1:2]), prod(size(op)[3:4]))
-
+    # loop over global states
     for r in 1:R
-        coeffs_bra2 = deepcopy(coeffs_bra.core[r])
-        coeffs_ket2 = deepcopy(coeffs_ket.core[r])
+        push!(tensors, coeffs_ket.core[r])
 
-        #
-        # multiply by overlaps first if the bra side is smaller,
-        # otherwise multiply by Hamiltonian term first
-        if length(coeffs_bra2) < length(coeffs_ket2)
-            #coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
-        end
-        coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
-
-        #
-        # Transpose to get contig data for blas (explicit copy?)
-        coeffs_ket2 = permutedims(coeffs_ket2, perm)
-        coeffs_bra2 = permutedims(coeffs_bra2, perm)
-
-        #
-        # Reshape for matrix multiply, shouldn't do any copies, right?
-        dim1 = size(coeffs_ket2)
-        dim2 = size(coeffs_bra2)
+        length(tensors) == length(indices) || error(" mismatch between operators and indices")
+        if is_scalar 
+            # this means that all the overlaps and the operator is a scalar
+            #println(size(tmp.core[r]), size(coeffs_ket.core[r]))
         
-        coeffs_ket2 = reshape(coeffs_ket2, dim1[1]*dim1[2], prod(dim1[3:end]))
-        coeffs_bra2 = reshape(coeffs_bra2, dim2[1]*dim2[2], prod(dim2[3:end]))
-
-        coeffs_bra2 .+= s .* (op2' * coeffs_ket2)
-
-        coeffs_bra2 = reshape(coeffs_bra2, dim2)
-
-        # now untranspose
-        perm2,_ = bubble_sort(perm)
-        coeffs_bra2 = permutedims(coeffs_bra2,perm2)
-
-        coeffs_bra2_out[r] = coeffs_bra2
+            if length(tmp.core[r]) > 1
+            else
+                tmp.core[r] .= coeffs_ket.core[r] .* s
+            end
+        else
+            tmp.core[r] .= @ncon(tensors, indices)
+            tmp.core[r] .= tmp.core[r] .* s
+        end
+        deleteat!(tensors,length(tensors))
     end
-    return ntuple(r->coeffs_bra2_out[r], R)
+    return tmp.core
 end
 #=}}}=#
 function contract_dense_H_with_state(term::ClusteredTerm3B, op, state_sign, coeffs_bra::Tucker{T,N,R}, coeffs_ket::Tucker{T,N,R}) where {T,N,R}
@@ -880,6 +876,84 @@ function contract_dense_H_with_state(term::ClusteredTerm4B, op, state_sign, coef
 end
 #=}}}=#
 
+"""
+contract with state, using manual index permuting and dgem
+"""
+function contract_dense_H_with_state_old(term::ClusteredTerm2B, op, state_sign, coeffs_bra::Tucker{T,N,R}, coeffs_ket::Tucker{T,N,R}) where {T,N,R}
+#={{{=#
+    c1 = term.clusters[1]
+    c2 = term.clusters[2]
+
+    n_clusters = N 
+    #
+    # form overlaps - needed when TuckerConfigs aren't the same because each does their own compression and has
+    # distinct Tucker factors
+    overlaps = Dict{Int,Matrix{T}}()
+    s = state_sign # this is the product of scalar overlaps that don't need tensor contractions
+    for ci in 1:n_clusters
+        ci != c1.idx || continue
+        ci != c2.idx || continue
+
+        S = coeffs_bra.factors[ci]' * coeffs_ket.factors[ci]
+
+        # if overlap not just scalar, form and prepare for contraction
+        if length(S) == 1
+            s *= S[1]
+        else
+            overlaps[ci] = S
+        end
+    end
+
+
+    indices = collect(1:n_clusters)
+    indices[c1.idx] = 0
+    indices[c2.idx] = 0
+    perm,_ = bubble_sort(indices)
+
+    coeffs_bra2_out = [coeffs_bra.core...]
+
+    #
+    # Reshape Hamiltonian term operator
+    op2 = reshape(op, prod(size(op)[1:2]), prod(size(op)[3:4]))
+
+    for r in 1:R
+        coeffs_bra2 = deepcopy(coeffs_bra.core[r])
+        coeffs_ket2 = deepcopy(coeffs_ket.core[r])
+
+        #
+        # multiply by overlaps first if the bra side is smaller,
+        # otherwise multiply by Hamiltonian term first
+        if length(coeffs_bra2) < length(coeffs_ket2)
+            #coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
+        end
+        coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
+
+        #
+        # Transpose to get contig data for blas (explicit copy?)
+        coeffs_ket2 = permutedims(coeffs_ket2, perm)
+        coeffs_bra2 = permutedims(coeffs_bra2, perm)
+
+        #
+        # Reshape for matrix multiply, shouldn't do any copies, right?
+        dim1 = size(coeffs_ket2)
+        dim2 = size(coeffs_bra2)
+        
+        coeffs_ket2 = reshape(coeffs_ket2, dim1[1]*dim1[2], prod(dim1[3:end]))
+        coeffs_bra2 = reshape(coeffs_bra2, dim2[1]*dim2[2], prod(dim2[3:end]))
+
+        coeffs_bra2 .+= s .* (op2' * coeffs_ket2)
+
+        coeffs_bra2 = reshape(coeffs_bra2, dim2)
+
+        # now untranspose
+        perm2,_ = bubble_sort(perm)
+        coeffs_bra2 = permutedims(coeffs_bra2,perm2)
+
+        coeffs_bra2_out[r] = coeffs_bra2
+    end
+    return ntuple(r->coeffs_bra2_out[r], R)
+end
+#=}}}=#
 
 function _compress_local_operator(gamma, Ul::Matrix{T}, Ur::Matrix{T}) where T
 # this is way slower than @tensor
