@@ -185,9 +185,9 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
             dim2 = length(pt1_vec)
             @printf(" %-50s", "PT compressed from: ")
             @printf("%10i → %-10i (thresh = %8.1e)\n", dim1, dim2, thresh_pt)
-            @printf(" %-50s", "Overlap between <1|0>: ")
+            @printf(" %-48s", "Overlap between <1|0>: ")
             ovlp = nonorth_dot(pt1_vec, ref_vec, verbose=0)
-            [@printf("%10.8f ",ovlp[r]) for r in 1:R]
+            [@printf("%12.8f ",ovlp[r]) for r in 1:R]
             println()
         end
 

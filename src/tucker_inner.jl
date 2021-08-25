@@ -81,8 +81,16 @@ function cache_hamiltonian_old(sigma_vector::BSTstate, ci_vector::BSTstate, clus
     #=}}}=#
 end
 
-function cache_hamiltonian(bra::BSTstate{T,N,R}, ket::BSTstate{T,N,R}, cluster_ops, clustered_ham; nbody=4, verbose=0) where {T,N,R}
+function cache_hamiltonian(bra::BSTstate{T,N,R}, ket::BSTstate{T,N,R}, cluster_ops, clustered_ham; nbody=4, verbose=0, blas=false) where {T,N,R}
 #={{{=#
+    
+    # it seems like this is quite a bit faster when turned off:
+    if blas
+        TensorOperations.enable_blas()
+    else
+        TensorOperations.disable_blas()
+    end
+
     keys_to_loop = [keys(clustered_ham.trans)...]
     
     # set up scratch arrays
@@ -206,6 +214,7 @@ function build_sigma!(sigma_vector::BSTstate{T,N,R}, ci_vector::BSTstate{T,N,R},
     end
    
     Threads.@threads for job in jobs
+    #for job in jobs
         do_job(job)
     end
 
@@ -270,12 +279,16 @@ function form_sigma_block!(term::C,
         #end
     end
 
-    #if term isa ClusteredTerm4B
+    #if term isa ClusteredTerm2B
+    #    display(term)
     #    @btime contract_dense_H_with_state($term, $op, $state_sign, $coeffs_bra, $coeffs_ket)
-    #    @btime contract_dense_H_with_state_old($term, $op, $state_sign, $coeffs_bra, $coeffs_ket)
-    #    error("please stop")
+    #    @btime contract_dense_H_with_state_tensor($term, $op, $state_sign, $coeffs_bra, $coeffs_ket)
+    #    @btime contract_dense_H_with_state_ncon($term, $op, $state_sign, $coeffs_bra, $coeffs_ket)
+    #    #error("please stop")
     #end
-    return contract_dense_H_with_state_tensor(term, op, state_sign, coeffs_bra, coeffs_ket)
+    return contract_dense_H_with_state(term, op, state_sign, coeffs_bra, coeffs_ket)
+    #return contract_dense_H_with_state_tensor(term, op, state_sign, coeffs_bra, coeffs_ket)
+    #return contract_dense_H_with_state_ncon(term, op, state_sign, coeffs_bra, coeffs_ket)
 end
 #=}}}=#
 
@@ -691,7 +704,10 @@ function contract_dense_H_with_state(term::ClusteredTerm2B, op, state_sign, coef
         if length(coeffs_bra2) < length(coeffs_ket2)
             #coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
         end
+        #println(size(coeffs_ket2))
         coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
+        #println(size(coeffs_ket2))
+        #println()
 
         #
         # Transpose to get contig data for blas (explicit copy?)
@@ -769,7 +785,14 @@ function contract_dense_H_with_state(term::ClusteredTerm3B, op, state_sign, coef
         if length(coeffs_bra2) < length(coeffs_ket2)
             #coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
         end
+        #display(term)
+        #println(size(coeffs_ket2))
+        #coeffs_ket2a = transform_basis(coeffs_ket2, overlaps, trans=true)
+        #coeffs_ket2b = transform_basis2(coeffs_ket2, overlaps, trans=true)
         coeffs_ket2 = transform_basis(coeffs_ket2, overlaps, trans=true)
+        #println(size(coeffs_ket2a))
+        #println(size(coeffs_ket2b))
+        #println()
 
         #
         # Transpose to get contig data for blas (explicit copy?)

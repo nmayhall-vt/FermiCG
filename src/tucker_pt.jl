@@ -224,10 +224,10 @@ function hylleraas_compressed_mp2(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R},
     e_pt2 = zeros(T,R)
     for r in 1:R
         e_pt2[r] = (e_ref[r] + ecorr[r])/(1+SxC[r])
-        @printf(" State %3i: %-37s%12.8f\n", r, "E(PT2) corr: ", e_pt2[r]-e_ref[r])
+        @printf(" State %3i: %-35s%14.8f\n", r, "E(PT2) corr: ", e_pt2[r]-e_ref[r])
     end
     for r in 1:R
-        @printf(" State %3i: %-37s%12.8f\n", r, "E(PT2): ", e_pt2[r])
+        @printf(" State %3i: %-35s%14.8f\n", r, "E(PT2): ", e_pt2[r])
     end
 
     return psi1, e_pt2 

@@ -198,6 +198,7 @@ function nonorth_overlap(t1::Tucker{T,N,R}, t2::Tucker{T,N,R}) where {T,N,R}
     end
     for ri in 1:R
         for rj in ri:R
+            #display(transform_basis(t1.core[ri], overlaps))
             out[ri,rj] = sum(transform_basis(t1.core[ri], overlaps) .* t2.core[rj])
             out[rj,ri] = out[ri,rj]
         end
@@ -381,6 +382,46 @@ tucker_recompose(core, factors) = transform_basis(core, factors, trans=true)
 """
 function transform_basis(v::Array{T,N}, transform_list::Dict{Int,Matrix{T}}; trans=false) where {T,N}
   #={{{=#
+    length(transform_list) > 0 || return v
+
+    vv = deepcopy(v)
+
+    # TODO: figure out why the inplace contractions aren't working
+    
+    for i in 1:N
+        if haskey(transform_list, i)
+    
+
+            v_indices = collect(1:N)
+            v_indices[i] = -i
+            if trans
+#                if size(transform_list[i],1) == size(transform_list[i],2) 
+#                    TensorOperations.tensorcontract!(1, vv, collect(1:N), 'C', 
+#                                                     transform_list[i], [-i,i], 'C', 
+#                                                     0, vv, v_indices)
+#                else
+#                    vv = TensorOperations.tensorcontract(vv, collect(1:N), transform_list[i], [-i,i], v_indices)
+#                end
+                    
+                vv = TensorOperations.tensorcontract(vv, collect(1:N), transform_list[i], [-i,i], v_indices)
+            else
+#                if size(transform_list[i],1) == size(transform_list[i],2)
+#                    TensorOperations.tensorcontract!(1, vv, collect(1:N), 'N', 
+#                                                     transform_list[i], [i,-i], 'N', 
+#                                                     0, vv, v_indices)
+#                else
+#                    vv = TensorOperations.tensorcontract(vv, collect(1:N), transform_list[i], [i,-i], v_indices)
+#                end
+                vv = TensorOperations.tensorcontract(vv, collect(1:N), transform_list[i], [i,-i], v_indices)
+            end
+        end
+    end
+    return vv
+end
+#=}}}=#
+
+function transform_basis2(v::Array{T,N}, transform_list::Dict{Int,Matrix{T}}; trans=false) where {T,N}
+  #={{{=#
     #
     #   e.g., 
     #   v(i,j,k,l) U(iI) U(jJ) U(lL) = V(I,J,k,L)
@@ -406,7 +447,7 @@ function transform_basis(v::Array{T,N}, transform_list::Dict{Int,Matrix{T}}; tra
     dims = [size(vv)...]
             
     vv = reshape(vv,dims[1],prod(dims[2:end]))
-    
+   
     for i in 1:N
         if haskey(transform_list, i)
     
