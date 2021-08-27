@@ -125,19 +125,14 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
             e_last = e0
         end
 
-        tmp = deepcopy(ref_vec)
-        zero!(tmp)
         @printf(" %-50s", "Compute <S^2>: ")
-        flush(stdout)
-        @time begin
-            @timeit to "S2" build_sigma!(tmp, ref_vec, cluster_ops, clustered_S2)
-        end
-        s2 = orth_dot(tmp,ref_vec)
+        @time @timeit to "S2" s2 = compute_expectation_value(ref_vec, cluster_ops, clustered_S2) 
         
         @printf(" %5s %12s %12s\n", "Root", "Energy", "S2") 
         for r in 1:R
             @printf(" %5s %12.8f %12.8f\n",r, e0[r], abs(s2[r]))
         end
+        flush(stdout)
 
         #
         # Get First order wavefunction
@@ -257,4 +252,15 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
     return e_var,ref_vec 
 end
 #=}}}=#
-    
+   
+
+
+"""
+    function compute_expectation_value(ci_vector::BSTstate{T,N,R}, cluster_ops, clustered_op::FermiCG.ClusteredOperator; nbody) where {T,N,R}
+"""
+function compute_expectation_value(vector::BSTstate{T,N,R}, cluster_ops, clustered_op::FermiCG.ClusteredOperator; nbody=4) where {T,N,R}
+    tmp = deepcopy(vector)
+    zero!(tmp)
+    build_sigma!(tmp, vector, cluster_ops, clustered_op, nbody=nbody)
+    return orth_dot(tmp,vector)
+end

@@ -314,3 +314,144 @@ function do_fois_pt2(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     return e_pt2, pt1_vec 
 end
 
+
+
+"""
+    function compute_pt2_energy(ref::BSTstate, cluster_ops, clustered_ham;
+            H0          = "Hcmf",
+            max_iter    = 50,
+            nbody       = 4,
+            thresh_foi  = 1e-6,
+            tol         = 1e-5,
+            opt_ref     = true,
+            verbose     = true)
+
+Do PT2
+"""
+function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
+                            H0          = "Hcmf",
+                            max_iter    = 50,
+                            nbody       = 4,
+                            thresh_foi  = 1e-6,
+                            tol         = 1e-5,
+                            opt_ref     = true,
+                            verbose     = true, 
+                            thresh=1e-8) where {T,N,R}
+#={{{=#
+    @printf(" |== Compute PT2 Energy ============================================\n")
+    println(" H0          : ", H0          ) 
+    println(" max_iter    : ", max_iter    ) 
+    println(" nbody       : ", nbody       ) 
+    println(" thresh_foi  : ", thresh_foi  ) 
+    println(" tol         : ", tol         ) 
+    println(" opt_ref     : ", opt_ref     ) 
+    println(" verbose     : ", verbose     ) 
+    @printf("\n")
+    @printf(" %-50s", "Length of Reference: ")
+    @printf("%10i\n", length(ref))
+
+    # 
+    # Solve variationally in reference space
+    ref_vec = deepcopy(ref)
+    clusters = ref_vec.clusters
+   
+    e0 = zeros(T,R)
+
+    if opt_ref 
+        @printf(" %-50s\n", "Solve zeroth-order problem: ")
+        time = @elapsed e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, conv_thresh=tol)
+        @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
+    else
+        @printf(" %-50s", "Compute zeroth-order energy: ")
+        flush(stdout)
+        @time e0 = compute_expectation_value(ref_vec, cluster_ops, clustered_ham)
+    end
+
+    # 
+    # define batches (FockConfigs present in resolvant)
+    jobs = Dict{FockConfig{N},Vector{Tuple}}()
+    for (fock_ket, configs_ket) in ref_vec.data
+        for (ftrans, terms) in clustered_ham
+            fock_x = ftrans + fock_ket
+
+            #
+            # check to make sure this fock config doesn't have negative or too many electrons in any cluster
+            all(f[1] >= 0 for f in fock_x) || continue 
+            all(f[2] >= 0 for f in fock_x) || continue 
+            all(f[1] <= length(clusters[fi]) for (fi,f) in enumerate(fock_x)) || continue 
+            all(f[2] <= length(clusters[fi]) for (fi,f) in enumerate(fock_x)) || continue 
+           
+            job_input = (terms, fock_ket, configs_ket)
+            if haskey(jobs, fock_x)
+                push!(jobs[fock_x], job_input)
+            else
+                jobs[fock_x] = [job_input]
+            end
+        end
+    end
+
+
+    jobs_vec = []
+    for (fock_x, job) in jobs
+        push!(jobs_vec, (fock_x, job))
+    end
+
+    println(" Number of jobs:    ", length(jobs_vec))
+    println(" Number of threads: ", Threads.nthreads())
+    BLAS.set_num_threads(1)
+    flush(stdout)
+    
+    ham_0s = Vector{ClusteredOperator}()
+    for t in Threads.nthreads() 
+        push!(ham_0s, extract_1body_operator(clustered_ham, op_string = H0) )
+    end
+
+
+    e2_thread = Vector{Vector{Float64}}()
+    tmp = Int(round(length(jobs_vec)/100))
+    verbose < 1 || println("   |----------------------------------------------------------------------------------------------------|")
+    verbose < 1 || println("   |0%                                                                                              100%|")
+    verbose < 1 || print("   |")
+    #@profilehtml @Threads.threads for job in jobs_vec
+    t = @elapsed begin
+        
+        #@Threads.threads for (jobi,job) in collect(enumerate(jobs_vec))
+        for (jobi,job) in collect(enumerate(jobs_vec))
+            fock_bra = job[1]
+            tid = Threads.threadid()
+            e1 = _pt2_job(fock_bra, ref_vec, cluster_ops, clustered_ham, 
+                          ham_0s, tol, nbody, max_iter, verbose, thresh)
+            #e2_thread[tid] .+= _pt2_job(fock_bra, ref_vec, cluster_ops, clustered_ham, 
+            #                            H0, tol, nbody, max_iter, verbose, thresh)
+            if verbose > 0
+                if  jobi%tmp == 0
+                    print("-")
+                    flush(stdout)
+                end
+            end
+        end
+    end
+    verbose < 1 || println("|")
+    flush(stdout)
+   
+    @printf(" Time spent computing E2 %12.1f (s)\n",t)
+    e2 = sum(e2_thread) 
+    
+    @printf(" ==================================================================|\n")
+    return e2 
+end
+#=}}}=#
+
+
+function _pt2_job(fock_x, ref::BSTstate{T,N,R}, clusters_ops, clustered_ham, clustered_ham_0, 
+                  tol, nbody, max_iter, verbose, thresh) where {T,N,R}
+    #={{{=#
+
+    sig = BSTstate(ref.clusters, ref.p_spaces, ref.q_spaces, T=T, R=R)
+    add_fockconfig!(sig, fock_x)
+
+    
+
+    return e2
+end
+#=}}}=#
