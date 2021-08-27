@@ -71,6 +71,8 @@ include("type_ClusteredOperator.jl")
 #include("TPSCIstates.jl")
 
 include("tucker_inner.jl")
+include("tucker_build_dense_H_term.jl")
+include("tucker_contract_dense_H_with_state.jl")
 include("tucker_outer.jl")
 include("tucker_pt.jl")
 include("bst.jl")
