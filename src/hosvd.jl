@@ -145,6 +145,56 @@ function nonorth_add(tucks::Vector{Tucker{T,N,R}}; thresh=1e-10, max_number=noth
 end
 #=}}}=#
 
+#function nonorth_add!(t1::Tucker{T,N,R}, t2::Tucker{T,N,R}; thresh=1e-10, max_number=nothing, type="magnitude") where {T<:Number,N,R}
+#    #={{{=#
+#
+#    all(dims_large(t1) .== dims_large(t2)) || error("dimension error.", dims_large(t1), " neq ", dims_large(t2))
+#
+#    # first, get orthogonal basis spanning both Tucker objects for each index
+#    new_factors = Vector{Matrix{T}}()
+#    for i in 1:N
+#
+#        F = svd(hcat(t1.factors[i],t2.factors[i]))
+#
+#        nkeep = 0
+#        if type == "magnitude"
+#            for si in F.S 
+#                if si > thresh
+#                    nkeep += 1
+#                end
+#            end
+#        elseif type == "sum"
+#            target = sum(F.S )
+#            curr = 0.0
+#            for si in F.S 
+#                if abs(curr-target) > thresh
+#                    nkeep += 1
+#                    curr += si*si
+#                end
+#            end
+#        else
+#            error("wrong type")
+#        end
+#        if max_number != nothing
+#            nkeep = min(nkeep, max_number)
+#        end
+#        push!(new_factors, F.U[:,1:nkeep])
+#    end
+#
+#
+#    #new_core = zeros([size(new_factors[i],2) for i in 1:N]...)
+#    new_core = ntuple(i->zeros([size(new_factors[i],2) for i in 1:N]...), R)
+#
+#    for r in 1:R
+#        new_core[r] .+= recompose(Tucker{T,N,R}(t1.core[r], ntuple(i->new_factors[i]'*t1.factors[i], N)))
+#        new_core[r] .+= recompose(Tucker{T,N,R}(t2.core[r], ntuple(i->new_factors[i]'*t2.factors[i], N)))
+#    end
+#    
+#    return Tucker{T,N,R}(new_core, Tuple(new_factors))
+#
+#end
+##=}}}=#
+
 #Base.:(+)(t1::Tucker, t2::Tucker) = nonorth_add([t1, t2])
 Base.:(+)(t1::NTuple{R,Array}, t2::NTuple{R,Array}) where R = ntuple(i->t1[i].+t2[i], R)
 add!(t1::NTuple{R,Array}, t2::NTuple{R,Array}) where R = ntuple(i->t1[i] .= t1[i] .+ t2[i], R)

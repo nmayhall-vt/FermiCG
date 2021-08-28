@@ -317,22 +317,13 @@ end
 
 
 """
-    function compute_pt2_energy(ref::BSTstate, cluster_ops, clustered_ham;
-            H0          = "Hcmf",
-            max_iter    = 50,
-            nbody       = 4,
-            thresh_foi  = 1e-6,
-            tol         = 1e-5,
-            opt_ref     = true,
-            verbose     = true)
-
-Do PT2
 """
 function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
                             H0          = "Hcmf",
                             max_iter    = 50,
                             nbody       = 4,
                             thresh_foi  = 1e-6,
+                            max_number  = nothing,
                             tol         = 1e-5,
                             opt_ref     = true,
                             verbose     = true, 
@@ -343,6 +334,7 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     println(" max_iter    : ", max_iter    ) 
     println(" nbody       : ", nbody       ) 
     println(" thresh_foi  : ", thresh_foi  ) 
+    println(" max_number  : ", max_number  ) 
     println(" tol         : ", tol         ) 
     println(" opt_ref     : ", opt_ref     ) 
     println(" verbose     : ", verbose     ) 
@@ -355,17 +347,23 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     ref_vec = deepcopy(ref)
     clusters = ref_vec.clusters
    
-    e0 = zeros(T,R)
+    e_ref = zeros(T,R)
 
     if opt_ref 
         @printf(" %-50s\n", "Solve zeroth-order problem: ")
-        time = @elapsed e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, conv_thresh=tol)
+        time = @elapsed e_ref, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, conv_thresh=tol)
         @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
     else
         @printf(" %-50s", "Compute zeroth-order energy: ")
         flush(stdout)
-        @time e0 = compute_expectation_value(ref_vec, cluster_ops, clustered_ham)
+        @time e_ref = compute_expectation_value(ref_vec, cluster_ops, clustered_ham)
     end
+
+    # 
+    # get E0 = <0|H0|0>
+    clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = H0)
+    @printf(" %-50s", "Compute <0|H0|0>: ")
+    @time e0 = compute_expectation_value(ref_vec, cluster_ops, clustered_ham_0)
 
     # 
     # define batches (FockConfigs present in resolvant)
@@ -401,13 +399,17 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     BLAS.set_num_threads(1)
     flush(stdout)
     
-    ham_0s = Vector{ClusteredOperator}()
-    for t in Threads.nthreads() 
-        push!(ham_0s, extract_1body_operator(clustered_ham, op_string = H0) )
-    end
+    #ham_0s = Vector{ClusteredOperator}()
+    #for t in Threads.nthreads() 
+    #    push!(ham_0s, extract_1body_operator(clustered_ham, op_string = H0) )
+    #end
 
 
     e2_thread = Vector{Vector{Float64}}()
+    for tid in 1:Threads.nthreads()
+        push!(e2_thread, zeros(T,R))
+    end
+
     tmp = Int(round(length(jobs_vec)/100))
     verbose < 1 || println("   |----------------------------------------------------------------------------------------------------|")
     verbose < 1 || println("   |0%                                                                                              100%|")
@@ -415,13 +417,13 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     #@profilehtml @Threads.threads for job in jobs_vec
     t = @elapsed begin
         
-        #@Threads.threads for (jobi,job) in collect(enumerate(jobs_vec))
-        for (jobi,job) in collect(enumerate(jobs_vec))
-            fock_bra = job[1]
+        @Threads.threads for (jobi,job) in collect(enumerate(jobs_vec))
+        #for (jobi,job) in collect(enumerate(jobs_vec))
+            fock_sig = job[1]
             tid = Threads.threadid()
-            e1 = _pt2_job(fock_bra, ref_vec, cluster_ops, clustered_ham, 
-                          ham_0s, tol, nbody, max_iter, verbose, thresh)
-            #e2_thread[tid] .+= _pt2_job(fock_bra, ref_vec, cluster_ops, clustered_ham, 
+            e2_thread[tid] .+= _pt2_job(fock_sig, job[2], ref_vec, cluster_ops, clustered_ham, 
+                          H0, tol, nbody, max_iter, verbose, thresh_foi, max_number, e_ref, e0)
+            #e2_thread[tid] .+= _pt2_job(fock_sig, ref_vec, cluster_ops, clustered_ham, 
             #                            H0, tol, nbody, max_iter, verbose, thresh)
             if verbose > 0
                 if  jobi%tmp == 0
@@ -437,21 +439,281 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     @printf(" Time spent computing E2 %12.1f (s)\n",t)
     e2 = sum(e2_thread) 
     
+    for r in 1:R
+        @printf(" State %3i: %-35s%14.8f%-35s%14.8f\n", r, "E(PT2): ", e2[r], "E(PT2) corr: ", e2[r]-e_ref[r])
+    end
+    
     @printf(" ==================================================================|\n")
     return e2 
 end
 #=}}}=#
 
 
-function _pt2_job(fock_x, ref::BSTstate{T,N,R}, clusters_ops, clustered_ham, clustered_ham_0, 
-                  tol, nbody, max_iter, verbose, thresh) where {T,N,R}
+function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ham, 
+                  H0, tol, nbody, max_iter, verbose, thresh, max_number, e_ref, e0) where {T,N,R}
     #={{{=#
 
-    sig = BSTstate(ref.clusters, ref.p_spaces, ref.q_spaces, T=T, R=R)
-    add_fockconfig!(sig, fock_x)
+    sig = BSTstate(ket.clusters, ket.p_spaces, ket.q_spaces, T=T, R=R)
+    add_fockconfig!(sig, sig_fock)
 
+    clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = H0)
+
+    for jobi in job 
+
+        terms, ket_fock, ket_tconfigs = jobi
+
+        for term in terms
+
+            length(term.clusters) <= nbody || continue
+
+            for (ket_tconfig, ket_tuck) in ket_tconfigs
+                #
+                # find the sig TuckerConfigs reached by applying current Hamiltonian term to ket_tconfig.
+                #
+                # For example:
+                #
+                #   [(p'q), I, I, (r's), I ] * |P,Q,P,Q,P>  --> |X, Q, P, X, P>  where X = {P,Q}
+                #
+                #   This this term, will couple to 4 distinct tucker blocks (assuming each of the active clusters
+                #   have both non-zero P and Q spaces within the current fock sector, "sig_fock".
+                #
+                # We will loop over all these destination TuckerConfig's by creating the cartesian product of their
+                # available spaces, this list of which we will keep in "available".
+                #
+
+                available = [] # list of lists of index ranges, the cartesian product is the set needed
+                #
+                # for current term, expand index ranges for active clusters
+                for ci in term.clusters
+                    tmp = []
+                    if haskey(ket.p_spaces[ci.idx], sig_fock[ci.idx])
+                        push!(tmp, ket.p_spaces[ci.idx][sig_fock[ci.idx]])
+                    end
+                    if haskey(ket.q_spaces[ci.idx], sig_fock[ci.idx])
+                        push!(tmp, ket.q_spaces[ci.idx][sig_fock[ci.idx]])
+                    end
+                    push!(available, tmp)
+                end
+
+
+                #
+                # Now loop over cartesian product of available subspaces (those in X above) and
+                # create the target TuckerConfig and then evaluate the associated terms
+                for prod in Iterators.product(available...)
+                    sig_tconfig = [ket_tconfig.config...]
+                    for cidx in 1:length(term.clusters)
+                        ci = term.clusters[cidx]
+                        sig_tconfig[ci.idx] = prod[cidx]
+                    end
+                    sig_tconfig = TuckerConfig(sig_tconfig)
+
+                    #
+                    # the `term` has now coupled our ket TuckerConfig, to a sig TuckerConfig
+                    # let's compute the matrix element block, then compress, then add it to any existing compressed
+                    # coefficient tensor for that sig TuckerConfig.
+                    #
+                    # Both the Compression and addition takes a fair amount of work.
+
+
+                    check_term(term, sig_fock, sig_tconfig, ket_fock, ket_tconfig) || continue
+
+
+                    bound = calc_bound(term, cluster_ops,
+                                       sig_fock, sig_tconfig,
+                                       ket_fock, ket_tconfig, ket_tuck,
+                                       prescreen=thresh)
+                    if bound < sqrt(thresh)
+                        #continue
+                    end
+
+                    sig_tuck = form_sigma_block_expand(term, cluster_ops,
+                                                       sig_fock, sig_tconfig,
+                                                       ket_fock, ket_tconfig, ket_tuck,
+                                                       max_number=max_number,
+                                                       prescreen=thresh)
+
+                    if length(sig_tuck) == 0
+                        continue
+                    end
+                    if norm(sig_tuck) < thresh 
+                        continue
+                    end
+                
+
+                    #compress new addition
+                    sig_tuck = compress(sig_tuck, thresh=thresh)
+                    
+                    length(sig_tuck) > 0 || continue
+
+                    #add to current sigma vector
+                    if haskey(sig[sig_fock], sig_tconfig)
+                        sig[sig_fock][sig_tconfig] = nonorth_add(sig[sig_fock][sig_tconfig], sig_tuck)
+
+                        #compress result
+                        sig[sig_fock][sig_tconfig] = compress(sig[sig_fock][sig_tconfig], thresh=thresh)
+                    else
+                        sig[sig_fock][sig_tconfig] = sig_tuck
+                    end
+
+                end
+            end
+        end
+    end
+
+#    _,e2 = hylleraas_compressed_mp2(sig, ket, cluster_ops, clustered_ham,
+#                                    H0 = H0, 
+#                                    tol=tol,   
+#                                    nbody=nbody, 
+#                                    max_iter=max_iter, 
+#                                    verbose=0, 
+#                                    thresh=thresh)
+            
+
+    # if length of sigma is zero get out
+    length(sig) > 0 || return zeros(T,R)
+    norms = sqrt.(orth_dot(sig,sig))
+    for r in 1:R
+        if norms[r] < thresh 
+            return zeros(T,R)
+        end
+    end
+
+    zero!(sig)
+           
+    ref = ket
+    build_sigma!(sig, ref, cluster_ops, clustered_ham)
     
+    # b = <X|H|0> 
+    b = -get_vectors(sig)
+    
+    
+    # (H0 - E0) |1> = X H |0>
+    e2 =zeros(T,R) 
+    
+    # 
+    # get <X|F|0>
+    tmp = deepcopy(sig)
+    zero!(tmp)
+    build_sigma!(tmp, ref, cluster_ops, clustered_ham_0)
 
-    return e2
+    # b = - <X|H|0> + <X|F|0> = -<X|V|0>
+    b .+= get_vectors(tmp)
+    
+    #
+    # Get Overlap <X|A>C(A)
+    Sx = deepcopy(sig)
+    zero!(Sx)
+    for (fock,tconfigs) in Sx 
+        if haskey(ref, fock)
+            for (tconfig, tuck) in tconfigs
+                if haskey(ref[fock], tconfig)
+                    ref_tuck = ref[fock][tconfig]
+                    # Cr(i,j,k...) Ur(Ii) Ur(Jj) ...
+                    # Ux(Ii') Ux(Jj') ...
+                    #
+                    # Cr(i,j,k...) S(ii') S(jj')...
+                    overlaps = Vector{Matrix{T}}() 
+                    for i in 1:N
+                        push!(overlaps, ref_tuck.factors[i]' * tuck.factors[i])
+                    end
+                    for r in 1:R
+                        Sx[fock][tconfig].core[r] .= transform_basis(ref_tuck.core[r], overlaps)
+                    end
+                end
+            end
+        end
+    end
+
+    #flush_cache(clustered_ham_0)
+    verbose < 2 || @printf(" %-50s", "Cache zeroth-order Hamiltonian: ")
+    time = @elapsed cache_hamiltonian(sig, sig, cluster_ops, clustered_ham_0)
+    verbose < 2 || @printf(" %-10f", time)
+
+    psi1 = deepcopy(sig)
+
+    #
+    # Currently, we need to solve each root separately, this should be fixed
+    # by writing our own CG solver
+    for r in 1:R
+        
+        function mymatvec(x)
+
+            xr = BSTstate(sig, R=1)
+            xl = BSTstate(sig, R=1)
+
+            #display(size(xr))
+            #display(size(x))
+            length(xr) .== length(x) || throw(DimensionMismatch)
+            set_vector!(xr,x,1)
+            zero!(xl)
+            build_sigma!(xl, xr, cluster_ops, clustered_ham_0, cache=true)
+
+            # subtract off -E0|1>
+            #
+            
+            scale!(xr,-e0[1])
+            #scale!(xr,-e0[r])  # pretty sure this should be uncommented - but it diverges, not sure why
+            orth_add!(xl,xr)
+            #flush(stdout)
+
+            return get_vectors(xl)
+        end
+        br = b[:,r] .+ get_vectors(Sx)[:,r] .* (e_ref[r] - e0[r])
+
+
+        dim = length(br)
+        Axx = LinearMap(mymatvec, dim, dim)
+
+
+        #@time cache_hamiltonian(sig, sig, cluster_ops, clustered_ham_0, nbody=1)
+
+        #todo:  setting initial value to zero only makes sense when our reference space is projected out. 
+        #       if it's not, then we want to add the reference state components |guess> += |ref><ref|guess>
+        #
+        x_vector = zeros(T,dim)
+        x_vector = get_vectors(sig)[:,r]*.1
+        time = @elapsed x, solver = cg!(x_vector, Axx, br, log=true, maxiter=max_iter, verbose=false, abstol=tol)
+        verbose < 2 || @printf(" %-50s%10.6f seconds\n", "Time to solve for PT1 with conjugate gradient: ", time)
+    
+        set_vector!(psi1,x_vector,r)
+    end
+       
+
+    #flush_cache(clustered_ham_0)
+    
+    SxC = orth_dot(Sx,psi1)
+    #@printf(" %-50s%10.2f\n", "<A|X>C(X): ", SxC)
+    #@printf(" <A|X>C(X) = %12.8f\n", SxC)
+  
+    ecorr = zeros(T,R)
+    if length(psi1) < length(ref)
+        tmp = deepcopy(ref)
+        zero!(tmp)
+        verbose < 2 || @printf(" %-50s", "Compute <0|H|1>: ")
+        time = @elapsed build_sigma!(psi1, tmp, cluster_ops, clustered_ham)
+        verbose < 2 || @printf(" %-10f", time)
+        ecorr .= nonorth_dot(tmp,psi1)
+    else
+        tmp = deepcopy(psi1)
+        zero!(tmp)
+        verbose < 2 || @printf(" %-50s", "Compute <0|H|1>: ")
+        time = @elapsed build_sigma!(ref, tmp, cluster_ops, clustered_ham)
+        verbose < 2 || @printf(" %-10f", time)
+        ecorr .= nonorth_dot(tmp,ref)
+    end
+   
+    e_pt2 = zeros(T,R)
+    for r in 1:R
+        e_pt2[r] = (e_ref[r] + ecorr[r])/(1+SxC[r])
+        if abs(ecorr[r]) > 0.0
+            @printf(" State %3i: %-35s%14.8f\n", r, "E(PT2) corr: ", e_pt2[r]-e_ref[r])
+        end
+    end
+    #for r in 1:R
+        #@printf(" State %3i: %-35s%14.8f\n", r, "E(PT2): ", e_pt2[r])
+    #end
+
+
+    return e_pt2 .- e_ref
 end
 #=}}}=#
