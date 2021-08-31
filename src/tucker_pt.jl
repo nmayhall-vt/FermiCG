@@ -581,7 +581,7 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
     zero!(sig)
            
     ref = ket
-    build_sigma!(sig, ref, cluster_ops, clustered_ham)
+    build_sigma_serial!(sig, ref, cluster_ops, clustered_ham)
     
     # b = <X|H|0> 
     b = -get_vectors(sig)
@@ -594,7 +594,7 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
     # get <X|F|0>
     tmp = deepcopy(sig)
     zero!(tmp)
-    build_sigma!(tmp, ref, cluster_ops, clustered_ham_0)
+    build_sigma_serial!(tmp, ref, cluster_ops, clustered_ham_0)
 
     # b = - <X|H|0> + <X|F|0> = -<X|V|0>
     b .+= get_vectors(tmp)
@@ -646,7 +646,7 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
             length(xr) .== length(x) || throw(DimensionMismatch)
             set_vector!(xr,x,1)
             zero!(xl)
-            build_sigma!(xl, xr, cluster_ops, clustered_ham_0, cache=true)
+            build_sigma_serial!(xl, xr, cluster_ops, clustered_ham_0, cache=true)
 
             # subtract off -E0|1>
             #
@@ -690,14 +690,14 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
         tmp = deepcopy(ref)
         zero!(tmp)
         verbose < 2 || @printf(" %-50s", "Compute <0|H|1>: ")
-        time = @elapsed build_sigma!(psi1, tmp, cluster_ops, clustered_ham)
+        time = @elapsed build_sigma_serial!(psi1, tmp, cluster_ops, clustered_ham)
         verbose < 2 || @printf(" %-10f", time)
         ecorr .= nonorth_dot(tmp,psi1)
     else
         tmp = deepcopy(psi1)
         zero!(tmp)
         verbose < 2 || @printf(" %-50s", "Compute <0|H|1>: ")
-        time = @elapsed build_sigma!(ref, tmp, cluster_ops, clustered_ham)
+        time = @elapsed build_sigma_serial!(ref, tmp, cluster_ops, clustered_ham)
         verbose < 2 || @printf(" %-10f", time)
         ecorr .= nonorth_dot(tmp,ref)
     end

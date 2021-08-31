@@ -1056,3 +1056,59 @@ function project_out!(v::BSTstate{T,N,Rv}, w::BSTstate{T,N,Rw}; thresh=1e-16) wh
 #    end
 end
 
+
+function build_subspace_matrix(vecs::Vector{BSTstate{T,N,R}}, cluster_ops, clustered_ham) where {T,N,R}
+    n_subspace = length(vecs)
+    for i in 1:n_subspace
+        orthonormalize!(vecs[i])
+        println(size(vecs[i]))
+    end
+    
+    H = zeros(T,n_subspace,n_subspace)
+    S = zeros(T,n_subspace,n_subspace)
+    for i in 1:n_subspace
+        for j in i:n_subspace
+            tmp = deepcopy(vecs[i])
+            zero!(tmp)
+            build_sigma!(tmp,vecs[j],cluster_ops,clustered_ham)
+            H[i,j] = nonorth_dot(tmp,vecs[i])[1]
+            H[j,i] = H[i,j]
+            S[i,j] = nonorth_dot(vecs[i],vecs[j])[1]
+            S[j,i] = S[i,j]
+        end
+    end
+
+    F = eigen(inv(S)*H)
+    for i in 1:n_subspace
+        @printf(" %12.8f \n", F.values[i])
+    end
+    return H,S
+end
+
+
+function grow_subspace(v1::BSTstate{T,N,R}, cluster_ops, clustered_ham;
+                       thresh_foi=1e-2) where {T,N,R}
+    max_ss = 6 
+    ss = Vector{BSTstate{T,N,R}}()
+    H = zeros(T,1)
+    S = zeros(T,1)
+    for ssi in 1:max_ss
+        if ssi > 1
+            vcurr = ss[ssi-1]
+            push!(ss, build_compressed_1st_order_state(vcurr, cluster_ops, clustered_ham, thresh=thresh_foi))
+
+            for ssj in 1:ssi-1
+                project_out!(ss[ssi], ss[ssj])
+            end
+            ss[ssi] = compress(ss[ssi], thresh=thresh_foi)
+
+        else
+            push!(ss,v1)
+        end
+        H,S = build_subspace_matrix(ss, cluster_ops, clustered_ham)
+    end
+
+    return H,S
+end 
+
+

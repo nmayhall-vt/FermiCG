@@ -60,7 +60,7 @@ if false
 #end
 end
 
-@testset "BST" begin
+#@testset "BST" begin
 
 
     @load "_testdata_cmf_h6.jld2"
@@ -95,6 +95,6 @@ end
     display(e_ci)
     @test isapprox(e_ci[1], -18.329649399280648, atol=1e-8)
 
-end
+#end
 if false
 end
