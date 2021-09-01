@@ -4,8 +4,9 @@ using BenchmarkTools
 """
     build_sigma!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, clustered_ham)
 """
-function build_sigma_serial!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, clustered_ham; nbody=4, cache=false)
-    #={{{=#
+function build_sigma_serial!(sigma_vector::BSTstate{T,N,R}, ci_vector::BSTstate{T,N,R}, cluster_ops, clustered_ham;
+                             nbody=4, cache=false) where {T,N,R}
+    #={{{=# 
 
     for (fock_bra, configs_bra) in sigma_vector
         for (fock_ket, configs_ket) in ci_vector
@@ -85,11 +86,11 @@ function cache_hamiltonian(bra::BSTstate{T,N,R}, ket::BSTstate{T,N,R}, cluster_o
 #={{{=#
     
     # it seems like this is quite a bit faster when turned off:
-    if blas
-        TensorOperations.enable_blas()
-    else
-        TensorOperations.disable_blas()
-    end
+    #if blas
+    #    TensorOperations.enable_blas()
+    #else
+    #    TensorOperations.disable_blas()
+    #end
 
     keys_to_loop = [keys(clustered_ham.trans)...]
     
@@ -296,6 +297,65 @@ end
 #=}}}=#
 
 
+#
+# form_sigma_block computes the action of the term on a Tucker compressed state, 
+# projected into the space defined by bra. This is used to work with H within a subspace defined by a compression
+#
+#
+function form_sigma_block!(term::C,
+                            cluster_ops::Vector{ClusterOps},
+                            fock_bra::FockConfig, bra::TuckerConfig,
+                            fock_ket::FockConfig, ket::TuckerConfig,
+                            coeffs_bra::Tucker{T,N,R}, coeffs_ket::Tucker{T,N,R};
+                            cache=false ) where {T,N,R, C<:ClusteredTerm}
+    #={{{=#
+    check_term(term, fock_bra, bra, fock_ket, ket) || throw(Exception) 
+    #
+    # determine sign from rearranging clusters if odd number of operators
+    state_sign = compute_terms_state_sign(term, fock_ket)
+
+    # todo: add in 2e integral tucker decomposition and compress gamma along 1st index first
+
+    op = Array{T}[]
+    cache_key = OperatorConfig((fock_bra, fock_ket, bra, ket))
+    #if cache && haskey(term.cache, cache_key)
+    if cache 
+       
+
+        #
+        # read the dense H term
+        op = term.cache[cache_key]
+    
+    else
+
+        #cache == false || println(" couldn't find:", cache_key)
+
+        #
+        # build the dense H term
+        op = build_dense_H_term(term, cluster_ops, fock_bra, bra, coeffs_bra, fock_ket, ket, coeffs_ket)
+        #if term isa ClusteredTerm4B
+        #    @btime op = build_dense_H_term($term, $cluster_ops, $fock_bra, $bra, $coeffs_bra, $fock_ket, $ket, $coeffs_ket, $scr_f)
+        #    error("please stop")
+        #end
+        #if cache
+        #    term.cache[cache_key] = op
+        #end
+    end
+
+    #if term isa ClusteredTerm2B
+    #    display(term)
+    #    @btime contract_dense_H_with_state($term, $op, $state_sign, $coeffs_bra, $coeffs_ket)
+    #    @btime contract_dense_H_with_state_tensor($term, $op, $state_sign, $coeffs_bra, $coeffs_ket)
+    #    @btime contract_dense_H_with_state_ncon($term, $op, $state_sign, $coeffs_bra, $coeffs_ket)
+    #    #error("please stop")
+    #end
+    return contract_dense_H_with_state(term, op, state_sign, coeffs_bra, coeffs_ket)
+    #return contract_dense_H_with_state_tensor(term, op, state_sign, coeffs_bra, coeffs_ket)
+    #return contract_dense_H_with_state_ncon(term, op, state_sign, coeffs_bra, coeffs_ket)
+end
+#=}}}=#
+
+
 
 
 
@@ -416,4 +476,10 @@ function calc_bound(term::ClusteredTerm4B,
     end
     return true
 end
-   
+  
+function Base.copyto!(a::Tuple{Array{T,N}}, b) where {T,N}
+    length(a) == length(b) || throw(DimensionMismatch)
+    for i in 1:length(a)
+        a[i] .= b[i]
+    end
+end

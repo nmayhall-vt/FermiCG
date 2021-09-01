@@ -258,6 +258,7 @@ function do_fois_pt2(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
             tol         = 1e-5,
             opt_ref     = true,
             verbose     = true) where {T,N,R}
+    #={{{=#
     @printf(" |== Solve for BST PT1 Wavefunction ================================\n")
     println(" H0          : ", H0          ) 
     println(" max_iter    : ", max_iter    ) 
@@ -313,7 +314,7 @@ function do_fois_pt2(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     @printf(" ==================================================================|\n")
     return e_pt2, pt1_vec 
 end
-
+#=}}}=#
 
 
 """
@@ -440,7 +441,7 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     e2 = sum(e2_thread) 
     
     for r in 1:R
-        @printf(" State %3i: %-35s%14.8f%-35s%14.8f\n", r, "E(PT2): ", e2[r], "E(PT2) corr: ", e2[r]-e_ref[r])
+        @printf(" State %3i: %-35s%14.8f%-35s%14.8f\n", r, "E(PT2): ", e2[r], "E(PT2) corr: ", e2[r]+e_ref[r])
     end
     
     @printf(" ==================================================================|\n")
@@ -541,7 +542,7 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
                 
 
                     #compress new addition
-                    sig_tuck = compress(sig_tuck, thresh=thresh)
+                    #sig_tuck = compress(sig_tuck, thresh=thresh)
                     
                     length(sig_tuck) > 0 || continue
 
@@ -550,7 +551,7 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
                         sig[sig_fock][sig_tconfig] = nonorth_add(sig[sig_fock][sig_tconfig], sig_tuck)
 
                         #compress result
-                        sig[sig_fock][sig_tconfig] = compress(sig[sig_fock][sig_tconfig], thresh=thresh)
+                        #sig[sig_fock][sig_tconfig] = compress(sig[sig_fock][sig_tconfig], thresh=thresh)
                     else
                         sig[sig_fock][sig_tconfig] = sig_tuck
                     end
@@ -559,15 +560,7 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
             end
         end
     end
-
-#    _,e2 = hylleraas_compressed_mp2(sig, ket, cluster_ops, clustered_ham,
-#                                    H0 = H0, 
-#                                    tol=tol,   
-#                                    nbody=nbody, 
-#                                    max_iter=max_iter, 
-#                                    verbose=0, 
-#                                    thresh=thresh)
-            
+    #project_out!(sig, ket)
 
     # if length of sigma is zero get out
     length(sig) > 0 || return zeros(T,R)
@@ -577,11 +570,12 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
             return zeros(T,R)
         end
     end
+    
 
     zero!(sig)
            
     ref = ket
-    build_sigma!(sig, ref, cluster_ops, clustered_ham)
+    build_sigma_serial!(sig, ref, cluster_ops, clustered_ham)
     
     # b = <X|H|0> 
     b = -get_vectors(sig)
@@ -594,7 +588,7 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
     # get <X|F|0>
     tmp = deepcopy(sig)
     zero!(tmp)
-    build_sigma!(tmp, ref, cluster_ops, clustered_ham_0)
+    build_sigma_serial!(tmp, ref, cluster_ops, clustered_ham_0)
 
     # b = - <X|H|0> + <X|F|0> = -<X|V|0>
     b .+= get_vectors(tmp)
@@ -625,9 +619,10 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
     end
 
     #flush_cache(clustered_ham_0)
-    verbose < 2 || @printf(" %-50s", "Cache zeroth-order Hamiltonian: ")
-    time = @elapsed cache_hamiltonian(sig, sig, cluster_ops, clustered_ham_0)
-    verbose < 2 || @printf(" %-10f", time)
+    #verbose < 2 || @printf(" %-50s", "Cache zeroth-order Hamiltonian: ")
+    #println(size(sig))
+    #time = @elapsed cache_hamiltonian(sig, sig, cluster_ops, clustered_ham_0)
+    #verbose < 2 || @printf(" %-10f", time)
 
     psi1 = deepcopy(sig)
 
@@ -646,7 +641,8 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
             length(xr) .== length(x) || throw(DimensionMismatch)
             set_vector!(xr,x,1)
             zero!(xl)
-            build_sigma!(xl, xr, cluster_ops, clustered_ham_0, cache=true)
+            build_sigma_serial!(xl, xr, cluster_ops, clustered_ham_0, cache=false)
+            #build_sigma_serial!(xl, xr, cluster_ops, clustered_ham_0, cache=true)
 
             # subtract off -E0|1>
             #
@@ -672,6 +668,7 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
         #
         x_vector = zeros(T,dim)
         x_vector = get_vectors(sig)[:,r]*.1
+        #time = @elapsed x, solver = cg!(x_vector, Axx, br, log=true, maxiter=max_iter, verbose=false, abstol=1e-12)
         time = @elapsed x, solver = cg!(x_vector, Axx, br, log=true, maxiter=max_iter, verbose=false, abstol=tol)
         verbose < 2 || @printf(" %-50s%10.6f seconds\n", "Time to solve for PT1 with conjugate gradient: ", time)
     
@@ -689,29 +686,18 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
     if length(psi1) < length(ref)
         tmp = deepcopy(ref)
         zero!(tmp)
-        verbose < 2 || @printf(" %-50s", "Compute <0|H|1>: ")
-        time = @elapsed build_sigma!(psi1, tmp, cluster_ops, clustered_ham)
-        verbose < 2 || @printf(" %-10f", time)
-        ecorr .= nonorth_dot(tmp,psi1)
+        build_sigma_serial!(tmp,psi1, cluster_ops, clustered_ham)
+        ecorr = nonorth_dot(tmp,ref)
     else
         tmp = deepcopy(psi1)
         zero!(tmp)
-        verbose < 2 || @printf(" %-50s", "Compute <0|H|1>: ")
-        time = @elapsed build_sigma!(ref, tmp, cluster_ops, clustered_ham)
-        verbose < 2 || @printf(" %-10f", time)
-        ecorr .= nonorth_dot(tmp,ref)
+        build_sigma_serial!(tmp,ref, cluster_ops, clustered_ham)
+        ecorr = nonorth_dot(tmp,psi1)
     end
-   
     e_pt2 = zeros(T,R)
     for r in 1:R
         e_pt2[r] = (e_ref[r] + ecorr[r])/(1+SxC[r])
-        if abs(ecorr[r]) > 0.0
-            @printf(" State %3i: %-35s%14.8f\n", r, "E(PT2) corr: ", e_pt2[r]-e_ref[r])
-        end
     end
-    #for r in 1:R
-        #@printf(" State %3i: %-35s%14.8f\n", r, "E(PT2): ", e_pt2[r])
-    #end
 
 
     return e_pt2 .- e_ref
