@@ -416,6 +416,7 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     verbose < 1 || println("   |0%                                                                                              100%|")
     verbose < 1 || print("   |")
     #@profilehtml @Threads.threads for job in jobs_vec
+    nprinted = 0
     t = @elapsed begin
         
         @Threads.threads for (jobi,job) in collect(enumerate(jobs_vec))
@@ -429,10 +430,14 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
             if verbose > 0
                 if  jobi%tmp == 0
                     print("-")
+                    nprinted += 1
                     flush(stdout)
                 end
             end
         end
+    end
+    for i in nprinted+1:100
+        print("-")
     end
     verbose < 1 || println("|")
     flush(stdout)
