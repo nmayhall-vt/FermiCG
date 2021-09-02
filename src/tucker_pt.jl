@@ -436,9 +436,6 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
             end
         end
     end
-    for i in nprinted+1:100
-        print("-")
-    end
     verbose < 1 || println("|")
     flush(stdout)
    
@@ -565,6 +562,8 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
             end
         end
     end
+    project_out!(sig, ket)
+    sig = compress(sig, thresh=thresh)
     #project_out!(sig, ket)
 
     # if length of sigma is zero get out
