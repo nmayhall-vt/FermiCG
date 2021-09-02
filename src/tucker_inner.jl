@@ -173,7 +173,7 @@ function build_sigma!(sigma_vector::BSTstate{T,N,R}, ci_vector::BSTstate{T,N,R},
     scr_f = Vector{Vector{Vector{T}} }()
     for tid in 1:Threads.nthreads()
         tmp = Vector{Vector{T}}() 
-        [push!(tmp, zeros(T,100000)) for i in 1:nscr]
+        [push!(tmp, zeros(T,1000)) for i in 1:nscr]
         push!(scr_f, tmp)
     end
    
@@ -404,7 +404,7 @@ function calc_bound(term::ClusteredTerm1B,
     c1 = term.clusters[1]
     
     bound1 = norm(term.ints)*norm(coeffs_ket.core)
-    if bound1 < sqrt(prescreen)
+    if bound1 < prescreen
         return false 
     end
     return true
@@ -424,7 +424,7 @@ function calc_bound(term::ClusteredTerm2B,
     bound1 = norm(term.ints)*norm(coeffs_ket.core)
     #bound1 *= norm(gamma1)*norm(gamma2)
     bound1 *= norm(coeffs_ket.factors[c1.idx])*norm(coeffs_ket.factors[c2.idx])
-    if bound1 < sqrt(prescreen)
+    if bound1 < prescreen
         return false 
     end
     return true
@@ -446,7 +446,7 @@ function calc_bound(term::ClusteredTerm3B,
     bound1 = norm(term.ints)*norm(coeffs_ket.core)
     #bound1 *= norm(gamma1)*norm(gamma2)*norm(gamma3)
     bound1 *= norm(coeffs_ket.factors[c1.idx])*norm(coeffs_ket.factors[c2.idx])*norm(coeffs_ket.factors[c3.idx])
-    if bound1 < sqrt(prescreen)
+    if bound1 < prescreen
         return false 
     end
     return true
@@ -471,7 +471,7 @@ function calc_bound(term::ClusteredTerm4B,
     bound1 = norm(term.ints)*norm(coeffs_ket.core)
     #bound1 *= norm(gamma1)*norm(gamma2)*norm(gamma3)*norm(gamma4)
     bound1 *= norm(coeffs_ket.factors[c1.idx])*norm(coeffs_ket.factors[c2.idx])*norm(coeffs_ket.factors[c3.idx])*norm(coeffs_ket.factors[c4.idx])
-    if bound1 < sqrt(prescreen)
+    if bound1 < prescreen
         return false 
     end
     return true

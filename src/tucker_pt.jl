@@ -342,6 +342,8 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     @printf("\n")
     @printf(" %-50s", "Length of Reference: ")
     @printf("%10i\n", length(ref))
+    
+    lk = ReentrantLock()
 
     # 
     # Solve variationally in reference space
@@ -365,6 +367,13 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = H0)
     @printf(" %-50s", "Compute <0|H0|0>: ")
     @time e0 = compute_expectation_value(ref_vec, cluster_ops, clustered_ham_0)
+    
+    if verbose > 0 
+        @printf(" %5s %12s %12s\n", "Root", "<0|H|0>", "<0|F|0>")
+        for r in 1:R
+            @printf(" %5s %12.8f %12.8f\n",r, e_ref[r], e0[r])
+        end
+    end
 
     # 
     # define batches (FockConfigs present in resolvant)
@@ -411,10 +420,10 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
         push!(e2_thread, zeros(T,R))
     end
 
-    tmp = Int(round(length(jobs_vec)/100))
-    verbose < 1 || println("   |----------------------------------------------------------------------------------------------------|")
-    verbose < 1 || println("   |0%                                                                                              100%|")
-    verbose < 1 || print("   |")
+    tmp = ceil(length(jobs_vec)/100)
+    verbose < 1 || println(" |----------------------------------------------------------------------------------------------------|")
+    verbose < 1 || println(" |0%                                                                                              100%|")
+    verbose < 1 || print(" |")
     #@profilehtml @Threads.threads for job in jobs_vec
     nprinted = 0
     t = @elapsed begin
@@ -429,22 +438,36 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
             #                            H0, tol, nbody, max_iter, verbose, thresh)
             if verbose > 0
                 if  jobi%tmp == 0
-                    print("-")
-                    nprinted += 1
-                    flush(stdout)
+                    begin
+                        lock(lk)
+                        try
+                            print("-")
+                            nprinted += 1
+                            flush(stdout)
+                        finally
+                            unlock(lk)
+                        end
+                    end
                 end
             end
         end
     end
+    for i in nprinted+1:100
+        print("-")
+    end
     verbose < 1 || println("|")
     flush(stdout)
-   
+  
     @printf(" Time spent computing E2 %12.1f (s)\n",t)
     e2 = sum(e2_thread) 
     
     for r in 1:R
-        @printf(" State %3i: %-35s%14.8f%-35s%14.8f\n", r, "E(PT2): ", e2[r], "E(PT2) corr: ", e2[r]+e_ref[r])
+        @printf(" State %3i: %-35s%14.8f\n", r, "E(PT2) corr: ", e2[r])
     end
+    for r in 1:R
+        @printf(" State %3i: %-35s%14.8f\n", r, "E(PT2): ", e2[r]+e_ref[r])
+    end
+
     
     @printf(" ==================================================================|\n")
     return e2 
@@ -459,6 +482,7 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
     sig = BSTstate(ket.clusters, ket.p_spaces, ket.q_spaces, T=T, R=R)
     add_fockconfig!(sig, sig_fock)
 
+    data = OrderedDict{TuckerConfig{N}, Vector{Tucker{T,N,R}} }()
     clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = H0)
 
     for jobi in job 
@@ -525,8 +549,8 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
                                        sig_fock, sig_tconfig,
                                        ket_fock, ket_tconfig, ket_tuck,
                                        prescreen=thresh)
-                    if bound < sqrt(thresh)
-                        #continue
+                    if bound == false 
+                        continue
                     end
 
                     sig_tuck = form_sigma_block_expand(term, cluster_ops,
@@ -544,13 +568,19 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
                 
 
                     #compress new addition
-                    #sig_tuck = compress(sig_tuck, thresh=thresh)
+                    sig_tuck = compress(sig_tuck, thresh=thresh)
                     
                     length(sig_tuck) > 0 || continue
 
                     #add to current sigma vector
                     if haskey(sig[sig_fock], sig_tconfig)
-                        sig[sig_fock][sig_tconfig] = nonorth_add(sig[sig_fock][sig_tconfig], sig_tuck)
+                        #sig[sig_fock][sig_tconfig] = nonorth_add(sig[sig_fock][sig_tconfig], sig_tuck)
+                                       
+                        if haskey(data, sig_tconfig)
+                            push!(data[sig_tconfig], sig_tuck)
+                        else
+                            data[sig_tconfig] = [sig[sig_fock][sig_tconfig], sig_tuck]
+                        end
 
                         #compress result
                         #sig[sig_fock][sig_tconfig] = compress(sig[sig_fock][sig_tconfig], thresh=thresh)
@@ -562,6 +592,12 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
             end
         end
     end
+    
+    # Add results together
+    for (tconfig, tucks) in data 
+        sig[sig_fock][tconfig] = compress(nonorth_add(tucks), thresh=thresh)
+    end
+    
     project_out!(sig, ket)
     sig = compress(sig, thresh=thresh)
     #project_out!(sig, ket)
