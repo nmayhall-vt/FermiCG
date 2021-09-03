@@ -1,3 +1,4 @@
+using StatProfilerHTML
 """
 
  | PHP  PHQ ||PC| = |PC| E 
@@ -352,14 +353,17 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
    
     e_ref = zeros(T,R)
 
-    if opt_ref 
-        @printf(" %-50s\n", "Solve zeroth-order problem: ")
-        time = @elapsed e_ref, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, conv_thresh=tol)
-        @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
-    else
-        @printf(" %-50s", "Compute zeroth-order energy: ")
-        flush(stdout)
-        @time e_ref = compute_expectation_value(ref_vec, cluster_ops, clustered_ham)
+    #e_ref[1] = -196.68470072
+    if true 
+        if opt_ref 
+            @printf(" %-50s\n", "Solve zeroth-order problem: ")
+            time = @elapsed e_ref, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, conv_thresh=tol)
+            @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
+        else
+            @printf(" %-50s", "Compute zeroth-order energy: ")
+            flush(stdout)
+            @time e_ref = compute_expectation_value(ref_vec, cluster_ops, clustered_ham)
+        end
     end
 
     # 
@@ -426,16 +430,16 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     verbose < 1 || print(" |")
     #@profilehtml @Threads.threads for job in jobs_vec
     nprinted = 0
-    t = @elapsed begin
+    alloc = @allocated t = @elapsed begin
         
         @Threads.threads for (jobi,job) in collect(enumerate(jobs_vec))
         #for (jobi,job) in collect(enumerate(jobs_vec))
             fock_sig = job[1]
             tid = Threads.threadid()
-            e2_thread[tid] .+= _pt2_job(fock_sig, job[2], ref_vec, cluster_ops, clustered_ham, 
-                          H0, tol, nbody, max_iter, verbose, thresh_foi, max_number, e_ref, e0)
-            #e2_thread[tid] .+= _pt2_job(fock_sig, ref_vec, cluster_ops, clustered_ham, 
-            #                            H0, tol, nbody, max_iter, verbose, thresh)
+            e2_thread[tid] .+= _pt2_job(fock_sig, job[2], ref_vec, cluster_ops, clustered_ham, clustered_ham_0, 
+                          tol, nbody, max_iter, verbose, thresh_foi, max_number, e_ref, e0)
+            #@btime  _pt2_job($fock_sig, $job[2], $ref_vec, $cluster_ops, $clustered_ham, $clustered_ham_0, 
+            #              $tol, $nbody, $max_iter, $verbose, $thresh_foi, $max_number, $e_ref, $e0)
             if verbose > 0
                 if  jobi%tmp == 0
                     begin
@@ -452,13 +456,14 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
             end
         end
     end
+    flush(stdout)
     for i in nprinted+1:100
         print("-")
     end
     verbose < 1 || println("|")
     flush(stdout)
   
-    @printf(" Time spent computing E2 %12.1f (s)\n",t)
+    @printf(" %-48s%10.1f s Allocated: %10.1e GB\n", "Time spent computing E2: ",t,alloc*1e-9)
     e2 = sum(e2_thread) 
     
     for r in 1:R
@@ -475,15 +480,14 @@ end
 #=}}}=#
 
 
-function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ham, 
-                  H0, tol, nbody, max_iter, verbose, thresh, max_number, e_ref, e0) where {T,N,R}
+function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ham, clustered_ham_0, 
+                  tol, nbody, max_iter, verbose, thresh, max_number, e_ref, e0) where {T,N,R}
     #={{{=#
 
     sig = BSTstate(ket.clusters, ket.p_spaces, ket.q_spaces, T=T, R=R)
     add_fockconfig!(sig, sig_fock)
 
     data = OrderedDict{TuckerConfig{N}, Vector{Tucker{T,N,R}} }()
-    clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = H0)
 
     for jobi in job 
 
@@ -558,6 +562,23 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
                                                        ket_fock, ket_tconfig, ket_tuck,
                                                        max_number=max_number,
                                                        prescreen=thresh)
+                    if term isa ClusteredTerm2B 
+                                    
+                        @profilehtml for ii in 1:1000
+                            form_sigma_block_expand(term, cluster_ops,
+                                                       sig_fock, sig_tconfig,
+                                                       ket_fock, ket_tconfig, ket_tuck,
+                                                       max_number=max_number,
+                                                       prescreen=thresh)
+                        end
+                        @btime form_sigma_block_expand($term, $cluster_ops,
+                                                       $sig_fock, $sig_tconfig,
+                                                       $ket_fock, $ket_tconfig, $ket_tuck,
+                                                       max_number=$max_number,
+                                                       prescreen=$thresh)
+                        error("stop")
+                    end
+
 
                     if length(sig_tuck) == 0
                         continue
