@@ -146,34 +146,38 @@ function form_sigma_block_expand(term::ClusteredTerm2B,
             scale0 = max(scale0,norm(coeffs_ket.core[r])) 
         end
         scale1 = scale0*norm(term.ints)*prescreen
-        
-        D = permutedims(g1, [2,1,3])
-        F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
-        nkeep = 0
-        for si in F.S
-            if si > scale1 
-                nkeep += 1
+       
+        if size(g1,2) > size(g1,1)*size(g1,3)
+            D = permutedims(g1, [2,1,3])
+            F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+            nkeep = 0
+            for si in F.S
+                if scale1*si > prescreen 
+                    nkeep += 1
+                end
             end
+            #println(size(F.U), size(F.Vt))
+            new_factor1 = F.U[:,1:nkeep]
+            g1 = Diagonal(F.S[1:nkeep]) * F.Vt[1:nkeep,:] 
+            g1 = reshape(g1, size(g1,1), size(D,2), size(D,3))
+            g1 = permutedims(g1, [2,1,3])
+
         end
-        #println(size(F.U), size(F.Vt))
-        new_factor1 = F.U[:,1:nkeep]
-        g1 = Diagonal(F.S[1:nkeep]) * F.Vt[1:nkeep,:] 
-        g1 = reshape(g1, size(g1,1), size(D,2), size(D,3))
-        g1 = permutedims(g1, [2,1,3])
 
-
-        D = permutedims(g2, [2,1,3])
-        F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
-        nkeep = 0
-        for si in F.S
-            if si > scale1 
-                nkeep += 1
+        if size(g2,2) > size(g2,1)*size(g2,3)
+            D = permutedims(g2, [2,1,3])
+            F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+            nkeep = 0
+            for si in F.S
+                if scale1*si > prescreen 
+                    nkeep += 1
+                end
             end
+            new_factor2 = F.U[:,1:nkeep]
+            g2 = Diagonal(F.S[1:nkeep]) * F.Vt[1:nkeep,:] 
+            g2 = reshape(g2, size(g2,1), size(D,2), size(D,3))
+            g2 = permutedims(g2, [2,1,3])
         end
-        new_factor2 = F.U[:,1:nkeep]
-        g2 = Diagonal(F.S[1:nkeep]) * F.Vt[1:nkeep,:] 
-        g2 = reshape(g2, size(g2,1), size(D,2), size(D,3))
-        g2 = permutedims(g2, [2,1,3])
     end
 
     #
@@ -324,11 +328,12 @@ function form_sigma_block_expand(term::ClusteredTerm3B,
             scale0 = max(scale0,norm(coeffs_ket.core[r])) 
         end
         scale1 = scale0*norm(term.ints)
+
         D = permutedims(g1, [2,1,3])
         F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
         nkeep = 0
         for si in F.S
-            if si > prescreen*scale1
+            if si*scale1 > prescreen
                 nkeep += 1
             end
         end
@@ -348,7 +353,7 @@ function form_sigma_block_expand(term::ClusteredTerm3B,
         F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
         nkeep = 0
         for si in F.S
-            if si > prescreen*scale1
+            if si*scale1 > prescreen
                 nkeep += 1
             end
         end
@@ -368,7 +373,7 @@ function form_sigma_block_expand(term::ClusteredTerm3B,
         F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
         nkeep = 0
         for si in F.S
-            if si > prescreen*scale1
+            if si*scale1 > prescreen
                 nkeep += 1
             end
         end
@@ -565,7 +570,7 @@ function form_sigma_block_expand(term::ClusteredTerm4B,
         F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
         nkeep = 0
         for si in F.S
-            if si > prescreen*scale1
+            if si*scale1 > prescreen
                 nkeep += 1
             end
         end
@@ -579,7 +584,7 @@ function form_sigma_block_expand(term::ClusteredTerm4B,
         F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
         nkeep = 0
         for si in F.S
-            if si > prescreen*scale1
+            if si*scale1 > prescreen
                 nkeep += 1
             end
         end
@@ -593,7 +598,7 @@ function form_sigma_block_expand(term::ClusteredTerm4B,
         F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
         nkeep = 0
         for si in F.S
-            if si > prescreen*scale1
+            if si*scale1 > prescreen
                 nkeep += 1
             end
         end
@@ -607,7 +612,7 @@ function form_sigma_block_expand(term::ClusteredTerm4B,
         F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
         nkeep = 0
         for si in F.S
-            if si > prescreen*scale1
+            if si*scale1 > prescreen
                 nkeep += 1
             end
         end
