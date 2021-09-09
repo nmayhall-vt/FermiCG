@@ -328,6 +328,7 @@ function form_sigma_block_expand(term::ClusteredTerm3B,
             scale0 = max(scale0,norm(coeffs_ket.core[r])) 
         end
         scale1 = scale0*norm(term.ints)
+        #scale1 = 1.0
 
         D = permutedims(g1, [2,1,3])
         F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
@@ -565,6 +566,7 @@ function form_sigma_block_expand(term::ClusteredTerm4B,
             scale0 = max(scale0,norm(coeffs_ket.core[r])) 
         end
         scale1 = scale0*norm(term.ints)
+        #scale1 = 1.0
         
         D = permutedims(g1, [2,1,3])
         F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))

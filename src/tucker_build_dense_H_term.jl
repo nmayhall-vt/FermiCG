@@ -26,7 +26,11 @@ function build_dense_H_term(term::ClusteredTerm2B, cluster_ops, fock_bra, bra, c
     # Compress Gammas using the cluster's Tucker factors
     # e.g.,
     #   Gamma(pqr, I, J) Ul(I,k) Ur(J,l) = Gamma(pqr, k, l) where k and l are compressed indices
-    @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    g1tmp::Array{Float64,3} = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
+    g2tmp::Array{Float64,3} = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])]
+    @views gamma1 = g1tmp[:,bra[c1.idx],ket[c1.idx]]
+    @views gamma2 = g2tmp[:,bra[c2.idx],ket[c2.idx]]
+    
     Ul = coeffs_bra.factors[c1.idx]
     Ur = coeffs_ket.factors[c1.idx]
     @tensor begin
@@ -36,7 +40,6 @@ function build_dense_H_term(term::ClusteredTerm2B, cluster_ops, fock_bra, bra, c
     #g1 = _compress_local_operator(gamma1, Ul, Ur)
     #g1 = @ncon([gamma1, U1, U2], [[-1,2,3], [2,-2], [3,-3]])
 
-    @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
     Ul = coeffs_bra.factors[c2.idx]
     Ur = coeffs_ket.factors[c2.idx]
     @tensor begin
@@ -65,7 +68,13 @@ function build_dense_H_term(term::ClusteredTerm3B, cluster_ops, fock_bra, bra, c
     # Compress Gammas using the cluster's Tucker factors
     # e.g.,
     #   Gamma(pqr, I, J) Ul(I,k) Ur(J,l) = Gamma(pqr, k, l) where k and l are compressed indices
-    @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    g1tmp::Array{Float64,3} = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
+    g2tmp::Array{Float64,3} = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])]
+    g3tmp::Array{Float64,3} = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])]
+    @views gamma1 = g1tmp[:,bra[c1.idx],ket[c1.idx]]
+    @views gamma2 = g2tmp[:,bra[c2.idx],ket[c2.idx]]
+    @views gamma3 = g3tmp[:,bra[c3.idx],ket[c3.idx]]
+    
     Ul = coeffs_bra.factors[c1.idx]
     Ur = coeffs_ket.factors[c1.idx]
     @tensor begin
@@ -73,7 +82,6 @@ function build_dense_H_term(term::ClusteredTerm3B, cluster_ops, fock_bra, bra, c
         g1[p,k,l] := Ur[J,l] * tmp[p,k,J]
     end
 
-    @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
     Ul = coeffs_bra.factors[c2.idx]
     Ur = coeffs_ket.factors[c2.idx]
     @tensor begin
@@ -82,7 +90,6 @@ function build_dense_H_term(term::ClusteredTerm3B, cluster_ops, fock_bra, bra, c
     end
     #display(("g1/2", size(g1), size(g2)))
 
-    @views gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,bra[c3.idx],ket[c3.idx]]
     Ul = coeffs_bra.factors[c3.idx]
     Ur = coeffs_ket.factors[c3.idx]
     @tensor begin
@@ -115,7 +122,15 @@ function build_dense_H_term(term::ClusteredTerm4B, cluster_ops, fock_bra, bra, c
     # Compress Gammas using the cluster's Tucker factors
     # e.g.,
     #   Gamma(pqr, I, J) Ul(I,k) Ur(J,l) = Gamma(pqr, k, l) where k and l are compressed indices
-    @views gamma1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
+    g1tmp::Array{Float64,3} = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
+    g2tmp::Array{Float64,3} = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])]
+    g3tmp::Array{Float64,3} = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])]
+    g4tmp::Array{Float64,3} = cluster_ops[c4.idx][term.ops[4]][(fock_bra[c4.idx],fock_ket[c4.idx])]
+    @views gamma1 = g1tmp[:,bra[c1.idx],ket[c1.idx]]
+    @views gamma2 = g2tmp[:,bra[c2.idx],ket[c2.idx]]
+    @views gamma3 = g3tmp[:,bra[c3.idx],ket[c3.idx]]
+    @views gamma4 = g4tmp[:,bra[c4.idx],ket[c4.idx]]
+    
     Ul = coeffs_bra.factors[c1.idx]
     Ur = coeffs_ket.factors[c1.idx]
     @tensor begin
@@ -123,7 +138,6 @@ function build_dense_H_term(term::ClusteredTerm4B, cluster_ops, fock_bra, bra, c
         g1[p,k,l] := Ur[J,l] * tmp[p,k,J]
     end
 
-    @views gamma2 = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])][:,bra[c2.idx],ket[c2.idx]]
     Ul = coeffs_bra.factors[c2.idx]
     Ur = coeffs_ket.factors[c2.idx]
     @tensor begin
@@ -132,7 +146,6 @@ function build_dense_H_term(term::ClusteredTerm4B, cluster_ops, fock_bra, bra, c
     end
     #display(("g1/2", size(g1), size(g2)))
 
-    @views gamma3 = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])][:,bra[c3.idx],ket[c3.idx]]
     Ul = coeffs_bra.factors[c3.idx]
     Ur = coeffs_ket.factors[c3.idx]
     @tensor begin
@@ -140,7 +153,6 @@ function build_dense_H_term(term::ClusteredTerm4B, cluster_ops, fock_bra, bra, c
         g3[p,k,l] := Ur[J,l] * tmp[p,k,J]
     end
 
-    @views gamma4 = cluster_ops[c4.idx][term.ops[4]][(fock_bra[c4.idx],fock_ket[c4.idx])][:,bra[c4.idx],ket[c4.idx]]
     Ul = coeffs_bra.factors[c4.idx]
     Ur = coeffs_ket.factors[c4.idx]
     @tensor begin
