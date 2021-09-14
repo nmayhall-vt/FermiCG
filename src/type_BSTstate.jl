@@ -493,7 +493,7 @@ end
 
 Pretty print
 """
-function Base.display(s::BSTstate; thresh=1e-3, root=1)
+function Base.display(s::BSTstate; thresh=1e-2, root=1)
 #={{{=#
     println()
     @printf(" --------------------------------------------------\n")
@@ -515,6 +515,7 @@ function Base.display(s::BSTstate; thresh=1e-3, root=1)
             len += length(tuck.core[root])
             lenfull += prod(dims_large(tuck))
         end
+        prob = sqrt(prob)
         if prob > thresh
         #if lenfull > 0
             #@printf(" %-20.3f%-10i%-10i", prob,len, lenfull)
@@ -527,12 +528,14 @@ function Base.display(s::BSTstate; thresh=1e-3, root=1)
             #@printf("     %-16s%-20s%-20s\n", "Weight", "", "Subspaces")
             #@printf("     %-16s%-20s%-20s\n", "-------", "", "----------")
             for (config, tuck) in configs
-                probi = sum(tuck.core[root] .* tuck.core[root])
-                @printf("     %-16.3f%-10i%-10i", probi,length(tuck.core[root]),prod(dims_large(tuck)))
-                for range in config
-                    @printf("%7s", range)
+                probi = sqrt(sum(tuck.core[root] .* tuck.core[root]))
+                if probi > thresh
+                    @printf("     %-16.3f%-10i%-10i", probi,length(tuck.core[root]),prod(dims_large(tuck)))
+                    for range in config
+                        @printf("%7s", range)
+                    end
+                    println()
                 end
-                println()
             end
             #println()
             @printf(" %-20s%-20s%-20s\n", "---------", "", "----------")

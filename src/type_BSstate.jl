@@ -504,6 +504,7 @@ function Base.display(s::BSstate; root=1, thresh=1e-3)
             prob += coeffs[:,root]' * coeffs[:,root]
             len += length(coeffs[:,root])
         end
+        prob = sqrt(prob)
         if prob > thresh
             @printf(" %-20.3f%-20i", prob,len)
             for sector in fock 
@@ -514,7 +515,7 @@ function Base.display(s::BSstate; root=1, thresh=1e-3)
             @printf("     %-16s%-20s%-20s\n", "Weight", "", "Subspaces") 
             @printf("     %-16s%-20s%-20s\n", "-------", "", "----------")
             for (config, coeffs) in configs 
-                probi = coeffs[:,root]' * coeffs[:,root]
+                probi = sqrt(coeffs[:,root]' * coeffs[:,root])
                 if probi > thresh
                     @printf("     %-16.3f%-20i", probi,length(coeffs))
                     for range in config 

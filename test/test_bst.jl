@@ -60,7 +60,7 @@ if false
 #end
 end
 
-#@testset "BST" begin
+@testset "BST" begin
 
 
     @load "_testdata_cmf_h6.jld2"
@@ -80,21 +80,21 @@ end
                                                resolve_ss  = true,
                                                tol_tucker  = 1e-4)
 
-    @test isapprox(e_var[1], -18.329455008361652, atol=1e-8)
+    @test isapprox(e_var[1], -18.329454973117784, atol=1e-8)
     
 
     e_cepa, v_cepa = FermiCG.do_fois_cepa(v, cluster_ops, clustered_ham, thresh_foi=1e-3, max_iter=50, tol=1e-8)
     display(e_cepa)
-    @test isapprox(e_cepa[1], -18.32979791111852, atol=1e-8)
+    @test isapprox(e_cepa[1], -18.32978899988935, atol=1e-8)
     
     e_pt, v_pt = FermiCG.do_fois_pt2(v, cluster_ops, clustered_ham, thresh_foi=1e-3, max_iter=50, tol=1e-8)
     display(e_pt)
-    @test isapprox(e_pt[1], -18.32697072976005, atol=1e-8)
+    @test isapprox(e_pt[1], -18.326970022448485, atol=1e-8)
 
     e_ci, v_ci = FermiCG.tucker_ci_solve(v_cepa, cluster_ops, clustered_ham)
     display(e_ci)
-    @test isapprox(e_ci[1], -18.329649399280648, atol=1e-8)
+    @test isapprox(e_ci[1], -18.32964089848682, atol=1e-8)
 
-#end
+end
 if false
 end
