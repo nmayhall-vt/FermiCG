@@ -949,7 +949,7 @@ function expand_each_fock_space!(s::TPSCIstate{T,N,R}, bases::Vector{ClusterBasi
             dim = size(bases[c.idx][fblock[c.idx]], 2)
             push!(dims, 1:dim)
         end
-        for newconfig in product(dims...)
+        for newconfig in Iterators.product(dims...)
             #display(newconfig)
             #println(typeof(newconfig))
             #
@@ -982,7 +982,7 @@ function expand_to_full_space!(s::AbstractState, bases::Vector{ClusterBasis}, na
         end
         push!(ns,nsi)
     end
-    for newfock in product(ns...)
+    for newfock in Iterators.product(ns...)
         nacurr = 0
         nbcurr = 0
         for c in newfock
