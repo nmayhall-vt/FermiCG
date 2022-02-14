@@ -4,7 +4,7 @@ using Test
 using JLD2 
 
 #@testset "BSTstate" begin
-if false
+if true 
     @load "_testdata_cmf_h6.jld2"
     v = FermiCG.BSTstate(clusters, FockConfig(init_fspace), cluster_bases)
     

@@ -247,7 +247,8 @@ function form_sigma_block_expand(term::ClusteredTerm2B,
         new_factors[c2.idx] = new_factor2 
       
         dims = ntuple(i->size(new_factors[i],2), N)
-        out_tucker = Tucker(zeros(T,dims), NTuple{N}(new_factors))
+        out_tucker = Tucker(ntuple(i->zeros(T,dims), R), NTuple{N}(new_factors))
+        #out_tucker = Tucker(zeros(T,dims), NTuple{N}(new_factors))
         bra_cores = contract_dense_H_with_state(term, op, state_sign, out_tucker, coeffs_ket)
 
         for r in 1:R
@@ -472,7 +473,8 @@ function form_sigma_block_expand(term::ClusteredTerm3B,
         new_factors[c3.idx] = new_factor3 
       
         dims = ntuple(i->size(new_factors[i],2), N)
-        out_tucker = Tucker(zeros(T,dims), tuple(new_factors...))
+        out_tucker = Tucker(ntuple(i->zeros(T,dims), R), NTuple{N}(new_factors))
+        #out_tucker = Tucker(zeros(T,dims), tuple(new_factors...))
         #out_tucker = Tucker(zeros(T,dims), NTuple{N}(new_factors))
         bra_cores = contract_dense_H_with_state(term, op, state_sign, out_tucker, coeffs_ket)
 
@@ -704,7 +706,9 @@ function form_sigma_block_expand(term::ClusteredTerm4B,
         new_factors[c4.idx] = new_factor4 
 
         dims = ntuple(i->size(new_factors[i],2), N)
-        out_tucker = Tucker(zeros(T,dims), NTuple{N}(new_factors))
+        out_tucker = Tucker(ntuple(i->zeros(T,dims), R), NTuple{N}(new_factors))
+        #out_tucker = Tucker(zeros(T,dims), NTuple{N}(new_factors))
+        #println(length(out_tucker.core), length(coeffs_ket.core))
         bra_cores = contract_dense_H_with_state(term, op, state_sign, out_tucker, coeffs_ket)
 
         for r in 1:R
