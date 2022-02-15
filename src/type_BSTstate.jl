@@ -438,6 +438,14 @@ end
 #=}}}=#
 
 """
+    function add_single_excitons!(ts::BSTstate{T,N,R}, 
+                              fock::FockConfig{N}, 
+                              cluster_bases::Vector{ClusterBasis}) where {T,N,R}
+
+Modify the current state by adding the "single excitonic" basis for the specified `FockConfig`. 
+This basically, starts from a reference state where only the p-spaces are included,
+and then adds the excited states. E.g., 
+    |PPPP> += |QPPP> + |PQPP> + |PPQP> + |PPPQ> 
 """
 function add_single_excitons!(ts::BSTstate{T,N,R}, 
                               fock::FockConfig{N}, 
