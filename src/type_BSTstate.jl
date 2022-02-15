@@ -63,7 +63,7 @@ function BSTstate(clusters::Vector{Cluster},
     end
 
     data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N,R}} }()
-    state = BSTstate(clusters, data, p_spaces, q_spaces) 
+    state = BSTstate{T,N,R}(clusters, data, p_spaces, q_spaces) 
     add_fockconfig!(state, fconfig)
 
     factors = []
@@ -74,9 +74,8 @@ function BSTstate(clusters::Vector{Cluster},
     factors = tuple(factors...) 
     
     tconfig = TuckerConfig([p_spaces[ci.idx].data[fconfig[ci.idx]] for ci in clusters])
-    tdata = Tucker(reshape([1.0], tuple(ones(Int64, N)...)), factors)
-    
-    state[fconfig][tconfig] = tdata
+    core = tuple([reshape([1.0], tuple(ones(Int64, N)...)) for r in 1:R]...)
+    state[fconfig][tconfig] = Tucker{T,N,R}(core, factors)
     return state
 #=}}}=#
 end
@@ -435,6 +434,33 @@ function get_vector(ts::BSTstate{T,N,R}, root::Integer) where {T,N,R}
         end
     end
     return v
+end
+#=}}}=#
+
+"""
+"""
+function add_single_excitons!(ts::BSTstate{T,N,R}, 
+                              fock::FockConfig{N}, 
+                              cluster_bases::Vector{ClusterBasis}) where {T,N,R}
+#={{{=#
+    #length(size(v)) == 1 || error(" Only takes vectors", size(v))
+
+    ref_config = [ts.p_spaces[ci.idx][fock[ci.idx]] for ci in ts.clusters]
+   
+
+    println(ref_config)
+    println(TuckerConfig(ref_config))
+    for ci in ts.clusters
+        conf_i = deepcopy(ref_config)
+        conf_i[ci.idx] = ts.q_spaces[ci.idx][fock[ci.idx]]
+        tconfig_i = TuckerConfig(conf_i)
+     
+        #factors = tuple([cluster_bases[j.idx][fock[j.idx]][:,tconfig_i[j.idx]] for j in ts.clusters]...)
+        core = tuple([zeros(length.(tconfig_i)...) for r in 1:R]...)
+        factors = tuple([Matrix{T}(I, length(tconfig_i[j.idx]), length(tconfig_i[j.idx])) for j in ts.clusters]...)
+        ts.data[fock][tconfig_i] = Tucker(core, factors)
+    end
+    return
 end
 #=}}}=#
 
