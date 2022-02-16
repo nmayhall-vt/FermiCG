@@ -907,21 +907,27 @@ function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster};
             # prepare for FCI calculation for give sector of Fock space
             problem = FermiCG.StringCI.FCIProblem(length(ci), sec[1], sec[2])
             verbose == 0 || display(problem)
+            verbose == 0 || flush(stdout)
+            
             nr = min(max_roots, problem.dim)
 
-            #
-            # Build full Hamiltonian matrix in cluster's Slater Det basis
-            Hmat = FermiCG.StringCI.build_H_matrix(ints_i, problem)
-            if problem.dim < 1000
+            if problem.dim < 5000 || problem.dim == nr 
+                #
+                # Build full Hamiltonian matrix in cluster's Slater Det basis
+                Hmat = FermiCG.StringCI.build_H_matrix(ints_i, problem)
                 F = eigen(Hmat)
 
                 e = F.values[1:nr]
                 basis_i[sec] = F.vectors[:,1:nr]
                 #display(e)
             else
-                e,v = Arpack.eigs(Hmat, nev = nr, which=:SR)
-                e = real(e)[1:nr]
-                basis_i[sec] = v[:,1:nr]
+                #
+                # Do sparse build 
+                #Hmat = FermiCG.StringCI.build_H_matrix(ints_i, problem)
+                #e = real(e)[1:nr]
+                #e,v = Arpack.eigs(Hmat, nev = nr, which=:SR)
+                #basis_i[sec] = v[:,1:nr]
+                e, basis_i[sec] = StringCI.do_fci(problem, ints_i, nr)
             end
             if verbose > 0
                 state=1
@@ -929,6 +935,7 @@ function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster};
                     @printf("   State %4i Energy: %12.8f %12.8f\n",state,ei, ei+ints.h0)
                     state += 1
                 end
+                flush(stdout)
             end
         end
         push!(cluster_bases,basis_i)

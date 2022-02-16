@@ -1231,3 +1231,19 @@ function svd_state(v,P::FCIProblem,norbs1,norbs2,svd_thresh)
 end
 #=}}}=#
 
+
+
+"""
+    function do_fci(problem::FCIProblem, ints, nr)
+
+Use Arpack.eigs to diagonalize the problem
+- `problem`: FCIProblem to solve
+- `ints`: InCoreIntegrals
+- `nr`: number of roots 
+"""
+function do_fci(problem::FCIProblem, ints, nr)
+    Hmap = get_map(ints, problem)
+    e, v = Arpack.eigs(Hmap, nev = nr, which=:SR)
+    e = real(e)[1:nr]
+    return e, v[:,1:nr]
+end
