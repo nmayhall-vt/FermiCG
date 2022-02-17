@@ -452,6 +452,14 @@ end
 
 
 """
+    eye!(s::TPSCIstate)
+"""
+function eye!(s::TPSCIstate{T,N,R}) where {T,N,R}
+    set_vectors!(s, Matrix{T}(I,size(s)))
+end
+
+
+"""
     add!(s1::TPSCIstate, s2::TPSCIstate)
 
 Add coeffs in `s2` to `s1`

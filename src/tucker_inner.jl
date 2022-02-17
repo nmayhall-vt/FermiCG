@@ -25,10 +25,17 @@ function build_sigma_serial!(sigma_vector::BSTstate{T,N,R}, ci_vector::BSTstate{
                     
                         check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
 
-                        coeff_bra.core .= form_sigma_block!(term, cluster_ops, fock_bra, config_bra,
+                        #coeff_bra.core .= form_sigma_block!(term, cluster_ops, fock_bra, config_bra,
+                        #                                    fock_ket, config_ket,
+                        #                                    coeff_bra, coeff_ket,
+                        #                                    cache=cache)
+                        tmp = form_sigma_block!(term, cluster_ops, fock_bra, config_bra,
                                                             fock_ket, config_ket,
                                                             coeff_bra, coeff_ket,
                                                             cache=cache)
+                        for r in 1:R
+                            coeff_bra.core[r] .= tmp[r]                        
+                        end
 
 
                     end

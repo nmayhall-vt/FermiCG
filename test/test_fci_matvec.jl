@@ -76,7 +76,7 @@ using Profile
         end
     end
 
-    test_matvec(v0,problem,1)
+    test_matvec(v0,problem,2)
     
     problem = StringCI.FCIProblem(norbs, na, nb)
     display(problem)

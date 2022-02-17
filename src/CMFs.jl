@@ -270,10 +270,15 @@ This method forms the eri's on the fly to avoid global N^4 storage
 - `clusters::Vector{Cluster}`: vector of Cluster objects
 - `fspace::Vector{Vector{Int}}`: vector of particle number occupations for each cluster specifying the sectors of fock space 
 - `verbose`: how much to print
+- `ci_max_iter`: How many FCI iterations do we allow for each cluster. Default=40
+- `ci_conv_tol`: How what is the convergence (gradient norm) for the FCI on each cluster. Default=1e-8 
 
 See also: [`cmf_ci_iteration`](@ref)
 """
-function cmf_ci_iteration(mol::Molecule, C, rdm1a, rdm1b, clusters, fspace; verbose=0)
+function cmf_ci_iteration(mol::Molecule, C, rdm1a, rdm1b, clusters, fspace; 
+                          verbose=0, 
+                          ci_max_iter=40,
+                          ci_conv_tol=1e-8)
     rdm1_dict = Dict{Integer,Array}()
     rdm2_dict = Dict{Integer,Array}()
     for ci in clusters
@@ -288,7 +293,8 @@ function cmf_ci_iteration(mol::Molecule, C, rdm1a, rdm1b, clusters, fspace; verb
         ints_i = FermiCG.pyscf_build_ints(mol, C[:,ci.orb_list], Dembed);
         #
         # use pyscf to compute FCI energy
-        e, d1a,d1b, d2 = FermiCG.pyscf_fci(ints_i,fspace[ci.idx][1],fspace[ci.idx][2], verbose=verbose)
+        e, d1a,d1b, d2 = FermiCG.pyscf_fci(ints_i,fspace[ci.idx][1],fspace[ci.idx][2],
+                                          max_cycle=ci_max_iter, conv_tol=ci_conv_tol, verbose=verbose)
         rdm1_dict[ci.idx] = [d1a,d1b]
         rdm2_dict[ci.idx] = d2
     end
@@ -703,7 +709,13 @@ Do CMF with orbital optimization
 - `method`: optimization method
 """
 function cmf_oo(ints::InCoreInts, clusters::Vector{Cluster}, fspace, dguess_a, dguess_b; 
-                max_iter_oo=100, max_iter_ci=100, gconv=1e-6, verbose=0, method="bfgs", alpha=nothing,sequential=false)
+                max_iter_oo=100, 
+                max_iter_ci=100, 
+                gconv=1e-6, 
+                verbose=0, 
+                method="bfgs", 
+                alpha=nothing,
+                sequential=false)
     norb = size(ints.h1)[1]
     #kappa = zeros(norb*(norb-1))
     # e, da, db = cmf_oo_iteration(ints, clusters, fspace, max_iter_ci, dguess, kappa)

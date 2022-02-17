@@ -99,7 +99,7 @@ using Arpack
     # build Hamiltonian, cluster_basis and cluster ops
     #display(Da)
     #cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=2, max_roots=max_roots)
-    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=0, max_roots=max_roots, 
+    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=1, max_roots=max_roots, 
                                                        init_fspace=init_fspace, rdm1a=Da, rdm1b=Db)
     clustered_ham = FermiCG.extract_ClusteredTerms(ints, clusters)
     cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
