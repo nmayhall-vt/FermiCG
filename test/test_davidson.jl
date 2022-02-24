@@ -73,12 +73,15 @@ using Profile
     
 
     if 1==1
+        problem = StringCI.FCIProblem(norbs, 4, 5)
         e, v = StringCI.do_fci(problem, ints, 1, tol=1e-12);
         rdma, rdmb = StringCI.compute_1rdm(problem, v[:,1], v[:,1]);
         ee, d1a, d1b, d2, ci = FermiCG.pyscf_fci(ints, problem.na, problem.nb);
-        @test isapprox(e[1], ee, atol=1e-10)
         display(rdma-d1a)
-        @test all(isapprox(rdma, d1a, atol=1e-6))
+        display(rdmb-d1b)
+        @test isapprox(e[1], ee, atol=1e-10)
+        @test isapprox(norm(rdma-d1a), 0, atol=1e-5)
+        @test isapprox(norm(rdmb-d1b), 0, atol=1e-5)
     end
 
 end
