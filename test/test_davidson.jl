@@ -70,4 +70,15 @@ using Profile
     @test isapprox(e[1], e_fci, atol=1e-10)
     #@profilehtml FermiCG.solve(davidson, Adiag=Adiag)
     #FermiCG.solve(davidson, Adiag=Diagonal(A))
+    
+
+    if 1==1
+        e, v = StringCI.do_fci(problem, ints, 1, tol=1e-12);
+        rdma, rdmb = StringCI.compute_1rdm(problem, v[:,1], v[:,1]);
+        ee, d1a, d1b, d2, ci = FermiCG.pyscf_fci(ints, problem.na, problem.nb);
+        @test isapprox(e[1], ee, atol=1e-10)
+        display(rdma-d1a)
+        @test all(isapprox(rdma, d1a, atol=1e-6))
+    end
+
 end

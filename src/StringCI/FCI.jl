@@ -1234,16 +1234,56 @@ end
 
 
 """
-    function do_fci(problem::FCIProblem, ints, nr)
+    function do_fci(problem::FCIProblem, ints, nr; v0=Nothing, tol=1e-12)
 
 Use Arpack.eigs to diagonalize the problem
 - `problem`: FCIProblem to solve
 - `ints`: InCoreIntegrals
 - `nr`: number of roots 
+- `v0`: Initial vector
+- `tol`: convergence tolerance
 """
-function do_fci(problem::FCIProblem, ints, nr)
+function do_fci(problem::FCIProblem, ints, nr; v0=Nothing, tol=1e-12)
+    #={{{=#
     Hmap = get_map(ints, problem)
-    e, v = Arpack.eigs(Hmap, nev = nr, which=:SR)
-    e = real(e)[1:nr]
-    return e, v[:,1:nr]
+    if v0 == Nothing
+        e, v = Arpack.eigs(Hmap, nev = nr, which=:SR, tol=tol)
+        e = real(e)[1:nr]
+        return e, v[:,1:nr]
+    else
+        e, v = Arpack.eigs(Hmap, nev = nr, which=:SR, v0=v0, tol=tol)
+        e = real(e)[1:nr]
+        return e, v[:,1:nr]
+    end
 end
+#=}}}=#
+
+
+"""
+"""
+function compute_1rdm(problem::FCIProblem, vl::Vector{T}, vr::Vector{T}) where T
+    #={{{=#
+
+
+    rdma = compute_Aa(problem.no,                    
+                     problem.na, problem.nb,
+                     problem.na, problem.nb,
+                     reshape(vl, length(vl), 1), 
+                     reshape(vr, length(vr), 1), 
+                    "alpha") 
+   
+    rdmb = compute_Aa(problem.no,                    
+                     problem.na, problem.nb,
+                     problem.na, problem.nb,
+                     reshape(vl, length(vl), 1), 
+                     reshape(vr, length(vr), 1), 
+                    "beta") 
+   
+     
+    rdma = reshape(rdma, problem.no, problem.no)
+    rdmb = reshape(rdmb, problem.no, problem.no)
+    return rdma, rdmb
+end
+#=}}}=#
+
+
