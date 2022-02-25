@@ -129,7 +129,7 @@ function iteration(solver::Davidson; Adiag=nothing, iprint=0)
     Hss1 = solver.vec_prev' * solver.sig_prev
     Hss = ritz_v' * Hss * ritz_v
     # make sure these match
-    all([abs(Hss1[i]-Hss[i])<1e-12 for i in 1:Base.length(Hss)]) || throw(Exception)
+    all([abs(Hss1[i]-Hss[i])<1e-12 for i in 1:Base.length(Hss)]) || @warn(" Hss1[i]-Hss[i]")
 
     solver.lindep = det(solver.vec_prev'*solver.vec_prev)
     #Hss = solver.vec_curr' * sigma
