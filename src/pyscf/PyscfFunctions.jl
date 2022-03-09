@@ -315,11 +315,40 @@ function get_nuclear_rep(mol::Molecule)
 end
 
 """
+	localize(C::Array{Float64,2}, method::String, mol::Molecule)
+
+Localize the orbitals using method = `method` (pm, boys, lowdin)
+"""
+function localize(C::Array{Float64,2}, method::String, mol::Molecule; verbose=4)
+    """
+    mf is a pyscf scf object
+    """
+    pyscf = pyimport("pyscf")
+    #pyscf.lib.num_threads(1)
+    pyscflo = pyimport("pyscf.lo")
+    pymol = make_pyscf_mole(mol)
+
+    if lowercase(method) == "lowdin"
+	    ClS = pymol.intor("int1e_ovlp_sph")
+        F = svd(Cl)
+        # display(Cl - F.U * Diagonal(F.S) * F.Vt)
+        # display(Cl - F.vectors * Diagonal(F.values) * F.vectors')
+        return F.U * Diagonal(F.S.^(-.5)) * F.Vt
+    elseif lowercase(method) == "pm"
+        return pyscflo.PM(pymol).kernel(C, verbose=verbose);
+    elseif lowercase(method) == "boys"
+        return pyscflo.Boys(pymol).kernel(C, verbose=verbose);
+        #Cl = pyscflo.Boys(mf.mol, C).kernel(verbose=4)
+        #return Cl
+    end
+end
+
+"""
 	localize(C::Array{Float64,2},method::String, mf)
 
 Localize the orbitals using method = `method`
 """
-function localize(C::Array{Float64,2},method::String, mf)
+function localize(C::Array{Float64,2}, method::String, mf)
     """
     mf is a pyscf scf object
     """
