@@ -353,7 +353,8 @@ function orthonormalize!(s::BSTstate{T,N,R}) where {T,N,R}
         end
         v0[:,r] .= v0[:,r]./norm(v0[:,r])
     end
-    isapprox(det(v0'*v0), 1.0, atol=1e-14) || @warn "initial guess det(v0'v0) = ", det(v0'v0) 
+    lindep = minimum(eigvals(v0'*v0))
+    isapprox(lindep, 1.0, atol=1e-10) || @warn "initial guess min(eigval(v'v)) = ", lindep 
     set_vectors!(s,v0)
 end
 #=}}}=#

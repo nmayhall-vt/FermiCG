@@ -62,6 +62,7 @@ function tucker_ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_h
                          max_ss_vecs = 12,
                          max_iter    = 40,
                          shift       = nothing,
+                         arpack      = false,
                          precond     = false,
                          verbose     = 0) where {T,N,R}
 #={{{=#
@@ -76,11 +77,14 @@ function tucker_ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_h
     #Hmap = get_map(vec, cluster_ops, clustered_ham, cache=true)
     iters = 0
     
-    function matvec(v::AbstractMatrix)
+    function matvec(v)
+    #function matvec(v::AbstractMatrix)
         iters += 1
         #all(size(vec) .== size(v)) || error(DimensionMismatch)
+        #size(v,2) > 0 || return v
         vec_i = BSTstate(vec, R=size(v,2))
         set_vectors!(vec_i, v)
+        #orthonormalize!(vec_i)
 
         sig = deepcopy(vec_i)
         zero!(sig)
@@ -89,7 +93,8 @@ function tucker_ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_h
         return get_vectors(sig) 
     end
 
-    Hmap = FermiCG.LinOp(matvec, length(vec))
+    #Hmap = FermiCG.LinOp(matvec, length(vec), true)
+    Hmap = LinearMap(matvec, size(vec)[1], size(vec)[1]; issymmetric=true, ismutating=false, ishermitian=true)
     
     v0 = get_vectors(vec)
    
@@ -109,11 +114,23 @@ function tucker_ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_h
     #end
 
     #cache_hamiltonian(ci_vector, ci_vector, cluster_ops, clustered_ham)
+    e = Vector{T}() 
+    v = zeros(size(v0)) 
     
-    davidson = Davidson(Hmap,v0=v0,max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)
-    flush(stdout)
-    time = @elapsed e,v = FermiCG.solve(davidson, iprint=verbose)
-    @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
+    if arpack && size(vec)[1] > 1
+        time = @elapsed ee, vv = Arpack.eigs(Hmap, nev=R, which=:SR, v0=v0[:,1], tol=conv_thresh)
+        e = real(ee)[1:nr]
+        v = vv[:,1:nr]
+        @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
+        flush(stdout)
+    else
+        davidson = Davidson(Hmap,v0=v0,max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)
+        flush(stdout)
+        time = @elapsed e,v = FermiCG.solve(davidson, iprint=verbose)
+        @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
+    end
+
+
     set_vectors!(vec,v)
     
     #println(" Memory used by cache: ", mem_used_by_cache(clustered_ham))
