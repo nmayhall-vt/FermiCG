@@ -460,7 +460,12 @@ function add_single_excitons!(ts::BSTstate{T,N,R},
     println(TuckerConfig(ref_config))
     for ci in ts.clusters
         conf_i = deepcopy(ref_config)
-        conf_i[ci.idx] = ts.q_spaces[ci.idx][fock[ci.idx]]
+
+	# Check to make sure there is a q space for this fock sector (e.g., (0,0) fock sector only has a P space 
+	# since it is 1 dimensional)
+	fock[ci.idx] in keys(ts.q_spaces[ci.idx].data) || continue
+        
+	conf_i[ci.idx] = ts.q_spaces[ci.idx][fock[ci.idx]]
         tconfig_i = TuckerConfig(conf_i)
      
         #factors = tuple([cluster_bases[j.idx][fock[j.idx]][:,tconfig_i[j.idx]] for j in ts.clusters]...)
