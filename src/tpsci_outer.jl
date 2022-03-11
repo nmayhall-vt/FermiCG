@@ -606,9 +606,15 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
                 # just update matrix
                 e0, vec_var, H = tps_ci_direct(vec_var, cluster_ops, clustered_ham, 
                                                H_old = H,
-                                               v_old = v_old)
+                                               v_old = v_old,
+                                               conv_thresh = ci_conv,
+                                               max_ss_vecs = ci_max_ss_vecs,
+                                               max_iter = ci_max_iter)
             else
-                e0, vec_var, H = tps_ci_direct(vec_var, cluster_ops, clustered_ham)
+                e0, vec_var, H = tps_ci_direct(vec_var, cluster_ops, clustered_ham,
+                                               conv_thresh = ci_conv,
+                                               max_ss_vecs = ci_max_ss_vecs,
+                                               max_iter = ci_max_iter)
             end
             #v_new = vec_var 
 #            e0, vec_var, H = tps_ci_direct(vec_var, cluster_ops, clustered_ham)
