@@ -180,6 +180,10 @@ function set_vector!(ts::TPSCIstate{T,N,R}, v::Matrix{T}) where {T,N,R}
     return
 end
 
+function set_vectors!(ts::TPSCIstate{T,N,R}, v::Matrix{T}) where {T,N,R}
+    set_vector!(ts, v)
+end
+
 #"""
 #    function set_vector!(ts::TPSCIstate{T,N,R}, v) where {T,N,R}
 #
