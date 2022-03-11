@@ -62,7 +62,7 @@ function tucker_ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_h
                          max_ss_vecs = 12,
                          max_iter    = 40,
                          shift       = nothing,
-                         arpack      = false,
+                         arpack      = true,
                          precond     = false,
                          verbose     = 0) where {T,N,R}
 #={{{=#
@@ -93,8 +93,8 @@ function tucker_ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_h
         return get_vectors(sig) 
     end
 
-    #Hmap = FermiCG.LinOp(matvec, length(vec), true)
-    Hmap = LinearMap(matvec, size(vec)[1], size(vec)[1]; issymmetric=true, ismutating=false, ishermitian=true)
+    Hmap = FermiCG.LinOp(matvec, length(vec), true)
+    #Hmap = LinearMap(matvec, size(vec)[1], size(vec)[1]; issymmetric=true, ismutating=false, ishermitian=true)
     
     v0 = get_vectors(vec)
    
