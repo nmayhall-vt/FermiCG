@@ -237,8 +237,11 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
         println("")
 
         if maximum(abs.(e_last - e_var)) < tol_tucker 
-            @printf("*Converged %-20s", "E(BST): ")
+            @printf("*Converged %-20s", "E(Ref): ")
             [@printf("%12.8f ", e0[r]) for r in 1:R]
+            println("")
+            @printf("*Converged %-20s", "E(BST): ")
+            [@printf("%12.8f ", e_var[r]) for r in 1:R]
             println("")
             show(to)
             println()
