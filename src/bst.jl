@@ -51,7 +51,7 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
         ci_conv         = 1e-5,
         ci_max_iter     = 50,
         ci_max_ss_vecs  = 12,
-	resolve_ss      = false,
+        resolve_ss      = false,
         do_pt           = true,
         tol_tucker      = 1e-6 ) where {T,N,R}
     #={{{=#
@@ -106,7 +106,7 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
             @printf(" %-50s\n", "Get eigenstate for compressed reference space: ")
             flush(stdout)
             @timeit to "CI small" e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, 
-                                                                conv_thresh=ci_conv,
+                                                                conv_thresh = ci_conv,
                                                                 max_iter    = ci_max_iter,
                                                                 max_ss_vecs = ci_max_ss_vecs)
         else
@@ -205,7 +205,10 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
         @printf(" %-50s%10.6f seconds\n", "Add new space to variational space: ", time)
             
         @printf(" %-50s\n", "Solve in compressed FOIS: ")
-        @timeit to "CI big" e_var, var_vec = tucker_ci_solve(var_vec, cluster_ops, clustered_ham, conv_thresh=ci_conv)
+        @timeit to "CI big" e_var, var_vec = tucker_ci_solve(var_vec, cluster_ops, clustered_ham, 
+                                                             conv_thresh = ci_conv,
+                                                             max_iter    = ci_max_iter,
+                                                             max_ss_vecs = ci_max_ss_vecs)
 
         tmp = deepcopy(var_vec)
         zero!(tmp)
