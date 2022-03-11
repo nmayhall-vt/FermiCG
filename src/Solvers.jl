@@ -5,12 +5,13 @@ using BenchmarkTools
 mutable struct LinOp
     matvec
     dim::Int
+    sym::Bool
 end
 
 Base.size(lop::LinOp) = return (lop.dim,lop.dim)
 Base.:(*)(lop::LinOp, v::AbstractVector{T}) where {T} = return lop.matvec(v)
 Base.:(*)(lop::LinOp, v::AbstractMatrix{T}) where {T} = return lop.matvec(v)
-
+issymmetric(lop::LinOp) = return lop.sym
     
 
 mutable struct Davidson
@@ -129,9 +130,10 @@ function iteration(solver::Davidson; Adiag=nothing, iprint=0)
     Hss1 = solver.vec_prev' * solver.sig_prev
     Hss = ritz_v' * Hss * ritz_v
     # make sure these match
-    all([abs(Hss1[i]-Hss[i])<1e-12 for i in 1:Base.length(Hss)]) || @warn(" Hss1[i]-Hss[i]")
+    all([abs(Hss1[i]-Hss[i])<1e-12 for i in 1:Base.length(Hss)]) || @warn(" Hss1[i]-Hss[i]") 
 
-    solver.lindep = det(solver.vec_prev'*solver.vec_prev)
+    ss_metric = eigvals(solver.vec_prev'*solver.vec_prev)
+    solver.lindep = maximum([abs(maximum(ss_metric)-1), abs(minimum(ss_metric)-1)]) 
     #Hss = solver.vec_curr' * sigma
     if iprint>0
         [@printf(" Ritz Value: %12.8f \n",i) for i in ritz_e]
