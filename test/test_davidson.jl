@@ -83,5 +83,7 @@ using Profile
         @test isapprox(norm(rdma-d1a), 0, atol=1e-5)
         @test isapprox(norm(rdmb-d1b), 0, atol=1e-5)
     end
+        
+    #rdm1a, rdm1b, rdm2aa, rdm2bb = StringCI.compute_1rdm(problem, v[:,1], v[:,1]);
 
 end

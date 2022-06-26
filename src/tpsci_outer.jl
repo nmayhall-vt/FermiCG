@@ -238,12 +238,12 @@ function tps_ci_direct( ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham
     flush(stdout)
     if length(vec_out) > 50
         @printf(" Now diagonalize\n")
-        #@time e0,v = Arpack.eigs(H, nev = R, which=:SR)
+        time = @elapsed e0,v = Arpack.eigs(H, nev = R, which=:SR)
         #@time e0,v = Arpack.eigs(H, nev = R, v0=get_vector(v_tot,root=1), which=:SR)
-        davidson = FermiCG.Davidson(H, v0=get_vectors(ci_vector), 
-                                max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)
+        #davidson = FermiCG.Davidson(H, v0=get_vectors(ci_vector), 
+        #                        max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)
         
-        time = @elapsed e0,v = FermiCG.solve(davidson);
+        #time = @elapsed e0,v = FermiCG.solve(davidson);
         @printf(" %-50s", "Diagonalization time: ")
         @printf("%10.6f seconds\n",time)
     else
