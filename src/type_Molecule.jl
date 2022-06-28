@@ -6,12 +6,20 @@
 Molecule essentially as a Vector of atoms, number of electrons and basis set
 """
 struct Molecule
-	charge::Integer
-	multiplicity::Integer
-	atoms::Array{Atom,1}
+    charge::Integer
+    multiplicity::Integer
+    atoms::Array{Atom,1}
     basis::String
 end
 
 
 
-
+#function write_xyz(mol::Molecule; file="mol", append=true)
+#    xyz = ""
+#    for a in mol.atoms
+#        xyz = xyz * a.id * "," * a.xyz[1]  * "," * a.xyz[2]  * "," * a.xyz[3] * "\n"
+#    end
+#    open(file*".txt", "w") do file
+#        write(file, xyz)
+#    end
+#end

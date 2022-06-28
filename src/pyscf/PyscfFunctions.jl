@@ -162,21 +162,52 @@ Build exchange matrix in AO basis
 
 """
 function pyscf_get_jk(mol::Molecule, density)
-	pyscf = pyimport("pyscf")
+    pyscf = pyimport("pyscf")
     pyscf.lib.num_threads(1)
 
     # 
     # get pyscf molecule type
     pymol = FermiCG.make_pyscf_mole(mol)
 
-	h0 = pyscf.gto.mole.energy_nuc(pymol)
-	h  = pyscf.scf.hf.get_hcore(pymol)
+    h0 = pyscf.gto.mole.energy_nuc(pymol)
+    h  = pyscf.scf.hf.get_hcore(pymol)
     j, k = pyscf.scf.hf.get_jk(pymol, density, hermi=1)
     return h, j, k
 end 
 
 """
-	pyscf_build_ints(mol, c_act, d1_embed)
+pyscf_build_ints(mol, C)
+
+build 1 and 2 electron integrals using a pyscf SCF object
+# Arguments
+- `mol`: PySCF Molecule object
+- `c`: MO coeffs
+
+returns an `InCoreInts` type
+"""
+function pyscf_build_ints(mol::Molecule, C)
+
+    pyscf = pyimport("pyscf")
+    pyscf.lib.num_threads(1)
+
+    norb = size(C)[2]
+    # get pyscf molecule type
+    pymol = FermiCG.make_pyscf_mole(mol)
+
+    h0 = pyscf.gto.mole.energy_nuc(pymol)
+    h1  = pyscf.scf.hf.get_hcore(pymol)
+
+    # now rotate to MO basis
+    h1 = C' * h1 * C
+    h2 = pyscf.ao2mo.kernel(pymol, C, aosym="s4",compact=false)
+    h2 = reshape(h2, (norb, norb, norb, norb))
+
+    return InCoreInts(h0, h1, h2)
+end
+
+
+"""
+pyscf_build_ints(mol, c_act, d1_embed)
 
 build 1 and 2 electron integrals using a pyscf SCF object
 # Arguments
@@ -188,19 +219,19 @@ returns an `InCoreInts` type
 """
 function pyscf_build_ints(mol::Molecule, c_act, d1_embed)
 
-	pyscf = pyimport("pyscf")
+    pyscf = pyimport("pyscf")
     pyscf.lib.num_threads(1)
 
-	nact = size(c_act)[2]
-	#mycas = pyscf.mcscf.CASSCF(mf, length(active), 0)
+    nact = size(c_act)[2]
+    #mycas = pyscf.mcscf.CASSCF(mf, length(active), 0)
     # 
     # get pyscf molecule type
     pymol = FermiCG.make_pyscf_mole(mol)
 
-	h0 = pyscf.gto.mole.energy_nuc(pymol)
-	h  = pyscf.scf.hf.get_hcore(pymol)
+    h0 = pyscf.gto.mole.energy_nuc(pymol)
+    h  = pyscf.scf.hf.get_hcore(pymol)
     j, k = pyscf.scf.hf.get_jk(pymol, d1_embed, hermi=1)
-	
+
     # get core energy
     #h0 = tr(d1_embed * ( h + .5*j - .5*k))
     #mf = pyscf.scf.RHF(pymol)
@@ -209,29 +240,29 @@ function pyscf_build_ints(mol::Molecule, c_act, d1_embed)
 
     # now rotate to MO basis
     h = c_act' * h * c_act
-	j = c_act' * j * c_act;
-	k = c_act' * k * c_act;
-	h2 = pyscf.ao2mo.kernel(pymol, c_act, aosym="s4",compact=false)
-	h2 = reshape(h2, (nact, nact, nact, nact))
+    j = c_act' * j * c_act;
+    k = c_act' * k * c_act;
+    h2 = pyscf.ao2mo.kernel(pymol, c_act, aosym="s4",compact=false)
+    h2 = reshape(h2, (nact, nact, nact, nact))
 
-	# The use of d1_embed only really makes sense if it has zero electrons in the
-	# active space. Let's warn the user if that's not true
-	S = pymol.intor("int1e_ovlp_sph")
-	n_act = tr(S * d1_embed * S * c_act * c_act')
-	if isapprox(abs(n_act),0,atol=1e-8) == false
-		println(n_act)
-		display(d1_embed)
-		error(" I found embedded electrons in the active space?!")
-	end
+    # The use of d1_embed only really makes sense if it has zero electrons in the
+    # active space. Let's warn the user if that's not true
+    S = pymol.intor("int1e_ovlp_sph")
+    n_act = tr(S * d1_embed * S * c_act * c_act')
+    if isapprox(abs(n_act),0,atol=1e-8) == false
+        println(n_act)
+        display(d1_embed)
+        error(" I found embedded electrons in the active space?!")
+    end
 
-	#println(size(e2))
-	#println(h0)
+    #println(size(e2))
+    #println(h0)
 
-	h1 = h + j - .5*k;
-	#display(h + j - .5*k)
+    h1 = h + j - .5*k;
+    #display(h + j - .5*k)
 
-	h = InCoreInts(h0, h1, h2);
-	return h
+    h = InCoreInts(h0, h1, h2);
+    return h
 end
 
 #"""
