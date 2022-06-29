@@ -1,3 +1,4 @@
+using TimerOutputs
 """
     build_full_H(ci_vector::TPSCIstate, cluster_ops, clustered_ham::ClusteredOperator)
 
@@ -168,7 +169,7 @@ function tps_ci_direct( ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham
     #={{{=#
     println()
     @printf(" |== Tensor Product State CI =======================================\n")
-    vec_out = deepcopy(ci_vector)
+    vec_out = copy(ci_vector)
     e0 = zeros(T,R)
     @printf(" Hamiltonian matrix dimension = %5i: \n", length(ci_vector))
     dim = length(ci_vector)
@@ -180,12 +181,12 @@ function tps_ci_direct( ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham
 
     if H_old != nothing
         v_old != nothing || error(" can't specify H_old w/out v_old")
-        v_tot = deepcopy(ci_vector)
-        v_new = deepcopy(ci_vector)
+        v_tot = copy(ci_vector)
+        v_new = copy(ci_vector)
         
         project_out!(v_new, v_old)
         
-        #v_tot = deepcopy(v_old)
+        #v_tot = copy(v_old)
         #add!(v_tot, v_new)
 
         dim_old = length(v_old)
@@ -227,7 +228,7 @@ function tps_ci_direct( ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham
         @time Htmp = build_full_H_parallel(v_new, v_new, cluster_ops, clustered_ham, sym=true)
         _fill_H_block!(H, Htmp, v_new, v_new, indices)
         
-        vec_out = deepcopy(v_tot)
+        vec_out = copy(v_tot)
     else
         @printf(" %-50s", "Build full Hamiltonian matrix with dimension: ")
         @time H = build_full_H_parallel(ci_vector, ci_vector, cluster_ops, clustered_ham, sym=true)
@@ -257,6 +258,7 @@ function tps_ci_direct( ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham
     clustered_S2 = extract_S2(ci_vector.clusters)
     @printf(" %-50s", "Compute S2 expectation values: ")
     @time s2 = compute_expectation_value_parallel(vec_out, cluster_ops, clustered_S2)
+    #@timeit to "<S2>" s2 = compute_expectation_value_parallel(vec_out, cluster_ops, clustered_S2)
     flush(stdout)
     @printf(" %5s %12s %12s\n", "Root", "Energy", "S2") 
     for r in 1:R
@@ -483,7 +485,7 @@ end
             thresh_cipsi = 1e-2,
             thresh_foi   = 1e-6,
             thresh_asci  = 1e-2,
-            thresh_var   = -1.0,
+            thresh_var   = nothing, 
             max_iter     = 10,
             conv_thresh  = 1e-4,
             nbody        = 4,
@@ -499,7 +501,7 @@ end
 - `thresh_cipsi`: threshold for which configurations to include in the variational space. Add if |c^{(1)}| > `thresh_cipsi`
 - `thresh_foi`  : threshold for which terms to keep in the H|0> vector used to form the first order wavefunction
 - `thresh_asci` : threshold for determining from which variational configurations  ``|c^{(0)}_i|`` > `thresh_asci` 
-- `thresh_var`  : threshold for clipping the result of the variational wavefunction. Not really needed default set to -1 (off)
+- `thresh_var`  : threshold for clipping the result of the variational wavefunction. Not really needed default set to nothing 
 - `max_iter`    : maximum selected CI iterations
 - `conv_thresh` : stop selected CI iterations when energy change is smaller than `conv_thresh`
 - `nbody`       : only consider up to `nbody` terms when searching for new configurations
@@ -515,7 +517,7 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
     thresh_cipsi    = 1e-2,
     thresh_foi      = 1e-6,
     thresh_asci     = 1e-2,
-    thresh_var      = -1.0,
+    thresh_var      = nothing,
     max_iter        = 10,
     conv_thresh     = 1e-4,
     nbody           = 4,
@@ -527,8 +529,8 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
     max_mem_ci      = 20.0, 
     matvec          = 1) where {T,N,R}
 #={{{=#
-    vec_var = deepcopy(ci_vector)
-    vec_pt = deepcopy(ci_vector)
+    vec_var = copy(ci_vector)
+    vec_pt = copy(ci_vector)
     length(ci_vector) > 0 || error(" input vector has zero length")
     zero!(vec_pt)
     e0 = zeros(T,R) 
@@ -555,11 +557,13 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
     
     vec_asci_old = TPSCIstate(ci_vector.clusters, R=R)
     sig = TPSCIstate(ci_vector.clusters, R=R)
+    sig_old = TPSCIstate(ci_vector.clusters, R=R)
     clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = "Hcmf") 
     
     H = zeros(T,size(ci_vector))
    
-    v_old = deepcopy(ci_vector)
+    vec_var_old = copy(ci_vector)
+    to = TimerOutput()
 
     for it in 1:max_iter
 
@@ -570,15 +574,16 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
         println(" ===================================================================")
 
         if it > 1
-            l1 = length(vec_var)
-            clip!(vec_var, thresh=thresh_var)
-            l2 = length(vec_var)
-            @printf(" Clip values < %8.1e         %6i → %6i\n", thresh_var, l1, l2)
-            
-            project_out!(vec_pt, vec_var)
+            if thresh_var != nothing 
+                l1 = length(vec_var)
+                clip!(vec_var, thresh=thresh_var)
+                l2 = length(vec_var)
+                @printf(" Clip values < %8.1e         %6i → %6i\n", thresh_var, l1, l2)
+            end
+
+            #project_out!(vec_pt, vec_var)
     
-            v_old = deepcopy(vec_var)
-            v_new = deepcopy(vec_pt)
+            vec_var_old = copy(vec_var)
 
             l1 = length(vec_var)
             zero!(vec_pt)
@@ -586,38 +591,35 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
             l2 = length(vec_var)
            
             @printf(" Add pt vector to current space %6i → %6i\n", l1, l2)
-            length(v_old) + length(v_new) == l2 || error(" not adding up", length(v_old)+length(v_new), " ", l2)
-        #else
-        #    randomize!(vec_var)
         end
 
         e0 = nothing
         mem_needed = sizeof(T)*length(vec_var)*length(vec_var)*1e-9
         @printf(" Memory needed to hold full CI matrix: %12.8f (Gb)\n",mem_needed)
         flush(stdout)
-        if (mem_needed > max_mem_ci) || davidson == true
-            orthonormalize!(vec_var)
-            e0, vec_var = tps_ci_davidson(vec_var, cluster_ops, clustered_ham,
-                                   conv_thresh = ci_conv,
-                                   max_iter = ci_max_iter,
-                                   max_ss_vecs = ci_max_ss_vecs)
-        else
-            if it > 1 
-                # just update matrix
-                e0, vec_var, H = tps_ci_direct(vec_var, cluster_ops, clustered_ham, 
-                                               H_old = H,
-                                               v_old = v_old,
-                                               conv_thresh = ci_conv,
-                                               max_ss_vecs = ci_max_ss_vecs,
-                                               max_iter = ci_max_iter)
+        @timeit to "ci" begin
+            if (mem_needed > max_mem_ci) || davidson == true
+                orthonormalize!(vec_var)
+                e0, vec_var = tps_ci_davidson(vec_var, cluster_ops, clustered_ham,
+                                              conv_thresh = ci_conv,
+                                              max_iter = ci_max_iter,
+                                              max_ss_vecs = ci_max_ss_vecs)
             else
-                e0, vec_var, H = tps_ci_direct(vec_var, cluster_ops, clustered_ham,
-                                               conv_thresh = ci_conv,
-                                               max_ss_vecs = ci_max_ss_vecs,
-                                               max_iter = ci_max_iter)
+                if it > 1 
+                    # just update matrix
+                    e0, vec_var, H = tps_ci_direct(vec_var, cluster_ops, clustered_ham, 
+                                                   H_old = H,
+                                                   v_old = vec_var_old,
+                                                   conv_thresh = ci_conv,
+                                                   max_ss_vecs = ci_max_ss_vecs,
+                                                   max_iter = ci_max_iter)
+                else
+                    e0, vec_var, H = tps_ci_direct(vec_var, cluster_ops, clustered_ham,
+                                                   conv_thresh = ci_conv,
+                                                   max_ss_vecs = ci_max_ss_vecs,
+                                                   max_iter = ci_max_iter)
+                end
             end
-            #v_new = vec_var 
-#            e0, vec_var, H = tps_ci_direct(vec_var, cluster_ops, clustered_ham)
         end
         flush(stdout)
       
@@ -627,34 +629,57 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
         Efock = compute_expectation_value_parallel(vec_var, cluster_ops, clustered_ham_0)
         #Efock = nothing
         flush(stdout)
-        vec_asci = deepcopy(vec_var)
+
+
+        vec_asci = copy(vec_var)
         l1 = length(vec_asci)
         clip!(vec_asci, thresh=thresh_asci)
         l2 = length(vec_asci)
         @printf(" Length of ASCI vector %8i → %8i \n", l1, l2)
 
         #
-        # |sig_i> = H|v_i> = H|v_i-1> + H ( |v_i> - |v_i-1> )
-        #                  = |sig_i-1> + H|del_i>
+        #   -- Incremental sigma vector build --
+        #
+        #   define projector onto previous tpsci space
+        #   P^{i-1} = \sum_l |v_l^{i-1}><v_l^i{i-1}| 
+        #
+        #   and the orthogonal complement
+        #   Q^{i-1} = I - P^{i-1}
+        #
+        #   Now use this to write our next iteration sigma vector in terms of a 
+        #   linear combination of our previous sigma vectors and the application of
+        #   the hamiltonian to the Q projection of the new variational state (which should 
+        #   get smaller with each iteration)
+        # 
+        #   |sig_l^i> = H|v_l^i> 
+        #             = H (P^{i-1} + 1 - P^{i-1}) |v_l^i> 
+        #             = \sum_k H |v_k^{i-1}><v_k^{i-1}|v_l^i> + H(|v_l^i> - \sum_k |v_k^{i-1}><v_k^{i-1}|v_l^i>)
+        #             = \sum_k |sig_k^{i-1}>s_kl^{i-1,i} + H(|v_l^i> - \sum_k |v_k^{i-1}> s_kl^{i-1,i})
+        #   
+        #           
+        #
+        #
 
-        del_v0 = deepcopy(vec_asci_old)
-        ovlps = []
-        for r in 1:R
-            if dot(vec_asci_old, vec_asci, r, r) < 0
-                scale!(vec_asci, -1.0, root=r)
-            end
-        end
-        scale!(del_v0,-1.0)
-        add!(del_v0, vec_asci)
-        println(" Norm of delta v:")
-        [@printf(" %12.8f\n",i) for i in norm(del_v0)]
-
-        vec_asci_old = deepcopy(vec_asci)
-
-        #_, vec_pt_del = compute_pt2(del_v0, cluster_ops, clustered_ham, E0=Efock, thresh_foi=thresh_foi, matvec=matvec, nbody=nbody)
-        #add!(vec_pt, vec_pt_del)
         if incremental 
-            if matvec == 1
+            #
+            # compute overlap of new variational vectors with old
+   
+
+            S = overlap(vec_asci_old, vec_asci)
+            display(S)
+   
+            #tmp = deepcopy(sig)
+            #@timeit to "sig rotate" mult!(sig, S)
+            @timeit to "sig rotate" sig = sig_old*S
+            @timeit to "vec rotate" del_v0 = vec_asci - (vec_asci_old * S)
+
+            println(" Norm of new projection:")
+            [@printf(" %12.8f\n",i) for i in norm(del_v0)]
+
+
+            @timeit to "copy" vec_asci_old = copy(vec_asci)
+
+            @timeit to "matvec" if matvec == 1
                 del_sig_it = open_matvec_serial2(del_v0, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
             elseif matvec == 2
                 del_sig_it = open_matvec_thread(del_v0, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
@@ -666,38 +691,69 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
             flush(stdout)
             add!(sig, del_sig_it)
 
+
+            #
+            #  |1> = |x><x|H|0>/delx
+            #  E2 = <0|H|1> = <0|H|x><
+            #
+            # | PHP  PHQ ||PC| = |PC| E 
+            # | QHP  QHQ ||QC| = |QC| 
+            #
+            # PHPC + PHQC = PCe
+            # QHPC + QHQC = QCe
+            #
+            # QC = (QHQ - e)^-1 QHPC
+            #
+            # C'PHPC + C'PHQC = e
+            #
+            #   X = P + Q
+            #
+            # (QHQ-e)*QC = -QHP*PC
+            # (X-P)H(X-P)C - e(X-P)C = -(X-P)HP*PC
+            # XHXC - PHXC - XHPC + PHPC - eXC + ePC = -(X-P)HP*PC
+ 
+            #
+            # QC = XC - PC
+            #
+            # XHX*XC - PHX*XC - XHP*PC + PHP*PC - e*XP + e*PC = -XHP*PC + PHP*PC
+
+            @timeit to "copy" sig_old = copy(sig)
+
+
+            @timeit to "project out" project_out!(sig, vec_asci)
             println(" Length of FOIS vector: ", length(sig))
-
-
+    
             @printf(" %-50s", "Compute diagonal: ")
             flush(stdout)
-            @time Hd = compute_diagonal(sig, cluster_ops, clustered_ham_0)
-
+            @timeit to "diagonal" Hd = compute_diagonal(sig, cluster_ops, clustered_ham_0)
+    
             sig_v = get_vectors(sig)
             v_pt  = zeros(size(sig_v))
 
+            norms = norm(vec_asci);
             println()
             @printf(" %5s %12s %12s\n", "Root", "E(0)", "E(2)") 
             for r in 1:R
-                denom = 1.0 ./ (Efock[r] .- Hd)  
+                denom = 1.0 ./ (Efock[r]/(norms[r]*norms[r]) .- Hd)  
                 v_pt[:,r] .= denom .* sig_v[:,r] 
                 e2[r] = sum(sig_v[:,r] .* v_pt[:,r])
 
-                @printf(" %5s %12.8f %12.8f\n",r, e0[r], e0[r] + e2[r])
+                @printf(" %5s %12.8f %12.8f\n",r, e0[r]/norms[r], e0[r]/(norms[r]*norms[r]) + e2[r])
             end
-            flush(stdout)
 
-            vec_pt = deepcopy(sig)
+
+            @timeit to "copy" vec_pt = copy(sig)
             set_vector!(vec_pt,v_pt)
         else
-            e2, vec_pt = compute_pt1_wavefunction(vec_asci, cluster_ops, clustered_ham, E0=Efock, thresh_foi=thresh_foi, matvec=matvec, nbody=nbody)
+            @timeit to "pt1" e2, vec_pt = compute_pt1_wavefunction(vec_asci, cluster_ops, clustered_ham, E0=Efock, thresh_foi=thresh_foi, matvec=matvec, nbody=nbody)
         end
+        flush(stdout)
         
         l1 = length(vec_pt)
         clip!(vec_pt, thresh=thresh_cipsi)
         l2 = length(vec_pt)
             
-        project_out!(sig, vec_asci)
+        #project_out!(sig, vec_asci)
         
         @printf(" Length of PT1  vector %8i → %8i \n", l1, l2)
         #add!(vec_var, vec_pt)
@@ -709,7 +765,13 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
             print_tpsci_iter(vec_var, it, e0, false)
             e0_last .= e0
         end
+        flush(stdout)
     end
+    
+    println("")
+    show(to)
+    println("")
+    flush(stdout)
     return e0, vec_var 
 end
 #=}}}=#
@@ -889,14 +951,14 @@ function compute_diagonal(vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham)
         for (config_bra, coeff_bra) in configs_bra
             idx += 1
             for term in clustered_ham[zero_trans]
-		    try
-			    Hd[idx] += contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_bra, config_bra)
-		    catch
-			    display(term)
-			    display(fock_bra)
-			    display(config_bra)
-			    error()
-		    end
+                try
+                    Hd[idx] += contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_bra, config_bra)
+                catch
+                    display(term)
+                    display(fock_bra)
+                    display(config_bra)
+                    error()
+                end
 
             end
         end

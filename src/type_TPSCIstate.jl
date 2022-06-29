@@ -355,7 +355,33 @@ function dot(v1::TPSCIstate{T,N,R}, v2::TPSCIstate{T,N,R}, r1, r2) where {T,N,R}
 end
     
 """
-    dot(v1::TPSCIstate,v2::TPSCIstate; r1=1, r2=1)
+    overlap(v1::TPSCIstate{T,N,R}, v2::TPSCIstate{T,N,R}) where {T,N,R}
+
+Compute overlap matrix between `v1` and `v2`
+"""
+function overlap(v1::TPSCIstate{T,N,R}, v2::TPSCIstate{T,N,R}) where {T,N,R}
+    #={{{=#
+    overlap = zeros(T,R,R)
+    for (fock,configs) in v2.data
+        haskey(v1, fock) || continue
+        for (config,coeffs) in configs
+            haskey(v1[fock], config) || continue
+            for ri in 1:R
+                overlap[ri,ri] += v1[fock][config][ri]*v2[fock][config][ri]
+                for rj in ri+1:R
+                    overlap[ri,rj] += v1[fock][config][ri]*v2[fock][config][rj]
+                    overlap[rj,ri] = overlap[ri,rj]
+                end
+            end
+        end
+    end
+    return overlap
+    #=}}}=#
+end
+
+
+"""
+    orth!(v1::TPSCIstate{T,N,R}) where {T,N,R}
 """
 function orth!(v1::TPSCIstate{T,N,R}) where {T,N,R}
     d = T(0)
@@ -363,6 +389,48 @@ function orth!(v1::TPSCIstate{T,N,R}) where {T,N,R}
 
     set_vector!(v1, F.U*F.Vt)
     return 
+end
+
+function Base.:*(A::TPSCIstate{T,N,R}, C::AbstractArray) where {T,N,R}
+    B = copy(A)
+    zero!(B)
+    set_vector!(B, get_vectors(A)*C)
+    return B
+end
+
+function mult!(A::TPSCIstate{T,N,R}, C::AbstractArray) where {T,N,R}
+    for (fock, configs) in A.data
+        for (config, coeffs) in configs
+            #A[fock][config] .=  C'*A[fock][config]
+            mul!(A[fock][config], C', A[fock][config]) 
+        end
+    end
+end
+
+
+function Base.:-(A::TPSCIstate{T,N,R}, B::TPSCIstate{T,N,R}) where {T,N,R}
+    C = copy(B)
+    scale!(C,-1.0)
+    add!(C, A)
+    return C
+end
+    
+function Base.:+(A::TPSCIstate{T,N,R}, B::TPSCIstate{T,N,R}) where {T,N,R}
+    C = copy(B)
+    add!(C, A)
+    return C
+end
+    
+function Base.copy(in::TPSCIstate{T,N,R}) where {T,N,R}
+    out = TPSCIstate(in.clusters, T=T, R=R)
+    for (fock, configs) in in.data
+        add_fockconfig!(out, fock)
+        for (config, coeffs) in configs
+            out[fock][config] = [i for i in in[fock][config]] 
+            #out[fock][config] .= in[fock][config]
+        end
+    end
+    return out
 end
     
 """

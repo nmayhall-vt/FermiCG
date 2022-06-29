@@ -19,7 +19,7 @@ function compute_pt1_wavefunction(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clu
     #={{{=#
 
     println()
-    println(" |............................do PT2................................")
+    println(" |............................do PT1................................")
     println(" thresh_foi    :", thresh_foi   ) 
     println(" prescreen     :", prescreen   ) 
     println(" H0            :", H0   ) 

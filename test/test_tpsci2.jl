@@ -42,7 +42,7 @@ using Arpack
     basis = "sto-3g"
     mol     = Molecule(0,1,atoms,basis)
 
-    nroots = 1
+    nroots = 4
 
     # get integrals
     mf = FermiCG.pyscf_do_scf(mol)
@@ -116,15 +116,16 @@ using Arpack
 
     ci_vector = FermiCG.TPSCIstate(clusters, ref_fock, R=nroots)
 
+    ci_vector = FermiCG.open_matvec_thread2(ci_vector, cluster_ops, clustered_ham, nbody=2, thresh=1e-5)
 
-    FermiCG.rand!(ci_vector)
-    e0a, v0a = FermiCG.tps_ci_davidson(ci_vector, cluster_ops, clustered_ham);
+    S = FermiCG.overlap(ci_vector,ci_vector)
+    display(S)
+    FermiCG.randomize!(ci_vector)
+    e0a, v0a = FermiCG.tps_ci_direct(ci_vector, cluster_ops, clustered_ham);
 
-    e2a, v1a = FermiCG.compute_pt2(v0a, cluster_ops, clustered_ham, thresh_foi=1e-8, matvec=3)
+    display(v0a)
+    
+    #e2b = FermiCG.compute_pt2_energy(v0a, cluster_ops, clustered_ham, thresh_foi=1e-8)
 
-    v1 = deepcopy(v1a)
-    FermiCG.add!(v1,v0a)
-    FermiCG.clip!(v1,thresh=1e-4)
-    FermiCG.orthonormalize!(v1)
 #end
 
