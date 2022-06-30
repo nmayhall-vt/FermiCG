@@ -115,7 +115,7 @@ using Arpack
 
 
         @time e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=true, 
-                                  thresh_cipsi=1e-3, thresh_foi=1e-9, thresh_asci=1e-4, conv_thresh=1e-5, matvec=1);
+                                  thresh_cipsi=1e-3, thresh_foi=1e-9, thresh_asci=1e-4, conv_thresh=1e-5);
 
         ref = [-18.32973618]
 
@@ -139,7 +139,7 @@ using Arpack
     ci_vector4 = FermiCG.extract_roots(v0,[4])
     # todo now add root following for tpsci
 
-    e2, v1 = FermiCG.compute_pt1_wavefunction(v0, cluster_ops, clustered_ham, thresh_foi=1e-8, matvec=3)
+    e2, v1 = FermiCG.compute_pt1_wavefunction(v0, cluster_ops, clustered_ham, thresh_foi=1e-8)
 
     ref = [-18.32932467
            -18.05349474
@@ -187,7 +187,7 @@ using Arpack
            -18.02800015
            -17.99499973]
 
-    e2a, v1a = FermiCG.compute_pt1_wavefunction(v0a, cluster_ops, clustered_ham, thresh_foi=1e-8, matvec=3)
+    e2a, v1a = FermiCG.compute_pt1_wavefunction(v0a, cluster_ops, clustered_ham, thresh_foi=1e-8)
     @test isapprox(abs.(ref), abs.(e0a+e2a), atol=1e-7)
     
     e2b = FermiCG.compute_pt2_energy(v0a, cluster_ops, clustered_ham, thresh_foi=1e-8)
@@ -200,12 +200,10 @@ using Arpack
     ci_vector[ref_fock][ClusterConfig([1,1,2])] = [0,0,0,1]
     e0, ci_vector = FermiCG.tps_ci_direct(ci_vector, cluster_ops, clustered_ham, conv_thresh=1e-9);
 
-    sig1 = FermiCG.open_matvec_serial2(ci_vector, cluster_ops, clustered_ham, nbody=4, thresh=1e-9)
+    sig1 = FermiCG.open_matvec_serial(ci_vector, cluster_ops, clustered_ham, nbody=4, thresh=1e-9)
     sig2 = FermiCG.open_matvec_thread(ci_vector, cluster_ops, clustered_ham, nbody=4, thresh=1e-9)
-    sig3 = FermiCG.open_matvec_thread2(ci_vector, cluster_ops, clustered_ham, nbody=4, thresh=1e-9)
         
     @test isapprox(norm(sig1), norm(sig2), atol=1e-12)
-    @test isapprox(norm(sig1), norm(sig3), atol=1e-12)
 
 end
 

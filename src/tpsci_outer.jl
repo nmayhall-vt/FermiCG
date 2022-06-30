@@ -495,7 +495,7 @@ end
             ci_max_ss_vecs = 12,
             davidson     = false,
             max_mem_ci   = 20.0, 
-            matvec       = 1) where {T,N,R}
+            threaded     = true) where {T,N,R}
 
 # Run TPSCI 
 - `thresh_cipsi`: threshold for which configurations to include in the variational space. Add if |c^{(1)}| > `thresh_cipsi`
@@ -506,12 +506,12 @@ end
 - `conv_thresh` : stop selected CI iterations when energy change is smaller than `conv_thresh`
 - `nbody`       : only consider up to `nbody` terms when searching for new configurations
 - `incremental` : for the sigma vector incrementally between iterations
-- `matvec`      : which implementation of the matrix vector code
 - `ci_conv`     : convergence threshold for the inner CI step (only needed when davidson is used)
 - `ci_max_iter` : max iterations for inner CI step (only needed when davidson is used) 
 - `ci_max_ss_vecs`: max subspace size for inner CI step (only needed when davidson is used) 
 - `davidson`    : use davidson? changes to true after needing more than max_mem_ci
 - `max_mem_ci`  : maximum memory (Gb) allowed for storing full H. If more is needed, do Davidson. 
+- `threaded`    : Use multithreading? 
 """
 function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
     thresh_cipsi    = 1e-2,
@@ -526,8 +526,8 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
     ci_max_iter     = 50,
     ci_max_ss_vecs  = 12,
     davidson        = false,
-    max_mem_ci      = 20.0, 
-    matvec          = 1) where {T,N,R}
+    max_mem_ci      = 20.0,
+    threaded        = true) where {T,N,R}
 #={{{=#
     vec_var = copy(ci_vector)
     vec_pt = copy(ci_vector)
@@ -553,7 +553,7 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
     println(" ci_max_ss_vecs: ", ci_max_ss_vecs ) 
     println(" davidson      : ", davidson       ) 
     println(" max_mem_ci    : ", max_mem_ci     ) 
-    println(" matvec        : ", matvec         ) 
+    println(" threaded      : ", threaded       ) 
     
     vec_asci_old = TPSCIstate(ci_vector.clusters, R=R)
     sig = TPSCIstate(ci_vector.clusters, R=R)
@@ -679,14 +679,10 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
 
             @timeit to "copy" vec_asci_old = copy(vec_asci)
 
-            @timeit to "matvec" if matvec == 1
-                del_sig_it = open_matvec_serial2(del_v0, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
-            elseif matvec == 2
+            @timeit to "matvec" if threaded 
                 del_sig_it = open_matvec_thread(del_v0, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
-            elseif matvec == 3
-                del_sig_it = open_matvec_thread2(del_v0, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
             else
-                error("wrong matvec")
+                del_sig_it = open_matvec_serial(del_v0, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
             end
             flush(stdout)
             add!(sig, del_sig_it)
@@ -745,7 +741,7 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
             @timeit to "copy" vec_pt = copy(sig)
             set_vector!(vec_pt,v_pt)
         else
-            @timeit to "pt1" e2, vec_pt = compute_pt1_wavefunction(vec_asci, cluster_ops, clustered_ham, E0=Efock, thresh_foi=thresh_foi, matvec=matvec, nbody=nbody)
+            @timeit to "pt1" e2, vec_pt = compute_pt1_wavefunction(vec_asci, cluster_ops, clustered_ham, E0=Efock, thresh_foi=thresh_foi, threaded=threaded, nbody=nbody)
         end
         flush(stdout)
         
