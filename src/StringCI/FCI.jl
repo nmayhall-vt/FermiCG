@@ -1287,3 +1287,203 @@ end
 #=}}}=#
 
 
+
+"""
+"""
+function compute_rdm1_rdm2(P::FCIProblem, vec_l::Vector{T}, vec_r::Vector{T}) where T
+    #={{{=#
+
+    no = P.no
+    na = P.na
+    nb = P.nb
+
+    rdm1a = zeros(T, no, no)
+    rdm1b = zeros(T, no, no)
+    rdm2aa = zeros(T, no, no, no, no)
+    rdm2bb = zeros(T, no, no, no, no)
+    rdm2ab = zeros(T, no, no, no, no)
+
+    #   Create local references to ci_strings
+    ket_a = DeterminantString(no, na)
+    bra_a = DeterminantString(no, na)
+    ket_b = DeterminantString(no, nb)
+    bra_b = DeterminantString(no, nb)
+
+    ket_a_lookup = fill_ca_lookup(ket_a)
+    ket_b_lookup = fill_ca_lookup(ket_b)
+
+    vl = reshape(vec_l, bra_a.max, bra_b.max)
+    vr = reshape(vec_r, ket_a.max, ket_b.max)
+
+    #################
+    #   a
+    #################
+    reset!(ket_a)
+    for Ka in 1:ket_a.max
+
+        #  p'q 
+        for p in 1:ket_a.no
+            for q in 1:ket_a.no
+                bra = deepcopy(ket_a)
+
+                apply_annihilation!(bra,q)
+                bra.sign != 0 || continue
+                apply_creation!(bra,p)
+                bra.sign != 0 || continue
+
+                L = calc_linear_index(bra)
+
+                if bra.sign == 1
+                    @views rdm1a[p,q] += dot(vl[L,:], vr[Ka,:])
+                elseif bra.sign == -1
+                    @views rdm1a[p,q] -= dot(vl[L,:], vr[Ka,:])
+                else
+                    error(" Shouldn't be here")
+                end
+            end
+        end
+        incr!(ket_a)
+    end
+    #################
+    #   aa
+    #################
+    reset!(ket_a)
+    for Ka in 1:ket_a.max
+
+        #  p'q'rs 
+        for p in 1:ket_a.no
+            for q in 1:ket_a.no
+                for r in 1:ket_a.no
+                    for s in 1:ket_a.no
+                        bra = deepcopy(ket_a)
+
+                        apply_annihilation!(bra,s)
+                        bra.sign != 0 || continue
+                        apply_annihilation!(bra,r)
+                        bra.sign != 0 || continue
+                        apply_creation!(bra,q)
+                        bra.sign != 0 || continue
+                        apply_creation!(bra,p)
+                        bra.sign != 0 || continue
+
+                        L = calc_linear_index(bra)
+
+                        if bra.sign == 1
+                            @views rdm2aa[p,q,r,s] += dot(vl[L,:], vr[Ka,:])
+                        elseif bra.sign == -1
+                            @views rdm2aa[p,q,r,s] -= dot(vl[L,:], vr[Ka,:])
+                        else
+                            error(" Shouldn't be here")
+                        end
+                    end
+                end
+            end
+        end
+        incr!(ket_a)
+    end
+    #################
+    #   b
+    #################
+    reset!(ket_b)
+    for Kb in 1:ket_b.max
+
+        #  p'q 
+        for p in 1:ket_b.no
+            for q in 1:ket_b.no
+                bra = deepcopy(ket_b)
+
+                apply_annihilation!(bra,q)
+                bra.sign != 0 || continue
+                apply_creation!(bra,p)
+                bra.sign != 0 || continue
+
+                L = calc_linear_index(bra)
+
+                if bra.sign == 1
+                    @views rdm1b[p,q] += dot(vl[:,L], vr[:,Kb])
+                elseif bra.sign == -1
+                    @views rdm1b[p,q] -= dot(vl[:,L], vr[:,Kb])
+                else
+                    error(" Shouldn't be here")
+                end
+            end
+        end
+        incr!(ket_b)
+    end
+    #################
+    #   bb
+    #################
+    reset!(ket_b)
+    for Kb in 1:ket_b.max
+
+        #  p'q'rs 
+        for p in 1:ket_b.no
+            for q in 1:ket_b.no
+                for r in 1:ket_b.no
+                    for s in 1:ket_b.no
+                        bra = deepcopy(ket_b)
+
+                        apply_annihilation!(bra,s)
+                        bra.sign != 0 || continue
+                        apply_annihilation!(bra,r)
+                        bra.sign != 0 || continue
+                        apply_creation!(bra,q)
+                        bra.sign != 0 || continue
+                        apply_creation!(bra,p)
+                        bra.sign != 0 || continue
+
+                        L = calc_linear_index(bra)
+
+                        if bra.sign == 1
+                            @views rdm2bb[p,q,r,s] += dot(vl[:,L], vr[:,Kb])
+                        elseif bra.sign == -1
+                            @views rdm2bb[p,q,r,s] -= dot(vl[:,L], vr[:,Kb])
+                        else
+                            error(" Shouldn't be here")
+                        end
+                    end
+                end
+            end
+        end
+        incr!(ket_b)
+    end
+    #################
+    #   ab
+    #################
+    reset!(ket_b)
+    for Kb in 1:ket_b.max
+        reset!(ket_a)
+        for Ka in 1:ket_a.max
+
+            #  p'q'rs (abba) 
+            for p in 1:ket_a.no
+                for s in 1:ket_a.no
+                    sign_a, La = ket_a_lookup[Ka][p+(s-1)*ket_a.no]
+                   
+                    La != 0 || continue
+
+                    for q in get_unoccupied(ket_b) 
+                        for r in ket_b.config
+                    
+                            sign_b, Lb = ket_b_lookup[Kb][q+(r-1)*ket_b.no]
+                            Lb != 0 || continue
+                  
+                            sign = sign_a*sign_b
+                            rdm2ab[p,q,r,s] += vl[La,Lb] * vr[Ka,Kb] * sign
+                        end
+                    end
+                end
+            end
+            incr!(ket_a)
+        end
+        incr!(ket_b)
+    end
+
+    vl = reshape(vl, bra_a.max * bra_b.max)
+    vr = reshape(vr, ket_a.max * ket_b.max)
+
+    return rdm1a, rdm1b, rdm2aa, rdm2bb, rdm2ab
+end
+#=}}}=#
+
+
