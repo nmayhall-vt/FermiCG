@@ -162,7 +162,8 @@ filling the final vector
 function open_matvec_thread(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham; thresh=1e-9, nbody=4) where {T,N,R}
 #={{{=#
     println(" In open_matvec_thread")
-    sig = deepcopy(ci_vector)
+    #sig = deepcopy(ci_vector)
+    sig = TPSCIstate(ci_vector.clusters, T=T, R=R)
     zero!(sig)
     clusters = ci_vector.clusters
     jobs = Dict{FockConfig{N},Vector{Tuple}}()

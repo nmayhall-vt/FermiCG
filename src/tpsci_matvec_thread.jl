@@ -14,7 +14,8 @@ function open_matvec_thread2(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustere
                              nbody=4) where {T,N,R}
 #={{{=#
     println(" In open_matvec_thread2")
-    sig = deepcopy(ci_vector)
+    #sig = deepcopy(ci_vector)
+    sig = TPSCIstate(ci_vector.clusters, T=T, R=R)
     zero!(sig)
     clusters = ci_vector.clusters
     jobs = Dict{FockConfig{N},Vector{Tuple}}()
@@ -103,10 +104,13 @@ function open_matvec_thread2(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustere
     end
     flush(stdout)
 
-    @printf(" %-50s", "Now collect thread results: ")
+    @printf(" %-50s", "Now collect thread results : ")
     flush(stdout)
     @time for threadid in 1:Threads.nthreads()
-        add!(sig, jobs_out[threadid])
+        for (fock, configs) in jobs_out[threadid].data
+            haskey(sig, fock) == false || error(" why me")
+            sig[fock] = configs
+        end
     end
 
     #BLAS.set_num_threads(Threads.nthreads())
@@ -120,7 +124,8 @@ function open_matvec_serial2(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustere
                              nbody=4) where {T,N,R}
 #={{{=#
     println(" In open_matvec_serial2")
-    sig = deepcopy(ci_vector)
+    #sig = deepcopy(ci_vector)
+    sig = TPSCIstate(ci_vector.clusters, T=T, R=R)
     zero!(sig)
     clusters = ci_vector.clusters
     jobs = Dict{FockConfig{N},Vector{Tuple}}()
@@ -203,7 +208,11 @@ function open_matvec_serial2(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustere
     flush(stdout)
     @printf(" %-50s", "Now collect thread results: ")
     @time for threadid in 1:1
-        add!(sig, jobs_out[threadid])
+        #add!(sig, jobs_out[threadid])
+        for (fock, configs) in jobs_out[threadid].data
+            haskey(sig, fock) == false || error(" why me")
+            sig[fock] = configs
+        end
     end
 
     return sig

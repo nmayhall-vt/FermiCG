@@ -361,7 +361,7 @@ function tps_ci_davidson(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ha
         return tps_ci_matvec(in, cluster_ops, clustered_ham)
     end
 
-    Hmap = FermiCG.LinOp(matvec, dim)
+    Hmap = FermiCG.LinOp(matvec, dim, true)
 
     davidson = FermiCG.Davidson(Hmap, v0=get_vectors(ci_vector), 
                                 max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)

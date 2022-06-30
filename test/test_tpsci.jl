@@ -198,17 +198,14 @@ using Arpack
     ci_vector[ref_fock][ClusterConfig([2,1,1])] = [0,1,0,0]
     ci_vector[ref_fock][ClusterConfig([1,2,1])] = [0,0,1,0]
     ci_vector[ref_fock][ClusterConfig([1,1,2])] = [0,0,0,1]
+    e0, ci_vector = FermiCG.tps_ci_direct(ci_vector, cluster_ops, clustered_ham, conv_thresh=1e-9);
 
-    sig1 = FermiCG.open_matvec_serial2(ci_vector, cluster_ops, clustered_ham, nbody=4, thresh=1e-8)
-    sig2 = FermiCG.open_matvec_thread(ci_vector, cluster_ops, clustered_ham, nbody=4, thresh=1e-8)
-    sig3 = FermiCG.open_matvec_thread2(ci_vector, cluster_ops, clustered_ham, nbody=4, thresh=1e-8)
+    sig1 = FermiCG.open_matvec_serial2(ci_vector, cluster_ops, clustered_ham, nbody=4, thresh=1e-9)
+    sig2 = FermiCG.open_matvec_thread(ci_vector, cluster_ops, clustered_ham, nbody=4, thresh=1e-9)
+    sig3 = FermiCG.open_matvec_thread2(ci_vector, cluster_ops, clustered_ham, nbody=4, thresh=1e-9)
         
-    @test isapprox(norm(sig1), norm(sig2), atol=1e-16)
-    @test isapprox(norm(sig1), norm(sig3), atol=1e-16)
-
-    @test isapprox(norm(FermiCG.get_vectors(sig1) - FermiCG.get_vectors(sig2)), 0.0, atol=1e-16)
-    @test isapprox(norm(FermiCG.get_vectors(sig1) - FermiCG.get_vectors(sig3)), 0.0, atol=1e-16)
-
+    @test isapprox(norm(sig1), norm(sig2), atol=1e-12)
+    @test isapprox(norm(sig1), norm(sig3), atol=1e-12)
 
 end
 

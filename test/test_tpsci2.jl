@@ -42,7 +42,7 @@ using Arpack
     basis = "sto-3g"
     mol     = Molecule(0,1,atoms,basis)
 
-    nroots = 4
+    nroots = 1
 
     # get integrals
     mf = FermiCG.pyscf_do_scf(mol)
@@ -121,6 +121,7 @@ using Arpack
     S = FermiCG.overlap(ci_vector,ci_vector)
     display(S)
     FermiCG.randomize!(ci_vector)
+    display(ci_vector)
     e0a, v0a = FermiCG.tps_ci_direct(ci_vector, cluster_ops, clustered_ham);
 
     display(v0a)
