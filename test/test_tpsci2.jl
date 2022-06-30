@@ -8,7 +8,6 @@ using Random
 using PyCall
 using Arpack
 
-#@testset "tpsci" begin
     atoms = []
 
     r = 1
@@ -25,16 +24,12 @@ using Arpack
     push!(atoms,Atom(10,"H",[0, 4*a, 9*r]))
     push!(atoms,Atom(11,"H",[0, 5*a, 10*r]))
     push!(atoms,Atom(12,"H",[0, 5*a, 11*r]))
-    push!(atoms,Atom(13,"H",[0, 6*a, 12*r]))
-    push!(atoms,Atom(14,"H",[0, 6*a, 13*r]))
-    push!(atoms,Atom(15,"H",[0, 7*a, 14*r]))
-    push!(atoms,Atom(16,"H",[0, 7*a, 15*r]))
 
 
     clusters    = [(1:2),(3:4),(5:6),(7:8),(9:12)]
     init_fspace = [(1,1),(1,1),(1,1),(1,1),(2,2)]
-    clusters    = [(1:4),(5:8),(9:12),(13:16)]
-    init_fspace = [(2,2),(2,2),(2,2),(2,2)]
+    clusters    = [(1:4),(5:8),(9:12)]
+    init_fspace = [(2,2),(2,2),(2,2)]
     na = 6
     nb = 6
 
@@ -42,7 +37,7 @@ using Arpack
     basis = "sto-3g"
     mol     = Molecule(0,1,atoms,basis)
 
-    nroots = 1
+    nroots = 4
 
     # get integrals
     mf = FermiCG.pyscf_do_scf(mol)
@@ -103,7 +98,7 @@ using Arpack
     # build Hamiltonian, cluster_basis and cluster ops
     #display(Da)
     #cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=2, max_roots=max_roots)
-    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=0, max_roots=max_roots, 
+    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=1, max_roots=max_roots, 
                                                        init_fspace=init_fspace, rdm1a=Da, rdm1b=Db)
     clustered_ham = FermiCG.extract_ClusteredTerms(ints, clusters)
     cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
@@ -115,18 +110,105 @@ using Arpack
 
 
     ci_vector = FermiCG.TPSCIstate(clusters, ref_fock, R=nroots)
+    if nroots>1
+        FermiCG.eye!(ci_vector)
+        # if asking for more than 1 root, we need to make sure our basis is at least dimensioned as large
+        ci_vector = FermiCG.open_matvec_thread(ci_vector, cluster_ops, clustered_ham, nbody=3, thresh=1e-4)
+        FermiCG.clip!(ci_vector, thresh=1e-3)
+        FermiCG.orthonormalize!(ci_vector)
+        display(ci_vector)
+    end
 
-    ci_vector = FermiCG.open_matvec_thread2(ci_vector, cluster_ops, clustered_ham, nbody=2, thresh=1e-5)
 
-    S = FermiCG.overlap(ci_vector,ci_vector)
-    display(S)
-    FermiCG.randomize!(ci_vector)
-    display(ci_vector)
-    e0a, v0a = FermiCG.tps_ci_direct(ci_vector, cluster_ops, clustered_ham);
 
-    display(v0a)
-    
-    #e2b = FermiCG.compute_pt2_energy(v0a, cluster_ops, clustered_ham, thresh_foi=1e-8)
+    @time e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=true, 
+                                    thresh_cipsi=1e-3, thresh_foi=1e-9, thresh_asci=1e-4, conv_thresh=1e-5);
 
-#end
-
+#    ref = [-18.32973618]
+#
+#    @test isapprox(abs.(ref), abs.(e0), atol=1e-8)
+#
+#    nroots = 4
+#
+#    ci_vector = FermiCG.TPSCIstate(clusters, ref_fock, R=nroots)
+#
+#    #1 excitons 
+#    ci_vector[ref_fock][ClusterConfig([2,1,1])] = [0,1,0,0]
+#    ci_vector[ref_fock][ClusterConfig([1,2,1])] = [0,0,1,0]
+#    ci_vector[ref_fock][ClusterConfig([1,1,2])] = [0,0,0,1]
+#
+#    #e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=false,
+#    #                          thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=1e-2, conv_thresh=1e-4);
+#    e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=true,
+#                              thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=1e-2, conv_thresh=1e-4);
+#    
+#    ci_vector4 = FermiCG.extract_roots(v0,[4])
+#    # todo now add root following for tpsci
+#
+#    e2, v1 = FermiCG.compute_pt1_wavefunction(v0, cluster_ops, clustered_ham, thresh_foi=1e-8)
+#
+#    ref = [-18.32932467
+#           -18.05349474
+#           -18.02775313
+#           -17.99514933
+#          ]
+#    @test isapprox(abs.(ref), abs.(e0+e2), atol=1e-7)
+#
+#
+#    rotations = FermiCG.hosvd(v0, cluster_ops)
+#    for ci in clusters
+#        FermiCG.rotate!(cluster_ops[ci.idx], rotations[ci.idx])
+#        FermiCG.rotate!(cluster_bases[ci.idx], rotations[ci.idx])
+#        FermiCG.check_basis_orthogonality(cluster_bases[ci.idx])
+#    end
+#
+#    #cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
+#    #FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
+#
+#
+#    e0a, v0a = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=true, 
+#                                thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=1e-2);
+#
+#    
+#
+#    H = FermiCG.build_full_H(v0a, cluster_ops, clustered_ham)
+#    sig1 = H*FermiCG.get_vectors(v0a)
+#    sig2 = FermiCG.tps_ci_matvec(v0a, cluster_ops, clustered_ham)
+#
+#    @test isapprox(norm(sig1-sig2), 0.0, atol=1e-12) 
+#    
+#    guess = deepcopy(v0a)
+#    FermiCG.randomize!(guess)
+#    FermiCG.orthonormalize!(guess)
+#    e0b, v0b = FermiCG.tps_ci_direct(guess, cluster_ops, clustered_ham, conv_thresh=1e-9);
+#    e0c, v0c = FermiCG.tps_ci_davidson(guess, cluster_ops, clustered_ham, conv_thresh=1e-9);
+#
+#    @test isapprox(abs.(e0a), abs.(e0b), atol=1e-9)
+#    @test isapprox(abs.(e0a), abs.(e0c), atol=1e-9)
+#   
+#    println(" Now test pt2 correction")
+#
+#    ref = [-18.32916288
+#           -18.05357935
+#           -18.02800015
+#           -17.99499973]
+#
+#    e2a, v1a = FermiCG.compute_pt1_wavefunction(v0a, cluster_ops, clustered_ham, thresh_foi=1e-8)
+#    @test isapprox(abs.(ref), abs.(e0a+e2a), atol=1e-7)
+#    
+#    e2b = FermiCG.compute_pt2_energy(v0a, cluster_ops, clustered_ham, thresh_foi=1e-8)
+#    @test isapprox(abs.(ref), abs.(e0a+e2b), atol=1e-7)
+#
+#        
+#    ci_vector = FermiCG.TPSCIstate(clusters, ref_fock, R=nroots)
+#    ci_vector[ref_fock][ClusterConfig([2,1,1])] = [0,1,0,0]
+#    ci_vector[ref_fock][ClusterConfig([1,2,1])] = [0,0,1,0]
+#    ci_vector[ref_fock][ClusterConfig([1,1,2])] = [0,0,0,1]
+#    e0, ci_vector = FermiCG.tps_ci_direct(ci_vector, cluster_ops, clustered_ham, conv_thresh=1e-9);
+#
+#    sig1 = FermiCG.open_matvec_serial(ci_vector, cluster_ops, clustered_ham, nbody=4, thresh=1e-9)
+#    sig2 = FermiCG.open_matvec_thread(ci_vector, cluster_ops, clustered_ham, nbody=4, thresh=1e-9)
+#        
+#    @test isapprox(norm(sig1), norm(sig2), atol=1e-12)
+#
+#

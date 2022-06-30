@@ -180,8 +180,49 @@ function set_vector!(ts::TPSCIstate{T,N,R}, v::Matrix{T}) where {T,N,R}
     return
 end
 
+"""
+    function set_vector!(ts::TPSCIstate{T,N,R}, v::Vector{T}) where {T,N,R}
+
+Fill the coefficients of `ts` with the values in `v`
+"""
+function set_vector!(ts::TPSCIstate{T,N,R}, v::Vector{T}) where {T,N,R}
+
+    nbasis=length(v)
+    length(ts) == length(v) || throw(DimensionMismatch)
+    R == 1 || throw(DimensionMismatch)
+
+    idx = 1
+    for (fock, tconfigs) in ts.data
+        for (tconfig, coeffs) in tconfigs
+            #ts[fock][tconfig] = MVector{R}(v[idx,:])
+            @views coeffs .= v[idx]
+            idx += 1
+        end
+    end
+    nbasis == idx-1 || error("huh?", nbasis, " ", idx)
+    return
+end
+
 function set_vectors!(ts::TPSCIstate{T,N,R}, v::Matrix{T}) where {T,N,R}
     set_vector!(ts, v)
+end
+
+function set_vector!(ts::TPSCIstate{T,N,R}, v::Vector{Vector{T}}) where {T,N,R}
+    nroots = length(v)
+    nbasis = length(v[1])
+
+    length(ts) == nbasis || throw(DimensionMismatch)
+    R == nroots || throw(DimensionMismatch)
+
+    idx = 1
+    for (fock, tconfigs) in ts.data
+        for (tconfig, coeffs) in tconfigs
+            @views coeffs .= [vi[idx] for vi in v] 
+            idx += 1
+        end
+    end
+    nbasis == idx-1 || error("huh?", nbasis, " ", idx)
+    return
 end
 
 #"""

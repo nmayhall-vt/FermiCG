@@ -239,13 +239,25 @@ function tps_ci_direct( ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham
     @printf(" Now diagonalize\n")
     flush(stdout)
     if length(vec_out) > 500
-        time = @elapsed e0,v = Arpack.eigs(H, nev = R, which=:SR)
+        time = @elapsed e0,v, info = KrylovKit.eigsolve(H, R, :SR, 
+                                                        verbosity=  verbose, 
+                                                        maxiter=    max_iter, 
+                                                        #krylovdim=20, 
+                                                        issymmetric=true, 
+                                                        ishermitian=true, 
+                                                        tol=        conv_thresh)
+        
+        #time = @elapsed e0,v = Arpack.eigs(H, nev = R, which=:SR)
         #@time e0,v = Arpack.eigs(H, nev = R, v0=get_vector(v_tot,root=1), which=:SR)
         #davidson = FermiCG.Davidson(H, v0=get_vectors(ci_vector), 
         #                        max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)
         #time = @elapsed e0,v = FermiCG.solve(davidson);
+        v = hcat(v[1:R]...)
         @printf(" %-50s", "Diagonalization time: ")
         @printf("%10.6f seconds\n",time)
+        if verbose > 0
+            display(info)
+        end
     else
         time = @elapsed F = eigen(H)
         e0 = F.values[1:R]
@@ -350,7 +362,7 @@ function tps_ci_davidson(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ha
     iters = 0
 
     
-    function matvec(v::AbstractMatrix)
+    function matvec(v::AbstractArray)
         iters += 1
         #in = deepcopy(ci_vector) 
         in = TPSCIstate(ci_vector, R=size(v,2))
@@ -361,10 +373,20 @@ function tps_ci_davidson(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ha
         return tps_ci_matvec(in, cluster_ops, clustered_ham)
     end
 
-    Hmap = FermiCG.LinOp(matvec, dim, true)
+
+    Hmap = FermiCG.LinOpMat{T}(matvec, dim, true)
 
     davidson = FermiCG.Davidson(Hmap, v0=get_vectors(ci_vector), 
                                 max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)
+
+    #time = @elapsed e0,v = Arpack.eigs(Hmap, nev = R, which=:SR)
+    time = @elapsed e0,v, info = KrylovKit.eigsolve(Hmap, R, :SR, 
+                                                    verbosity=  verbose, 
+                                                    maxiter=    max_iter, 
+                                                    #krylovdim=20, 
+                                                    issymmetric=true, 
+                                                    ishermitian=true, 
+                                                    tol=        conv_thresh)
 
     e = nothing
     v = nothing
