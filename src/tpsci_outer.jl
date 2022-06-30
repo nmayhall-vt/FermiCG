@@ -685,7 +685,7 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
                 del_sig_it = open_matvec_serial(del_v0, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
             end
             flush(stdout)
-            add!(sig, del_sig_it)
+            @timeit to "sig update" add!(sig, del_sig_it)
 
 
             #

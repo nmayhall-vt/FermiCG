@@ -544,11 +544,11 @@ function add!(s1::TPSCIstate, s2::TPSCIstate)
                 if haskey(s1[fock], config)
                     s1[fock][config] .+= s2[fock][config]
                 else
-                    s1[fock][config] = deepcopy(s2[fock][config])
+                    s1[fock][config] = copy(s2[fock][config])
                 end
             end
         else
-            s1[fock] = deepcopy(s2[fock])
+            s1[fock] = copy(s2[fock])
         end
     end
     #=}}}=#
