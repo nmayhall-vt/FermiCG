@@ -124,7 +124,7 @@ function ci_solve(ci_vector::BSstate{T,N,R}, cluster_ops, clustered_ham; tol=1e-
     end
 
     
-    Hmap = FermiCG.LinOp(matvec, dim)
+    Hmap = FermiCG.LinOp(matvec, dim, true)
     #Hmap = matvec(vec, cluster_ops, clustered_ham, cache=true)
 
     v0 = get_vector(vec)

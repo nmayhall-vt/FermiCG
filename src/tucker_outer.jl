@@ -89,7 +89,7 @@ function tucker_ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_h
         return get_vectors(sig) 
     end
 
-    Hmap = FermiCG.LinOp(matvec, length(vec))
+    Hmap = FermiCG.LinOp(matvec, length(vec), true)
     
     v0 = get_vectors(vec)
    
