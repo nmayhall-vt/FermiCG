@@ -146,9 +146,9 @@ function iteration(solver::Davidson; Adiag=nothing, iprint=0)
     ss_metric = eigvals(solver.vec_prev'*solver.vec_prev)
     solver.lindep = maximum([abs(maximum(ss_metric)-1), abs(minimum(ss_metric)-1)]) 
     #Hss = solver.vec_curr' * sigma
-    if iprint>0
-        [@printf(" Ritz Value: %12.8f \n",i) for i in ritz_e]
-    end
+    #if iprint>0
+    #    [@printf(" Ritz Value: %12.8f \n",i) for i in ritz_e]
+    #end
     res = similar(solver.vec_prev[:,1:solver.nroots])
     for s in 1:solver.nroots
         res[:,s] .= -solver.vec_prev[:,s] * Hss[s,s]

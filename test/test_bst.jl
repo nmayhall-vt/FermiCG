@@ -16,7 +16,6 @@ if true
     v = FermiCG.BSTstate(v,R=1)
     xspace  = FermiCG.build_compressed_1st_order_state(v, cluster_ops, clustered_ham, nbody=4, thresh=1e-3)
     xspace = FermiCG.compress(xspace, thresh=1e-3)
-    display(size(xspace))
 
     FermiCG.nonorth_add!(v, xspace)
     v = FermiCG.BSTstate(v,R=4)
@@ -39,7 +38,8 @@ if true
                                                ci_conv     = 1e-5,
                                                do_pt       = true,
                                                resolve_ss  = false,
-                                               tol_tucker  = 1e-4)
+                                               tol_tucker  = 1e-4,
+                                               solver      = "krylovkit")
     end
        
 #    for i in 1:4
@@ -86,6 +86,8 @@ end
     e_cepa, v_cepa = FermiCG.do_fois_cepa(v, cluster_ops, clustered_ham, thresh_foi=1e-3, max_iter=50, tol=1e-8)
     display(e_cepa)
     @test isapprox(e_cepa[1], -18.32978899988935, atol=1e-8)
+    
+    e_pt = FermiCG.compute_pt2_energy(v, cluster_ops, clustered_ham, thresh_foi=1e-3, max_iter=50, tol=1e-8)
     
     e_pt, v_pt = FermiCG.do_fois_pt2(v, cluster_ops, clustered_ham, thresh_foi=1e-3, max_iter=50, tol=1e-8)
     display(e_pt)

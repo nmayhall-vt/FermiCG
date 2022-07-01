@@ -292,7 +292,7 @@ end
     eye!(s::BSTstate)
 """
 function eye!(s::BSTstate{T,N,R}) where {T,N,R}
-    set_vectors!(s, Matrix{T}(I,size(s)))
+    set_vector!(s, Matrix{T}(I,size(s)))
 end
     
 
@@ -344,7 +344,7 @@ orthonormalize
 """
 function orthonormalize!(s::BSTstate{T,N,R}) where {T,N,R}
     #={{{=#
-    v0 = get_vectors(s) 
+    v0 = get_vector(s) 
     v0[:,1] .= v0[:,1]./norm(v0[:,1])
     for r in 2:R
         #|vr> = |vr> - |v1><v1|vr> - |v2><v2|vr> - ... 
@@ -354,18 +354,18 @@ function orthonormalize!(s::BSTstate{T,N,R}) where {T,N,R}
         v0[:,r] .= v0[:,r]./norm(v0[:,r])
     end
     isapprox(det(v0'*v0), 1.0, atol=1e-14) || @warn "initial guess det(v0'v0) = ", det(v0'v0) 
-    set_vectors!(s,v0)
+    set_vector!(s,v0)
 end
 #=}}}=#
 
 
 
 """
-    function get_vectors(ts::BSTstate{T,N,R}) where {T,N,R}
+    function get_vector(ts::BSTstate{T,N,R}) where {T,N,R}
 
 Return a matrix of the core tensors.
 """
-function get_vectors(ts::BSTstate{T,N,R}) where {T,N,R}
+function get_vector(ts::BSTstate{T,N,R}) where {T,N,R}
 #={{{=#
     v = zeros(length(ts), R)
     idx = 1
@@ -383,35 +383,6 @@ function get_vectors(ts::BSTstate{T,N,R}) where {T,N,R}
     return v
 end
 #=}}}=#
-
-"""
-    function set_vectors!(ts::BSTstate{T,N,R}, v::Matrix{T}) where {T,N,R}
-
-Set the core tensors to `v`
-"""
-function set_vectors!(ts::BSTstate{T,N,R}, v) where {T,N,R}
-#={{{=#
-    #length(size(v)) == 1 || error(" Only takes vectors", size(v))
-    all(size(ts) .== size(v)) || throw(DimensionMismatch)
-    nbasis = size(v)[1]
-
-    idx = 1
-    for (fock, tconfigs) in ts
-        for (tconfig, tuck) in tconfigs
-            dims = size(tuck)
-
-            dim1 = prod(dims)
-            for r in 1:R
-                ts[fock][tconfig].core[r] .= reshape(v[idx:idx+dim1-1,r], size(tuck.core[r]))
-            end
-            idx += dim1
-        end
-    end
-    nbasis == idx-1 || error("huh?", nbasis, " ", idx)
-    return
-end
-#=}}}=#
-
 
 
 """
@@ -436,6 +407,59 @@ function get_vector(ts::BSTstate{T,N,R}, root::Integer) where {T,N,R}
     return v
 end
 #=}}}=#
+
+
+"""
+    function set_vector!(ts::BSTstate{T,N,R}, v::Vector{T}, root::Int=1) where {T,N,R}
+"""
+function set_vector!(ts::BSTstate{T,N,R}, v::Vector{T}; root=1) where {T,N,R}
+#={{{=#
+    #length(size(v)) == 1 || error(" Only takes vectors", size(v))
+    nbasis = size(v)[1]
+
+    idx = 1
+    for (fock, tconfigs) in ts
+        for (tconfig, tuck) in tconfigs
+            dims = size(tuck)
+
+            dim1 = prod(dims)
+            ts[fock][tconfig].core[root] .= reshape(v[idx:idx+dim1-1], size(tuck.core[1]))
+            idx += dim1
+        end
+    end
+    nbasis == idx-1 || error("huh?", nbasis, " ", idx)
+    return
+end
+#=}}}=#
+
+
+"""
+    function set_vector!(ts::BSTstate{T,N,R}, v::Matrix{T}) where {T,N,R}
+"""
+function set_vector!(ts::BSTstate{T,N,R}, v::Matrix{T}) where {T,N,R}
+#={{{=#
+    #length(size(v)) == 1 || error(" Only takes vectors", size(v))
+    nbasis = size(v)[1]
+    
+    R == size(v,2) || throw(DimensionMismatch)
+
+    idx = 1
+    for (fock, tconfigs) in ts
+        for (tconfig, tuck) in tconfigs
+            dims = size(tuck)
+
+            dim1 = prod(dims)
+            for r in 1:R
+                ts[fock][tconfig].core[r] .= reshape(v[idx:idx+dim1-1,r], size(tuck.core[r]))
+            end
+            idx += dim1
+        end
+    end
+    nbasis == idx-1 || error("huh?", nbasis, " ", idx)
+    return
+end
+#=}}}=#
+
 
 """
     function add_single_excitons!(ts::BSTstate{T,N,R}, 
@@ -473,29 +497,6 @@ function add_single_excitons!(ts::BSTstate{T,N,R},
         factors = tuple([Matrix{T}(I, length(tconfig_i[j.idx]), length(tconfig_i[j.idx])) for j in ts.clusters]...)
         ts.data[fock][tconfig_i] = Tucker(core, factors)
     end
-    return
-end
-#=}}}=#
-
-"""
-    function set_vector!(ts::BSTstate{T,N,R}, v::Vector{T}, root::Integer) where {T,N,R}
-"""
-function set_vector!(ts::BSTstate{T,N,R}, v::AbstractArray{T,1}, root::Integer) where {T,N,R}
-#={{{=#
-    #length(size(v)) == 1 || error(" Only takes vectors", size(v))
-    nbasis = size(v)[1]
-
-    idx = 1
-    for (fock, tconfigs) in ts
-        for (tconfig, tuck) in tconfigs
-            dims = size(tuck)
-
-            dim1 = prod(dims)
-            ts[fock][tconfig].core[root] .= reshape(v[idx:idx+dim1-1], size(tuck.core[root]))
-            idx += dim1
-        end
-    end
-    nbasis == idx-1 || error("huh?", nbasis, " ", idx)
     return
 end
 #=}}}=#

@@ -90,7 +90,7 @@ function hylleraas_compressed_mp2(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R},
     @time build_sigma!(sig, ref, cluster_ops, clustered_ham)
     
     # b = <X|H|0> 
-    b = -get_vectors(sig)
+    b = -get_vector(sig)
     
     
     # (H0 - E0) |1> = X H |0>
@@ -128,7 +128,7 @@ function hylleraas_compressed_mp2(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R},
     @time build_sigma!(tmp, ref, cluster_ops, clustered_ham_0)
 
     # b = - <X|H|0> + <X|F|0> = -<X|V|0>
-    b .+= get_vectors(tmp)
+    b .+= get_vector(tmp)
     
     #
     # Get Overlap <X|A>C(A)
@@ -174,7 +174,7 @@ function hylleraas_compressed_mp2(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R},
             #display(size(xr))
             #display(size(x))
             length(xr) .== length(x) || throw(DimensionMismatch)
-            set_vector!(xr,x,1)
+            set_vector!(xr,x, root=1)
             zero!(xl)
             build_sigma!(xl, xr, cluster_ops, clustered_ham_0, cache=true)
 
@@ -186,9 +186,9 @@ function hylleraas_compressed_mp2(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R},
             orth_add!(xl,xr)
             flush(stdout)
 
-            return get_vectors(xl)
+            return get_vector(xl)
         end
-        br = b[:,r] .+ get_vectors(Sx)[:,r] .* (e_ref[r] - e0[r])
+        br = b[:,r] .+ get_vector(Sx)[:,r] .* (e_ref[r] - e0[r])
 
 
         dim = length(br)
@@ -201,11 +201,11 @@ function hylleraas_compressed_mp2(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R},
         #       if it's not, then we want to add the reference state components |guess> += |ref><ref|guess>
         #
         x_vector = zeros(T,dim)
-        x_vector = get_vectors(sig)[:,r]*.1
+        x_vector = get_vector(sig)[:,r]*.1
         time = @elapsed x, solver = cg!(x_vector, Axx, br, log=true, maxiter=max_iter, verbose=true, abstol=tol)
         @printf(" %-50s%10.6f seconds\n", "Time to solve for PT1 with conjugate gradient: ", time)
     
-        set_vector!(psi1,x_vector,r)
+        set_vector!(psi1, x_vector, root=r)
     end
         
     flush_cache(clustered_ham_0)
@@ -289,7 +289,7 @@ function do_fois_pt2(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     time = @elapsed pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
     @printf(" %-50s%10.6f seconds\n", "Time spent building compressed FOIS: ",time)
     #display(orth_overlap(pt1_vec, pt1_vec))
-    #display(eigen(get_vectors(pt1_vec)'*get_vectors(pt1_vec)))
+    #display(eigen(get_vector(pt1_vec)'*get_vector(pt1_vec)))
     project_out!(pt1_vec, ref)
     
     # 
@@ -319,6 +319,17 @@ end
 
 
 """
+    compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
+                            H0          = "Hcmf",
+                            max_iter    = 50,
+                            nbody       = 4,
+                            thresh      = 1e-6,
+                            max_number  = nothing,
+                            tol         = 1e-5,
+                            opt_ref     = true,
+                            verbose     = true) where {T,N,R}
+
+Compute the PT2 energy for the `ref` BST state
 """
 function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
                             H0          = "Hcmf",
@@ -328,8 +339,7 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
                             max_number  = nothing,
                             tol         = 1e-5,
                             opt_ref     = true,
-                            verbose     = true, 
-                            thresh=1e-8) where {T,N,R}
+                            verbose     = true) where {T,N,R}
 #={{{=#
     @printf(" |== Compute PT2 Energy ============================================\n")
     println(" H0          : ", H0          ) 
@@ -639,7 +649,7 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
     build_sigma_serial!(sig, ref, cluster_ops, clustered_ham)
     
     # b = <X|H|0> 
-    b = -get_vectors(sig)
+    b = -get_vector(sig)
     
     
     # (H0 - E0) |1> = X H |0>
@@ -652,7 +662,7 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
     build_sigma_serial!(tmp, ref, cluster_ops, clustered_ham_0)
 
     # b = - <X|H|0> + <X|F|0> = -<X|V|0>
-    b .+= get_vectors(tmp)
+    b .+= get_vector(tmp)
     
     #
     # Get Overlap <X|A>C(A)
@@ -700,7 +710,7 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
             #display(size(xr))
             #display(size(x))
             length(xr) .== length(x) || throw(DimensionMismatch)
-            set_vector!(xr,x,1)
+            set_vector!(xr, x, root=1)
             zero!(xl)
             build_sigma_serial!(xl, xr, cluster_ops, clustered_ham_0, cache=false)
             #build_sigma_serial!(xl, xr, cluster_ops, clustered_ham_0, cache=true)
@@ -713,9 +723,9 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
             orth_add!(xl,xr)
             #flush(stdout)
 
-            return get_vectors(xl)
+            return get_vector(xl)
         end
-        br = b[:,r] .+ get_vectors(Sx)[:,r] .* (e_ref[r] - e0[r])
+        br = b[:,r] .+ get_vector(Sx)[:,r] .* (e_ref[r] - e0[r])
 
 
         dim = length(br)
@@ -728,12 +738,12 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
         #       if it's not, then we want to add the reference state components |guess> += |ref><ref|guess>
         #
         x_vector = zeros(T,dim)
-        x_vector = get_vectors(sig)[:,r]*.1
+        x_vector = get_vector(sig)[:,r]*.1
         #time = @elapsed x, solver = cg!(x_vector, Axx, br, log=true, maxiter=max_iter, verbose=false, abstol=1e-12)
         time = @elapsed x, solver = cg!(x_vector, Axx, br, log=true, maxiter=max_iter, verbose=false, abstol=tol)
         verbose < 2 || @printf(" %-50s%10.6f seconds\n", "Time to solve for PT1 with conjugate gradient: ", time)
     
-        set_vector!(psi1,x_vector,r)
+        set_vector!(psi1, x_vector, root=r)
     end
        
 

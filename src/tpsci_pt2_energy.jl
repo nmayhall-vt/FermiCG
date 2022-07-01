@@ -238,9 +238,9 @@ function _pt2_job(job, fock_x, cluster_ops, nbody, thresh,
     sig_v = reshape2(sig_v, size(sig))
     fill!(sig_v,0.0)
     
-    get_vectors!(sig_v, sig)
+    get_vector!(sig_v, sig)
     
-    #sig_v = get_vectors(sig)
+    #sig_v = get_vector(sig)
 
    
     e2 = zeros(T,R)

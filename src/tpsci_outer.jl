@@ -156,6 +156,8 @@ end
 # Solve for eigenvectors/values in the basis defined by `ci_vector`. Use direct diagonalization. 
 
 If updating existing matrix, pass in H_old/v_old to avoid rebuilding that block
+# Arguments
+- `solver`: Which solver to use. Options = ["davidson", "krylovkit"]
 """
 function tps_ci_direct( ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
                         conv_thresh = 1e-5,
@@ -165,7 +167,8 @@ function tps_ci_direct( ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham
                         precond     = false,
                         H_old    = nothing,
                         v_old    = nothing,
-                        verbose   = 0) where {T,N,R}
+                        verbose   = 0,
+                        solver = "krylovkit") where {T,N,R}
     #={{{=#
     println()
     @printf(" |== Tensor Product State CI =======================================\n")
@@ -239,19 +242,29 @@ function tps_ci_direct( ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham
     @printf(" Now diagonalize\n")
     flush(stdout)
     if length(vec_out) > 500
-        time = @elapsed e0,v, info = KrylovKit.eigsolve(H, R, :SR, 
-                                                        verbosity=  verbose, 
-                                                        maxiter=    max_iter, 
-                                                        #krylovdim=20, 
-                                                        issymmetric=true, 
-                                                        ishermitian=true, 
-                                                        tol=        conv_thresh)
+    
+        if solver == "krylovkit"
+            time = @elapsed e0,v, info = KrylovKit.eigsolve(H, R, :SR, 
+                                                            verbosity=  verbose, 
+                                                            maxiter=    max_iter, 
+                                                            #krylovdim=20, 
+                                                            issymmetric=true, 
+                                                            ishermitian=true, 
+                                                            tol=        conv_thresh)
+            println()
+            println(info)
+            println()
+            @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
+            v = hcat(v[1:R]...)
+
+        elseif solver == "arpack"
+            time = @elapsed e0,v = Arpack.eigs(H, nev = R, which=:SR)
         
-        #time = @elapsed e0,v = Arpack.eigs(H, nev = R, which=:SR)
-        #@time e0,v = Arpack.eigs(H, nev = R, v0=get_vector(v_tot,root=1), which=:SR)
-        #davidson = FermiCG.Davidson(H, v0=get_vectors(ci_vector), 
-        #                        max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)
-        #time = @elapsed e0,v = FermiCG.solve(davidson);
+        elseif solver == "davidson"
+            davidson = FermiCG.Davidson(H, v0=get_vector(ci_vector), 
+                                        max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)
+            time = @elapsed e0,v = FermiCG.solve(davidson);
+        end
         v = hcat(v[1:R]...)
         @printf(" %-50s", "Diagonalization time: ")
         @printf("%10.6f seconds\n",time)
@@ -362,7 +375,17 @@ function tps_ci_davidson(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ha
     iters = 0
 
     
-    function matvec(v::AbstractArray)
+    function matvec(v::Vector) 
+        iters += 1
+        #in = deepcopy(ci_vector) 
+        in = TPSCIstate(ci_vector, R=size(v,2))
+        set_vector!(in, v)
+        #sig = deepcopy(in)
+        #zero!(sig)
+        #build_sigma!(sig, ci_vector, cluster_ops, clustered_ham, cache=cache)
+        return tps_ci_matvec(in, cluster_ops, clustered_ham)[:,1]
+    end
+    function matvec(v::Matrix)
         iters += 1
         #in = deepcopy(ci_vector) 
         in = TPSCIstate(ci_vector, R=size(v,2))
@@ -376,7 +399,7 @@ function tps_ci_davidson(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ha
 
     Hmap = FermiCG.LinOpMat{T}(matvec, dim, true)
 
-    davidson = FermiCG.Davidson(Hmap, v0=get_vectors(ci_vector), 
+    davidson = FermiCG.Davidson(Hmap, v0=get_vector(ci_vector), 
                                 max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)
 
     #time = @elapsed e0,v = Arpack.eigs(Hmap, nev = R, which=:SR)
@@ -745,7 +768,7 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
             flush(stdout)
             @timeit to "diagonal" Hd = compute_diagonal(sig, cluster_ops, clustered_ham_0)
     
-            sig_v = get_vectors(sig)
+            sig_v = get_vector(sig)
             v_pt  = zeros(size(sig_v))
 
             norms = norm(vec_asci);

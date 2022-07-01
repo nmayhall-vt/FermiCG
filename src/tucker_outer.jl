@@ -23,7 +23,7 @@ function get_map(ci_vector::BSTstate{T,N,R}, cluster_ops, clustered_ham; shift =
         iters += 1
 
         all(size(ci_vector) .== size(v)) || error(DimensionMismatch)
-        set_vectors!(ci_vector, v)
+        set_vector!(ci_vector, v)
 
         #fold!(ci_vector)
         sig = deepcopy(ci_vector)
@@ -32,11 +32,11 @@ function get_map(ci_vector::BSTstate{T,N,R}, cluster_ops, clustered_ham; shift =
 
         #unfold!(ci_vector)
 
-        sigv = get_vectors(sig)
+        sigv = get_vector(sig)
 
         if shift != nothing
             # this is how we do CEPA
-            sigv += shift * get_vectors(ci_vector)
+            sigv += shift * get_vector(ci_vector)
         end
         flush(stdout)
 
@@ -53,9 +53,18 @@ end
                          max_iter    = 40,
                          shift       = nothing,
                          precond     = false,
-                         verbose     = 0) where {T,N,R}
+                         verbose     = 0,
+                         solver      = "davidson") where {T,N,R}
 
 Solve for ground state in the space spanned by `ci_vector`'s compression vectors
+# Arguments
+- `conv_thresh`: residual convergence threshold
+- `max_ss_vecs`: max number of subspace vectors
+- `max_iter`: Max iterations in solver
+- `shift`:  Use a shift? this is for CEPA type 
+- `precond`: use preconditioner? Only applied to Davidson and not yet working,
+- `verbose`: print level
+- `solver`: Which solver to use. Options = ["davidson", "krylovkit"]
 """
 function tucker_ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_ham; 
                          conv_thresh = 1e-5,
@@ -63,7 +72,8 @@ function tucker_ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_h
                          max_iter    = 40,
                          shift       = nothing,
                          precond     = false,
-                         verbose     = 0) where {T,N,R}
+                         verbose     = 0,
+                         solver      = "davidson") where {T,N,R}
 #={{{=#
     @printf(" |== BST CI ========================================================\n")
     @printf(" %-50s", "Solve CI with # variables: ")
@@ -76,23 +86,33 @@ function tucker_ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_h
     #Hmap = get_map(vec, cluster_ops, clustered_ham, cache=true)
     iters = 0
     
-    function matvec(v::AbstractMatrix)
+    function matvec(v::Matrix{T}) where T
         iters += 1
         #all(size(vec) .== size(v)) || error(DimensionMismatch)
         vec_i = BSTstate(vec, R=size(v,2))
-        set_vectors!(vec_i, v)
+        set_vector!(vec_i, v)
 
         sig = deepcopy(vec_i)
         zero!(sig)
         build_sigma!(sig, vec_i, cluster_ops, clustered_ham, cache=cache)
 
-        return get_vectors(sig) 
+        return get_vector(sig) 
+    end
+    function matvec(v::Vector{T}) where T
+        iters += 1
+        #all(size(vec) .== size(v)) || error(DimensionMismatch)
+        vec_i = BSTstate(vec, R=1)
+        set_vector!(vec_i, v)
+
+        sig = deepcopy(vec_i)
+        zero!(sig)
+        build_sigma!(sig, vec_i, cluster_ops, clustered_ham, cache=cache)
+
+        return get_vector(sig)[:,1]
     end
 
-    Hmap = FermiCG.LinOp(matvec, length(vec), true)
-    
-    v0 = get_vectors(vec)
-   
+
+    v0 = get_vector(vec)
 
     cache=true
     if cache
@@ -102,22 +122,58 @@ function tucker_ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_h
         flush(stdout)
     end
 
-    #for (ftrans,terms) in clustered_ham
-    #    for term in terms
-    #        println("nick: ", length(term.cache))
-    #    end
-    #end
-
-    #cache_hamiltonian(ci_vector, ci_vector, cluster_ops, clustered_ham)
+    Hmap = FermiCG.LinOpMat{T}(matvec, length(vec), true)
     
-    davidson = Davidson(Hmap,v0=v0,max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)
-    flush(stdout)
-    time = @elapsed e,v = FermiCG.solve(davidson, iprint=verbose)
-    @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
-    set_vectors!(vec,v)
-    
-    #println(" Memory used by cache: ", mem_used_by_cache(clustered_ham))
+    vguess = get_vector(vec, 1)[:,1]
 
+    e = [] 
+    v = [[]]
+
+    if solver == "krylovkit"
+
+        time = @elapsed e, v, info = KrylovKit.eigsolve(Hmap, vguess, R, :SR, 
+                                                        verbosity   = verbose, 
+                                                        maxiter     = max_iter, 
+                                                        #krylovdim   = max_ss_vecs, 
+                                                        issymmetric = true, 
+                                                        ishermitian = true, 
+                                                        eager       = true,
+                                                        tol         = conv_thresh)
+
+        @printf(" Number of matvecs performed: %5i\n", info.numops)
+        @printf(" Number of subspace restarts: %5i\n", info.numiter)
+        if info.converged >= R
+            @printf(" CI Converged: %5i roots\n", info.converged)
+        end
+        println(" Residual Norms")
+        for r in 1:R
+            @printf(" State %5i %16.1e\n", r, info.normres[r])
+        end
+        
+        println()
+        @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
+        set_vector!(vec,hcat(v[1:R]...))
+
+    elseif solver == "davidson"
+
+        #for (ftrans,terms) in clustered_ham
+        #    for term in terms
+        #        println("nick: ", length(term.cache))
+        #    end
+        #end
+
+        #cache_hamiltonian(ci_vector, ci_vector, cluster_ops, clustered_ham)
+
+        davidson = Davidson(Hmap,v0=v0,max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)
+        flush(stdout)
+        time = @elapsed e,v = FermiCG.solve(davidson, iprint=verbose)
+        @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
+        #println(" Memory used by cache: ", mem_used_by_cache(clustered_ham))
+        set_vector!(vec,v)
+
+    else
+        error(" Bad value for `solver`")
+    end
     #flush term cache
     flush_cache(clustered_ham)
     
@@ -222,7 +278,7 @@ function tucker_cepa_solve(ref_vector::BSTstate{T,N,R}, cepa_vector::BSTstate, c
     b = deepcopy(x_vector)
     zero!(b)
     build_sigma!(b, ref_vector, cluster_ops, clustered_ham, cache=false)
-    bv = -get_vectors(b)
+    bv = -get_vector(b)
 
     #@printf(" Overlap between <0|0>:          %18.12e\n", nonorth_dot(ref_vector, ref_vector, verbose=0))
     #@printf(" Overlap between <1|0>:          %18.12e\n", nonorth_dot(x_vector, ref_vector, verbose=0))
@@ -241,7 +297,7 @@ function tucker_cepa_solve(ref_vector::BSTstate{T,N,R}, cepa_vector::BSTstate, c
                     # Ux(Ii') Ux(Jj') ...
                     #
                     # Cr(i,j,k...) S(ii') S(jj')...
-                    overlaps = []
+                    overlaps = Vector{Matrix{T}}([])
                     for i in 1:length(Sx.clusters)
                         push!(overlaps, ref_tuck.factors[i]' * tuck.factors[i])
                     end
@@ -261,7 +317,7 @@ function tucker_cepa_solve(ref_vector::BSTstate{T,N,R}, cepa_vector::BSTstate, c
     end
     for it in 1:cepa_mit 
 
-    	bv = -get_vectors(b)
+    	bv = -get_vector(b)
         #n_clusters = 8
     	if cepa_shift == "cepa"
 	    shift = 0.0
@@ -279,7 +335,7 @@ function tucker_cepa_solve(ref_vector::BSTstate{T,N,R}, cepa_vector::BSTstate, c
 	    exit()
 	end
 	eshift = e0+shift
-        bv .= bv .+ get_vectors(Sx)* (eshift)
+        bv .= bv .+ get_vector(Sx)* (eshift)
 
         function mymatvec(v)
             xr = BSTstate(x_vector, R=1)
@@ -288,14 +344,14 @@ function tucker_cepa_solve(ref_vector::BSTstate{T,N,R}, cepa_vector::BSTstate, c
             #display(size(xr))
             #display(size(v))
             length(xr) .== length(v) || throw(DimensionMismatch)
-            set_vector!(xr,v,1)
+            set_vector!(xr, Vector(v), root=1)
             zero!(xl)
             build_sigma!(xl, xr, cluster_ops, clustered_ham, cache=cache)
 
             tmp = deepcopy(xr)
             scale!(tmp, -eshift)
             orth_add!(xl, tmp)
-            return get_vectors(xl)
+            return get_vector(xl)
         end
 
         @printf(" %-50s%10.6f\n", "Norm of b: ", sum(bv.*bv))
@@ -321,7 +377,7 @@ function tucker_cepa_solve(ref_vector::BSTstate{T,N,R}, cepa_vector::BSTstate, c
                                             log=true, maxiter=max_iter, verbose=verbose, abstol=tol)
             @printf(" %-50s%10.6f seconds\n", "Time to solve for CEPA with conjugate gradient: ", time)
 
-            set_vector!(x_vector, xv[:,1], r)
+            set_vector!(x_vector, xv[:,1], root=r)
         end
         #flush term cache
         #println(" Now flushing:")
@@ -440,7 +496,7 @@ function tucker_cepa_solve2(ref_vector::BSTstate, cepa_vector::BSTstate, cluster
     b = deepcopy(x_vector)
     zero!(b)
     build_sigma!(b, ref_vector, cluster_ops, clustered_ham, cache=false)
-    bv = -get_vectors(b)
+    bv = -get_vector(b)
 
     
     #
@@ -466,7 +522,7 @@ function tucker_cepa_solve2(ref_vector::BSTstate, cepa_vector::BSTstate, cluster
         end
     end
 
-    bv .= bv .+ get_vectors(Sx)*e0
+    bv .= bv .+ get_vector(Sx)*e0
 
     @printf(" Norm of Sx overlap: %12.8f\n", orth_dot(Sx,Sx))
     @printf(" Norm of b         : %12.8f\n", sum(bv.*bv))
@@ -480,7 +536,7 @@ function tucker_cepa_solve2(ref_vector::BSTstate, cepa_vector::BSTstate, cluster
         xl = BSTstate(sig, R=1)
         #@printf(" Overlap between <1|0>:          %8.1e\n", nonorth_dot(x_vector, ref_vector, verbose=0))
         length(xr) .== length(x) || throw(DimensionMismatch)
-        set_vector!(xr,x,1)
+        set_vector!(xr,x, root=1)
         zero!(xl)
         build_sigma!(xl, xr, cluster_ops, clustered_ham, cache=cache)
 
@@ -491,7 +547,7 @@ function tucker_cepa_solve2(ref_vector::BSTstate, cepa_vector::BSTstate, cluster
             scale!(tmp, -e0)
         end
         orth_add!(xl, tmp)
-        return get_vectors(xl)
+        return get_vector(xl)
     end
     dim = length(x_vector)
     Axx = LinearMap(mymatvec, dim, dim)
@@ -502,13 +558,13 @@ function tucker_cepa_solve2(ref_vector::BSTstate, cepa_vector::BSTstate, cluster
     flush_cache(clustered_ham)
    
     println(" Start CEPA iterations with dimension = ", length(x_vector))
-    x, solver = cg!(get_vectors(x_vector), Axx,bv,log=true, maxiter=max_iter, verbose=verbose, abstol=tol)
+    x, solver = cg!(get_vector(x_vector), Axx,bv,log=true, maxiter=max_iter, verbose=verbose, abstol=tol)
     
     #flush term cache
     println(" Now flushing:")
     flush_cache(clustered_ham)
 
-    set_vectors!(x_vector, x)
+    set_vector!(x_vector, x)
 
 
     SxC = orth_dot(Sx,x_vector)
@@ -1034,7 +1090,7 @@ function project_out!(v::BSTstate{T,N,Rv}, w::BSTstate{T,N,Rw}; thresh=1e-16) wh
 
     #S = nonorth_overlap(w,v)
     #wtmp = deepcopy(w)
-    #set_vectors!(wtmp, -1.0*get_vectors(w)*S)
+    #set_vector!(wtmp, -1.0*get_vector(w)*S)
     #nonorth_add!(v,wtmp)
 
     for rw in 1:Rw

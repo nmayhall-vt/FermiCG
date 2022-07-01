@@ -114,6 +114,8 @@ end
 #remove
 """
     get_vector(s::TPSCIstate; root=1)
+
+Return a vector of the variables for `root`. Note that this is the core tensors being returned
 """
 function get_vector(s::TPSCIstate; root=1)
     v = zeros(length(s))
@@ -127,9 +129,11 @@ function get_vector(s::TPSCIstate; root=1)
     return v
 end
 """
-    get_vectors(s::TPSCIstate)
+    get_vector(s::TPSCIstate)
+
+Return a matrix of the variables for `root`. 
 """
-function get_vectors(s::TPSCIstate{T,N,R}) where {T,N,R}
+function get_vector(s::TPSCIstate{T,N,R}) where {T,N,R}
     v = zeros(T,length(s), R)
     idx = 1
     for (fock, configs) in s.data
@@ -142,9 +146,11 @@ function get_vectors(s::TPSCIstate{T,N,R}) where {T,N,R}
 end
 
 """
-    get_vectors!(v, s::TPSCIstate)
+    get_vector!(v, s::TPSCIstate)
+
+Fill a preallocated array with the coefficients
 """
-function get_vectors!(v, s::TPSCIstate{T,N,R}) where {T,N,R}
+function get_vector!(v, s::TPSCIstate{T,N,R}) where {T,N,R}
     idx = 1
     for (fock, configs) in s.data
         for (config, coeff) in configs
@@ -181,30 +187,24 @@ function set_vector!(ts::TPSCIstate{T,N,R}, v::Matrix{T}) where {T,N,R}
 end
 
 """
-    function set_vector!(ts::TPSCIstate{T,N,R}, v::Vector{T}) where {T,N,R}
+    function set_vector!(ts::TPSCIstate{T,N,R}, v::Vector{T}; root=1) where {T,N,R}
 
 Fill the coefficients of `ts` with the values in `v`
 """
-function set_vector!(ts::TPSCIstate{T,N,R}, v::Vector{T}) where {T,N,R}
+function set_vector!(ts::TPSCIstate{T,N,R}, v::Vector{T}; root=1) where {T,N,R}
 
     nbasis=length(v)
     length(ts) == length(v) || throw(DimensionMismatch)
-    R == 1 || throw(DimensionMismatch)
 
     idx = 1
     for (fock, tconfigs) in ts.data
         for (tconfig, coeffs) in tconfigs
-            #ts[fock][tconfig] = MVector{R}(v[idx,:])
-            @views coeffs .= v[idx]
+            coeffs[root] = v[idx]
             idx += 1
         end
     end
     nbasis == idx-1 || error("huh?", nbasis, " ", idx)
     return
-end
-
-function set_vectors!(ts::TPSCIstate{T,N,R}, v::Matrix{T}) where {T,N,R}
-    set_vector!(ts, v)
 end
 
 function set_vector!(ts::TPSCIstate{T,N,R}, v::Vector{Vector{T}}) where {T,N,R}
@@ -426,7 +426,7 @@ end
 """
 function orth!(v1::TPSCIstate{T,N,R}) where {T,N,R}
     d = T(0)
-    F = svd(get_vectors(v1))
+    F = svd(get_vector(v1))
 
     set_vector!(v1, F.U*F.Vt)
     return 
@@ -435,7 +435,7 @@ end
 function Base.:*(A::TPSCIstate{T,N,R}, C::AbstractArray) where {T,N,R}
     B = copy(A)
     zero!(B)
-    set_vector!(B, get_vectors(A)*C)
+    set_vector!(B, get_vector(A)*C)
     return B
 end
 
@@ -532,7 +532,7 @@ orthonormalize
 """
 function orthonormalize!(s::TPSCIstate{T,N,R}) where {T,N,R}
     #={{{=#
-    v0 = get_vectors(s) 
+    v0 = get_vector(s) 
     v0[:,1] .= v0[:,1]./norm(v0[:,1])
     for r in 2:R
         #|vr> = |vr> - |v1><v1|vr> - |v2><v2|vr> - ... 
@@ -568,7 +568,7 @@ end
     eye!(s::TPSCIstate)
 """
 function eye!(s::TPSCIstate{T,N,R}) where {T,N,R}
-    set_vectors!(s, Matrix{T}(I,size(s)))
+    set_vector!(s, Matrix{T}(I,size(s)))
 end
 
 
@@ -602,7 +602,7 @@ end
 Extract roots to give new `TPSCIstate` 
 """
 function extract_roots(v::TPSCIstate{T,N,R}, roots) where {T,N,R}
-    vecs = get_vectors(v)[:,roots]
+    vecs = get_vector(v)[:,roots]
 
     out = TPSCIstate(v.clusters, T=T, R=length(roots))
     for (fock,configs) in v.data

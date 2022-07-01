@@ -21,12 +21,14 @@ function Tucker(A::Array{T,N}; thresh=-1, max_number=nothing, verbose=0, type="m
     return Tucker((A,), thresh=thresh, max_number=max_number, verbose=verbose, type=type)
 end
 #=}}}=#
+
 function Tucker(A::NTuple{R,Array{T,N}}; thresh=-1, max_number=nothing, verbose=0, type="magnitude") where {T<:Number,N,R}
     #={{{=#
     core,factors = tucker_decompose(A, thresh=thresh, max_number=max_number, verbose=verbose, type=type)
     return Tucker{T,N,R}(core, NTuple{N}(factors))
 end
 #=}}}=#
+
 Tucker(A::Array{T,N},factors::NTuple{N, Matrix{T}}) where {T<:Number,N} = Tucker{T,N,1}((A,),factors)
 Tucker(A::NTuple{R,Array{T,N}},factors::Array{Matrix{T}}) where {T<:Number,N,R} = Tucker{T,N,R}(A, ntuple(i->factors[i],N) )
 Tucker(A::Array{Array{T,N}},factors::NTuple{N, Matrix{T}}) where {T<:Number,N} = Tucker{T,N,length(A)}(ntuple(i->A[i],length(A)),factors)
@@ -527,6 +529,7 @@ end
 """
 function transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}; trans=false) where {T<:Number,N}
   #={{{=#
+    #error("here")
     vv = deepcopy(v)
     dims = [size(vv)...]
             

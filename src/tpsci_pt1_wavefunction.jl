@@ -60,7 +60,7 @@ function compute_pt1_wavefunction(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clu
     flush(stdout)
     
 
-    sig_v = get_vectors(sig)
+    sig_v = get_vector(sig)
     v_pt  = zeros(size(sig_v))
 
     println()

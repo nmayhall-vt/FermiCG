@@ -166,7 +166,7 @@ using Arpack
     
 
     H = FermiCG.build_full_H(v0a, cluster_ops, clustered_ham)
-    sig1 = H*FermiCG.get_vectors(v0a)
+    sig1 = H*FermiCG.get_vector(v0a)
     sig2 = FermiCG.tps_ci_matvec(v0a, cluster_ops, clustered_ham)
 
     @test isapprox(norm(sig1-sig2), 0.0, atol=1e-12) 
