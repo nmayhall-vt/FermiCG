@@ -47,7 +47,7 @@ end
 #=}}}=#
 
 """
-    function tucker_ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_ham; 
+    function ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_ham; 
                          conv_thresh = 1e-5,
                          max_ss_vecs = 12,
                          max_iter    = 40,
@@ -66,7 +66,7 @@ Solve for ground state in the space spanned by `ci_vector`'s compression vectors
 - `verbose`: print level
 - `solver`: Which solver to use. Options = ["davidson", "krylovkit"]
 """
-function tucker_ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_ham; 
+function ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_ham; 
                          conv_thresh = 1e-5,
                          max_ss_vecs = 12,
                          max_iter    = 40,
@@ -972,7 +972,7 @@ function do_fois_ci(ref::BSTstate, cluster_ops, clustered_ham;
     # Solve variationally in reference space
     ref_vec = deepcopy(ref)
     @printf(" Solve zeroth-order problem. Dimension = %10i\n", length(ref_vec))
-    @time e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, conv_thresh=tol)
+    @time e0, ref_vec = ci_solve(ref_vec, cluster_ops, clustered_ham, conv_thresh=tol)
 
     #
     # Get First order wavefunction
@@ -999,7 +999,7 @@ function do_fois_ci(ref::BSTstate, cluster_ops, clustered_ham;
     # Solve for first order wavefunction 
     println(" Compute CI energy in the space = ", length(ref_vec))
     pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol, max_iter=max_iter, H0=H0)
-    eci, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, conv_thres=tol)
+    eci, ref_vec = ci_solve(ref_vec, cluster_ops, clustered_ham, conv_thres=tol)
     @printf(" E(Ref)      = %12.8f\n", e0[1])
     @printf(" E(CI) tot  = %12.8f\n", eci[1])
     return eci[1], ref_vec 
@@ -1032,7 +1032,7 @@ function do_fois_cepa(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     println()
     ref_vec = deepcopy(ref)
     @printf(" Solve zeroth-order problem. Dimension = %10i\n", length(ref_vec))
-    @time e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, conv_thresh=tol)
+    @time e0, ref_vec = ci_solve(ref_vec, cluster_ops, clustered_ham, conv_thresh=tol)
 
     #
     # Get First order wavefunction

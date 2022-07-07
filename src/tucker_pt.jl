@@ -278,7 +278,7 @@ function do_fois_pt2(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     
     if opt_ref 
         @printf(" %-50s\n", "Solve zeroth-order problem: ")
-        time = @elapsed e0, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, conv_thresh=tol)
+        time = @elapsed e0, ref_vec = ci_solve(ref_vec, cluster_ops, clustered_ham, conv_thresh=tol)
         @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
     end
 
@@ -367,7 +367,7 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     if true 
         if opt_ref 
             @printf(" %-50s\n", "Solve zeroth-order problem: ")
-            time = @elapsed e_ref, ref_vec = tucker_ci_solve(ref_vec, cluster_ops, clustered_ham, conv_thresh=tol)
+            time = @elapsed e_ref, ref_vec = ci_solve(ref_vec, cluster_ops, clustered_ham, conv_thresh=tol)
             @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
         else
             @printf(" %-50s", "Compute zeroth-order energy: ")

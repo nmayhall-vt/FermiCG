@@ -1,5 +1,5 @@
 using StaticArrays
-
+using LinearAlgebra
 """
     clusters::Vector{Cluster}
     data::OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, Vector{T}}}
@@ -113,11 +113,12 @@ end
 
 #remove
 """
-    get_vector(s::TPSCIstate; root=1)
+    get_vector(s::TPSCIstate, root=1)
 
 Return a vector of the variables for `root`. Note that this is the core tensors being returned
 """
-function get_vector(s::TPSCIstate; root=1)
+function get_vector(s::TPSCIstate{T,N,R}, root) where {T,N,R}
+    root <= R || throw(DimensionMismatch) 
     v = zeros(length(s))
     idx = 1
     for (fock, configs) in s.data
@@ -368,7 +369,7 @@ end
 """
     dot(v1::TPSCIstate,v2::TPSCIstate; r1=1, r2=1)
 """
-function dot(v1::TPSCIstate{T,N,1},v2::TPSCIstate{T,N,1}) where {T,N}
+function LinearAlgebra.dot(v1::TPSCIstate{T,N,1},v2::TPSCIstate{T,N,1}) where {T,N}
     d = T(0)
     for (fock,configs) in v1.data
         haskey(v2.data, fock) || continue
@@ -383,7 +384,7 @@ end
 """
     dot(v1::TPSCIstate,v2::TPSCIstate; r1=1, r2=1)
 """
-function dot(v1::TPSCIstate{T,N,R}, v2::TPSCIstate{T,N,R}, r1, r2) where {T,N,R}
+function LinearAlgebra.dot(v1::TPSCIstate{T,N,R}, v2::TPSCIstate{T,N,R}, r1, r2) where {T,N,R}
     d = T(0)
     for (fock,configs) in v1.data
         haskey(v2.data, fock) || continue
@@ -616,3 +617,6 @@ function extract_roots(v::TPSCIstate{T,N,R}, roots) where {T,N,R}
 end
 
 
+nroots(v::TPSCIstate{T,N,R}) where {T,N,R} = R
+type(v::TPSCIstate{T,N,R}) where {T,N,R} = T
+nclusters(v::TPSCIstate{T,N,R}) where {T,N,R} = N

@@ -150,27 +150,17 @@ Create a `BSTstate` from a `BSstate`
 """
 function BSTstate(ts::BSstate{T,N,R}; thresh=-1, max_number=nothing, verbose=0) where {T,N,R}
 #={{{=#
-    # make all AbstractState subtypes parametric
-    nroots = nothing
-    for (fock,configs) in ts
-        for (config,coeffs) in configs
-            if nroots == nothing
-                nroots = last(size(coeffs))
-            else
-                nroots == last(size(coeffs)) || error(" mismatch in number of roots")
-            end
-        end
-    end
 
-    nroots == 1 || error(" Conversion to BSTstate can only have 1 root")
-
-    data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N} }}()
+    fold!(ts)
+    data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T, N, R} }}()
     for (fock, tconfigs) in ts.data
         for (tconfig, coeffs) in tconfigs
 
             #
             # Since BSstate has extra dimension for state index, remove that
-            tuck = Tucker(reshape(coeffs,size(coeffs)[1:end-1]), thresh=thresh, max_number=max_number, verbose=verbose)
+            #tuck = Tucker(reshape(coeffs,size(coeffs)[1:end]), thresh=thresh, max_number=max_number, verbose=verbose)
+            #display([selectdim(coeffs, N+1, i) for i in 1:R])
+            tuck = Tucker(Tuple([Array(selectdim(coeffs, N+1, i)) for i in 1:R]), thresh=thresh, max_number=max_number, verbose=verbose)
             if length(tuck) > 0
                 if haskey(data, fock)
                     data[fock][tconfig] = tuck
@@ -759,3 +749,7 @@ function scale!(ts::BSTstate{T,N,R}, a::Vector{T}) where {T<:Number, N,R}
     end
     #=}}}=#
 end
+
+nroots(v::BSTstate{T,N,R}) where {T,N,R} = R
+type(v::BSTstate{T,N,R}) where {T,N,R} = T
+nclusters(v::BSTstate{T,N,R}) where {T,N,R} = N

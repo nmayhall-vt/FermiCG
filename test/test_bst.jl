@@ -4,11 +4,11 @@ using Test
 using JLD2 
 
 #@testset "BSTstate" begin
-if true 
+if false 
     @load "_testdata_cmf_h6.jld2"
     v = FermiCG.BSTstate(clusters, FockConfig(init_fspace), cluster_bases)
     
-    e_ci, v_ci = FermiCG.tucker_ci_solve(v, cluster_ops, clustered_ham)
+    e_ci, v_ci = FermiCG.ci_solve(v, cluster_ops, clustered_ham)
     display(e_ci)
     @test isapprox(e_ci[1], -18.31710895, atol=1e-8)
 
@@ -22,7 +22,7 @@ if true
     FermiCG.randomize!(v)
     FermiCG.orthonormalize!(v)
     
-    e_ci, v = FermiCG.tucker_ci_solve(v, cluster_ops, clustered_ham)
+    e_ci, v = FermiCG.ci_solve(v, cluster_ops, clustered_ham)
     
     e_pt, v_pt = FermiCG.do_fois_pt2(v, cluster_ops, clustered_ham, thresh_foi=1e-3, max_iter=50, tol=1e-8)
     
@@ -54,7 +54,7 @@ if true
 #        FermiCG.zero!(xspace)
 #        FermiCG.nonorth_add!(v, xspace)
 #        FermiCG.orthonormalize!(v)
-#        e, v = FermiCG.tucker_ci_solve(v, cluster_ops, clustered_ham)
+#        e, v = FermiCG.ci_solve(v, cluster_ops, clustered_ham)
 #    end
 #
 #end
@@ -93,7 +93,7 @@ end
     display(e_pt)
     @test isapprox(e_pt[1], -18.326970022448485, atol=1e-8)
 
-    e_ci, v_ci = FermiCG.tucker_ci_solve(v_cepa, cluster_ops, clustered_ham)
+    e_ci, v_ci = FermiCG.ci_solve(v_cepa, cluster_ops, clustered_ham)
     display(e_ci)
     @test isapprox(e_ci[1], -18.32964089848682, atol=1e-8)
 

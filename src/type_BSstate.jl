@@ -3,6 +3,7 @@ using LinearMaps
 using BenchmarkTools
 #using KrylovKit
 using IterativeSolvers
+using LinearAlgebra
 
 
 
@@ -230,12 +231,42 @@ function add!(ts1::BSstate, ts2::BSstate)
     end
 #=}}}=#
 end
-"""
-    dot(ts1::FermiCG.BSstate, ts2::FermiCG.BSstate)
 
-Dot product between in `ts2` to `ts1`
 """
-function dot(ts1::BSstate{T,N,R1}, ts2::BSstate{T,N,R2}) where {T,N,R1,R2}
+    dot(ts1::BSstate{T,N,R}, ts2::BSstate{T,N,R}) where {T,N,R}
+
+Returns vector of dot products between each of the states
+"""
+function LinearAlgebra.dot(ts1::BSstate{T,N,R}, ts2::BSstate{T,N,R}) where {T,N,R}
+#={{{=#
+   
+    unfold!(ts1)
+    unfold!(ts2)
+   
+    overlap = zeros(T,R) 
+    for (fock,configs) in ts2
+        haskey(ts1, fock) || continue
+        for (config,coeffs) in configs 
+            haskey(ts1[fock], config) || continue
+            for r in 1:R
+                a = dot(ts1[fock][config][:,r], coeffs[:,r])
+                overlap[r] += a[1] 
+            end
+        end
+    end
+    fold!(ts1)
+    fold!(ts2)
+    return overlap
+#=}}}=#
+end
+
+"""
+    overlap(ts1::FermiCG.BSstate, ts2::FermiCG.BSstate)
+
+Overlap product between in `ts2` to `ts1`
+Returns matrix of overlaps
+"""
+function overlap(ts1::BSstate{T,N,R1}, ts2::BSstate{T,N,R2}) where {T,N,R1,R2}
 #={{{=#
    
     unfold!(ts1)
@@ -407,7 +438,11 @@ function prune_empty_fock_spaces!(s::BSstate)
     #    display(s[fock])
     #end
 end
+
 """
+    get_vector(ts::BSstate{T,N,R}) where {T,N,R}
+
+Return a matrix of the core tensors.
 """
 function get_vector(ts::BSstate{T,N,R}) where {T,N,R}
     nroots = nothing 
@@ -439,9 +474,59 @@ function get_vector(ts::BSstate{T,N,R}) where {T,N,R}
 end
 
 """
-    function set_vector!(ts::BSstate{T,N,R}, v) where {T,N,R}
+    get_vector(ts::BSstate{T,N,R}, root::Integer) where {T,N,R}
+
+Return a matrix of the core tensors.
+"""
+function get_vector(ts::BSstate{T,N,R}, root::Integer) where {T,N,R}
+    #={{{=#
+    v = zeros(length(ts), 1)
+    root <= R || throw(DimensionMismatch)
+    #println(length(ts), nroots)
+    idx = 1
+    unfold!(ts)
+    for (fock, configs) in ts
+        for (config, coeffs) in configs
+            dims = size(coeffs)
+            
+            dim1 = prod(dims[1:end-1])
+            v[idx:idx+dim1-1,1] = copy(reshape(coeffs[:,root],dim1))
+            idx += dim1 
+        end
+    end
+    return v
+end
+#=}}}=#
+
+
+"""
+    set_vector!(ts::BSstate{T,N,R}, v::Matrix{T}) where {T,N,R}
 """
 function set_vector!(ts::BSstate{T,N,R}, v::Matrix{T}) where {T,N,R}
+
+    nbasis = size(v)[1]
+    R == size(v,2) || throw(DimensionMismatch)
+  
+    unfold!(ts)
+    #println(length(ts), nroots)
+    idx = 1
+    for (fock, tconfigs) in ts
+        for (tconfig, coeffs) in tconfigs
+            dim1 = dim(tconfig)
+            ts[fock][tconfig] = copy(v[idx:idx+dim1-1,:])
+            idx += dim1 
+        end
+    end
+    nbasis == idx-1 || error("huh?", nbasis, " ", idx)
+    fold!(ts)
+    return 
+end
+
+
+"""
+function set_vector!(ts::BSstate{T,N,R}, v::Vector{T}; root=1) where {T,N,R}
+"""
+function set_vector!(ts::BSstate{T,N,R}, v::Vector{T}; root=1) where {T,N,R}
 
     nbasis = size(v)[1]
   
@@ -451,7 +536,7 @@ function set_vector!(ts::BSstate{T,N,R}, v::Matrix{T}) where {T,N,R}
     for (fock, tconfigs) in ts
         for (tconfig, coeffs) in tconfigs
             dim1 = dim(tconfig)
-            ts[fock][tconfig] = copy(v[idx:idx+dim1-1,:])
+            ts[fock][tconfig][:,root] = copy(v[idx:idx+dim1-1])
             idx += dim1 
         end
     end
@@ -626,3 +711,6 @@ end
 #=}}}=#
 
 
+nroots(v::BSstate{T,N,R}) where {T,N,R} = R
+type(v::BSstate{T,N,R}) where {T,N,R} = T
+nclusters(v::BSstate{T,N,R}) where {T,N,R} = N

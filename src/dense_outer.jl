@@ -5,33 +5,29 @@
 Add a Q space to all currently defined `TuckerConfigs`.
 Return new `BSstate`
 """
-function add_single_excitons(v::BSstate{T,N,R}) where {T,N,R}
+function add_single_excitons!(v::BSstate{T,N,R}) where {T,N,R}
 #={{{=#
     unfold!(v)
-    out = deepcopy(v)
     for (fspace,tconfigs) in v.data
-        for (tconfig,coeffs) in tconfigs
-
+        for (tconfig,coeffs) in [tconfigs...]
             for ci in 1:N
                 config_i = replace(tconfig, [ci], [v.q_spaces[ci][fspace[ci]]])
-                out[fspace][config_i] = zeros(T,dim(config_i),R) 
+                v[fspace][config_i] = zeros(T,dim(config_i),R) 
             end
         end
 
     end
-    return out
+    return 
 end
 #=}}}=#
 
 """
     function add_1electron_transfers(v::BSstate{T,N,R}) where {T,N,R}
 """
-function add_1electron_transfers(v::BSstate{T,N,R}) where {T,N,R}
+function add_1electron_transfers!(v::BSstate{T,N,R}) where {T,N,R}
 #={{{=#
-    out = deepcopy(v)
-
     unfold!(v)
-    for (fspace,tconfigs) in v.data
+    for (fspace,tconfigs) in [v.data...]
 
         #alpha transfer
         for ci in 1:N
@@ -52,9 +48,9 @@ function add_1electron_transfers(v::BSstate{T,N,R}) where {T,N,R}
                 end
                 tconf = TuckerConfig(tconf)
 
-                add_fockconfig!(out, fconfig_ij)
+                add_fockconfig!(v, fconfig_ij)
 
-                out[fconfig_ij][tconf] = zeros(T,dim(tconf),R) 
+                v[fconfig_ij][tconf] = zeros(T,dim(tconf),R) 
             end
         end
 
@@ -77,13 +73,13 @@ function add_1electron_transfers(v::BSstate{T,N,R}) where {T,N,R}
                 end
                 tconf = TuckerConfig(tconf)
 
-                add_fockconfig!(out, fconfig_ij)
+                add_fockconfig!(v, fconfig_ij)
 
-                out[fconfig_ij][tconf] = zeros(T,dim(tconf),R) 
+                v[fconfig_ij][tconf] = zeros(T,dim(tconf),R) 
             end
         end
     end
-    return out
+    return 
 end
 #=}}}=#
 
@@ -91,11 +87,36 @@ end
 
 
 """
+    ci_solve(ci_vector::BSstate{T,N,R}, cluster_ops, clustered_ham; 
+                         conv_thresh = 1e-5,
+                         max_ss_vecs = 12,
+                         max_iter    = 40,
+                         shift       = nothing,
+                         precond     = false,
+                         verbose     = 0,
+                         solver      = "davidson") where {T,N,R}
+
 Solve for ground state in the space spanned by `ci_vector`'s basis 
+# Arguments
+- `conv_thresh`: residual convergence threshold
+- `max_ss_vecs`: max number of subspace vectors
+- `max_iter`: Max iterations in solver
+- `shift`:  Use a shift? this is for CEPA type 
+- `precond`: use preconditioner? Only applied to Davidson and not yet working,
+- `verbose`: print level
+- `solver`: Which solver to use. Options = ["davidson", "krylovkit"]
 """
-function ci_solve(ci_vector::BSstate{T,N,R}, cluster_ops, clustered_ham; tol=1e-5) where {T,N,R} 
+function ci_solve(ci_vector::BSstate{T,N,R}, cluster_ops, clustered_ham; 
+                         conv_thresh = 1e-5,
+                         max_ss_vecs = 12,
+                         max_iter    = 40,
+                         shift       = nothing,
+                         precond     = false,
+                         verbose     = 0,
+                         solver      = "davidson") where {T,N,R}
 #={{{=#
 
+    @printf(" |== BS CI =========================================================\n")
     @printf(" Solve CI with # variables = %i\n", length(ci_vector))
     vec = deepcopy(ci_vector)
     orthonormalize!(vec)
@@ -105,7 +126,7 @@ function ci_solve(ci_vector::BSstate{T,N,R}, cluster_ops, clustered_ham; tol=1e-
     iters = 0
     cache=true
    
-    function matvec(v::AbstractMatrix)
+    function matvec(v::Matrix{T}) where T
         iters += 1
         
         in = BSstate(ci_vector, R=size(v,2))
@@ -122,13 +143,71 @@ function ci_solve(ci_vector::BSstate{T,N,R}, cluster_ops, clustered_ham; tol=1e-
         flush(stdout)
         return get_vector(out)
     end
+    function matvec(v::Vector{T}) where T
+        iters += 1
+        
+        in = BSstate(ci_vector, R=1)
+        
+        unfold!(in)
+        set_vector!(in, v)
+        
+        out = deepcopy(in)
+        zero!(out)
+        build_sigma!(out, in, cluster_ops, clustered_ham)
+        #build_sigma!(out, in, cluster_ops, clustered_ham, cache=cache)
+        unfold!(out)
+
+        flush(stdout)
+        return get_vector(out)[:,1]
+    end
 
     
-    Hmap = FermiCG.LinOp(matvec, dim, true)
-    #Hmap = matvec(vec, cluster_ops, clustered_ham, cache=true)
 
     v0 = get_vector(vec)
     nr = size(v0)[2]
+    
+    Hmap = FermiCG.LinOpMat{T}(matvec, dim, true)
+    
+    vguess = get_vector(vec, 1)[:,1]
+    e = [] 
+    v = [[]]
+    
+    if solver == "krylovkit"
+
+        time = @elapsed e, v, info = KrylovKit.eigsolve(Hmap, vguess, R, :SR, 
+                                                        verbosity   = verbose, 
+                                                        maxiter     = max_iter, 
+                                                        #krylovdim   = max_ss_vecs, 
+                                                        issymmetric = true, 
+                                                        ishermitian = true, 
+                                                        eager       = true,
+                                                        tol         = conv_thresh)
+
+        @printf(" Number of matvecs performed: %5i\n", info.numops)
+        @printf(" Number of subspace restarts: %5i\n", info.numiter)
+        if info.converged >= R
+            @printf(" CI Converged: %5i roots\n", info.converged)
+        end
+        println(" Residual Norms")
+        for r in 1:R
+            @printf(" State %5i %16.1e\n", r, info.normres[r])
+        end
+        
+        println()
+        @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
+        set_vector!(vec,hcat(v[1:R]...))
+    elseif solver == "davidson"
+
+        davidson = Davidson(Hmap,v0=v0,max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)
+        flush(stdout)
+        time = @elapsed e,v = FermiCG.solve(davidson, iprint=verbose)
+        @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
+        #println(" Memory used by cache: ", mem_used_by_cache(clustered_ham))
+        set_vector!(vec,v)
+
+    else
+        error(" Bad value for `solver`")
+    end
    
 
 #    cache=true
@@ -148,20 +227,25 @@ function ci_solve(ci_vector::BSstate{T,N,R}, cluster_ops, clustered_ham; tol=1e-
     #end
 
     #cache_hamiltonian(ci_vector, ci_vector, cluster_ops, clustered_ham)
-    
-    davidson = Davidson(Hmap,v0=v0,max_iter=80, max_ss_vecs=40, nroots=nr, tol=tol)
-    #Adiag = StringCI.compute_fock_diagonal(problem,mf.mo_energy, e_mf)
-    #FermiCG.solve(davidson)
-    flush(stdout)
-    #@time FermiCG.iteration(davidson, Adiag=Adiag, iprint=2)
-    @time e,v = FermiCG.solve(davidson)
-    set_vector!(vec,v)
-    
     #println(" Memory used by cache: ", mem_used_by_cache(clustered_ham))
 
     #flush term cache
     flush_cache(clustered_ham)
+    
+    clustered_S2 = extract_S2(vec.clusters)
+    @printf(" %-50s", "Compute <S^2>: ")
+    flush(stdout)
+    tmp = deepcopy(vec)
+    zero!(tmp)
+    @time build_sigma!(tmp, vec, cluster_ops, clustered_S2)
+    s2 = dot(tmp,vec)
+    flush(stdout)
+    @printf(" %5s %12s %12s\n", "Root", "Energy", "S2") 
+    for r in 1:R
+        @printf(" %5s %12.8f %12.8f\n",r, e[r], abs(s2[r]))
+    end
 
+    @printf(" ==================================================================|\n")
     return e,vec
 end
 #=}}}=#
