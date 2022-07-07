@@ -39,7 +39,7 @@ if false
                                                do_pt       = true,
                                                resolve_ss  = false,
                                                tol_tucker  = 1e-4,
-                                               solver      = "krylovkit")
+                                               solver      = "davidson")
     end
        
 #    for i in 1:4

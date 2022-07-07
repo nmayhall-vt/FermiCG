@@ -5,11 +5,11 @@ These basis coefficients map local slater determinants to local vectors
 `(nα, nβ): 
 V[αstring*βstring, cluster_state]`
 """
-struct ClusterBasis
+struct ClusterBasis{T}
     cluster::Cluster
-    basis::Dict{Tuple,Matrix{Float64}}
+    basis::Dict{Tuple{Int16,Int16},Matrix{T}}
 end
-ClusterBasis(ci::Cluster) = ClusterBasis(ci, Dict{Tuple,Matrix{Float64}}())
+ClusterBasis(ci::Cluster; T::Type = Float64) = ClusterBasis(ci, Dict{Tuple{Int16,Int16},Matrix{T}}())
 
 Base.iterate(cb::ClusterBasis, state=1) = iterate(cb.basis, state)
 Base.length(cb::ClusterBasis) = length(cb.basis)
