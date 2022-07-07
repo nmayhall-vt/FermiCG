@@ -27,44 +27,43 @@ input:
 			e.g., ["Aa","","Bb"] would have active = [0,2]
 - parity: does each operator have even or odd number of second quantized operators 
 """
-abstract type ClusteredTerm end
+abstract type ClusteredTerm{T} end
 
-struct ClusteredTerm1B <: ClusteredTerm
+struct ClusteredTerm1B{T} <: ClusteredTerm{T}
     ops::Tuple{String}
     delta::TransferConfig{1}
     parity::Tuple{Int}
     clusters::Tuple{Cluster}
-    ints::Array{Float64,1}
+    ints::Array{T,1}
     cache::Dict
 end
 
-struct ClusteredTerm2B <: ClusteredTerm
+struct ClusteredTerm2B{T} <: ClusteredTerm{T}
     ops::Tuple{String,String}
-    #delta::Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}}
     delta::TransferConfig{2}
     parity::Tuple{Int,Int}
     #active::Vector{Int16}
     clusters::Tuple{Cluster,Cluster}
-    ints::Array{Float64,2}
+    ints::Array{T,2}
     cache::Dict
 end
 
-struct ClusteredTerm3B <: ClusteredTerm
+struct ClusteredTerm3B{T} <: ClusteredTerm{T}
     ops::Tuple{String,String,String}
     delta::TransferConfig{3}
     parity::Tuple{Int,Int,Int}
     #active::Vector{Int16}
     clusters::Tuple{Cluster,Cluster,Cluster}
-    ints::Array{Float64,3}
+    ints::Array{T,3}
     cache::Dict
 end
 
-struct ClusteredTerm4B <: ClusteredTerm
+struct ClusteredTerm4B{T} <: ClusteredTerm{T}
     ops::Tuple{String,String,String,String}
     delta::TransferConfig{4}
     parity::Tuple{Int,Int,Int,Int}
     clusters::Tuple{Cluster,Cluster,Cluster,Cluster}
-    ints::Array{Float64,4}
+    ints::Array{T,4}
     cache::Dict
 end
 

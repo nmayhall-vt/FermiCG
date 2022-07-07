@@ -2,10 +2,10 @@
 """    
     trans::Dict{TransferConfig,Vector{ClusteredTerm}}
 """
-struct ClusteredOperator
-    trans::Dict{TransferConfig,Vector{ClusteredTerm}}
+struct ClusteredOperator{N}
+    trans::Dict{TransferConfig{N},Vector{ClusteredTerm}}
 end
-ClusteredOperator() = ClusteredOperator(Dict{TransferConfig,Vector{ClusteredTerm}}())
+ClusteredOperator(N::Integer) = ClusteredOperator(Dict{TransferConfig{N}, Vector{ClusteredTerm}}())
 function flush_cache(clustered_ham::ClusteredOperator)
     for (ftrans, terms) in clustered_ham.trans
         for term in terms
@@ -50,7 +50,7 @@ Extract all ClusteredTerm types from a given 1e integral tensor
 and a list of clusters
 returns `terms::ClusteredOperator`
 """
-function extract_ClusteredTerms(ints::InCoreInts, clusters)
+function extract_ClusteredTerms(ints::InCoreInts{T}, clusters) where {T}
     norb = 0
     for ci in clusters
         norb += length(ci)
@@ -59,11 +59,12 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
     size(ints.h1,1) == norb || throw(Exception)
     size(ints.h1,2) == norb || throw(Exception)
 
+    n_clusters = length(clusters)
+    
     #terms = Dict{TransferConfig,Vector{ClusteredTerm}}()
-    terms = ClusteredOperator() 
+    terms = ClusteredOperator(n_clusters) 
     #terms = Dict{Vector{Tuple{Int16,Int16}},Vector{ClusteredTerm}}()
     #terms = Dict{Tuple,Vector{ClusteredTerm}}()
-    n_clusters = length(clusters)
     ops_a = Array{String}(undef,n_clusters)
     ops_b = Array{String}(undef,n_clusters)
     fill!(ops_a,"")
@@ -72,7 +73,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
     zero_fock = TransferConfig([(Int16(0),Int16(0)) for i in clusters])
     #zero_fock::Vector{Tuple{Int16,Int16}} = [(0,0) for i in clusters]
     #zero_fock = Tuple([(0,0) for i in clusters])
-    terms[zero_fock] = Vector{ClusteredTerm}()
+    terms[zero_fock] = Vector{ClusteredTerm{T}}()
    
     # 1-body terms
     if true 
@@ -80,7 +81,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
 #={{{=#
             # instead of forming p'q and p'q'sr just precontract and keep them in 
             # ClusterOps
-            term = ClusteredTerm1B(("H",), ((0,0),), (0,), (ci,), zeros(1),Dict())
+            term = ClusteredTerm1B{T}(("H",), ((0,0),), (0,), (ci,), zeros(T,1),Dict())
             push!(terms[zero_fock],term)
 #=}}}=#
         end
@@ -163,7 +164,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
                         end
                         parity = (parity1, parity2)
 
-                        clusteredterm = ClusteredTerm2B((oper1,oper2), (Tuple(fock1),Tuple(fock2)), parity, (ci, cj), h, Dict())
+                        clusteredterm = ClusteredTerm2B{T}((oper1,oper2), (Tuple(fock1),Tuple(fock2)), parity, (ci, cj), h, Dict())
                         #display(clusteredterm)
                         focktrans = replace(zero_fock, (ci.idx, cj.idx), (fock1, fock2))
 #                        focktrans = [zero_fock...]
@@ -326,7 +327,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
                         end
                         parity = (parity1, parity2)
                         
-                        clusteredterm = ClusteredTerm2B((oper1,oper2), (Tuple(fock1),Tuple(fock2)), parity, (ci, cj), vcurr, Dict())
+                        clusteredterm = ClusteredTerm2B{T}((oper1,oper2), (Tuple(fock1),Tuple(fock2)), parity, (ci, cj), vcurr, Dict())
                         #display(clusteredterm)
                         focktrans = replace(zero_fock, (ci.idx, cj.idx), (fock1, fock2))
                         if haskey(terms,focktrans)
@@ -488,7 +489,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
                             end
                             parity = (parity1, parity2, parity3)
 
-                            clusteredterm = ClusteredTerm3B((oper1,oper2,oper3), (Tuple(fock1),Tuple(fock2),Tuple(fock3)), parity, (ci, cj, ck), vcurr, Dict())
+                            clusteredterm = ClusteredTerm3B{T}((oper1,oper2,oper3), (Tuple(fock1),Tuple(fock2),Tuple(fock3)), parity, (ci, cj, ck), vcurr, Dict())
                             #display(clusteredterm)
                             focktrans = replace(zero_fock, (ci.idx, cj.idx, ck.idx), (fock1, fock2, fock3))
                             if haskey(terms,focktrans)
@@ -613,7 +614,7 @@ function extract_ClusteredTerms(ints::InCoreInts, clusters)
                                 end
                                 parity = (parity1, parity2, parity3, parity4)
                                 
-                                clusteredterm = ClusteredTerm4B((oper1,oper2,oper3,oper4), (Tuple(fock1),Tuple(fock2),Tuple(fock3),Tuple(fock4)), parity, (ci, cj, ck, cl), v, Dict())
+                                clusteredterm = ClusteredTerm4B{T}((oper1,oper2,oper3,oper4), (Tuple(fock1),Tuple(fock2),Tuple(fock3),Tuple(fock4)), parity, (ci, cj, ck, cl), v, Dict())
                                 focktrans = replace(zero_fock, (ci.idx, cj.idx, ck.idx, cl.idx), (fock1, fock2, fock3, fock4))
                                 if haskey(terms,focktrans)
                                     push!(terms[focktrans], clusteredterm)
@@ -640,7 +641,7 @@ end
 
 Form a clustered operator type for the S^2 operator
 """
-function extract_S2(clusters)
+function extract_S2(clusters; T=Float64)
             #={{{=#
 
     norb = 0
@@ -648,18 +649,19 @@ function extract_S2(clusters)
         norb += length(ci)
     end
 
-    terms = ClusteredOperator() 
     n_clusters = length(clusters)
+    terms = ClusteredOperator(n_clusters) 
+    
     ops_a = Array{String}(undef,n_clusters)
     ops_b = Array{String}(undef,n_clusters)
     fill!(ops_a,"")
     fill!(ops_b,"")
   
     zero_fock = TransferConfig([(0,0) for i in clusters])
-    terms[zero_fock] = Vector{ClusteredTerm}()
+    terms[zero_fock] = Vector{ClusteredTerm{T}}()
     for ci in clusters
         fock1 = (0,0)
-        clusteredterm = ClusteredTerm1B(("S2",), (fock1,), (0,), (ci, ), ones(1), Dict())
+        clusteredterm = ClusteredTerm1B{T}(("S2",), (fock1,), (0,), (ci, ), ones(T, 1), Dict())
 
         focktrans = replace(zero_fock, (ci.idx,), (fock1,))
         if haskey(terms,focktrans)
@@ -677,7 +679,7 @@ function extract_S2(clusters)
 
             fock1 = (1,-1)
             fock2 = (-1,1)
-            clusteredterm = ClusteredTerm2B(("S+","S-"), (fock1,fock2), (0,0), (ci, cj), ones(length(ci),length(cj)), Dict())
+            clusteredterm = ClusteredTerm2B{T}(("S+","S-"), (fock1,fock2), (0,0), (ci, cj), ones(T, length(ci),length(cj)), Dict())
 
             focktrans = replace(zero_fock, (ci.idx, cj.idx), (fock1, fock2))
             if haskey(terms,focktrans)
@@ -688,7 +690,7 @@ function extract_S2(clusters)
             
             fock1 = (-1,1)
             fock2 = (1,-1)
-            clusteredterm = ClusteredTerm2B(("S-","S+"), (fock1,fock2), (0,0), (ci, cj), ones(length(ci),length(cj)), Dict())
+            clusteredterm = ClusteredTerm2B{T}(("S-","S+"), (fock1,fock2), (0,0), (ci, cj), ones(T, length(ci),length(cj)), Dict())
 
             focktrans = replace(zero_fock, (ci.idx, cj.idx), (fock1, fock2))
             if haskey(terms,focktrans)
@@ -699,7 +701,7 @@ function extract_S2(clusters)
             
             fock1 = (0,0)
             fock2 = (0,0)
-            clusteredterm = ClusteredTerm2B(("Sz","Sz"), (fock1,fock2), (0,0), (ci, cj), 2*ones(1,1), Dict())
+            clusteredterm = ClusteredTerm2B{T}(("Sz","Sz"), (fock1,fock2), (0,0), (ci, cj), 2*ones(T, 1,1), Dict())
 
             focktrans = replace(zero_fock, (ci.idx, cj.idx), (fock1, fock2))
             if haskey(terms,focktrans)
@@ -814,8 +816,8 @@ end
 Extract a 1-body operator for use in perturbation theory
 - `op_string`: either H or Hcmf
 """
-function extract_1body_operator(clustered_ham::ClusteredOperator; op_string="H")
-    out = ClusteredOperator()
+function extract_1body_operator(clustered_ham::ClusteredOperator{N}; op_string="H") where {N}
+    out = ClusteredOperator(N)
     for (ftrans, terms) in clustered_ham
         for term in terms
             if term isa ClusteredTerm1B

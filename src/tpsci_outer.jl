@@ -711,8 +711,16 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
    
 
             S = overlap(vec_asci_old, vec_asci)
-            display(S)
-   
+  
+            println(" Overlap between old and new eigenvectors:")
+            for i in 1:size(S,1)
+                for j in 1:size(S,2)
+                    @printf(" %6.3f",S[i,j])
+                end
+                println()
+            end
+            println()
+            
             #tmp = deepcopy(sig)
             #@timeit to "sig rotate" mult!(sig, S)
             @timeit to "sig rotate" sig = sig_old*S
@@ -720,6 +728,7 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
 
             println(" Norm of new projection:")
             [@printf(" %12.8f\n",i) for i in norm(del_v0)]
+            println()
 
 
             @timeit to "copy" vec_asci_old = copy(vec_asci)

@@ -1,20 +1,20 @@
 """
-	h0::Real                # constant energy shift
-	h1::Array{Float64,2}    # one electron integrals
-	h2::Array{Float64,4}    # two electron integrals (chemist's notation)
+h0::Real                # constant energy shift
+h1::Array{Float64,2}    # one electron integrals
+h2::Array{Float64,4}    # two electron integrals (chemist's notation)
 
 Type to hold a second quantized Hamiltonian coefficients in memory
 """
-struct InCoreInts
-    h0::Float64
-    h1::Array{Float64,2}
-    h2::Array{Float64,4}
+struct InCoreInts{T}
+    h0::T
+    h1::Array{T,2}
+    h2::Array{T,4}
 end
 
 
 
 """
-	orbital_rotation!(ints::InCoreInts, U)
+orbital_rotation!(ints::InCoreInts, U)
 
 Transform electronic integrals, by U
 i.e.,
@@ -26,14 +26,14 @@ h_{pq} = U_{rp}h_{rs}U_{sq}
 ```
 """
 function orbital_rotation!(ints::InCoreInts, U)
-	@tensor begin
-		ints.h1[p,q] = U[r,p]*U[s,q]*ints.h1[r,s]
-		ints.h2[p,q,r,s] = U[t,p]*U[u,q]*U[v,r]*U[w,s]*ints.h2[t,u,v,w]
-	end
+    @tensor begin
+        ints.h1[p,q] = U[r,p]*U[s,q]*ints.h1[r,s]
+        ints.h2[p,q,r,s] = U[t,p]*U[u,q]*U[v,r]*U[w,s]*ints.h2[t,u,v,w]
+    end
 end
 
 @doc raw"""
-	orbital_rotation(ints::InCoreInts, U)
+orbital_rotation(ints::InCoreInts, U)
 
 Transform electronic integrals, by U
 i.e.,
@@ -58,7 +58,7 @@ end
 
 
 """
-    subset(ints::InCoreInts, list; rmd1a=nothing, rdm1b=nothing)
+subset(ints::InCoreInts, list; rmd1a=nothing, rdm1b=nothing)
 
 Extract a subset of integrals acting on orbitals in list, returned as `InCoreInts` type
 - `ints::InCoreInts`: Integrals for full system 
@@ -66,8 +66,8 @@ Extract a subset of integrals acting on orbitals in list, returned as `InCoreInt
 - `rdm1a`: 1RDM for embedding α density to make CASCI hamiltonian
 - `rdm1b`: 1RDM for embedding β density to make CASCI hamiltonian
 """
-function subset(ints::InCoreInts, list, rdm1a=nothing, rdm1b=nothing)
-    ints_i = InCoreInts(ints.h0, view(ints.h1,list,list), view(ints.h2,list,list,list,list))
+function subset(ints::InCoreInts{T}, list, rdm1a=nothing, rdm1b=nothing) where {T}
+    ints_i = InCoreInts{T}(ints.h0, view(ints.h1,list,list), view(ints.h2,list,list,list,list))
     if rdm1b != nothing 
         if rdm1a == nothing
             throw(Exception)
@@ -100,7 +100,7 @@ end
 
 
 """
-	compute_energy(h0, h1, h2, rdm1, rdm2)
+compute_energy(h0, h1, h2, rdm1, rdm2)
 
 Given an energy shift `h0`, 1e integrals `h1`, and 2e ints `h2`
 along with a 1rdm and 2rdm on the same space, return the energy
@@ -115,7 +115,7 @@ function compute_energy(h0, h1, h2, rdm1, rdm2)
     return e
 end
 """
-	compute_energy(ints::InCoreInts, rdm1, rdm2)
+compute_energy(ints::InCoreInts, rdm1, rdm2)
 
 Return energy defined by `rdm1` and `rdm2`
 """
