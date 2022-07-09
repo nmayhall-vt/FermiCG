@@ -40,7 +40,7 @@ function compute_cluster_ops(cluster_bases, ints::InCoreInts{T}) where {T}
     
     cluster_ops = Vector{ClusterOps{T}}()
     for ci in clusters
-        push!(cluster_ops, ClusterOps(ci, T)) 
+        push!(cluster_ops, ClusterOps(ci, T=T)) 
     end
 
 

@@ -43,6 +43,10 @@ function ClusterOps(ci::Cluster; T::Type=Float64)
     return ClusterOps(ci, dic2)
 end
 
+function ClusterOps(ci::Cluster, T::Type)
+    return ClusterOps(ci, T=T)
+end
+
 """
     rotate!(ops::ClusterOps, U::Dict{Tuple,Matrix{T}}) where {T} 
 
