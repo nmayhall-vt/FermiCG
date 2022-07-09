@@ -250,7 +250,7 @@ end
 #
 #
 function form_sigma_block!(term::C,
-                            cluster_ops::Vector{ClusterOps},
+                            cluster_ops::Vector{ClusterOps{T}},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             coeffs_bra::Tucker{T,N,R}, coeffs_ket::Tucker{T,N,R},
@@ -310,7 +310,7 @@ end
 #
 #
 function form_sigma_block!(term::C,
-                            cluster_ops::Vector{ClusterOps},
+                            cluster_ops::Vector{ClusterOps{T}},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             coeffs_bra::Tucker{T,N,R}, coeffs_ket::Tucker{T,N,R};
@@ -403,7 +403,7 @@ end
 #=}}}=#
 
 function calc_bound(term::ClusteredTerm1B,
-                            cluster_ops::Vector{ClusterOps},
+                            cluster_ops::Vector{ClusterOps{T}},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             coeffs_ket::Tucker{T,N,R};
@@ -418,7 +418,7 @@ function calc_bound(term::ClusteredTerm1B,
 end
    
 function calc_bound(term::ClusteredTerm2B,
-                            cluster_ops::Vector{ClusterOps},
+                            cluster_ops::Vector{ClusterOps{T}},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             coeffs_ket::Tucker{T,N,R};
@@ -438,7 +438,7 @@ function calc_bound(term::ClusteredTerm2B,
 end
    
 function calc_bound(term::ClusteredTerm3B,
-                            cluster_ops::Vector{ClusterOps},
+                            cluster_ops::Vector{ClusterOps{T}},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             coeffs_ket::Tucker{T,N,R};
@@ -461,7 +461,7 @@ end
    
    
 function calc_bound(term::ClusteredTerm4B,
-                            cluster_ops::Vector{ClusterOps},
+                            cluster_ops::Vector{ClusterOps{T}},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             coeffs_ket::Tucker{T,N,R};

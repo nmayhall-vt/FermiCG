@@ -59,7 +59,7 @@ function build_full_H_parallel( ci_vector_l::TPSCIstate{T,N,R}, ci_vector_r::TPS
 #={{{=#
     dim_l = length(ci_vector_l)
     dim_r = length(ci_vector_r)
-    H = zeros(dim_l, dim_r)
+    H = zeros(T, dim_l, dim_r)
 
     dim_l == dim_r || sym == false || error(" dim_l!=dim_r yet sym==true")
 
@@ -280,7 +280,7 @@ function tps_ci_direct( ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham
     end
     set_vector!(vec_out, v)
 
-    clustered_S2 = extract_S2(ci_vector.clusters)
+    clustered_S2 = extract_S2(ci_vector.clusters, T=T)
     @printf(" %-50s", "Compute S2 expectation values: ")
     @time s2 = compute_expectation_value_parallel(vec_out, cluster_ops, clustered_S2)
     #@timeit to "<S2>" s2 = compute_expectation_value_parallel(vec_out, cluster_ops, clustered_S2)
@@ -600,9 +600,9 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
     println(" max_mem_ci    : ", max_mem_ci     ) 
     println(" threaded      : ", threaded       ) 
     
-    vec_asci_old = TPSCIstate(ci_vector.clusters, R=R)
-    sig = TPSCIstate(ci_vector.clusters, R=R)
-    sig_old = TPSCIstate(ci_vector.clusters, R=R)
+    vec_asci_old = TPSCIstate(ci_vector.clusters, R=R, T=T)
+    sig = TPSCIstate(ci_vector.clusters, R=R, T=T)
+    sig_old = TPSCIstate(ci_vector.clusters, R=R, T=T)
     clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = "Hcmf") 
     
     H = zeros(T,size(ci_vector))
@@ -778,7 +778,7 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
             @timeit to "diagonal" Hd = compute_diagonal(sig, cluster_ops, clustered_ham_0)
     
             sig_v = get_vector(sig)
-            v_pt  = zeros(size(sig_v))
+            v_pt  = zeros(T, size(sig_v))
 
             norms = norm(vec_asci);
             println()
@@ -793,7 +793,7 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
 
 
             @timeit to "copy" vec_pt = copy(sig)
-            set_vector!(vec_pt,v_pt)
+            set_vector!(vec_pt,Matrix{T}(v_pt))
         else
             @timeit to "pt1" e2, vec_pt = compute_pt1_wavefunction(vec_asci, cluster_ops, clustered_ham, E0=Efock, thresh_foi=thresh_foi, threaded=threaded, nbody=nbody)
         end

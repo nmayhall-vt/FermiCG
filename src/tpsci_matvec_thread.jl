@@ -49,30 +49,30 @@ function open_matvec_thread(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered
         push!(jobs_vec, (fock_bra, job))
     end
 
-    scr_f = Vector{Vector{Vector{Float64}} }()
+    scr_f = Vector{Vector{Vector{T}} }()
     scr_i = Vector{Vector{Vector{Int16}} }()
     scr_m = Vector{Vector{MVector{N,Int16}} }()
     nscr = 20 
 
-    scr1 = Vector{Vector{Float64}}()
-    scr2 = Vector{Vector{Float64}}()
-    scr3 = Vector{Vector{Float64}}()
-    scr4 = Vector{Vector{Float64}}()
+    scr1 = Vector{Vector{T}}()
+    scr2 = Vector{Vector{T}}()
+    scr3 = Vector{Vector{T}}()
+    scr4 = Vector{Vector{T}}()
     tmp1 = Vector{MVector{N,Int16}}()
     tmp2 = Vector{MVector{N,Int16}}()
 
     jobs_out = Vector{TPSCIstate{T,N,R}}()
     for tid in 1:Threads.nthreads()
         push!(jobs_out, TPSCIstate(clusters, T=T, R=R))
-        push!(scr1, zeros(1000))
-        push!(scr2, zeros(1000))
-        push!(scr3, zeros(1000))
-        push!(scr4, zeros(1000))
+        push!(scr1, zeros(T, 1000))
+        push!(scr2, zeros(T, 1000))
+        push!(scr3, zeros(T, 1000))
+        push!(scr4, zeros(T, 1000))
         push!(tmp1, zeros(Int16,N))
         push!(tmp2, zeros(Int16,N))
 
-        tmp = Vector{Vector{Float64}}() 
-        [push!(tmp, zeros(Float64,10000)) for i in 1:nscr]
+        tmp = Vector{Vector{T}}() 
+        [push!(tmp, zeros(T, 10000)) for i in 1:nscr]
         push!(scr_f, tmp)
 
         tmp = Vector{Vector{Int16}}() 
@@ -157,30 +157,30 @@ function open_matvec_serial(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered
         push!(jobs_vec, (fock_bra, job))
     end
 
-    scr_f = Vector{Vector{Vector{Float64}} }()
+    scr_f = Vector{Vector{Vector{T}} }()
     scr_i = Vector{Vector{Vector{Int16}} }()
     scr_m = Vector{Vector{MVector{N,Int16}} }()
     nscr = 20 
 
-    scr1 = Vector{Vector{Float64}}()
-    scr2 = Vector{Vector{Float64}}()
-    scr3 = Vector{Vector{Float64}}()
-    scr4 = Vector{Vector{Float64}}()
+    scr1 = Vector{Vector{T}}()
+    scr2 = Vector{Vector{T}}()
+    scr3 = Vector{Vector{T}}()
+    scr4 = Vector{Vector{T}}()
     tmp1 = Vector{MVector{N,Int16}}()
     tmp2 = Vector{MVector{N,Int16}}()
 
     jobs_out = Vector{TPSCIstate{T,N,R}}()
     for tid in 1:1
         push!(jobs_out, TPSCIstate(clusters, T=T, R=R))
-        push!(scr1, zeros(1000))
-        push!(scr2, zeros(1000))
-        push!(scr3, zeros(1000))
-        push!(scr4, zeros(1000))
+        push!(scr1, zeros(T, 1000))
+        push!(scr2, zeros(T, 1000))
+        push!(scr3, zeros(T, 1000))
+        push!(scr4, zeros(T, 1000))
         push!(tmp1, zeros(Int16,N))
         push!(tmp2, zeros(Int16,N))
 
-        tmp = Vector{Vector{Float64}}() 
-        [push!(tmp, zeros(Float64,10000)) for i in 1:nscr]
+        tmp = Vector{Vector{T}}() 
+        [push!(tmp, zeros(T,10000)) for i in 1:nscr]
         push!(scr_f, tmp)
 
         tmp = Vector{Vector{Int16}}() 
@@ -260,17 +260,17 @@ reshape2(a, dims) = invoke(Base._reshape, Tuple{AbstractArray,typeof(dims)}, a, 
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T},
                                     sig, 
-                                    scr_f::Vector{Vector{Float64}},  
+                                    scr_f::Vector{Vector{T}},  
                                     scr_i::Vector{Vector{Int16}},  
                                     scr_m::Vector{MVector{N,Int16}};  
                                     thresh=1e-9) where {T,R,N}
 """
-function contract_matvec_thread(   term::ClusteredTerm1B, 
-                                    cluster_ops::Vector{ClusterOps},
+function contract_matvec_thread(   term::ClusteredTerm1B{T}, 
+                                    cluster_ops::Vector{ClusterOps{T}},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T},
                                     sig, 
-                                    scr_f::Vector{Vector{Float64}},  
+                                    scr_f::Vector{Vector{T}},  
                                     scr_i::Vector{Vector{Int16}},  
                                     scr_m::Vector{MVector{N,Int16}};  
                                     thresh=1e-9, prescreen=true) where {T,R,N}
@@ -292,7 +292,7 @@ function contract_matvec_thread(   term::ClusteredTerm1B,
     # that the ClusterOps type isn't formed in an ideal concrete manner. We just currently use Array. 
     # This should be cleaned up eventually, preferably with a distinction between contracted, and uncontracted
     # operators.
-    g1::Array{Float64,2} = g1a[(fock_bra[c1.idx],fock_ket[c1.idx])]
+    g1::Array{T,2} = g1a[(fock_bra[c1.idx],fock_ket[c1.idx])]
     
     @views gamma1 = g1[:,conf_ket[c1.idx]]
 
@@ -318,17 +318,17 @@ end
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T},
                                     sig, 
-                                    scr_f::Vector{Vector{Float64}},  
+                                    scr_f::Vector{Vector{T}},  
                                     scr_i::Vector{Vector{Int16}},  
                                     scr_m::Vector{MVector{N,Int16}};  
                                     thresh=1e-9) where {T,R,N}
 """
-function contract_matvec_thread(   term::ClusteredTerm2B, 
-                                    cluster_ops::Vector{ClusterOps},
+function contract_matvec_thread(   term::ClusteredTerm2B{T}, 
+                                    cluster_ops::Vector{ClusterOps{T}},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T},
                                     sig, 
-                                    scr_f::Vector{Vector{Float64}},  
+                                    scr_f::Vector{Vector{T}},  
                                     scr_i::Vector{Vector{Int16}},  
                                     scr_m::Vector{MVector{N,Int16}};  
                                     thresh=1e-9, prescreen=true) where {T,R,N}
@@ -357,8 +357,8 @@ function contract_matvec_thread(   term::ClusteredTerm2B,
     haskey(g1a, (fock_bra[c1.idx],fock_ket[c1.idx])) || return
     haskey(g2a, (fock_bra[c2.idx],fock_ket[c2.idx])) || return
     
-    g1::Array{Float64,3} = g1a[(fock_bra[c1.idx],fock_ket[c1.idx])]
-    g2::Array{Float64,3} = g2a[(fock_bra[c2.idx],fock_ket[c2.idx])]
+    g1::Array{T,3} = g1a[(fock_bra[c1.idx],fock_ket[c1.idx])]
+    g2::Array{T,3} = g2a[(fock_bra[c2.idx],fock_ket[c2.idx])]
     
     @views gamma1 = g1[:,:,conf_ket[c1.idx]]
     @views gamma2 = g2[:,:,conf_ket[c2.idx]]
@@ -394,19 +394,19 @@ end
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T},
                                     sig, 
-                                    scr_f::Vector{Vector{Float64}},  
+                                    scr_f::Vector{Vector{T}},  
                                     scr_i::Vector{Vector{Int16}},  
                                     scr_m::Vector{MVector{N,Int16}};  
                                     thresh=1e-9, prescreen=true) where {T,R,N}
 
 This version should only use M^2N^2 storage, and n^4 scaling n={MN}
 """
-function contract_matvec_thread(   term::ClusteredTerm3B, 
-                                    cluster_ops::Vector{ClusterOps},
+function contract_matvec_thread(   term::ClusteredTerm3B{T}, 
+                                    cluster_ops::Vector{ClusterOps{T}},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T},
                                     sig, 
-                                    scr_f::Vector{Vector{Float64}},  
+                                    scr_f::Vector{Vector{T}},  
                                     scr_i::Vector{Vector{Int16}},  
                                     scr_m::Vector{MVector{N,Int16}};  
                                     thresh=1e-9, prescreen=true) where {T,R,N}
@@ -431,9 +431,9 @@ function contract_matvec_thread(   term::ClusteredTerm3B,
     haskey(cluster_ops[c2.idx][term.ops[2]],  (fock_bra[c2.idx],fock_ket[c2.idx])) || return
     haskey(cluster_ops[c3.idx][term.ops[3]],  (fock_bra[c3.idx],fock_ket[c3.idx])) || return
 
-    g1::Array{Float64,3} = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
-    g2::Array{Float64,3} = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])]
-    g3::Array{Float64,3} = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])]
+    g1::Array{T,3} = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
+    g2::Array{T,3} = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])]
+    g3::Array{T,3} = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])]
     @views gamma1 = g1[:,:,conf_ket[c1.idx]]
     @views gamma2 = g2[:,:,conf_ket[c2.idx]]
     @views gamma3 = g3[:,:,conf_ket[c3.idx]]
@@ -566,19 +566,19 @@ end
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T},
                                     sig, 
-                                    scr_f::Vector{Vector{Float64}},  
+                                    scr_f::Vector{Vector{T}},  
                                     scr_i::Vector{Vector{Int16}},  
                                     scr_m::Vector{MVector{N,Int16}};  
                                     thresh=1e-9, prescreen=true) where {T,R,N}
 
 This version should only use M^2N^2 storage, and n^5 scaling n={MN}
 """
-function contract_matvec_thread(   term::ClusteredTerm4B, 
-                                    cluster_ops::Vector{ClusterOps},
+function contract_matvec_thread(   term::ClusteredTerm4B{T}, 
+                                    cluster_ops::Vector{ClusterOps{T}},
                                     fock_bra::FockConfig{N}, 
                                     fock_ket::FockConfig{N}, conf_ket::ClusterConfig{N}, coef_ket::MVector{R,T},
                                     sig, 
-                                    scr_f::Vector{Vector{Float64}},  
+                                    scr_f::Vector{Vector{T}},  
                                     scr_i::Vector{Vector{Int16}},  
                                     scr_m::Vector{MVector{N,Int16}};  
                                     thresh=1e-9, prescreen=true) where {T,R,N}
@@ -605,10 +605,10 @@ function contract_matvec_thread(   term::ClusteredTerm4B,
     haskey(cluster_ops[c3.idx][term.ops[3]],  (fock_bra[c3.idx],fock_ket[c3.idx])) || return
     haskey(cluster_ops[c4.idx][term.ops[4]],  (fock_bra[c4.idx],fock_ket[c4.idx])) || return
     
-    g1::Array{Float64,3} = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
-    g2::Array{Float64,3} = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])]
-    g3::Array{Float64,3} = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])]
-    g4::Array{Float64,3} = cluster_ops[c4.idx][term.ops[4]][(fock_bra[c4.idx],fock_ket[c4.idx])]
+    g1::Array{T,3} = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
+    g2::Array{T,3} = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])]
+    g3::Array{T,3} = cluster_ops[c3.idx][term.ops[3]][(fock_bra[c3.idx],fock_ket[c3.idx])]
+    g4::Array{T,3} = cluster_ops[c4.idx][term.ops[4]][(fock_bra[c4.idx],fock_ket[c4.idx])]
     @views gamma1 = g1[:,:,conf_ket[c1.idx]]
     @views gamma2 = g2[:,:,conf_ket[c2.idx]]
     @views gamma3 = g3[:,:,conf_ket[c3.idx]]
@@ -875,7 +875,7 @@ end
 #=}}}=#
 
 """
-    upper_bound_thread(g1, g2; c::Float64=1.0)
+    upper_bound_thread(g1, g2; c::T=1.0)
 
 Return upper bound on the size of matrix elements resulting from matrix multiply 
 
@@ -883,9 +883,9 @@ Return upper bound on the size of matrix elements resulting from matrix multiply
 
     max(|V|) <= sum_i max|g1[i,:]| * max|g2[i,:]| * |c|
 """
-function upper_bound_thread(g1, g2; c::Float64=1.0)
+function upper_bound_thread(g1, g2; c::T=1.0) where {T}
 #={{{=#
-    bound::Float64 = 0.0
+    bound::T = 0.0
     n1 = size(g1,1) 
     n2 = size(g2,1) 
     n1 == n2 || throw(DimensionMismatch)
@@ -902,7 +902,7 @@ end
 #=}}}=#
 
 """
-    upper_bound_thread(v::AbstractArray{Float64,3}, g1, g2, g3, scr1, scr2, scr3; c::Float64=1.0)
+    upper_bound_thread(v::AbstractArray{T,3}, g1, g2, g3, scr1, scr2, scr3; c::T=1.0)
 
 Return upper bound on the size of tensor elements resulting from the following contraction
 
@@ -910,7 +910,7 @@ Return upper bound on the size of tensor elements resulting from the following c
 
     max(|V|) <= sum_ijk |v[ijk]| * |g1[i,:]|_8 * |g2[j,:]|_8 * |g3[k,:]|_8 
 """
-function upper_bound_thread(v::AbstractArray{Float64,3}, g1, g2, g3, scr1, scr2, scr3; c::Float64=1.0)
+function upper_bound_thread(v::AbstractArray{T,3}, g1, g2, g3, scr1, scr2, scr3; c::T=1.0) where {T}
     #={{{=#
         bound = 0
         n1 = size(g1,1) 
@@ -954,7 +954,7 @@ end
 
 
 """
-    upper_bound_thread(v::Array{Float64,4}, g1, g2, g3, g4, scr1, scr2, scr3, scr4; c::Float64=1.0)
+    upper_bound_thread(v::Array{T,4}, g1, g2, g3, g4, scr1, scr2, scr3, scr4; c::T=1.0)
 
 Return upper bound on the size of tensor elements resulting from the following contraction
 
@@ -962,7 +962,7 @@ Return upper bound on the size of tensor elements resulting from the following c
 
     max(|V|) <= sum_ijkl |v[ijkl]| * |g1[i,:]|_8 * |g2[j,:]|_8 * |g3[k,:]|_8 * |g4[l,:]|_8
 """
-function upper_bound_thread(v::Array{Float64,4}, g1, g2, g3, g4, scr1, scr2, scr3, scr4; c::Float64=1.0)
+function upper_bound_thread(v::Array{T,4}, g1, g2, g3, g4, scr1, scr2, scr3, scr4; c::T=1.0) where {T}
     #={{{=#
         bound = 0
         n1 = size(g1,1) 
@@ -1014,15 +1014,15 @@ end
 
 
 """
-    upper_bound2_thread(v::Array{Float64,4}, g1, g2, g3, 
-        scr_f::Vector{Vector{Float64}}, scr_i::Vector{Vector{Int16}}, thresh; 
-        c::Float64=1.0)
+    upper_bound2_thread(v::Array{T,4}, g1, g2, g3, 
+        scr_f::Vector{Vector{T}}, scr_i::Vector{Vector{Int16}}, thresh; 
+        c::T=1.0)
 
     max(H_IJ(K)|_K <= sum_s (sum_pqr vpqrs max(g1[p,:]) * max(g2[q,:]) * |c| ) * |g3(r,K)|
 """
-function upper_bound2_thread(v::Array{Float64,3}, g1, g2, g3, 
-        scr_f::Vector{Vector{Float64}}, scr_i::Vector{Vector{Int16}}, thresh; 
-        c::Float64=1.0)
+function upper_bound2_thread(v::Array{T,3}, g1, g2, g3, 
+        scr_f::Vector{Vector{T}}, scr_i::Vector{Vector{Int16}}, thresh; 
+        c::T=T(1.0)) where {T}
     #={{{=#
         
     
@@ -1126,15 +1126,15 @@ end
 
 
 """
-    upper_bound2_thread(v::Array{Float64,4}, g1, g2, g3, g4, 
-        scr_f::Vector{Vector{Float64}}, scr_i::Vector{Vector{Int16}}, thresh; 
-        c::Float64=1.0)
+    upper_bound2_thread(v::Array{T,4}, g1, g2, g3, g4, 
+        scr_f::Vector{Vector{T}}, scr_i::Vector{Vector{Int16}}, thresh; 
+        c::T=1.0)
 
     max(H_IJK(L)|_L <= sum_s (sum_pqr vpqrs max(g1[p,:]) * max(g2[q,:]) * max(g3[r,:]) * |c| ) * |g4(s,L)|
 """
-function upper_bound2_thread(v::Array{Float64,4}, g1, g2, g3, g4, 
-        scr_f::Vector{Vector{Float64}}, scr_i::Vector{Vector{Int16}}, thresh; 
-        c::Float64=1.0)
+function upper_bound2_thread(v::Array{T,4}, g1, g2, g3, g4, 
+        scr_f::Vector{Vector{T}}, scr_i::Vector{Vector{Int16}}, thresh; 
+        c::T=1.0) where {T}
     #={{{=#
         
     

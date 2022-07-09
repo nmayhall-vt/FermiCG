@@ -1,6 +1,7 @@
 """
     cluster::Cluster                            # Cluster to which basis belongs
-    basis::Dict{Tuple,Matrix{Float64}}          # Basis vectors (nα, nβ)=>[I,s]
+    basis::Dict{Tuple,Matrix{T}}                # Basis vectors (nα, nβ)=>[I,s]
+
 These basis coefficients map local slater determinants to local vectors
 `(nα, nβ): 
 V[αstring*βstring, cluster_state]`
@@ -10,6 +11,19 @@ struct ClusterBasis{T}
     basis::Dict{Tuple{Int16,Int16},Matrix{T}}
 end
 ClusterBasis(ci::Cluster; T::Type = Float64) = ClusterBasis(ci, Dict{Tuple{Int16,Int16},Matrix{T}}())
+
+"""
+    ClusterBasis(cb::ClusterBasis, T::Type)
+
+Convert from one data type to another
+"""
+function ClusterBasis(cb::ClusterBasis, T::Type)
+    out = ClusterBasis{T}(cb.cluster, Dict{Tuple{Int16,Int16},Matrix{T}}())
+    for (fspace,basis) in cb.basis
+        out.basis[fspace] = Matrix{T}(basis)
+    end
+    return out
+end
 
 Base.iterate(cb::ClusterBasis, state=1) = iterate(cb.basis, state)
 Base.length(cb::ClusterBasis) = length(cb.basis)
@@ -21,9 +35,13 @@ function Base.display(cb::ClusterBasis)
     norb = length(cb.cluster)
     sum_total_dim = 0
     sum_dim = 0
+    
+    T = eltype(norb)
     for (sector, vecs) in cb.basis
+        na = T(sector[1])
+        nb = T(sector[2])
         dim = size(vecs,2)
-        total_dim = binomial(norb,sector[1]) * binomial(norb,sector[2]) 
+        total_dim = binomial(norb,na) * binomial(norb,nb) 
         sum_dim += dim
         sum_total_dim += total_dim
         

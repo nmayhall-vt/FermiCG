@@ -1,6 +1,6 @@
-struct ClusterOps
+struct ClusterOps{T}
     cluster::Cluster
-    data::Dict{String,Dict{Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}},Array}}
+    data::Dict{String,Dict{Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}},Array{T}}}
 end
 
 Base.iterate(i::ClusterOps, state=1) = iterate(i.data, state)
@@ -9,6 +9,22 @@ Base.getindex(co::ClusterOps,i) = co.data[i]
 Base.setindex!(co::ClusterOps,val,key) = co.data[key] = val
 Base.haskey(co::ClusterOps,key) = haskey(co.data, key)
 Base.keys(co::ClusterOps) = keys(co.data)
+
+"""
+    ClusterOps(co::ClusterOps, T::Type)
+
+Convert from one data type to another
+"""
+function ClusterOps(co::ClusterOps, T::Type)
+    out = ClusterOps{T}(co.cluster, Dict{String,Dict{Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}},Array{T}}}())
+    for (op,fspaces) in co.data
+        out.data[op] = Dict{Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}},Array{T}}()
+        for (fspacetrans,opmat) in fspaces
+            out.data[op][fspacetrans] = Array{T}(opmat)
+        end
+    end
+    return out
+end
 
 function Base.display(co::ClusterOps) 
     @printf(" ClusterOps for Cluster: %4i\n",co.cluster.idx)
@@ -21,8 +37,8 @@ function Base.display(co::ClusterOps)
         end
     end
 end
-function ClusterOps(ci::Cluster)
-    dic1 = Dict{Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}},Array{Float64}}()
+function ClusterOps(ci::Cluster, T::Type)
+    dic1 = Dict{Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}},Array{T}}()
     dic2 = Dict{String,typeof(dic1)}() 
     return ClusterOps(ci, dic2)
 end

@@ -76,30 +76,30 @@ function compute_pt2_energy(ci_vector_in::TPSCIstate{T,N,R}, cluster_ops, cluste
         push!(jobs_vec, (fock_x, job))
     end
 
-    scr_f = Vector{Vector{Vector{Float64}} }()
+    scr_f = Vector{Vector{Vector{T}} }()
     scr_i = Vector{Vector{Vector{Int16}} }()
     scr_m = Vector{Vector{MVector{N,Int16}} }()
     nscr = 20 
 
-    scr1 = Vector{Vector{Float64}}()
-    scr2 = Vector{Vector{Float64}}()
-    scr3 = Vector{Vector{Float64}}()
-    scr4 = Vector{Vector{Float64}}()
+    scr1 = Vector{Vector{T}}()
+    scr2 = Vector{Vector{T}}()
+    scr3 = Vector{Vector{T}}()
+    scr4 = Vector{Vector{T}}()
     tmp1 = Vector{MVector{N,Int16}}()
     tmp2 = Vector{MVector{N,Int16}}()
 
-    e2_thread = Vector{Vector{Float64}}()
+    e2_thread = Vector{Vector{T}}()
     for tid in 1:Threads.nthreads()
-        push!(e2_thread, zeros(R))
-        push!(scr1, zeros(1000))
-        push!(scr2, zeros(1000))
-        push!(scr3, zeros(1000))
-        push!(scr4, zeros(1000))
+        push!(e2_thread, zeros(T, R))
+        push!(scr1, zeros(T, 1000))
+        push!(scr2, zeros(T, 1000))
+        push!(scr3, zeros(T, 1000))
+        push!(scr4, zeros(T, 1000))
         push!(tmp1, zeros(Int16,N))
         push!(tmp2, zeros(Int16,N))
 
-        tmp = Vector{Vector{Float64}}() 
-        [push!(tmp, zeros(Float64,10000)) for i in 1:nscr]
+        tmp = Vector{Vector{T}}() 
+        [push!(tmp, zeros(T,10000)) for i in 1:nscr]
         push!(scr_f, tmp)
 
         tmp = Vector{Vector{Int16}}() 

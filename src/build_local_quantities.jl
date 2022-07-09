@@ -31,16 +31,16 @@ end
 """
     compute_cluster_ops(cluster_bases::Vector{ClusterBasis})
 """
-function compute_cluster_ops(cluster_bases::Vector{ClusterBasis},ints)
+function compute_cluster_ops(cluster_bases, ints::InCoreInts{T}) where {T}
 #={{{=#
     clusters = Vector{Cluster}()
     for ci in cluster_bases
         push!(clusters, ci.cluster)
     end
     
-    cluster_ops = Vector{ClusterOps}()
+    cluster_ops = Vector{ClusterOps{T}}()
     for ci in clusters
-        push!(cluster_ops, ClusterOps(ci)) 
+        push!(cluster_ops, ClusterOps(ci, T)) 
     end
 
 
@@ -593,7 +593,7 @@ end
 
 Add effective local hamiltonians (local CASCI) type hamiltonians to a `ClusterOps` type for each `Cluster'
 """
-function add_cmf_operators!(ops::Vector{ClusterOps}, bases::Vector{ClusterBasis}, ints, Da, Db; verbose=0)
+function add_cmf_operators!(ops, bases, ints, Da, Db; verbose=0)
     #={{{=#
     n_clusters = length(bases)
     for ci_idx in 1:n_clusters
@@ -845,7 +845,7 @@ end
 """
     compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster}; 
         init_fspace=nothing, delta_elec=nothing, verbose=0, max_roots=10, 
-        rdm1a=nothing, rdm1b=nothing)
+        rdm1a=nothing, rdm1b=nothing, T::Type=Float64)
 
 Return a Vector of `ClusterBasis` for each `Cluster` 
 - `ints::InCoreInts`: In-core integrals
@@ -857,13 +857,14 @@ Return a Vector of `ClusterBasis` for each `Cluster`
 - `max_roots::Int`: Maximum number of vectors for each focksector basis
 - `rdm1a`: background density matrix for embedding local hamiltonian (alpha)
 - `rdm1b`: background density matrix for embedding local hamiltonian (beta)
+- `T`: Data type of the eigenvectors 
 """
 function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster}; 
                 init_fspace=nothing, delta_elec=nothing, verbose=0, max_roots=10, 
-                rdm1a=nothing, rdm1b=nothing)
+                rdm1a=nothing, rdm1b=nothing, T::Type=Float64)
 #={{{=#
     # initialize output
-    cluster_bases = Vector{ClusterBasis}()
+    cluster_bases = Vector{ClusterBasis{T}}()
 
     for ci in clusters
         verbose == 0 || display(ci)
@@ -900,7 +901,7 @@ function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster};
 
         #
         # Loop over sectors and do FCI for each
-        basis_i = ClusterBasis(ci) 
+        basis_i = ClusterBasis(ci, T=T) 
         for sec in sectors
             
             #

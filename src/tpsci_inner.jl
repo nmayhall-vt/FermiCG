@@ -1,16 +1,16 @@
 """
     contract_matrix_element(   term::ClusteredTerm1B, 
-                                    cluster_ops::Vector{ClusterOps},
+                                    cluster_ops::Vector{ClusterOps{T}},
                                     fock_bra::FockConfig, bra::ClusterConfig, 
                                     fock_ket::FockConfig, ket::ClusterConfig)
 
 Contraction for local (1body) terms. No contraction is needed,
 just a lookup from the correct operator
 """
-function contract_matrix_element(   term::ClusteredTerm1B, 
-                                    cluster_ops::Vector{ClusterOps},
+function contract_matrix_element(   term::ClusteredTerm1B{T}, 
+                                    cluster_ops::Vector{ClusterOps{T}},
                                     fock_bra::FockConfig, bra::ClusterConfig, 
-                                    fock_ket::FockConfig, ket::ClusterConfig)
+                                    fock_ket::FockConfig, ket::ClusterConfig) where {T}
 #={{{=#
     c1 = term.clusters[1]
     length(fock_bra) == length(fock_ket) || throw(Exception)
@@ -33,16 +33,16 @@ end
 #=}}}=#
 """
     contract_matrix_element(   term::ClusteredTerm2B, 
-                                    cluster_ops::Vector{ClusterOps},
+                                    cluster_ops::Vector{ClusterOps{T}},
                                     fock_bra::FockConfig, bra::ClusterConfig, 
                                     fock_ket::FockConfig, ket::ClusterConfig)
 
 Form TPSCI matrix element by contracting operators with integrals for 2body terms. 
 """
-function contract_matrix_element(   term::ClusteredTerm2B, 
-                                    cluster_ops::Vector{ClusterOps},
+function contract_matrix_element(   term::ClusteredTerm2B{T}, 
+                                    cluster_ops::Vector{ClusterOps{T}},
                                     fock_bra::FockConfig, bra::ClusterConfig, 
-                                    fock_ket::FockConfig, ket::ClusterConfig)
+                                    fock_ket::FockConfig, ket::ClusterConfig) where {T}
 #={{{=#
     #display(term)
     #println(bra, ket)
@@ -88,16 +88,16 @@ end
 #=}}}=#
 """
     contract_matrix_element(   term::ClusteredTerm3B, 
-                                    cluster_ops::Vector{ClusterOps},
+                                    cluster_ops::Vector{ClusterOps{T}},
                                     fock_bra::FockConfig, bra::ClusterConfig, 
                                     fock_ket::FockConfig, ket::ClusterConfig)
 
 Form TPSCI matrix element by contracting operators with integrals for 3body terms. 
 """
-function contract_matrix_element(   term::ClusteredTerm3B, 
-                                    cluster_ops::Vector{ClusterOps},
+function contract_matrix_element(   term::ClusteredTerm3B{T}, 
+                                    cluster_ops::Vector{ClusterOps{T}},
                                     fock_bra::FockConfig, bra::ClusterConfig, 
-                                    fock_ket::FockConfig, ket::ClusterConfig)
+                                    fock_ket::FockConfig, ket::ClusterConfig) where {T}
     #={{{=#
     c1 = term.clusters[1]
     c2 = term.clusters[2]
@@ -150,16 +150,16 @@ end
 #=}}}=#
 """
     contract_matrix_element(   term::ClusteredTerm4B, 
-                                    cluster_ops::Vector{ClusterOps},
+                                    cluster_ops::Vector{ClusterOps{T}},
                                     fock_bra::FockConfig, bra::ClusterConfig, 
                                     fock_ket::FockConfig, ket::ClusterConfig)
 
 Form TPSCI matrix element by contracting operators with integrals for 4body terms. 
 """
-function contract_matrix_element(   term::ClusteredTerm4B, 
-                                    cluster_ops::Vector{ClusterOps},
+function contract_matrix_element(   term::ClusteredTerm4B{T}, 
+                                    cluster_ops::Vector{ClusterOps{T}},
                                     fock_bra::FockConfig, bra::ClusterConfig, 
-                                    fock_ket::FockConfig, ket::ClusterConfig)
+                                    fock_ket::FockConfig, ket::ClusterConfig) where {T}
 #={{{=#
     c1 = term.clusters[1]
     c2 = term.clusters[2]

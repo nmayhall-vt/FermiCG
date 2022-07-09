@@ -7,7 +7,7 @@ using InteractiveUtils
     delta::TransferConfig{1}
     parity::Tuple{Int}
     clusters::Tuple{Cluster}
-    ints::Array{Float64}
+    ints::Array{T,1}
     cache::Dict
 
 

@@ -55,7 +55,7 @@ specified by `cluster_bases`.
 """
 function BSstate(clusters::Vector{Cluster}, 
         fconfig::FockConfig{N}, 
-        cluster_bases::Vector{ClusterBasis}; T=Float64, R=1) where {N} 
+        cluster_bases::Vector{ClusterBasis{T}}; R=1) where {N, T} 
     #={{{=#
 
     # 
@@ -154,11 +154,13 @@ Constructor creating an empty vector
 # Returns
 - `BSstate`
 """
-function BSstate(clusters, p_spaces, q_spaces; T=Float64, R=1)
+function BSstate(clusters::Vector{Cluster}, 
+        p_spaces::Vector{ClusterSubspace}, 
+        q_spaces::Vector{ClusterSubspace}; 
+        T=Float64, R=1)
     N = length(clusters)
-    return BSstate{T,N,R}(clusters,
-                              p_spaces, q_spaces, 
-                              OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, MVector{R,T}}}())
+    data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Array{T}} }()
+    return BSstate{T,N,R}(clusters, data, p_spaces, q_spaces)
 end
 
 #"""

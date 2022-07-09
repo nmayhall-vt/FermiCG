@@ -36,7 +36,9 @@ Return dimension of hilbert space spanned by number of orbitals in `Cluster`
 with `na` and `nb` number of alpha/beta electrons.
 """
 function dim_tot(c::Cluster, na, nb)
-    return binomial(length(c), na)*binomial(length(c), na) 
+    nc = length(c)
+    T = eltype(nc)
+    return binomial(nc, T(na))*binomial(nc, T(nb)) 
 end
 """
 	display(c::Cluster)

@@ -505,7 +505,7 @@ set all elements to zero
 function zero!(s::TPSCIstate{T,N,R}) where {T,N,R}
     for (fock,configs) in s.data
         for (config,coeffs) in configs                
-            s.data[fock][config] = zeros(size(MVector{R,T}))
+            s.data[fock][config] = zeros(T, size(MVector{R,T}))
             #s.data[fock][config] = zeros(MVector{R,T})
         end
     end

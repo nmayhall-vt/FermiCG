@@ -60,6 +60,8 @@ in the sector of Fock space specified by `P`
 """
 function build_H_matrix(ints, P::FCIProblem)
 
+    T = eltype(ints.h0)
+
     Hmat = zeros(P.dim, P.dim)
 
     Hdiag_a = precompute_spin_diag_terms(ints,P,P.na)
@@ -76,7 +78,7 @@ function build_H_matrix(ints, P::FCIProblem)
     Hmat += kron(Hdiag_b, Matrix(1.0I, P.dima, P.dima))
     #
     #   Add opposite spin term (todo: make this reasonably efficient)
-    Hmat += compute_ab_terms_full(ints, P)
+    Hmat += compute_ab_terms_full(ints, P, T=T)
     
     Hmat = .5*(Hmat+Hmat')
 
@@ -88,7 +90,7 @@ end
 """
     compute_fock_diagonal!(H, P::FCIProblem, e_mf::Float64)
 """
-function compute_fock_diagonal(P::FCIProblem, orb_energies::Vector{Float64}, e_mf::Float64)
+function compute_fock_diagonal(P::FCIProblem, orb_energies::Vector, e_mf::Real)
     ket_a = DeterminantString(P.no, P.na)
     ket_b = DeterminantString(P.no, P.nb)
     
@@ -183,14 +185,14 @@ end
 """
     compute_ab_terms_full(H, P::FCIProblem)
 """
-function compute_ab_terms_full(H, P::FCIProblem)
+function compute_ab_terms_full(H, P::FCIProblem; T::Type=Float64)
     #={{{=#
 
     #print(" Compute opposite spin terms. Shape of v: ", size(v), "\n")
 
     #v = transpose(vin)
 
-    Hmat = zeros(Float64, P.dim, P.dim)
+    Hmat = zeros(T, P.dim, P.dim)
 
     #   Create local references to ci_strings
     ket_a = DeterminantString(P.no, P.na)
@@ -262,12 +264,12 @@ end
 
 
 # Helper functions for Olsen's agorithm
-function _gather!(FJb::Vector{Float64}, occ::Vector{Int}, vir::Vector{Int}, vkl::Array{Float64,2}, Ib::Int,ket_b_lookup)
+function _gather!(FJb::Vector{T}, occ::Vector{Int}, vir::Vector{Int}, vkl::Array{T,2}, Ib::Int,ket_b_lookup) where {T}
 #={{{=#
     i::Int = 1
     j::Int = 1
     Jb::Int = 1
-    sgn::Float64 = 1.0
+    sgn::T = 1.0
     @inbounds @simd for j in occ 
         for i in vir
             Jb = ket_b_lookup[i,j,Ib]
@@ -279,7 +281,7 @@ function _gather!(FJb::Vector{Float64}, occ::Vector{Int}, vir::Vector{Int}, vkl:
 end
 #=}}}=#
 
-function _mult!(Ckl::Array{Float64,3}, FJb::Array{Float64,1}, VI::Array{Float64,2})
+function _mult!(Ckl::Array{T,3}, FJb::Array{T,1}, VI::Array{T,2}) where {T}
     #={{{=#
     VI .= 0
     nI = size(Ckl)[1]
@@ -303,7 +305,7 @@ function _mult!(Ckl::Array{Float64,3}, FJb::Array{Float64,1}, VI::Array{Float64,
 end
 #=}}}=#
 
-function _scatter!(sig::Array{Float64,3}, VI::Array{Float64,2}, L::Vector{Int}, R::Vector{Int}, Ib::Int)
+function _scatter!(sig::Array{T,3}, VI::Array{T,2}, L::Vector{Int}, R::Vector{Int}, Ib::Int) where {T}
     #={{{=#
     n_roots = size(sig)[3]
     @inbounds @simd for si in 1:n_roots
@@ -315,7 +317,7 @@ function _scatter!(sig::Array{Float64,3}, VI::Array{Float64,2}, L::Vector{Int}, 
 end
 #=}}}=#
 
-function _getCkl!(Ckl::Array{Float64,3}, v,L::Vector{Int})
+function _getCkl!(Ckl::Array{T,3}, v,L::Vector{Int}) where {T}
     #={{{=#
     nI = length(L)
     n_roots = size(v)[3]
@@ -338,6 +340,8 @@ function compute_ab_terms2(v, H, P::FCIProblem,
                           ket_a_lookup, ket_b_lookup)
     #={{{=#
 
+    T = eltype(v[1])
+
     #print(" Compute opposite spin terms. Shape of v: ", size(v), "\n")
     @assert(size(v,1)*size(v,2) == P.dim)
 
@@ -357,11 +361,11 @@ function compute_ab_terms2(v, H, P::FCIProblem,
     #   sig3(Ia,Ib,s) = <Ia|k'l|Ja> <Ib|i'j|Jb> V(ij,kl) C(Ja,Jb,s)
     n_roots::Int = size(v,3)
     #v = reshape(v,ket_a.max, ket_b.max, n_roots) 
-    sig = zeros(Float64, ket_a.max, ket_b.max, n_roots) 
-    FJb_scr1 = zeros(Float64, ket_b.max) 
-    Ckl_scr1 = zeros(Float64, binomial(ket_a.no-1,ket_a.ne-1), size(v)[2], size(v)[3])
-    Ckl_scr2 = zeros(Float64, binomial(ket_a.no-2,ket_a.ne-1), size(v)[2], size(v)[3])
-    Ckl = Array{Float64,3}
+    sig = zeros(T, ket_a.max, ket_b.max, n_roots) 
+    FJb_scr1 = zeros(T, ket_b.max) 
+    Ckl_scr1 = zeros(T, binomial(ket_a.no-1,ket_a.ne-1), size(v)[2], size(v)[3])
+    Ckl_scr2 = zeros(T, binomial(ket_a.no-2,ket_a.ne-1), size(v)[2], size(v)[3])
+    Ckl = Array{T,3}
     virt = zeros(Int,ket_b.no-ket_b.ne)
     diff_ref = Set(collect(1:ket_b.no))
     FJb = copy(FJb_scr1)
@@ -383,8 +387,8 @@ function compute_ab_terms2(v, H, P::FCIProblem,
                 push!(L,I)
             end
         end
-        VI = zeros(Float64, length(L),n_roots)
-        #Ckl = zeros(Float64, size(v)[2], length(L), size(v)[3])
+        VI = zeros(T, length(L),n_roots)
+        #Ckl = zeros(T, size(v)[2], length(L), size(v)[3])
         if k==l
             Ckl = deepcopy(Ckl_scr1)
         else
@@ -403,7 +407,7 @@ function compute_ab_terms2(v, H, P::FCIProblem,
         vkl = H.h2[:,:,l,k]
         reset!(ket_b)
         for Ib in 1:ket_b.max
-            fill!(FJb,0.0)
+            fill!(FJb,T(0.0))
             Jb = 1
             sgn = 1
             zero_num = 0
@@ -451,7 +455,7 @@ end
 
 
 
-function _ss_sum!(sig::Array{Float64,3}, v::Array{Float64,3}, F::Vector{Float64},Ia::Int)
+function _ss_sum!(sig::Array{T,3}, v::Array{T,3}, F::Vector{T},Ia::Int) where {T}
     nKb     = size(v)[1]
     n_roots = size(v)[2]
     nJa     = size(v)[3]
@@ -467,7 +471,7 @@ function _ss_sum!(sig::Array{Float64,3}, v::Array{Float64,3}, F::Vector{Float64}
     end
 end
 
-function _ss_sum_Ia!(sig::Array{Float64,3}, v::Array{Float64,3}, F::Vector{Float64},Ia::Int)
+function _ss_sum_Ia!(sig::Array{T,3}, v::Array{T,3}, F::Vector{T},Ia::Int) where {T}
     nJa = size(v)[3]
     nKb = size(v)[1]
     n_roots = size(v)[2]
@@ -494,6 +498,7 @@ function compute_ss_terms2(v, H, P::FCIProblem, ket_a_lookup, ket_b_lookup)
     #print(" Compute opposite spin terms. Shape of v: ", size(v), "\n")
     @assert(size(v,1)*size(v,2) == P.dim)
 
+    T = eltype(v[1])
     #v = transpose(vin)
 
     #   Create local references to ci_strings
@@ -512,7 +517,7 @@ function compute_ss_terms2(v, H, P::FCIProblem, ket_a_lookup, ket_b_lookup)
     #   sig1(Ia,Ib,s) = <Ib|i'j|Jb> V(ij,kl) C(Ja,Jb,s)
     n_roots::Int = size(v,3)
     #v = reshape(v,ket_a.max, ket_b.max, n_roots) 
-    sig = zeros(Float64, ket_a.max, ket_b.max, n_roots) 
+    sig = zeros(T, ket_a.max, ket_b.max, n_roots) 
     size(sig) == size(v) || throw(DimensionError())
 
     h1eff = deepcopy(H.h1)
@@ -526,7 +531,7 @@ function compute_ss_terms2(v, H, P::FCIProblem, ket_a_lookup, ket_b_lookup)
     
     ket = ket_b
     reset!(ket) 
-    F = zeros(ket_b.max)
+    F = zeros(T, ket_b.max)
     for I in 1:ket.max
         F .= 0
         for k in 1:ket.no, l in 1:ket.no
@@ -565,7 +570,7 @@ function compute_ss_terms2(v, H, P::FCIProblem, ket_a_lookup, ket_b_lookup)
 
     ket = ket_a
     reset!(ket) 
-    F = zeros(ket_a.max)
+    F = zeros(T, ket_a.max)
     bra = deepcopy(ket)
     for I in 1:ket.max
         F .= 0
@@ -940,6 +945,8 @@ ints is simply an InCoreInts object from FermiCG
 function run_fci(ints, problem::FCIProblem; v0=nothing, nroots=1, tol=1e-6,
                 precompute_ss = false)
 
+    T = eltype(ints.h0)
+
     if precompute_ss
         print(" Compute spin_diagonal terms\n")
         @time Hdiag_a = StringCI.precompute_spin_diag_terms(ints,problem,problem.na)
@@ -952,7 +959,7 @@ function run_fci(ints, problem::FCIProblem; v0=nothing, nroots=1, tol=1e-6,
     end
     
     e = 0
-    v = Array{Float64,2}
+    v = Array{T,2}
     if v0 == nothing
         @time e,v = eigs(Hmap, nev = nroots, which=:SR, tol=tol)
         e = real(e)
