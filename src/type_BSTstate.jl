@@ -42,7 +42,7 @@ specified by `cluster_bases`.
 """
 function BSTstate(clusters::Vector{Cluster}, 
         fconfig::FockConfig{N}, 
-        cluster_bases::Vector{ClusterBasis}; T=Float64, R=1) where {N} 
+        cluster_bases::Vector{ClusterBasis{T}}; R=1) where {T, N} 
     #={{{=#
 
     # 

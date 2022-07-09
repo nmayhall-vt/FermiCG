@@ -54,7 +54,7 @@ using Test
     #    display(cb)
     #end
 
-    cluster_ops = Vector{FermiCG.ClusterOps}()
+    cluster_ops = Vector{FermiCG.ClusterOps{Float64}}()
     for ci in clusters
         push!(cluster_ops, FermiCG.ClusterOps(ci)) 
     end

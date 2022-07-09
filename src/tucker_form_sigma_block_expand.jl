@@ -5,7 +5,7 @@
 #
 
 function form_sigma_block_expand(term::ClusteredTerm1B,
-                            cluster_ops::Vector{ClusterOps},
+                            cluster_ops::Vector{ClusterOps{T}},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             coeffs_ket::Tucker{T,N,R};
@@ -74,7 +74,7 @@ end
 #=}}}=#
 
 function form_sigma_block_expand(term::ClusteredTerm2B,
-                            cluster_ops::Vector{ClusterOps},
+                            cluster_ops::Vector{ClusterOps{T}},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             coeffs_ket::Tucker{T,N,R};
@@ -260,7 +260,7 @@ end
 #=}}}=#
 
 function form_sigma_block_expand(term::ClusteredTerm3B,
-                            cluster_ops::Vector{ClusterOps},
+                            cluster_ops::Vector{ClusterOps{T}},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             coeffs_ket::Tucker{T,N,R};
@@ -488,7 +488,7 @@ end
 #=}}}=#
 
 function form_sigma_block_expand(term::ClusteredTerm4B,
-                            cluster_ops::Vector{ClusterOps},
+                            cluster_ops::Vector{ClusterOps{T}},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             coeffs_ket::Tucker{T,N,R};
@@ -721,7 +721,7 @@ end
 #=}}}=#
 
 function form_sigma_block_expand2(term::ClusteredTerm2B,
-                            cluster_ops::Vector{ClusterOps},
+                            cluster_ops::Vector{ClusterOps{T}},
                             fock_bra::FockConfig, bra::TuckerConfig,
                             fock_ket::FockConfig, ket::TuckerConfig,
                             coeffs_ket::Tucker{T,N,R},
