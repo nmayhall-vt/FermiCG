@@ -292,11 +292,13 @@ end
 
 
 """
-	pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1, verbose=1)
+    pyscf_fci(ham, na, nb; 
+        max_cycle=40, conv_tol=1e-11, nroots=1, verbose=1, do_rdm1=true, do_rdm2=true)
 
 Use PySCF to compute Full CI
 """
-function pyscf_fci(ham, na, nb; max_cycle=40, conv_tol=1e-11, nroots=1, verbose=1)
+function pyscf_fci(ham, na, nb; 
+        max_cycle=40, conv_tol=1e-11, nroots=1, verbose=1, do_rdm1=true, do_rdm2=true)
     # println(" Use PYSCF to compute FCI")
     pyscf = pyimport("pyscf")
     pyscf.lib.num_threads(1)
@@ -312,26 +314,44 @@ function pyscf_fci(ham, na, nb; max_cycle=40, conv_tol=1e-11, nroots=1, verbose=
     fci_dim = size(ci,1)*size(ci,2)
     # d1 = cisolver.make_rdm1(ci, norb, nelec)
 
-    d1a,d1b = cisolver.make_rdm1s(ci, norb, (na,nb))
+    d1a = Array([])
+    d1b = Array([])
+    d1  = Array([])
+    d2  = Array([])
 
-    d1,d2 = cisolver.make_rdm12(ci, norb, (na,nb))
+    if do_rdm1 
+        d1a,d1b = cisolver.make_rdm1s(ci, norb, (na,nb))
+    end
+
+    if do_rdm2
+        d1,d2 = cisolver.make_rdm12(ci, norb, (na,nb))
+    end
+
     #@printf(" Energy2: %12.8f\n", FermiCG.compute_energy(ham.h0, ham.h1, ham.h2, d1a+d1b, d2))
     # print(" PYSCF 1RDM: ")
-    F = eigen(d1)
-    occs = F.values
-    sum_n = sum(occs)
-    # @printf(" Sum of diagonals = %12.8f\n", sum_n)
-    if verbose > 1
-        @printf(" Natural Orbital Occupations:\n")
-        [@printf(" %4i %12.8f\n",i,occs[i]) for i in 1:size(occs)[1] ]
-        @printf(" -----------------\n")
-        @printf(" %4s %12.8f\n\n","sum",sum_n)
-    end
-    if verbose>1
-        pretty_table(d1; formatters = ft_printf("%5.3f"), noheader=true)
+    if do_rdm1
+        F = eigen(d1)
+        occs = F.values
+        sum_n = sum(occs)
+        # @printf(" Sum of diagonals = %12.8f\n", sum_n)
+        if verbose > 1
+            @printf(" Natural Orbital Occupations:\n")
+            [@printf(" %4i %12.8f\n",i,occs[i]) for i in 1:size(occs)[1] ]
+            @printf(" -----------------\n")
+            @printf(" %4s %12.8f\n\n","sum",sum_n)
+        end
+        if verbose>1
+            pretty_table(d1; formatters = ft_printf("%5.3f"), noheader=true)
+        end
     end
     if verbose>0
-        @printf(" FCI:        %12.8f %12.8f \n", efci+ham.h0, efci)
+        if nroots == 1
+            @printf(" FCI:        %12.8f %12.8f \n", efci+ham.h0, efci)
+        elseif nroots > 1
+            for r in 1:nroots
+                @printf(" FCI:        %12.8f %12.8f \n", efci[r]+ham.h0, efci[r])
+            end
+        end
     end
 
     return efci, d1a,d1b, d2, ci

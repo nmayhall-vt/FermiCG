@@ -43,9 +43,10 @@ mutable struct Davidson
     ritz_e::Vector{Float64}
     resid::Vector{Float64}
     lindep::Float64
+    lindep_thresh::Float64
 end
 
-function Davidson(op; max_iter=100, max_ss_vecs=8, tol=1e-8, nroots=1, v0=nothing)
+function Davidson(op; max_iter=100, max_ss_vecs=8, tol=1e-8, nroots=1, v0=nothing, lindep_thresh=1e-10)
     size(op)[1] == size(op)[2] || throw(DimensionError())
     dim = size(op)[1]
     if v0==nothing
@@ -70,7 +71,8 @@ function Davidson(op; max_iter=100, max_ss_vecs=8, tol=1e-8, nroots=1, v0=nothin
                     zeros(nroots,nroots),
                     zeros(nroots),
                     zeros(nroots),
-                    1.0)
+                    1.0,
+                    lindep_thresh)
 end
 
 function print_iter(solver::Davidson)
@@ -112,10 +114,12 @@ function iteration(solver::Davidson; Adiag=nothing, iprint=0)
     #
     # perform sig_curr = A*vec_curr 
     solver.sig_curr = Matrix(solver.op * solver.vec_curr)
+   
     #
     # add these new vectors to previous quantities
     solver.sig_prev = hcat(solver.sig_prev, solver.sig_curr)
     solver.vec_prev = hcat(solver.vec_prev, solver.vec_curr)
+    
     
     #
     # form H in current subspace
@@ -133,15 +137,13 @@ function iteration(solver::Davidson; Adiag=nothing, iprint=0)
         ritz_v = ritz_v[:,sortperm(ritz_e)]
         ritz_e = ritz_e[sortperm(ritz_e)]
     end
+
     solver.ritz_e = ritz_e
     solver.ritz_v = ritz_v
 
     solver.sig_prev = solver.sig_prev * ritz_v 
     solver.vec_prev = solver.vec_prev * ritz_v
-    Hss1 = solver.vec_prev' * solver.sig_prev
     Hss = ritz_v' * Hss * ritz_v
-    # make sure these match
-    all([abs(Hss1[i]-Hss[i])<1e-12 for i in 1:Base.length(Hss)]) || @warn(" Hss1[i]-Hss[i]") 
 
     ss_metric = eigvals(solver.vec_prev'*solver.vec_prev)
     solver.lindep = maximum([abs(maximum(ss_metric)-1), abs(minimum(ss_metric)-1)]) 
@@ -161,7 +163,7 @@ function iteration(solver::Davidson; Adiag=nothing, iprint=0)
     #@btime $res = $solver.sig_prev - ($solver.vec_prev * $Hss)
     ss = deepcopy(solver.vec_prev)
 
-    new = zeros(solver.dim,0) 
+    new = zeros(solver.dim, 0) 
     #solver.statusconv = [false for i in 1:solver.nroots]
     for s in 1:solver.nroots
         # |v'> = (I-|SS><SS|)|v>
@@ -173,24 +175,23 @@ function iteration(solver::Davidson; Adiag=nothing, iprint=0)
         end
         if Adiag != nothing
             level_shift = 1e-3
-
             denom = (ritz_e[s]  + level_shift)
             _apply_diagonal_precond!(res[:,s], Adiag, denom)
-            #@btime $_apply_diagonal_precond!($res[:,$s], $Adiag, $denom)
-            #@inbounds @simd for i in 1:solver.dim
-            #    res_s[i] = res_s[i] / (denom - Adiag[i])
-            #end
         end
         #scr = solver.vec_prev' * res[:,s]
         #res[:,s] = res[:,s] - (solver.vec_prev * scr)
         scr = ss' * res[:,s]
-        res[:,s] = res[:,s] - (ss * scr)
+        res[:,s] .= res[:,s] .- (ss * scr)
         nres = norm(res[:,s])
-        if nres>1e-12
+        if nres > solver.lindep_thresh
             ss = hcat(ss,res[:,s]/nres)
             new = hcat(new,res[:,s]/nres)
         end
     end
+    #ss_metric = eigvals(new'*new)
+    #if ss_metric < solver.lindep_thresh
+
+    solver.lindep = maximum([abs(maximum(ss_metric)-1), abs(minimum(ss_metric)-1)]) 
     return new
 end
 
@@ -210,3 +211,8 @@ function solve(solver::Davidson; Adiag=nothing, iprint=0)
     #return solver.ritz_e[1:solver.nroots], solver.vec_prev*solver.ritz_v[:,1:solver.nroots]
 end
 
+#function orthogonalize!(sig, v)
+#
+#    # |sig> = |sig> - |v><v|sig>
+#    sig .= sig .- v * (v'*sig)
+#end

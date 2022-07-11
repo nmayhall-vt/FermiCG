@@ -89,33 +89,33 @@ end
 
 
 
-"""
-    function BSstate(clusters::Vector{Cluster}, 
-        p_spaces::Vector{FermiCG.ClusterSubspace}, 
-        q_spaces::Vector{FermiCG.ClusterSubspace}) 
-
-Constructor - specify input p and q spaces
-# Arguments
-- `clusters`: vector of clusters types
-- `p_spaces`: list of p space ranges for each cluster
-- `q_spaces`: list of q space ranges for each cluster
-# Returns
-- `BSstate`
-"""
-function BSstate(clusters::Vector{Cluster}, 
-        p_spaces::Vector{FermiCG.ClusterSubspace}, 
-        q_spaces::Vector{FermiCG.ClusterSubspace}; T=Float64, R=1) 
-    #={{{=#
-
-    N = length(clusters)
-    length(p_spaces) == N || error(DimensionMismatch)
-    length(q_spaces) == N || error(DimensionMismatch)
-
-    data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Array{T,2}} }()
-     
-    return BSstate{T,N,R}(clusters, data, p_spaces, q_spaces) 
-end
-#=}}}=#
+#"""
+#    function BSstate(clusters::Vector{Cluster}, 
+#        p_spaces::Vector{FermiCG.ClusterSubspace}, 
+#        q_spaces::Vector{FermiCG.ClusterSubspace}) 
+#
+#Constructor - specify input p and q spaces
+## Arguments
+#- `clusters`: vector of clusters types
+#- `p_spaces`: list of p space ranges for each cluster
+#- `q_spaces`: list of q space ranges for each cluster
+## Returns
+#- `BSstate`
+#"""
+#function BSstate(clusters::Vector{Cluster}, 
+#        p_spaces::Vector{FermiCG.ClusterSubspace}, 
+#        q_spaces::Vector{FermiCG.ClusterSubspace}; T=Float64, R=1) 
+#    #={{{=#
+#
+#    N = length(clusters)
+#    length(p_spaces) == N || error(DimensionMismatch)
+#    length(q_spaces) == N || error(DimensionMismatch)
+#
+#    data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Array{T,2}} }()
+#     
+#    return BSstate{T,N,R}(clusters, data, p_spaces, q_spaces) 
+#end
+##=}}}=#
 
 
 
