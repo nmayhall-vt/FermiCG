@@ -7,6 +7,7 @@ using Arpack
 using Random
 using Profile 
 
+if true 
 @testset "davidson" begin
     atoms = []
     push!(atoms,Atom(1,"H",[0,0,0]))
@@ -86,4 +87,24 @@ using Profile
         
     #rdm1a, rdm1b, rdm2aa, rdm2bb = StringCI.compute_1rdm(problem, v[:,1], v[:,1]);
 
+end
+end
+
+
+@testset "davidson_rand" begin
+
+    N = 1000
+    nr = 8
+    A = Diagonal(rand(N)) + .01*rand(N,N)
+    A = A'+A
+
+
+    davidson = FermiCG.Davidson(A,max_iter=400, nroots=nr, tol=1e-6)
+    #@time e,v = FermiCG.solve(davidson, Adiag=diag(A));
+    @time e,v = FermiCG.solve(davidson);
+
+    @time eref, vref = Arpack.eigs(A, nev=nr, which=:SR)
+
+    @test isapprox(e, eref, atol=1e-10)
+    println(size(v), size(vref))
 end

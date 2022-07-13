@@ -135,10 +135,10 @@ function iteration(solver::Davidson; Adiag=nothing, iprint=0)
     ritz_v = F.vectors
     ss_size = length(F.values)
     if ss_size >= solver.max_ss_vecs
-        #ritz_v = ritz_v[:,sortperm(ritz_e)][:,1:solver.nroots]
-        #ritz_e = ritz_e[sortperm(ritz_e)][1:1:solver.nroots]
-        ritz_v = ritz_v[:,sortperm(ritz_e)][:,1:solver.max_ss_vecs]
-        ritz_e = ritz_e[sortperm(ritz_e)][1:1:solver.max_ss_vecs]
+        ritz_v = ritz_v[:,sortperm(ritz_e)][:,1:solver.nroots]
+        ritz_e = ritz_e[sortperm(ritz_e)][1:1:solver.nroots]
+        #ritz_v = ritz_v[:,sortperm(ritz_e)][:,1:solver.max_ss_vecs]
+        #ritz_e = ritz_e[sortperm(ritz_e)][1:1:solver.max_ss_vecs]
     else
         ritz_v = ritz_v[:,sortperm(ritz_e)]
         ritz_e = ritz_e[sortperm(ritz_e)]
@@ -174,8 +174,6 @@ function iteration(solver::Davidson; Adiag=nothing, iprint=0)
             denom = (ritz_e[s]  + level_shift)
             _apply_diagonal_precond!(res[:,s], Adiag, denom)
         end
-        #scr = solver.vec_prev' * res[:,s]
-        #res[:,s] = res[:,s] - (solver.vec_prev * scr)
         scr = ss' * res[:,s]
         res[:,s] .= res[:,s] .- (ss * scr)
         nres = norm(res[:,s])

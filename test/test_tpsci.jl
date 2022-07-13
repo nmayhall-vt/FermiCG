@@ -9,6 +9,7 @@ using PyCall
 using Arpack
 using JLD2
 
+#if false 
 @testset "tpsci" begin
     atoms = []
 
@@ -212,6 +213,7 @@ using JLD2
     @test isapprox(norm(sig1), norm(sig2), atol=1e-12)
 
 end
+#end
 
 @testset "tpsci 64bit" begin
     @load "_testdata_cmf_h6.jld2"
@@ -229,28 +231,29 @@ end
     #e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=false,
     #                          thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=1e-2, conv_thresh=1e-4);
     e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=true, ci_conv=1e-8,
-                              thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=1e-2, conv_thresh=1e-6);
+                              thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=-1, conv_thresh=1e-7);
     
     e2 = FermiCG.compute_pt2_energy(v0, cluster_ops, clustered_ham, thresh_foi=1e-10)
-
-    ref = [
-           -18.325189101846313
-           -18.042985609073583
-           -18.017049275860863
-           -17.987034114416396
-          ]
-    @test isapprox(abs.(ref), abs.(e0), atol=1e-8)
     
     display(e0)
     display(e2)
     display(e0+e2)
+
     ref = [
-           -18.329255792704412
-           -18.052379616498577
-           -18.026984332046684
-           -17.99495121913542
+           -18.325189100909288
+           -18.042985521887726
+           -18.017067876039942
+           -17.987034170480754
           ]
-    @test isapprox(abs.(ref), abs.(e0+e2), atol=1e-8)
+    @test isapprox(abs.(ref), abs.(e0), atol=1e-7)
+    
+    ref = [
+           -18.32925579170581
+           -18.052379483451514
+           -18.02696559270829
+           -17.994951219964236
+          ]
+    @test isapprox(abs.(ref), abs.(e0+e2), atol=1e-7)
 
 
 end
