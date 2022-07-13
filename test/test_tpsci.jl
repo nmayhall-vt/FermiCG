@@ -231,16 +231,16 @@ end
     e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=true,
                               thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=1e-2, conv_thresh=1e-6);
     
-    e2 = FermiCG.compute_pt2_energy(v0, cluster_ops, clustered_ham, thresh_foi=1e-8)
+    e2 = FermiCG.compute_pt2_energy(v0, cluster_ops, clustered_ham, thresh_foi=1e-9)
 
     display(e0)
     display(e2)
     display(e0+e2)
     ref = [
-           -18.329255794157604
-           -18.052379610635533
-           -18.026984327594473
-           -17.994951215574346
+           -18.329255792841924
+           -18.05237966911905
+           -18.026984245901733
+           -17.994951208315587
           ]
     @test isapprox(abs.(ref), abs.(e0+e2), atol=1e-8)
 
