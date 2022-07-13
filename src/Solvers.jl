@@ -110,7 +110,7 @@ function _apply_diagonal_precond!(res_s::Vector{Float64}, Adiag::Vector{Float64}
 end
 
 function iteration(solver::Davidson; Adiag=nothing, iprint=0)
-    #@printf(" Davidson Iter: %4i SS_Curr %4i\n", iter, size(solver.vec_curr,2))
+    
     #
     # perform sig_curr = A*vec_curr 
     solver.sig_curr = Matrix(solver.op * solver.vec_curr)
@@ -119,8 +119,12 @@ function iteration(solver::Davidson; Adiag=nothing, iprint=0)
     # add these new vectors to previous quantities
     solver.sig_prev = hcat(solver.sig_prev, solver.sig_curr)
     solver.vec_prev = hcat(solver.vec_prev, solver.vec_curr)
-    
-    
+   
+    #
+    # Check orthogonality
+    ss_metric = solver.vec_prev'*solver.vec_prev
+    solver.lindep = abs(1.0 - det(ss_metric))
+
     #
     # form H in current subspace
     Hss = solver.vec_prev' * solver.sig_prev
@@ -131,8 +135,10 @@ function iteration(solver::Davidson; Adiag=nothing, iprint=0)
     ritz_v = F.vectors
     ss_size = length(F.values)
     if ss_size >= solver.max_ss_vecs
-        ritz_v = ritz_v[:,sortperm(ritz_e)][:,1:solver.nroots]
-        ritz_e = ritz_e[sortperm(ritz_e)][1:1:solver.nroots]
+        #ritz_v = ritz_v[:,sortperm(ritz_e)][:,1:solver.nroots]
+        #ritz_e = ritz_e[sortperm(ritz_e)][1:1:solver.nroots]
+        ritz_v = ritz_v[:,sortperm(ritz_e)][:,1:solver.max_ss_vecs]
+        ritz_e = ritz_e[sortperm(ritz_e)][1:1:solver.max_ss_vecs]
     else
         ritz_v = ritz_v[:,sortperm(ritz_e)]
         ritz_e = ritz_e[sortperm(ritz_e)]
@@ -145,22 +151,12 @@ function iteration(solver::Davidson; Adiag=nothing, iprint=0)
     solver.vec_prev = solver.vec_prev * ritz_v
     Hss = ritz_v' * Hss * ritz_v
 
-    ss_metric = eigvals(solver.vec_prev'*solver.vec_prev)
-    solver.lindep = maximum([abs(maximum(ss_metric)-1), abs(minimum(ss_metric)-1)]) 
-    #Hss = solver.vec_curr' * sigma
-    #if iprint>0
-    #    [@printf(" Ritz Value: %12.8f \n",i) for i in ritz_e]
-    #end
-    res = similar(solver.vec_prev[:,1:solver.nroots])
+    res = deepcopy(solver.sig_prev[:,1:solver.nroots])
     for s in 1:solver.nroots
-        res[:,s] .= -solver.vec_prev[:,s] * Hss[s,s]
+        res[:,s] .-= solver.vec_prev[:,s] * Hss[s,s]
     end
-    res[:,:] .+= solver.sig_prev[:,1:solver.nroots]
+
     
-    #@btime $res = - $solver.vec_prev * $Hss[1:$solver.nroots,1:$solver.nroots]
-    #@btime $res .+= $solver.sig_prev
-    #res = solver.sig_prev - (solver.vec_prev * Hss)
-    #@btime $res = $solver.sig_prev - ($solver.vec_prev * $Hss)
     ss = deepcopy(solver.vec_prev)
 
     new = zeros(solver.dim, 0) 
@@ -183,15 +179,11 @@ function iteration(solver::Davidson; Adiag=nothing, iprint=0)
         scr = ss' * res[:,s]
         res[:,s] .= res[:,s] .- (ss * scr)
         nres = norm(res[:,s])
-        if nres > solver.lindep_thresh
+        if nres > solver.tol
             ss = hcat(ss,res[:,s]/nres)
             new = hcat(new,res[:,s]/nres)
         end
     end
-    #ss_metric = eigvals(new'*new)
-    #if ss_metric < solver.lindep_thresh
-
-    solver.lindep = maximum([abs(maximum(ss_metric)-1), abs(minimum(ss_metric)-1)]) 
     return new
 end
 
@@ -206,13 +198,25 @@ function solve(solver::Davidson; Adiag=nothing, iprint=0)
             solver.converged == true
             break
         end
+        if solver.lindep > solver.lindep_thresh
+            @warn "Linear dependency detected. Restarting."
+            @time F = qr(solver.vec_prev[:,1:solver.nroots])
+            solver.vec_curr = Array(F.Q)
+            solver.sig_curr = Array(F.Q)
+            solver.vec_prev = zeros(solver.dim, 0) 
+            solver.sig_prev =  zeros(solver.dim, 0)
+            solver.ritz_v = zeros(solver.nroots,solver.nroots)
+            solver.ritz_e = zeros(solver.nroots)
+            solver.resid = zeros(solver.nroots)
+        end
     end
     return solver.ritz_e[1:solver.nroots], solver.vec_prev[:,1:solver.nroots]
-    #return solver.ritz_e[1:solver.nroots], solver.vec_prev*solver.ritz_v[:,1:solver.nroots]
+    #return solver.fritz_e[1:solver.nroots], solver.vec_prev*solver.ritz_v[:,1:solver.nroots]
 end
 
-#function orthogonalize!(sig, v)
+#function orthogonalize!(solver)
 #
-#    # |sig> = |sig> - |v><v|sig>
-#    sig .= sig .- v * (v'*sig)
+#    # |vv_i>  = |v_i> - |w
+#    new_v = zeros(solver.dim, nroots)
+#    for r in 1:nroots
 #end

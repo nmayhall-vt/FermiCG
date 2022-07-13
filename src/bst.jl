@@ -55,7 +55,7 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
         resolve_ss      = false,
         do_pt           = true,
         tol_tucker      = 1e-6,
-        solver          = "krylovkit") where {T,N,R}
+        solver          = "davidson") where {T,N,R}
     #={{{=#
     e_last = 0.0
     e0     = 0.0

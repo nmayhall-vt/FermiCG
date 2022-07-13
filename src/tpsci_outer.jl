@@ -168,7 +168,7 @@ function tps_ci_direct( ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham
                         H_old    = nothing,
                         v_old    = nothing,
                         verbose   = 0,
-                        solver = "krylovkit") where {T,N,R}
+                        solver = "davidson") where {T,N,R}
     #={{{=#
     println()
     @printf(" |== Tensor Product State CI =======================================\n")
