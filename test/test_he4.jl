@@ -3,7 +3,8 @@ using Printf
 using Test
 using JLD2 
 
-#@testset "He4" begin
+if false
+@testset "He4" begin
 
     # start with a square, then add some noise to break symmetries
     molecule = "
@@ -72,7 +73,8 @@ using JLD2
 
     #@test isapprox(e_cmf, -11.544946621511, atol=1e-9)
     @save "_testdata_cmf_he4.jld2" ints Da Db e_cmf clusters init_fspace C
-#end
+end
+end
 
 @testset "He4_basis" begin
     
