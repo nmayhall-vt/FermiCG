@@ -5,7 +5,7 @@ using JLD2
 
 #@testset "BSTstate" begin
 if false 
-    @load "_testdata_cmf_h6.jld2"
+    @load "_testdata_cmf_h12.jld2"
     v = FermiCG.BSTstate(clusters, FockConfig(init_fspace), cluster_bases)
     
     e_ci, v_ci = FermiCG.ci_solve(v, cluster_ops, clustered_ham)
@@ -63,7 +63,7 @@ end
 @testset "BST" begin
 
 
-    @load "_testdata_cmf_h6.jld2"
+    @load "_testdata_cmf_h12.jld2"
 
     v = FermiCG.BSTstate(clusters, FockConfig(init_fspace), cluster_bases)
 

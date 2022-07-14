@@ -5,7 +5,7 @@ using JLD2
 
 @testset "BST vs BS" begin
 
-    @load "_testdata_cmf_h6.jld2"
+    @load "_testdata_cmf_h12.jld2"
   
     v = FermiCG.BSstate(clusters, FermiCG.FockConfig(init_fspace), cluster_bases, R=7)
     FermiCG.add_single_excitons!(v)

@@ -261,8 +261,8 @@ end
 
 
 end
-@testset "tpsci h6 64bit" begin
-    @load "_testdata_cmf_h6.jld2"
+@testset "tpsci h12 64bit" begin
+    @load "_testdata_cmf_h12.jld2"
     
     nroots = 7
 
@@ -312,8 +312,8 @@ end
 
 
 end
-@testset "tpsci h6 32bit" begin
-    @load "_testdata_cmf_h6.jld2"
+@testset "tpsci h12 32bit" begin
+    @load "_testdata_cmf_h12.jld2"
     
     ints = InCoreInts(ints, Float32)
     cluster_ops = [FermiCG.ClusterOps(co, Float32) for co in cluster_ops]
