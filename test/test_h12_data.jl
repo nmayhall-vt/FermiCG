@@ -7,15 +7,15 @@ using JLD2
 
     molecule = "
     H   0.0     0.0     0.0
-    H   0.1     0.0     1.0
+    H   0.0     0.0     1.0
     H   0.0     1.0     2.0
-    H   0.1     1.0     3.0
+    H   0.0     1.0     3.0
     H   0.0     2.0     4.0
     H   0.0     2.0     5.0
-    H   0.5     3.0     6.0
+    H   0.0     3.0     6.0
     H   0.0     3.0     7.0
     H   0.0     4.0     8.0
-    H   0.1     4.0     9.0
+    H   0.0     4.0     9.0
     H   0.0     5.0     10.0
     H   0.0     5.0     11.0
     "
@@ -66,11 +66,11 @@ using JLD2
     # do CMF
     rdm1 = zeros(size(ints.h1))
     e_cmf, U, Da, Db  = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, rdm1, 
-                                       max_iter_oo=40, verbose=0, gconv=1e-8, 
+                                       max_iter_oo=60, verbose=0, gconv=1e-10, 
                                        method="bfgs")
     ints = FermiCG.orbital_rotation(ints,U)
 
-    #@test isapprox(e_cmf, -6.5218473576915414, atol=1e-9)
+    @test isapprox(e_cmf, -6.5218473576915414, atol=1e-9)
     @save "_testdata_cmf_h6.jld2" ints Da Db e_cmf clusters init_fspace
 end
 
@@ -100,6 +100,7 @@ end
             end
         end
     end
+    println(check)
     #@test isapprox(check, 159955.9925735096, atol=1e-6)
     @save "_testdata_cmf_h6.jld2" ints Da Db e_cmf clusters init_fspace cluster_bases  clustered_ham cluster_ops
 end

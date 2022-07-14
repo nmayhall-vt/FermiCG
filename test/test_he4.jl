@@ -3,7 +3,7 @@ using Printf
 using Test
 using JLD2 
 
-if false
+if true 
 @testset "He4" begin
 
     # start with a square, then add some noise to break symmetries
@@ -64,14 +64,14 @@ if false
     # do CMF
     rdm1 = zeros(size(ints.h1))
     e_cmf, U, Da, Db  = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, rdm1, 
-                                       max_iter_oo=40, verbose=0, gconv=1e-6, 
+                                       max_iter_oo=60, verbose=0, gconv=1e-10, 
                                        method="bfgs")
     ints = FermiCG.orbital_rotation(ints,U)
     C = Cl*U
 
     FermiCG.pyscf_write_molden(mol, C, filename="he4_cmf.molden")
 
-    #@test isapprox(e_cmf, -11.544946621511, atol=1e-9)
+    @test isapprox(e_cmf, -11.545601384796, atol=1e-9)
     @save "_testdata_cmf_he4.jld2" ints Da Db e_cmf clusters init_fspace C
 end
 end
@@ -103,7 +103,7 @@ end
         end
     end
     println(check)
-    #@test isapprox(check, 39321.08019035742, atol=1e-8)
+    @test isapprox(check, 51116.898762307974, atol=1e-8)
     @save "_testdata_cmf_he4.jld2" ints C Da Db e_cmf clusters init_fspace cluster_bases  clustered_ham cluster_ops
 end
 

@@ -216,7 +216,7 @@ end
 end
 
 
-@testset "tpsci 64bit" begin
+@testset "tpsci he 64bit" begin
     @load "_testdata_cmf_he4.jld2"
     
     nroots = 5
@@ -232,7 +232,7 @@ end
 
     #e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=false,
     #                          thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=1e-2, conv_thresh=1e-4);
-    e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=false, ci_conv=1e-8,
+    e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=true, ci_conv=1e-8,
                               thresh_cipsi=1e-3, thresh_foi=1e-8, thresh_asci=-1, conv_thresh=1e-7);
     
     e2 = FermiCG.compute_pt2_energy(v0, cluster_ops, clustered_ham, thresh_foi=1e-10)
@@ -242,25 +242,26 @@ end
     display(e0+e2)
 
     ref = [
-           -18.325189101846313
-           -18.042985609073583
-           -18.017049275860863
-           -17.987034114416396
+           -16.886058282127408
+           -15.435804238762836
+           -15.42280922860447
+           -15.422679313623284
+           -15.409353983787529
           ]
-    @test isapprox(abs.(ref), abs.(e0), atol=1e-7)
+    @test isapprox(abs.(ref), abs.(e0), atol=1e-8)
     
     ref = [
-           -18.32925579281718
-           -18.05237961604156
-           -18.026984332078857
-           -17.9949512190358
+           -16.886190528051184
+           -15.43619659959889
+           -15.423267329074774
+           -15.423025783287512
+           -15.4097340230104
           ]
-    @test isapprox(abs.(ref), abs.(e0+e2), atol=1e-7)
+    @test isapprox(abs.(ref), abs.(e0+e2), atol=1e-8)
 
-    error("huh")
 
 end
-@testset "tpsci 64bit" begin
+@testset "tpsci h6 64bit" begin
     @load "_testdata_cmf_h6.jld2"
     
     nroots = 7
@@ -278,7 +279,7 @@ end
 
     #e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=false,
     #                          thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=1e-2, conv_thresh=1e-4);
-    e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=false, ci_conv=1e-8,
+    e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=true, ci_conv=1e-8,
                               thresh_cipsi=1e-2, thresh_foi=1e-5, thresh_asci=-1, conv_thresh=1e-7);
     
     e2 = FermiCG.compute_pt2_energy(v0, cluster_ops, clustered_ham, thresh_foi=1e-10)
@@ -288,24 +289,30 @@ end
     display(e0+e2)
 
     ref = [
-           -18.325189101846313
-           -18.042985609073583
-           -18.017049275860863
-           -17.987034114416396
+           -18.32512226024639
+           -18.04260833429895
+           -18.016245886981604
+           -17.986259649774958
+           -17.95388664714469
+           -17.92637656089058
+           -17.909347539008866
           ]
-    @test isapprox(abs.(ref), abs.(e0), atol=1e-7)
+    @test isapprox(abs.(ref), abs.(e0), atol=1e-8)
     
     ref = [
-           -18.32925579281718
-           -18.05237961604156
-           -18.026984332078857
-           -17.9949512190358
+           -18.329242607660643
+           -18.05229946775759
+           -18.026861793675902
+           -17.994775613520986
+           -17.962143890203432
+           -17.934857273405683
+           -17.91769596347915
           ]
-    @test isapprox(abs.(ref), abs.(e0+e2), atol=1e-7)
+    @test isapprox(abs.(ref), abs.(e0+e2), atol=1e-8)
 
 
 end
-@testset "tpsci 32bit" begin
+@testset "tpsci h6 32bit" begin
     @load "_testdata_cmf_h6.jld2"
     
     ints = InCoreInts(ints, Float32)
