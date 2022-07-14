@@ -640,7 +640,7 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
 
         e0 = nothing
         mem_needed = sizeof(T)*length(vec_var)*length(vec_var)*1e-9
-        @printf(" Memory needed to hold full CI matrix: %12.8f (Gb)\n",mem_needed)
+        @printf(" Memory needed to hold full CI matrix: %12.8f (Gb) Max allowed: %12.8f (Gb)\n",mem_needed, max_mem_ci)
         flush(stdout)
         @timeit to "ci" begin
             if (mem_needed > max_mem_ci) || davidson == true
@@ -701,7 +701,13 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
         #             = \sum_k H |v_k^{i-1}><v_k^{i-1}|v_l^i> + H(|v_l^i> - \sum_k |v_k^{i-1}><v_k^{i-1}|v_l^i>)
         #             = \sum_k |sig_k^{i-1}>s_kl^{i-1,i} + H(|v_l^i> - \sum_k |v_k^{i-1}> s_kl^{i-1,i})
         #   
-        #           
+        #
+        #   Not done, but we could: Now rotate into the singular vector basis of the overlap: s_kl = U_ka S_a V_al
+        #
+        #   |sig_l^i> V'_la = |sig_k^{i-1}> U_ia S_a + H ( |v_l^i> V'_la - |v_l^{i-1}> U_ka S_a
+        #
+        #   Then rotate back by left multiplying by V_al
+        #   
         #
         #
 
@@ -720,10 +726,18 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
                 println()
             end
             println()
-            
+
+            F = svd(S)
+            println(" Singular values of overlap:")
+            for i in F.S 
+                @printf(" %6.3f\n",i)
+            end
+
+
             #tmp = deepcopy(sig)
-            #@timeit to "sig rotate" mult!(sig, S)
-            @timeit to "sig rotate" sig = sig_old*S
+            #@timeit to "sig rotate" sig = sig_old * F.U * Diagonal(F.S)
+            #@timeit to "vec rotate" del_v0 = vec_asci*F.V - (vec_asci_old * F.U * Diagonal(F.S))
+            @timeit to "sig rotate" sig = sig_old * S
             @timeit to "vec rotate" del_v0 = vec_asci - (vec_asci_old * S)
 
             println(" Norm of new projection:")
@@ -740,6 +754,8 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
             end
             flush(stdout)
             @timeit to "sig update" add!(sig, del_sig_it)
+
+            #sig = sig * F.Vt
 
 
             #

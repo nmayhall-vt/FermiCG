@@ -6,6 +6,7 @@ Random.seed!(1234567)
 
 @testset "FermiCG" begin
     include("test_h12_data.jl")
+    include("test_he4.jl")
     include("test_hamiltonians.jl")
     include("test_cmf.jl")
     include("test_Clusters.jl")
