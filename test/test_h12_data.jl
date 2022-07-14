@@ -66,7 +66,7 @@ using JLD2
     # do CMF
     rdm1 = zeros(size(ints.h1))
     e_cmf, U, Da, Db  = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, rdm1, 
-                                       max_iter_oo=40, verbose=0, gconv=1e-6, 
+                                       max_iter_oo=40, verbose=0, gconv=1e-8, 
                                        method="bfgs")
     ints = FermiCG.orbital_rotation(ints,U)
 
@@ -83,7 +83,7 @@ end
 
     #
     # form Cluster data
-    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=0, 
+    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=1, 
                                                        max_roots=max_roots, 
                                                        init_fspace=init_fspace, 
                                                        rdm1a=Da, rdm1b=Db)
