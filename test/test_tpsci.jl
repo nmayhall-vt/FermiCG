@@ -9,7 +9,7 @@ using PyCall
 using Arpack
 using JLD2
 
-#if false 
+if false 
 @testset "tpsci" begin
     atoms = []
 
@@ -213,24 +213,28 @@ using JLD2
     @test isapprox(norm(sig1), norm(sig2), atol=1e-12)
 
 end
-#end
+end
+
 
 @testset "tpsci 64bit" begin
     @load "_testdata_cmf_h6.jld2"
     
-    nroots = 4
+    nroots = 7
 
     ref_fock = FermiCG.FockConfig(init_fspace)
     ci_vector = FermiCG.TPSCIstate(clusters, ref_fock, R=nroots, T=Float64)
 
     #1 excitons 
-    ci_vector[ref_fock][ClusterConfig([2,1,1,1,1])] = [0,1,0,0]
-    ci_vector[ref_fock][ClusterConfig([1,2,1,1,1])] = [0,0,1,0]
-    ci_vector[ref_fock][ClusterConfig([1,1,2,1,1])] = [0,0,0,1]
+    ci_vector[ref_fock][ClusterConfig([2,1,1,1,1])] = [0,1,0,0,0,0,0]
+    ci_vector[ref_fock][ClusterConfig([1,2,1,1,1])] = [0,0,1,0,0,0,0]
+    ci_vector[ref_fock][ClusterConfig([1,1,2,1,1])] = [0,0,0,1,0,0,0]
+    ci_vector[ref_fock][ClusterConfig([1,1,3,1,1])] = [0,0,0,0,1,0,0]
+    ci_vector[ref_fock][ClusterConfig([1,1,1,2,1])] = [0,0,0,0,0,1,0]
+    ci_vector[ref_fock][ClusterConfig([1,1,1,1,2])] = [0,0,0,0,0,0,1]
 
     #e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=false,
     #                          thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=1e-2, conv_thresh=1e-4);
-    e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=true, ci_conv=1e-8,
+    e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=false, ci_conv=1e-8,
                               thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=-1, conv_thresh=1e-7);
     
     e2 = FermiCG.compute_pt2_energy(v0, cluster_ops, clustered_ham, thresh_foi=1e-10)
