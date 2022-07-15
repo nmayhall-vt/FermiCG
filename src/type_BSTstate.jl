@@ -463,7 +463,7 @@ and then adds the excited states. E.g.,
 """
 function add_single_excitons!(ts::BSTstate{T,N,R}, 
                               fock::FockConfig{N}, 
-                              cluster_bases::Vector{ClusterBasis}) where {T,N,R}
+                              cluster_bases::Vector{ClusterBasis{T}}) where {T,N,R}
 #={{{=#
     #length(size(v)) == 1 || error(" Only takes vectors", size(v))
 

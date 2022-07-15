@@ -73,6 +73,7 @@ function ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_ham;
                          shift       = nothing,
                          precond     = false,
                          verbose     = 0,
+                         nbody       = 4,
                          solver      = "davidson") where {T,N,R}
 #={{{=#
     @printf(" |== BST CI ========================================================\n")
@@ -94,7 +95,7 @@ function ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_ham;
 
         sig = deepcopy(vec_i)
         zero!(sig)
-        build_sigma!(sig, vec_i, cluster_ops, clustered_ham, cache=cache)
+        build_sigma!(sig, vec_i, cluster_ops, clustered_ham, cache=cache, nbody=nbody)
 
         return get_vector(sig) 
     end
@@ -106,7 +107,7 @@ function ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_ham;
 
         sig = deepcopy(vec_i)
         zero!(sig)
-        build_sigma!(sig, vec_i, cluster_ops, clustered_ham, cache=cache)
+        build_sigma!(sig, vec_i, cluster_ops, clustered_ham, cache=cache, nbody=nbody)
 
         return get_vector(sig)[:,1]
     end
