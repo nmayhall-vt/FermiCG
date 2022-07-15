@@ -8,10 +8,11 @@ function build_dense_H_term(term::ClusteredTerm1B, cluster_ops, fock_bra, bra, c
     op = Array{T}[]
 
     op1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
+    size(op1,1) == 1 || throw(DimensionMismatch)
 
     #
     # Get 1body operator and compress it using the cluster's Tucker factors
-    op = coeffs_bra.factors[c1.idx]' * (op1[bra[c1.idx],ket[c1.idx]] * coeffs_ket.factors[c1.idx])
+    op = coeffs_bra.factors[c1.idx]' * (op1[1,bra[c1.idx],ket[c1.idx]] * coeffs_ket.factors[c1.idx])
 
     return op
 end
@@ -184,13 +185,13 @@ function build_dense_H_term(term::ClusteredTerm1B, cluster_ops, fock_bra, bra, c
                             scr_f::Vector{Vector{T}}) where T
 #={{{=#
     c1 = term.clusters[1]
-    op = Array{T,2}[]
         
-    op1::Array{T,2} = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
+    op1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
 
+    size(op1,1) == 1 || throw(DimensionMismatch)
     #
     # Get 1body operator and compress it using the cluster's Tucker factors
-    op = coeffs_bra.factors[c1.idx]' * (op1[bra[c1.idx],ket[c1.idx]] * coeffs_ket.factors[c1.idx])
+    op = coeffs_bra.factors[c1.idx]' * (op1[1,bra[c1.idx],ket[c1.idx]] * coeffs_ket.factors[c1.idx])
 
     return op
 end

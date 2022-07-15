@@ -29,7 +29,7 @@ function form_sigma_block_expand(term::ClusteredTerm1B,
     # but since we are expanding the compression space
     # only compress the right hand side
     op1 = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
-    op =  (op1[bra[c1.idx],ket[c1.idx]] * coeffs_ket.factors[c1.idx])
+    op =  (op1[1,bra[c1.idx],ket[c1.idx]] * coeffs_ket.factors[c1.idx])
 
     tensors = Vector{Array{T}}()
     indices = Vector{Vector{Int16}}()

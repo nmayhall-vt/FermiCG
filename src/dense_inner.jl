@@ -29,8 +29,10 @@ function form_sigma_block!(term::ClusteredTerm1B,
     # make sure active clusters are correct transitions 
     fock_bra[c1.idx] == fock_ket[c1.idx] .+ term.delta[1] || throw(Exception)
 
-    op = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][bra[c1.idx],ket[c1.idx]]
+    op = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,bra[c1.idx],ket[c1.idx]]
 
+    size(op,1) == 1 || throw(DimensionMismatch) 
+    op = reshape(op, (size(op,2), size(op,3)))
 
 
 

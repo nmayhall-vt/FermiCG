@@ -28,7 +28,7 @@ function contract_matrix_element(   term::ClusteredTerm1B{T},
     # make sure active clusters are correct transitions 
     fock_bra[c1.idx] == fock_ket[c1.idx] .+ term.delta[1] || throw(Exception)
 
-    return cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][bra[c1.idx],ket[c1.idx]]
+    return cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][1,bra[c1.idx],ket[c1.idx]]
 end
 #=}}}=#
 """
@@ -355,7 +355,7 @@ function contract_matvec(   term::ClusteredTerm1B,
     #
     # <:|p'|J> h(pq) <:|q|L>
 
-    new_coeffs = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][:,conf_ket[c1.idx]] * state_sign
+    new_coeffs = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])][1,:,conf_ket[c1.idx]] * state_sign
     newI = 1:size(new_coeffs,1)
 
     out = OrderedDict{ClusterConfig{N}, MVector{R,T}}()

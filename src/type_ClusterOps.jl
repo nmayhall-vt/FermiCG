@@ -1,6 +1,6 @@
 struct ClusterOps{T}
     cluster::Cluster
-    data::Dict{String,Dict{Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}},Array{T}}}
+    data::Dict{String,Dict{Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}},Array{T,3}}}
 end
 
 Base.iterate(i::ClusterOps, state=1) = iterate(i.data, state)
@@ -16,11 +16,11 @@ Base.keys(co::ClusterOps) = keys(co.data)
 Convert from one data type to another
 """
 function ClusterOps(co::ClusterOps, T::Type)
-    out = ClusterOps{T}(co.cluster, Dict{String,Dict{Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}},Array{T}}}())
+    out = ClusterOps{T}(co.cluster, Dict{String,Dict{Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}},Array{T,3}}}())
     for (op,fspaces) in co.data
-        out.data[op] = Dict{Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}},Array{T}}()
+        out.data[op] = Dict{Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}},Array{T,3}}()
         for (fspacetrans,opmat) in fspaces
-            out.data[op][fspacetrans] = Array{T}(opmat)
+            out.data[op][fspacetrans] = Array{T,3}(opmat)
         end
     end
     return out
@@ -38,7 +38,7 @@ function Base.display(co::ClusterOps)
     end
 end
 function ClusterOps(ci::Cluster; T::Type=Float64)
-    dic1 = Dict{Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}},Array{T}}()
+    dic1 = Dict{Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}},Array{T,3}}()
     dic2 = Dict{String,typeof(dic1)}() 
     return ClusterOps(ci, dic2)
 end

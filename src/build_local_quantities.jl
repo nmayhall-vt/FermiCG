@@ -47,7 +47,9 @@ function compute_cluster_ops(cluster_bases, ints::InCoreInts{T}) where {T}
     for ci in clusters
         cb = cluster_bases[ci.idx]
         
-        cluster_ops[ci.idx]["H"] = FermiCG.tdm_H(cb, subset(ints, ci.orb_list), verbose=0) 
+        #tmp = FermiCG.tdm_H(cb, subset(ints, ci.orb_list), verbose=0)
+        #cluster_ops[ci.idx]["H"] = reshape(tmp, (1, size(tmp,1), size(tmp,2))) 
+        cluster_ops[ci.idx]["H"] = FermiCG.tdm_H(cb, subset(ints, ci.orb_list), verbose=0)
 
         cluster_ops[ci.idx]["A"], cluster_ops[ci.idx]["a"] = FermiCG.tdm_A(cb,"alpha") 
         cluster_ops[ci.idx]["B"], cluster_ops[ci.idx]["b"] = FermiCG.tdm_A(cb,"beta")
@@ -66,18 +68,17 @@ function compute_cluster_ops(cluster_bases, ints::InCoreInts{T}) where {T}
         #cluster_ops[ci.idx]["ABb"], cluster_ops[ci.idx]["Bba"], cluster_ops[ci.idx]["BAb"], cluster_ops[ci.idx]["Bab"] = FermiCG.tdm_ABa(cb,"beta")
        
         # spin operators
+        norbs = length(ci)
         
         #
         # S+
-        op = Dict{Tuple,Array}()
+        op = Dict{Tuple,Array{T,3}}()
         for (fock,mat) in cluster_ops[ci.idx]["Ab"]
             dims = size(mat)
-            op[fock] = zeros(dims[2:4]...)
-            for j in 1:dims[4]
-                for i in 1:dims[3]
-                    for p in 1:dims[2]
-                        op[fock][p,i,j] = mat[p,p,i,j]
-                    end
+            op[fock] = zeros(norbs, dims[2], dims[3])
+            for j in 1:dims[3]
+                for i in 1:dims[2]
+                    op[fock][:,i,j] .= diag(reshape(mat[:,i,j], (norbs, norbs)))
                 end
             end
         end
@@ -85,15 +86,13 @@ function compute_cluster_ops(cluster_bases, ints::InCoreInts{T}) where {T}
         
         #
         # S-
-        op = Dict{Tuple,Array}()
+        op = Dict{Tuple,Array{T,3}}()
         for (fock,mat) in cluster_ops[ci.idx]["Ba"]
             dims = size(mat)
-            op[fock] = zeros(dims[2:4]...)
-            for j in 1:dims[4]
-                for i in 1:dims[3]
-                    for p in 1:dims[2]
-                        op[fock][p,i,j] = mat[p,p,i,j]
-                    end
+            op[fock] = zeros(norbs, dims[2], dims[3])
+            for j in 1:dims[3]
+                for i in 1:dims[2]
+                    op[fock][:,i,j] .= diag(reshape(mat[:,i,j], (norbs, norbs)))
                 end
             end
         end
@@ -101,15 +100,15 @@ function compute_cluster_ops(cluster_bases, ints::InCoreInts{T}) where {T}
         
         #
         # Sz
-        op = Dict{Tuple,Array}()
+        op = Dict{Tuple,Array{T,3}}()
         #
         # loop over fock-space transitions
         for (fock,basis) in cb
             focktrans = (fock,fock)
 
             sz = (fock[1] - fock[2]) / 2.0
-            op[focktrans] = sz*Matrix(1.0I, size(cb[fock],2), size(cb[fock],2))
-            op[focktrans] = reshape(op[focktrans],1,size(op[focktrans],1),size(op[focktrans],2))
+            tmp = sz*Matrix(1.0I, size(cb[fock],2), size(cb[fock],2))
+            op[focktrans] = reshape(tmp, (1, size(tmp,1), size(tmp,2))) 
 
         end
         cluster_ops[ci.idx]["Sz"] = op
@@ -121,60 +120,60 @@ function compute_cluster_ops(cluster_bases, ints::InCoreInts{T}) where {T}
 
 
 
-        to_delete = [
-                     #"AAa",
-                     #"Aaa",
-                     #"BBb",
-                     #"Bbb",
-                     #
-                     #"ABa",
-                     #"Aba",
-                     ##"BAa",
-                     ##"Aab",
-                     #
-                     #"ABb",
-                     #"Bba",
-                     ##"BAb",
-                     ##"Bab",
-                     #"Aa",
-                     #"Bb",
-                     #"Ab",
-                     #"Ba",
-                     #"AB",
-                     #"ba",
-                     #"BA",
-                     #"ab",
-                     #"AA",
-                     #"BB",
-                     #"aa",
-                     #"bb"
-                     ]
-        for op in to_delete
-            for (ftran,array) in cluster_ops[ci.idx][op]
-                cluster_ops[ci.idx][op][ftran] .*= 0
-            end
-        end
-
-        # Compute single excitation operator
-        tmp = Dict{Tuple,Array}()
-        for (fock,basis) in cb
-            tmp[(fock,fock)] = (cluster_ops[ci.idx]["Aa"][(fock,fock)] + cluster_ops[ci.idx]["Bb"][(fock,fock)])
-        end
-        cluster_ops[ci.idx]["E1"] = tmp 
-
-        #
-        # reshape data into 3index quantities: e.g., (pqr, I, J)
-        for opstring in keys(cluster_ops[ci.idx])
-            opstring != "H" || continue
-            opstring != "S2" || continue
-            for ftrans in keys(cluster_ops[ci.idx][opstring])
-                data = cluster_ops[ci.idx][opstring][ftrans]
-                dim1 = prod(size(data)[1:(length(size(data))-2)])
-                dim2 = size(data)[length(size(data))-1]
-                dim3 = size(data)[length(size(data))-0]
-                cluster_ops[ci.idx][opstring][ftrans] = copy(reshape(data, (dim1,dim2,dim3)))
-            end
-        end
+#        to_delete = [
+#                     #"AAa",
+#                     #"Aaa",
+#                     #"BBb",
+#                     #"Bbb",
+#                     #
+#                     #"ABa",
+#                     #"Aba",
+#                     ##"BAa",
+#                     ##"Aab",
+#                     #
+#                     #"ABb",
+#                     #"Bba",
+#                     ##"BAb",
+#                     ##"Bab",
+#                     #"Aa",
+#                     #"Bb",
+#                     #"Ab",
+#                     #"Ba",
+#                     #"AB",
+#                     #"ba",
+#                     #"BA",
+#                     #"ab",
+#                     #"AA",
+#                     #"BB",
+#                     #"aa",
+#                     #"bb"
+#                     ]
+#        for op in to_delete
+#            for (ftran,array) in cluster_ops[ci.idx][op]
+#                cluster_ops[ci.idx][op][ftran] .*= 0
+#            end
+#        end
+#
+#        # Compute single excitation operator
+#        tmp = Dict{Tuple,Array}()
+#        for (fock,basis) in cb
+#            tmp[(fock,fock)] = (cluster_ops[ci.idx]["Aa"][(fock,fock)] + cluster_ops[ci.idx]["Bb"][(fock,fock)])
+#        end
+#        cluster_ops[ci.idx]["E1"] = tmp 
+#
+#        #
+#        # reshape data into 3index quantities: e.g., (pqr, I, J)
+#        for opstring in keys(cluster_ops[ci.idx])
+#            opstring != "H" || continue
+#            opstring != "S2" || continue
+#            for ftrans in keys(cluster_ops[ci.idx][opstring])
+#                data = cluster_ops[ci.idx][opstring][ftrans]
+#                dim1 = prod(size(data)[1:(length(size(data))-2)])
+#                dim2 = size(data)[length(size(data))-1]
+#                dim3 = size(data)[length(size(data))-0]
+#                cluster_ops[ci.idx][opstring][ftrans] = copy(reshape(data, (dim1,dim2,dim3)))
+#            end
+#        end
     end
     return cluster_ops
 end
@@ -189,13 +188,13 @@ from accessible sectors of a cluster's fock space.
 
 Returns `Dict[((na,nb),(na,nb))] => Array`
 """
-function tdm_H(cb::ClusterBasis, ints; verbose=0)
+function tdm_H(cb::ClusterBasis{T}, ints; verbose=0) where {T}
 #={{{=#
     verbose == 0 || println("")
     verbose == 0 || display(cb.cluster)
     norbs = length(cb.cluster)
 
-    dicti = Dict{Tuple,Array}()
+    dicti = Dict{Tuple,Array{T,3}}()
     #
     # loop over fock-space transitions
     verbose == 0 || display(cb.cluster)
@@ -205,7 +204,8 @@ function tdm_H(cb::ClusterBasis, ints; verbose=0)
         verbose == 0 || display(problem)
         Hmap = StringCI.get_map(ints, problem)
 
-        dicti[focktrans] = cb[fock]' * Matrix((Hmap * cb[fock]))
+        H = cb[fock]' * Matrix((Hmap * cb[fock]))
+        dicti[focktrans] = reshape(H, (1, size(H,1), size(H,2))) 
 
         if verbose > 0
             for e in 1:size(cb[fock],2)
@@ -220,13 +220,13 @@ end
 
 """
 """
-function tdm_S2(cb::ClusterBasis, ints; verbose=0)
+function tdm_S2(cb::ClusterBasis{T}, ints; verbose=0) where T
 #={{{=#
     verbose == 0 || println("")
     verbose == 0 || display(cb.cluster)
     norbs = length(cb.cluster)
 
-    dicti = Dict{Tuple,Array}()
+    dicti = Dict{Tuple,Array{T,3}}()
     #
     # loop over fock-space transitions
     verbose == 0 || display(cb.cluster)
@@ -235,7 +235,8 @@ function tdm_S2(cb::ClusterBasis, ints; verbose=0)
         problem = StringCI.FCIProblem(norbs, fock[1], fock[2])
         verbose == 0 || display(problem)
 
-        dicti[focktrans] = cb[fock]' * (StringCI.build_S2_matrix(problem) * cb[fock])
+        S2 = cb[fock]' * (StringCI.build_S2_matrix(problem) * cb[fock])
+        dicti[focktrans] = reshape(S2, (1, size(S2,1), size(S2,2)))
 
         if verbose > 0
             for e in 1:size(cb[fock],2)
@@ -256,14 +257,14 @@ from accessible sectors of a cluster's fock space.
 
 Returns `Dict[((na,nb),(na,nb))] => Array`
 """
-function tdm_A(cb::ClusterBasis, spin_case; verbose=0)
+function tdm_A(cb::ClusterBasis{T}, spin_case; verbose=0) where T
 #={{{=#
     verbose == 0 || println("")
     verbose == 0 || display(ci)
     norbs = length(cb.cluster)
 
-    dicti = Dict{Tuple,Array}()
-    dicti_adj = Dict{Tuple,Array}()
+    dicti = Dict{Tuple,Array{T,3}}()
+    dicti_adj = Dict{Tuple,Array{T,3}}()
     #
     # loop over fock-space transitions
     for na in 0:norbs
@@ -304,14 +305,14 @@ from accessible sectors of a cluster's fock space.
 
 Returns `Dict[((na,nb),(na,nb))] => Array`
 """
-function tdm_AA(cb::ClusterBasis, spin_case; verbose=0)
+function tdm_AA(cb::ClusterBasis{T}, spin_case; verbose=0) where T
 #={{{=#
     verbose == 0 || println("")
     verbose == 0 || display(ci)
     norbs = length(cb.cluster)
 
-    dicti = Dict{Tuple,Array}()
-    dicti_adj = Dict{Tuple,Array}()
+    dicti = Dict{Tuple,Array{T,3}}()
+    dicti_adj = Dict{Tuple,Array{T,3}}()
     #
     # loop over fock-space transitions
     for na in 0:norbs
@@ -335,11 +336,14 @@ function tdm_AA(cb::ClusterBasis, spin_case; verbose=0)
                 #println()
                 #println("::::::::::::::: ", fockbra, fockket)
                 #println(":: ", size(basis_bra), size(basis_ket))
-                dicti[focktrans] = FermiCG.StringCI.compute_AA(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket, spin_case)
+                tmp = FermiCG.StringCI.compute_AA(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket, spin_case)
+
+                dicti[focktrans] = reshape(tmp, (size(tmp,1)*size(tmp,2), size(tmp,3), size(tmp,4)))
                 # adjoint 
                 basis_bra = cb[fockket]
                 basis_ket = cb[fockbra]
-                dicti_adj[focktrans_adj] =  permutedims(dicti[focktrans], [2,1,4,3])
+                tmp =  permutedims(tmp, [2,1,4,3])
+                dicti_adj[focktrans_adj] = reshape(tmp, (size(tmp,1)*size(tmp,2), size(tmp,3), size(tmp,4)))
             end
         end
     end
@@ -356,13 +360,13 @@ from accessible sectors of a cluster's fock space.
 - `spin_case`: alpha or beta
 Returns `Dict[((na,nb),(na,nb))] => Array`
 """
-function tdm_Aa(cb::ClusterBasis, spin_case; verbose=0)
+function tdm_Aa(cb::ClusterBasis{T}, spin_case; verbose=0) where T
 #={{{=#
     verbose == 0 || println("")
     verbose == 0 || display(ci)
     norbs = length(cb.cluster)
 
-    dicti = Dict{Tuple,Array}()
+    dicti = Dict{Tuple,Array{T,3}}()
     #
     # loop over fock-space transitions
     for na in 0:norbs
@@ -375,7 +379,8 @@ function tdm_Aa(cb::ClusterBasis, spin_case; verbose=0)
             if haskey(cb, fockbra) && haskey(cb, fockket)
                 basis_bra = cb[fockbra]
                 basis_ket = cb[fockket]
-                dicti[focktrans] = FermiCG.StringCI.compute_Aa(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket, spin_case)
+                tmp = FermiCG.StringCI.compute_Aa(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket, spin_case)
+                dicti[focktrans] = reshape(tmp, (norbs*norbs, size(tmp,3), size(tmp,4))) 
                 #dicti[focktrans] = reshape(dicti[focktrans],(norbs*norbs, size(dicti[focktrans],3), size(dicti[focktrans],4)))
             end
         end
@@ -394,14 +399,14 @@ from accessible sectors of a cluster's fock space, where
 
 Returns `Dict[((na,nb),(na,nb))] => Array`
 """
-function tdm_Ab(cb::ClusterBasis; verbose=0)
+function tdm_Ab(cb::ClusterBasis{T}; verbose=0) where T
 #={{{=#
     verbose == 0 || println("")
     verbose == 0 || display(ci)
     norbs = length(cb.cluster)
 
-    dicti = Dict{Tuple,Array}()
-    dicti_adj = Dict{Tuple,Array}()
+    dicti = Dict{Tuple,Array{T,3}}()
+    dicti_adj = Dict{Tuple,Array{T,3}}()
     #
     # loop over fock-space transitions
     for na in -1:norbs+1
@@ -415,13 +420,15 @@ function tdm_Ab(cb::ClusterBasis; verbose=0)
             if haskey(cb, fockbra) && haskey(cb, fockket)
                 basis_bra = cb[fockbra]
                 basis_ket = cb[fockket]
-                dicti[focktrans] = FermiCG.StringCI.compute_Ab(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket)
+                tmp = FermiCG.StringCI.compute_Ab(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket)
+                dicti[focktrans] = reshape(tmp, (norbs*norbs, size(tmp,3), size(tmp,4))) 
                 
                 # adjoint 
                 basis_bra = cb[fockket]
                 basis_ket = cb[fockbra]
                 #dicti[focktrans] = FermiCG.StringCI.compute_Ba(norbs, fockket[1], fockket[2], fockket[1], fockket[2], basis_bra, basis_ket)
-                dicti_adj[focktrans_adj] =  permutedims(dicti[focktrans], [2,1,4,3])
+                tmp = permutedims(tmp, [2,1,4,3])
+                dicti_adj[focktrans_adj] = reshape(tmp, (norbs*norbs, size(tmp,3), size(tmp,4))) 
             end
         end
     end
@@ -439,16 +446,16 @@ from accessible sectors of a cluster's fock space, where
 
 Returns `Dict[((na,nb),(na,nb))] => Array`
 """
-function tdm_AB(cb::ClusterBasis; verbose=0)
+function tdm_AB(cb::ClusterBasis{T}; verbose=0) where T
 #={{{=#
     verbose == 0 || println("")
     verbose == 0 || display(ci)
     norbs = length(cb.cluster)
 
-    dicti = Dict{Tuple,Array}()
-    dicti_adj = Dict{Tuple,Array}()
-    dictj = Dict{Tuple,Array}()
-    dictj_adj = Dict{Tuple,Array}()
+    dicti = Dict{Tuple,Array{T,3}}()
+    dicti_adj = Dict{Tuple,Array{T,3}}()
+    dictj = Dict{Tuple,Array{T,3}}()
+    dictj_adj = Dict{Tuple,Array{T,3}}()
     #
     # loop over fock-space transitions
     for na in -2:norbs+2
@@ -462,12 +469,17 @@ function tdm_AB(cb::ClusterBasis; verbose=0)
             if haskey(cb, fockbra) && haskey(cb, fockket)
                 basis_bra = cb[fockbra]
                 basis_ket = cb[fockket]
-                dicti[focktrans] = FermiCG.StringCI.compute_AB(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket)
-                dictj[focktrans] = -permutedims(dicti[focktrans], [2,1,3,4])
+                tmpi = FermiCG.StringCI.compute_AB(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket)
+                dicti[focktrans] = reshape(tmpi, (norbs*norbs, size(tmpi, 3), size(tmpi, 4))) 
+                
+                tmpj = -permutedims(tmpi, [2,1,3,4])
+                dictj[focktrans] = reshape(tmpj, (norbs*norbs, size(tmpj, 3), size(tmpj, 4))) 
                 
                 # adjoint 
-                dicti_adj[focktrans_adj] =  permutedims(dicti[focktrans], [2,1,4,3])
-                dictj_adj[focktrans_adj] =  permutedims(dictj[focktrans], [2,1,4,3])
+                tmpi =  permutedims(tmpi, [2,1,4,3])
+                tmpj =  permutedims(tmpj, [2,1,4,3])
+                dicti_adj[focktrans_adj] = reshape(tmpi, (norbs*norbs, size(tmpi, 3), size(tmpi, 4))) 
+                dictj_adj[focktrans_adj] = reshape(tmpj, (norbs*norbs, size(tmpj, 3), size(tmpj, 4)))
             end
         end
     end
@@ -484,14 +496,14 @@ from accessible sectors of a cluster's fock space.
 - `spin_case`: alpha or beta
 Returns `Dict[((na,nb),(na,nb))] => Array`
 """
-function tdm_AAa(cb::ClusterBasis, spin_case; verbose=0)
+function tdm_AAa(cb::ClusterBasis{T}, spin_case; verbose=0) where T
 #={{{=#
     verbose == 0 || println("")
     verbose == 0 || display(ci)
     norbs = length(cb.cluster)
 
-    dicti = Dict{Tuple,Array}()
-    dicti_adj = Dict{Tuple,Array}()
+    dicti = Dict{Tuple,Array{T,3}}()
+    dicti_adj = Dict{Tuple,Array{T,3}}()
     #
     # loop over fock-space transitions
     for na in 0:norbs
@@ -512,11 +524,13 @@ function tdm_AAa(cb::ClusterBasis, spin_case; verbose=0)
             if haskey(cb, fockbra) && haskey(cb, fockket)
                 basis_bra = cb[fockbra]
                 basis_ket = cb[fockket]
-                dicti[focktrans] = FermiCG.StringCI.compute_AAa(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket, spin_case)
+                tmp = FermiCG.StringCI.compute_AAa(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket, spin_case)
+                dicti[focktrans] = reshape(tmp, (norbs*norbs*norbs, size(tmp,4), size(tmp,5))) 
                 # adjoint 
                 basis_bra = cb[fockket]
                 basis_ket = cb[fockbra]
-                dicti_adj[focktrans_adj] =  permutedims(dicti[focktrans], [3,2,1,5,4])
+                tmp = permutedims(tmp, [3,2,1,5,4])
+                dicti_adj[focktrans_adj] = reshape(tmp, (norbs*norbs*norbs, size(tmp,4), size(tmp,5)))
             end
         end
     end
@@ -533,16 +547,16 @@ from accessible sectors of a cluster's fock space.
 - `spin_case`: alpha or beta
 Returns `Dict[((na,nb),(na,nb))] => Array`
 """
-function tdm_ABa(cb::ClusterBasis, spin_case; verbose=0)
+function tdm_ABa(cb::ClusterBasis{T}, spin_case; verbose=0) where T
     #={{{=#
     verbose == 0 || println("")
     verbose == 0 || display(ci)
     norbs = length(cb.cluster)
 
-    dicti = Dict{Tuple,Array}()
-    dicti_adj = Dict{Tuple,Array}()
-    dictj = Dict{Tuple,Array}()
-    dictj_adj = Dict{Tuple,Array}()
+    dicti = Dict{Tuple,Array{T,3}}()
+    dicti_adj = Dict{Tuple,Array{T,3}}()
+    dictj = Dict{Tuple,Array{T,3}}()
+    dictj_adj = Dict{Tuple,Array{T,3}}()
     #
     # loop over fock-space transitions
     for na in -2:norbs+2
@@ -564,11 +578,18 @@ function tdm_ABa(cb::ClusterBasis, spin_case; verbose=0)
                 basis_bra = cb[fockbra]
                 basis_ket = cb[fockket]
                 if spin_case == "alpha"
-                    dicti[focktrans]     = FermiCG.StringCI.compute_ABa(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket)
-                    dictj[focktrans] = -permutedims(dicti[focktrans], [2,1,3,4,5])
+                    tmpi = FermiCG.StringCI.compute_ABa(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket)
+                    dicti[focktrans] = reshape(tmpi, (norbs*norbs*norbs, size(tmpi, 4), size(tmpi, 5)))
+
+                    tmpj = -permutedims(tmpi, [2,1,3,4,5])
+                    dictj[focktrans] = reshape(tmpj, (norbs*norbs*norbs, size(tmpj, 4), size(tmpj, 5)))
+
                 elseif spin_case == "beta"
-                    dicti[focktrans]     = FermiCG.StringCI.compute_ABb(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket)
-                    dictj[focktrans] = -permutedims(dicti[focktrans], [2,1,3,4,5])
+                    tmpi = FermiCG.StringCI.compute_ABb(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket)
+                    dicti[focktrans] = reshape(tmpi, (norbs*norbs*norbs, size(tmpi, 4), size(tmpi, 5))) 
+
+                    tmpj = -permutedims(tmpi, [2,1,3,4,5])
+                    dictj[focktrans] = reshape(tmpj, (norbs*norbs*norbs, size(tmpj, 4), size(tmpj, 5)))
                 else
                     error("Wrong spin_case: ",spin_case)
                 end
@@ -577,8 +598,10 @@ function tdm_ABa(cb::ClusterBasis, spin_case; verbose=0)
                 basis_bra = cb[fockket]
                 basis_ket = cb[fockbra]
 
-                dicti_adj[focktrans_adj] =  permutedims(dicti[focktrans], [3,2,1,5,4])
-                dictj_adj[focktrans_adj] =  permutedims(dictj[focktrans], [3,2,1,5,4])
+                tmpi = permutedims(tmpi, [3,2,1,5,4])
+                tmpj = permutedims(tmpj, [3,2,1,5,4])
+                dicti_adj[focktrans_adj] = reshape(tmpi, (norbs*norbs*norbs, size(tmpi, 4), size(tmpi, 5)))
+                dictj_adj[focktrans_adj] = reshape(tmpj, (norbs*norbs*norbs, size(tmpj, 4), size(tmpj, 5)))
             end
         end
     end
@@ -593,7 +616,7 @@ end
 
 Add effective local hamiltonians (local CASCI) type hamiltonians to a `ClusterOps` type for each `Cluster'
 """
-function add_cmf_operators!(ops, bases, ints, Da, Db; verbose=0)
+function add_cmf_operators!(ops, bases, ints::InCoreInts{T}, Da, Db; verbose=0) where T
     #={{{=#
     n_clusters = length(bases)
     for ci_idx in 1:n_clusters
@@ -606,7 +629,7 @@ function add_cmf_operators!(ops, bases, ints, Da, Db; verbose=0)
         ints_i = form_casci_ints(ints, ci, Da, Db)
 
 
-        dicti = Dict{Tuple,Array}()
+        dicti = Dict{Tuple,Array{T,3}}()
         
         #
         # loop over fock-space transitions
@@ -617,7 +640,8 @@ function add_cmf_operators!(ops, bases, ints, Da, Db; verbose=0)
             verbose == 0 || display(problem)
             Hmap = StringCI.get_map(ints_i, problem)
 
-            dicti[focktrans] = cb[fock]' * Matrix((Hmap * cb[fock]))
+            tmp = cb[fock]' * Matrix((Hmap * cb[fock]))
+            dicti[focktrans] = reshape(tmp, (1, size(tmp)...)) 
 
             if verbose > 0
                 for e in 1:size(cb[fock],2)
