@@ -202,7 +202,7 @@ function hylleraas_compressed_mp2(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R},
         #
         x_vector = zeros(T,dim)
         x_vector = get_vector(sig)[:,r]*.1
-        time = @elapsed x, solver = cg!(x_vector, Axx, br, log=true, maxiter=max_iter, verbose=verbose, abstol=tol)
+        time = @elapsed x, solver = cg!(x_vector, Axx, br, log=true, maxiter=max_iter, verbose=false, abstol=tol)
         @printf(" %-50s%10.6f seconds\n", "Time to solve for PT1 with conjugate gradient: ", time)
     
         set_vector!(psi1, x_vector, root=r)
