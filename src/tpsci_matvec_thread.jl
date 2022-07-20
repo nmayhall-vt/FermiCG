@@ -292,7 +292,7 @@ function contract_matvec_thread(   term::ClusteredTerm1B{T},
     # that the ClusterOps type isn't formed in an ideal concrete manner. We just currently use Array. 
     # This should be cleaned up eventually, preferably with a distinction between contracted, and uncontracted
     # operators.
-    g1::Array{T,2} = g1a[(fock_bra[c1.idx],fock_ket[c1.idx])]
+    g1::Array{T,2} = g1a[(fock_bra[c1.idx],fock_ket[c1.idx])] .* term.ints[1]
     
     @views gamma1 = g1[:,conf_ket[c1.idx]]
 

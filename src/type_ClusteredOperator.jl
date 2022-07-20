@@ -81,7 +81,7 @@ function extract_ClusteredTerms(ints::InCoreInts{T}, clusters) where {T}
 #={{{=#
             # instead of forming p'q and p'q'sr just precontract and keep them in 
             # ClusterOps
-            term = ClusteredTerm1B{T}(("H",), ((0,0),), (0,), (ci,), zeros(T,1),Dict())
+            term = ClusteredTerm1B{T}(("H",), ((0,0),), (0,), (ci,), ones(T,1),Dict())
             push!(terms[zero_fock],term)
 #=}}}=#
         end
@@ -832,4 +832,29 @@ function extract_1body_operator(clustered_ham::ClusteredOperator{N}; op_string="
         end
     end
     return out
+end
+
+"""
+
+Form a hamiltonian to diagonalize for a give point on an adiabatic connection path
+H(λ) = H0 + λ*(H - H0)
+
+H0 = Hcmf + <CMF|H-Hcmf|CMF>
+   = Hcmf + e_shift
+
+H(λ) = (1-λ)*Hcmf + λ*H + (1-λ)*<CMF|H-Hcmf|CMF>
+"""
+function form_ac_hamiltonian(clustered_ham::ClusteredOperator{N}, 
+                             #cluster_ops::Vector{ClusterOps{T}}, 
+                             lambda::Real; h0="Hcmf") where {N,T}
+
+    ham_out = deepcopy(clustered_ham)
+    #ops_out = deepcopy(cluster_ops)
+    for (ftrans, terms) in clustered_ham
+        for term in terms
+            if term isa ClusteredTerm1B
+                display(term.ints)
+            end
+        end
+    end
 end

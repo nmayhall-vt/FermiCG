@@ -215,6 +215,16 @@ function build_sigma!(sigma_vector::BSTstate{T,N,R}, ci_vector::BSTstate{T,N,R},
                                                   coeff_bra, coeff_ket,
                                                   scr_f[Threads.threadid()],
                                                   cache=cache)
+                   
+                    if false
+                        if term isa ClusteredTerm1B
+                            out2 = form_sigma_block2!(term, cluster_ops, fock_bra, config_bra,
+                                                      fock_ket, config_ket,
+                                                      coeff_bra, coeff_ket,
+                                                      scr_f[Threads.threadid()],
+                                                      cache=cache)
+                        end
+                    end
 
                     push!(output[Threads.threadid()], (fock_bra, config_bra, out))
 
@@ -300,6 +310,77 @@ function form_sigma_block!(term::C,
     return contract_dense_H_with_state(term, op, state_sign, coeffs_bra, coeffs_ket)
     #return contract_dense_H_with_state_tensor(term, op, state_sign, coeffs_bra, coeffs_ket)
     #return contract_dense_H_with_state_ncon(term, op, state_sign, coeffs_bra, coeffs_ket)
+end
+#=}}}=#
+
+
+function form_sigma_block2!(term::ClusteredTerm2B,
+                            cluster_ops::Vector{ClusterOps{T}},
+                            fock_bra::FockConfig, bra::TuckerConfig,
+                            fock_ket::FockConfig, ket::TuckerConfig,
+                            coeffs_bra::Tucker{T,N,R}, coeffs_ket::Tucker{T,N,R},
+                            scr_f::Vector{Vector{T}};
+                            cache=false ) where {T,N,R, C<:ClusteredTerm}
+    #={{{=#
+    check_term(term, fock_bra, bra, fock_ket, ket) || throw(Exception) 
+    #
+    # determine sign from rearranging clusters if odd number of operators
+    state_sign = compute_terms_state_sign(term, fock_ket)
+
+    c1 = term.clusters[1]
+    c2 = term.clusters[2]
+
+    #
+    # Compress Gammas using the cluster's Tucker factors
+    # e.g.,
+    #   Gamma(pqr, I, J) Ul(I,k) Ur(J,l) = Gamma(pqr, k, l) where k and l are compressed indices
+    gamma1m::Array{T,3} = cluster_ops[c1.idx][term.ops[1]][(fock_bra[c1.idx],fock_ket[c1.idx])]
+    gamma2m::Array{T,3} = cluster_ops[c2.idx][term.ops[2]][(fock_bra[c2.idx],fock_ket[c2.idx])]
+    @views gamma1 = gamma1m[:,bra[c1.idx],ket[c1.idx]]
+    @views gamma2 = gamma2m[:,bra[c2.idx],ket[c2.idx]]
+    #@btime @views gamma1::Array{Float64,3} = $cluster_ops[$c1.idx][$term.ops[1]][($fock_bra[$c1.idx],$fock_ket[$c1.idx])][:,$bra[$c1.idx],$ket[$c1.idx]]
+    Ul = coeffs_bra.factors[c1.idx]
+    Ur = coeffs_ket.factors[c1.idx]
+
+    tmp = scr_f[1]
+    g1  = scr_f[2]
+    g2  = scr_f[3]
+
+    resize!(tmp, size(Ul,2) * size(gamma1,1) * size(gamma1,3))
+    resize!(g1, size(Ul,2) * size(Ur,2) * size(gamma1,1))
+    
+    tmp = reshape2(tmp, (size(gamma1,1), size(Ul,2), size(gamma1,3)))
+    g1 = reshape2(g1, (size(gamma1,1), size(Ul,2), size(Ur,2)))
+    
+    @tensor begin
+        tmp[p,k,J] = Ul[I,k] * gamma1[p,I,J]
+        g1[p,k,l] = Ur[J,l] * tmp[p,k,J]
+    end
+
+    Ul = coeffs_bra.factors[c2.idx]
+    Ur = coeffs_ket.factors[c2.idx]
+    
+    tmp = scr_f[1]
+    resize!(tmp, size(Ul,2) * size(gamma2,1) * size(gamma2,3))
+    resize!(g2, size(Ul,2) * size(Ur,2) * size(gamma2,1))
+    
+    tmp = reshape2(tmp, (size(gamma2,1), size(Ul,2), size(gamma2,3)))
+    g2 = reshape2(g2, (size(gamma2,1), size(Ul,2), size(Ur,2)))
+    
+    @tensor begin
+        tmp[p,k,J] = Ul[I,k] * gamma2[p,I,J]
+        g2[p,k,l] = Ur[J,l] * tmp[p,k,J]
+    end
+
+    tmp2 = scr_f[4]
+    resize!(tmp2, size(term.ints,2) * size(g1,3) * size(g1,2) )
+    tmp2 = reshape2(tmp2, (size(term.ints,2), size(g1,3), size(g1,2)))
+    
+    @tensor begin
+        tmp2[q,J,I] = term.ints[p,q] * g1[p,I,J]
+        op[J,L,I,K] := tmp2[q,J,I] * g2[q,K,L]
+    end
+
 end
 #=}}}=#
 

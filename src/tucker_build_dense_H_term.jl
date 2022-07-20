@@ -13,7 +13,7 @@ function build_dense_H_term(term::ClusteredTerm1B, cluster_ops, fock_bra, bra, c
     # Get 1body operator and compress it using the cluster's Tucker factors
     op = coeffs_bra.factors[c1.idx]' * (op1[bra[c1.idx],ket[c1.idx]] * coeffs_ket.factors[c1.idx])
 
-    return op
+    return op .* term.ints[1]
 end
 #=}}}=#
 function build_dense_H_term(term::ClusteredTerm2B, cluster_ops, fock_bra, bra, coeffs_bra::Tucker, fock_ket, ket, coeffs_ket::Tucker{T,N,R}) where {T,N,R}
@@ -192,7 +192,7 @@ function build_dense_H_term(term::ClusteredTerm1B, cluster_ops, fock_bra, bra, c
     # Get 1body operator and compress it using the cluster's Tucker factors
     op = coeffs_bra.factors[c1.idx]' * (op1[bra[c1.idx],ket[c1.idx]] * coeffs_ket.factors[c1.idx])
 
-    return op
+    return op .* term.ints[1]
 end
 #=}}}=#
 function build_dense_H_term(term::ClusteredTerm2B, cluster_ops, fock_bra, bra, coeffs_bra::Tucker, fock_ket, ket, coeffs_ket::Tucker, 
