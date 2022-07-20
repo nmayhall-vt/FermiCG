@@ -352,17 +352,17 @@ function tucker_decompose(Av::NTuple{R,Array{T,N}}; thresh=1e-7, max_number=noth
         perm = sortperm(idx)
 
         tmp = reshape(permutedims(Av[1],perm), size(Av[1],i), length(Av[1])÷size(Av[1],i))
-        G = Symmetric(tmp*tmp')
+        G = tmp*tmp'
         for r in 2:R
-            tmp = reshape(permutedims(Av[r],perm), size(Av[r],i), length(Av[r])÷size(Av[r],i))
-            G += tmp*tmp'
+            tmp .= reshape(permutedims(Av[r],perm), size(Av[r],i), length(Av[r])÷size(Av[r],i))
+            G .+= tmp*tmp'
         end
         F = eigen(G) 
         F.values .= abs.(F.values)
         perm2 = sortperm(real(F.values), rev=true)
         Σ = sqrt.(F.values[perm2])
         U = F.vectors[:,perm2]
-#        U,Σ, = svd(reshape(permutedims(Av[1],perm), size(Av[1],i), length(Av[1])÷size(Av[1],i))) 
+        #U,Σ, = svd(reshape(permutedims(Av[1],perm), size(Av[1],i), length(Av[1])÷size(Av[1],i))) 
         #U,Σ, = svd(reshape(permutedims(A,perm), size(A,i), length(A)÷size(A,i))) 
    
 #        idx_l = collect(1:ndims(A))

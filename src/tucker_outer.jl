@@ -67,14 +67,15 @@ Solve for ground state in the space spanned by `ci_vector`'s compression vectors
 - `solver`: Which solver to use. Options = ["davidson", "krylovkit"]
 """
 function ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_ham; 
-                         conv_thresh = 1e-5,
-                         max_ss_vecs = 12,
-                         max_iter    = 40,
-                         shift       = nothing,
-                         precond     = false,
-                         verbose     = 0,
-                         nbody       = 4,
-                         solver      = "davidson") where {T,N,R}
+                         conv_thresh    = 1e-5,
+                         max_ss_vecs    = 12,
+                         max_iter       = 40,
+                         lindep_thresh  = 1e-10,
+                         shift          = nothing,
+                         precond        = false,
+                         verbose        = 0,
+                         nbody          = 4,
+                         solver         = "davidson") where {T,N,R}
 #={{{=#
     @printf(" |== BST CI ========================================================\n")
     @printf(" %-50s", "Solve CI with # variables: ")
@@ -165,7 +166,8 @@ function ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_ham;
 
         #cache_hamiltonian(ci_vector, ci_vector, cluster_ops, clustered_ham)
 
-        davidson = Davidson(Hmap,v0=v0,max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)
+        davidson = Davidson(Hmap,v0=v0,max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, 
+                            tol=conv_thresh, lindep_thresh=lindep_thresh)
         flush(stdout)
         time = @elapsed e,v = FermiCG.solve(davidson, iprint=verbose)
         @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)

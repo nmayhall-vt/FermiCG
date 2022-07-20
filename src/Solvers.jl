@@ -168,6 +168,8 @@ function iteration(solver::Davidson; Adiag=nothing, iprint=0)
         if norm(res[:,s]) <= solver.tol
             solver.status[s] = true
             continue
+        else
+            solver.status[s] = false 
         end
         if Adiag != nothing
             level_shift = 1e-3
@@ -196,9 +198,10 @@ function solve(solver::Davidson; Adiag=nothing, iprint=0)
             solver.converged == true
             break
         end
-        if solver.lindep > solver.lindep_thresh
+        if solver.lindep > solver.lindep_thresh && iter < solver.max_iter
             @warn "Linear dependency detected. Restarting."
-            @time F = qr(solver.vec_prev[:,1:solver.nroots])
+            flush(stdout)
+            F = qr(solver.vec_prev[:,1:solver.nroots])
             solver.vec_curr = Array(F.Q)
             solver.sig_curr = Array(F.Q)
             solver.vec_prev = zeros(solver.dim, 0) 

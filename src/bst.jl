@@ -52,6 +52,7 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
         ci_conv         = 1e-5,
         ci_max_iter     = 50,
         ci_max_ss_vecs  = 12,
+        ci_lindep_thresh= 1e-10,
         resolve_ss      = false,
         do_pt           = true,
         tol_tucker      = 1e-6,
@@ -65,19 +66,20 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
     clustered_S2 = extract_S2(input_vec.clusters)
 
     to = TimerOutput()
-    println(" max_iter       : ", max_iter       ) 
-    println(" max_iter_pt    : ", max_iter_pt    ) 
-    println(" nbody          : ", nbody          ) 
-    println(" H0             : ", H0             ) 
-    println(" thresh_var     : ", thresh_var     ) 
-    println(" thresh_foi     : ", thresh_foi     ) 
-    println(" thresh_pt      : ", thresh_pt      ) 
-    println(" ci_conv        : ", ci_conv        ) 
-    println(" ci_max_iter    : ", ci_max_iter    ) 
-    println(" ci_max_ss_vecs : ", ci_max_ss_vecs ) 
-    println(" resolve_ss     : ", resolve_ss     ) 
-    println(" do_pt          : ", do_pt          ) 
-    println(" tol_tucker     : ", tol_tucker     ) 
+    println(" max_iter         : ", max_iter         ) 
+    println(" max_iter_pt      : ", max_iter_pt      ) 
+    println(" nbody            : ", nbody            ) 
+    println(" H0               : ", H0               ) 
+    println(" thresh_var       : ", thresh_var       ) 
+    println(" thresh_foi       : ", thresh_foi       ) 
+    println(" thresh_pt        : ", thresh_pt        ) 
+    println(" ci_conv          : ", ci_conv          ) 
+    println(" ci_max_iter      : ", ci_max_iter      ) 
+    println(" ci_max_ss_vecs   : ", ci_max_ss_vecs   ) 
+    println(" ci_lindep_thresh : ", ci_lindep_thresh ) 
+    println(" resolve_ss       : ", resolve_ss       ) 
+    println(" do_pt            : ", do_pt            ) 
+    println(" tol_tucker       : ", tol_tucker       ) 
 
     for iter in 1:max_iter
         println()
@@ -112,6 +114,7 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
                                                                 max_iter    = ci_max_iter,
                                                                 max_ss_vecs = ci_max_ss_vecs,
                                                                 nbody       = nbody,
+                                                                lindep_thresh = ci_lindep_thresh,
                                                                 solver      = solver)
         else
             tmp = deepcopy(ref_vec)
@@ -214,6 +217,7 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
                                                              max_iter    = ci_max_iter,
                                                              max_ss_vecs = ci_max_ss_vecs,
                                                              nbody       = nbody,
+                                                             lindep_thresh = ci_lindep_thresh,
                                                              solver      = solver)
 
         tmp = deepcopy(var_vec)
