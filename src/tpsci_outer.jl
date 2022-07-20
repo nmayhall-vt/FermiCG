@@ -1070,7 +1070,7 @@ end
 For each fock space sector defined, add all possible basis states
 - `basis::Vector{ClusterBasis}` 
 """
-function expand_each_fock_space!(s::TPSCIstate{T,N,R}, bases::Vector{ClusterBasis}) where {T,N,R}
+function expand_each_fock_space!(s::TPSCIstate{T,N,R}, bases::Vector{ClusterBasis{T}}) where {T,N,R}
     # {{{
     println("\n Make each Fock-Block the full space")
     # create full space for each fock block defined
@@ -1104,7 +1104,7 @@ Define all possible fock space sectors and add all possible basis states
 - `na`: Number of alpha electrons total
 - `nb`: Number of alpha electrons total
 """
-function expand_to_full_space!(s::AbstractState, bases::Vector{ClusterBasis}, na, nb)
+function expand_to_full_space!(s::AbstractState, bases::Vector{ClusterBasis{T}}, na, nb) where {T}
     # {{{
     println("\n Expand to full space")
     ns = []

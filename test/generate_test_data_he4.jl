@@ -64,7 +64,7 @@ if true
     # do CMF
     rdm1 = zeros(size(ints.h1))
     e_cmf, U, Da, Db  = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, rdm1, 
-                                       max_iter_oo=60, verbose=0, gconv=1e-10, 
+                                       max_iter_oo=60, verbose=1, gconv=1e-10, 
                                        method="bfgs")
     ints = FermiCG.orbital_rotation(ints,U)
     C = Cl*U

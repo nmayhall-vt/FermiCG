@@ -2,10 +2,10 @@
 """    
     trans::Dict{TransferConfig,Vector{ClusteredTerm}}
 """
-struct ClusteredOperator{N}
-    trans::Dict{TransferConfig{N},Vector{ClusteredTerm}}
+struct ClusteredOperator{T,N}
+    trans::Dict{TransferConfig{N},Vector{ClusteredTerm{T}}}
 end
-ClusteredOperator(N::Integer) = ClusteredOperator(Dict{TransferConfig{N}, Vector{ClusteredTerm}}())
+ClusteredOperator(T::Type{<:Real}, N::Integer) = ClusteredOperator(Dict{TransferConfig{N}, Vector{ClusteredTerm{T}}}())
 function flush_cache(clustered_ham::ClusteredOperator)
     for (ftrans, terms) in clustered_ham.trans
         for term in terms
@@ -21,8 +21,8 @@ Base.setindex!(co::ClusteredOperator, i, j) = return co.trans[j] = i
 Base.getindex(co::ClusteredOperator, i) = return co.trans[i]
 Base.iterate(co::ClusteredOperator, state=1) = iterate(co.trans, state)
 flush_cache(h::Dict{TransferConfig,Vector{ClusteredTerm}}) = flush_cache(ClusteredOperator(h)) 
-mem_used_by_cache(h::Dict{TransferConfig,Vector{ClusteredTerm}}) = mem_used_by_cache(ClusteredOperator(h)) 
-Base.convert(::Type{ClusteredOperator}, input::Dict{TransferConfig,Vector{ClusteredTerm}}) = ClusteredOperator(input)
+mem_used_by_cache(h::Dict{TransferConfig,Vector{ClusteredTerm{T}}}) where {T} = mem_used_by_cache(ClusteredOperator(h)) 
+Base.convert(::Type{ClusteredOperator}, input::Dict{TransferConfig,Vector{ClusteredTerm{T}}}) where {T} = ClusteredOperator(input)
 @inline Base.length(co::ClusteredOperator) = return length(co.trans)
 function Base.display(co::ClusteredOperator)
     for (ftrans, terms) in co
@@ -60,9 +60,10 @@ function extract_ClusteredTerms(ints::InCoreInts{T}, clusters) where {T}
     size(ints.h1,2) == norb || throw(Exception)
 
     n_clusters = length(clusters)
+    N = length(clusters)
     
     #terms = Dict{TransferConfig,Vector{ClusteredTerm}}()
-    terms = ClusteredOperator(n_clusters) 
+    terms = ClusteredOperator(T,n_clusters) 
     #terms = Dict{Vector{Tuple{Int16,Int16}},Vector{ClusteredTerm}}()
     #terms = Dict{Tuple,Vector{ClusteredTerm}}()
     ops_a = Array{String}(undef,n_clusters)
@@ -650,7 +651,7 @@ function extract_S2(clusters; T=Float64)
     end
 
     n_clusters = length(clusters)
-    terms = ClusteredOperator(n_clusters) 
+    terms = ClusteredOperator(T, n_clusters) 
     
     ops_a = Array{String}(undef,n_clusters)
     ops_b = Array{String}(undef,n_clusters)
@@ -816,8 +817,8 @@ end
 Extract a 1-body operator for use in perturbation theory
 - `op_string`: either H or Hcmf
 """
-function extract_1body_operator(clustered_ham::ClusteredOperator{N}; op_string="H") where {N}
-    out = ClusteredOperator(N)
+function extract_1body_operator(clustered_ham::ClusteredOperator{T,N}; op_string="H") where {T,N}
+    out = ClusteredOperator(N,T)
     for (ftrans, terms) in clustered_ham
         for term in terms
             if term isa ClusteredTerm1B
@@ -835,7 +836,52 @@ function extract_1body_operator(clustered_ham::ClusteredOperator{N}; op_string="
 end
 
 """
+"""
+function build_1B_operator(clusters; op_string="H", T=Float64)
+    terms = ClusteredOperator(length(clusters)) 
+    zero_fock = TransferConfig([(0,0) for i in clusters])
+    terms[zero_fock] = Vector{ClusteredTerm{T}}()
+    for ci in clusters
 
+        term = ClusteredTerm1B{T}((op_string,), ((0,0),), (0,), (ci,), ones(T,1),Dict())
+        push!(terms[zero_fock],term)
+    end
+    return terms
+end
+
+
+
+function Base.:+(o1::ClusteredOperator{T,N}, o2::ClusteredOperator{T,N}) where {T,N}
+    o3 = deepcopy(o1)
+    for (ftrans, terms) in o2 
+        if haskey(o3.trans, ftrans) == false
+            o3.trans[ftrans] = Vector{ClusteredTerm{T}}()
+        end
+        for term in terms
+            push!(o3.trans[ftrans],term)
+        end
+    end
+    unique!(o3)
+    return o3
+end
+
+function Base.:*(o1::ClusteredOperator{T,N}, o2::Real) where {T,N}
+    o3 = deepcopy(o1)
+    for (ftrans, terms) in o2 
+        if haskey(o3.trans, ftrans) == false
+            o3.trans[ftrans] = Vector{ClusteredTerm{T}}()
+        end
+        for term in terms
+            push!(o3.trans[ftrans],term)
+        end
+    end
+    unique!(o3)
+    return o3
+end
+
+
+
+"""
 Form a hamiltonian to diagonalize for a give point on an adiabatic connection path
 H(λ) = H0 + λ*(H - H0)
 
@@ -844,17 +890,18 @@ H0 = Hcmf + <CMF|H-Hcmf|CMF>
 
 H(λ) = (1-λ)*Hcmf + λ*H + (1-λ)*<CMF|H-Hcmf|CMF>
 """
-function form_ac_hamiltonian(clustered_ham::ClusteredOperator{N}, 
+function form_ac_hamiltonian(clusters, clustered_ham::ClusteredOperator{N}, 
                              #cluster_ops::Vector{ClusterOps{T}}, 
-                             lambda::Real; h0="Hcmf") where {N,T}
+                             lambda::T; h0="Hcmf") where {N,T}
 
     ham_out = deepcopy(clustered_ham)
-    #ops_out = deepcopy(cluster_ops)
-    for (ftrans, terms) in clustered_ham
-        for term in terms
-            if term isa ClusteredTerm1B
-                display(term.ints)
-            end
-        end
-    end
+
+
+    ham_h0 = build_1B_operator(clusters, 
+                               op_string = "Hcmf",
+                               T=T)
+    display(ham_h0)
 end
+
+
+
