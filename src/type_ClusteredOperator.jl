@@ -5,7 +5,7 @@
 struct ClusteredOperator{T,N}
     trans::Dict{TransferConfig{N},Vector{ClusteredTerm{T}}}
 end
-ClusteredOperator(T::Type{<:Real}, N::Integer) = ClusteredOperator(Dict{TransferConfig{N}, Vector{ClusteredTerm{T}}}())
+ClusteredOperator(T::Type, N::Integer) = ClusteredOperator(Dict{TransferConfig{N}, Vector{ClusteredTerm{T}}}())
 function flush_cache(clustered_ham::ClusteredOperator)
     for (ftrans, terms) in clustered_ham.trans
         for term in terms
@@ -818,7 +818,7 @@ Extract a 1-body operator for use in perturbation theory
 - `op_string`: either H or Hcmf
 """
 function extract_1body_operator(clustered_ham::ClusteredOperator{T,N}; op_string="H") where {T,N}
-    out = ClusteredOperator(N,T)
+    out = ClusteredOperator(T,N)
     for (ftrans, terms) in clustered_ham
         for term in terms
             if term isa ClusteredTerm1B
@@ -836,9 +836,15 @@ function extract_1body_operator(clustered_ham::ClusteredOperator{T,N}; op_string
 end
 
 """
+    build_1B_operator(clusters; op_string="H", T=Float64)
+
+Build a `ClusteredOperator{T,N}` object containing only 1-body terms. 
+Since these are 1-body terms, we assume we have already contracted with the 
+integrals, and so our integral tensor is simply a single scalar value, 
+defaulting to 1. 
 """
 function build_1B_operator(clusters; op_string="H", T=Float64)
-    terms = ClusteredOperator(length(clusters)) 
+    terms = ClusteredOperator(T, length(clusters)) 
     zero_fock = TransferConfig([(0,0) for i in clusters])
     terms[zero_fock] = Vector{ClusteredTerm{T}}()
     for ci in clusters
@@ -864,43 +870,19 @@ function Base.:+(o1::ClusteredOperator{T,N}, o2::ClusteredOperator{T,N}) where {
     unique!(o3)
     return o3
 end
-
-function Base.:*(o1::ClusteredOperator{T,N}, o2::Real) where {T,N}
-    o3 = deepcopy(o1)
-    for (ftrans, terms) in o2 
-        if haskey(o3.trans, ftrans) == false
-            o3.trans[ftrans] = Vector{ClusteredTerm{T}}()
-        end
-        for term in terms
-            push!(o3.trans[ftrans],term)
-        end
-    end
-    unique!(o3)
-    return o3
+function Base.:-(o1::ClusteredOperator{T,N}, o2::ClusteredOperator{T,N}) where {T,N}
+    o3 = deepcopy(o2)
+    scale!(o3,T(-1)) 
+    return o1+o3
 end
 
-
-
-"""
-Form a hamiltonian to diagonalize for a give point on an adiabatic connection path
-H(λ) = H0 + λ*(H - H0)
-
-H0 = Hcmf + <CMF|H-Hcmf|CMF>
-   = Hcmf + e_shift
-
-H(λ) = (1-λ)*Hcmf + λ*H + (1-λ)*<CMF|H-Hcmf|CMF>
-"""
-function form_ac_hamiltonian(clusters, clustered_ham::ClusteredOperator{N}, 
-                             #cluster_ops::Vector{ClusterOps{T}}, 
-                             lambda::T; h0="Hcmf") where {N,T}
-
-    ham_out = deepcopy(clustered_ham)
-
-
-    ham_h0 = build_1B_operator(clusters, 
-                               op_string = "Hcmf",
-                               T=T)
-    display(ham_h0)
+function scale!(o1::ClusteredOperator{T,N}, o2::T) where {T,N}
+    for (ftrans, terms) in o1 
+        for term in terms
+            term.ints .*= o2
+        end
+    end
+    return 
 end
 
 
