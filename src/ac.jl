@@ -33,18 +33,17 @@ function compute_ac(v_cmf::BSTstate{T,N,R},
                     thresh_pt   = 1e-5,
                     h0="Hcmf") where {N,T,R}
 
-    R == 1 || error(" Not sure how to do multi-state")
 
     H = deepcopy(clustered_ham) 
     H0 = build_1B_operator(v_cmf.clusters, op_string = "Hcmf", T=T)
     
     E = compute_expectation_value(v_cmf, cluster_ops, H)[1]
     E0 = compute_expectation_value(v_cmf, cluster_ops, H0)[1]
-    
+   
     Eshift = E-E0
     
-    Eλ = Vector{T}([]) 
-    dEλ = Vector{T}([]) 
+    Eλ = Vector{Vector{T}}([]) 
+    dEλ = Vector{Vector{T}}([]) 
     dims = Vector{Int}([]) 
     times = Vector{T}([]) 
 
@@ -72,16 +71,26 @@ function compute_ac(v_cmf::BSTstate{T,N,R},
                                                do_pt       = true,
                                                resolve_ss  = false, 
                                                tol_tucker  = 1e-4)
-        push!(Eλ, e_var[1] + (1-λ)*Eshift)
+        push!(Eλ, e_var .+ (1-λ)*Eshift)
        
-        E = compute_expectation_value(v, cluster_ops, H)[1]
-        E0 = compute_expectation_value(v, cluster_ops, H0)[1]
-        push!(dEλ, E-E0-Eshift)
+        E = compute_expectation_value(v, cluster_ops, H)
+        E0 = compute_expectation_value(v, cluster_ops, H0)
+        push!(dEλ, E .- E0 .- Eshift)
         push!(dims, length(v))
         push!(times, time)
     end
 
-    return lambda_grid, Eλ, dEλ, dims, times
+    Eλout = zeros(T,length(lambda_grid), R)
+    dEλout = zeros(T,length(lambda_grid), R)
+
+    for i in 1:length(lambda_grid)
+        for j in 1:R
+            Eλout[i,j] = Eλ[i][j]
+            dEλout[i,j] = dEλ[i][j]
+        end
+    end
+
+    return lambda_grid, Eλout, dEλout, dims, times
 end
 
 """
@@ -113,27 +122,29 @@ end
 dE/dl = ml^2 + nl + b
 
 int_0^1 = m/3 + n/2 + b
+
+# Arguments
+- dE: matrix of delta values, lgrid x nroots
+- E: matrix of energy values, lgrid x nroots
 """
 function quadratic_fits(lambda_grid, dE, E)
     fits = []
-    fits2 = []
-    for i in 2:length(lambda_grid)
-        quadfit = fit(lambda_grid[1:i], dE[1:i], 2)
-        estimate = quadfit.coeffs[3]/3 + quadfit.coeffs[2]/2 + quadfit.coeffs[1] + E[1]
-        push!(fits, estimate)
-        
-        quadfit = fit(lambda_grid[1:i], E[1:i], 2)
-        estimate2 = quadfit(1) 
-        @printf(" Estimate from λ=%12.8f: %12.8f %12.8f \n", lambda_grid[i], estimate, estimate2)
-        push!(fits2, estimate2)
+    R = size(dE,2)
+    for r in 1:R
+        @printf("\n ----------- Root %3i -----------\n", r) 
+        fits_r = []
+        for i in 2:length(lambda_grid)
+            quadfit = fit(lambda_grid[1:i], dE[1:i, r], 2)
+            ecorr = quadfit.coeffs[3]/3 + quadfit.coeffs[2]/2 + quadfit.coeffs[1] 
+            push!(fits_r, quadfit)
+   
+            etot = ecorr + E[1,r]
+            
+            @printf(" Estimate from λ=%12.8f: E(corr) = %12.8f E(tot) = %12.8f \n", lambda_grid[i], ecorr, etot)
+        end
+        push!(fits, fits_r)
     end
-    #for i in 3:length(lambda_grid)
-    #    quadfit = fit(lambda_grid[1:i], E[1:i], i)
-    #    estimate2 = quadfit(1) 
-    #    @printf(" Estimate from %3i points: %12.8f\n", i, estimate2)
-    #    push!(fits2, estimate2)
-    #end
-    return fits, fits2
+    return fits
 end
 
 
