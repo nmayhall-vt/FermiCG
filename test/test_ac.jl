@@ -8,18 +8,25 @@ using JLD2
 v = FermiCG.BSTstate(clusters, FermiCG.FockConfig(init_fspace), cluster_bases, R=1)
 
 
-e_var, v_var = FermiCG.block_sparse_tucker(v, cluster_ops, clustered_ham,
-                                           max_iter    = 20,
-                                           max_iter_pt = 200, 
-                                           nbody       = 4,
-                                           H0          = "Hcmf",
-                                           thresh_var  = 1e-2,
-                                           thresh_foi  = 1e-3,
-                                           thresh_pt   = 1e-3,
-                                           ci_conv     = 1e-5,
-                                           do_pt       = true,
-                                           resolve_ss  = false,
-                                           tol_tucker  = 1e-4,
-                                           solver      = "davidson")
+lambda_grid = [.0, .1, .2]
+lvec, evec, dvec, dims, times = FermiCG.compute_ac(v, cluster_ops, clustered_ham, lambda_grid, 
+                                                   thresh_var = 1e-1,
+                                                   thresh_foi = 1e-5,
+                                                   thresh_pt = 1e-4
+                                                  )
+dfit, efit = FermiCG.quadratic_fits(lvec, dvec, evec)
 
 
+
+@load "_testdata_cmf_he4.jld2"
+
+v = FermiCG.BSTstate(clusters, FermiCG.FockConfig(init_fspace), cluster_bases, R=5)
+
+
+lambda_grid = [.0, .1, .2]
+lvec, evec, dvec, dims, times = FermiCG.compute_ac(v, cluster_ops, clustered_ham, lambda_grid, 
+                                                   thresh_var = 1e-1,
+                                                   thresh_foi = 1e-5,
+                                                   thresh_pt = 1e-4
+                                                  )
+dfit, efit = FermiCG.quadratic_fits(lvec, dvec, evec)
