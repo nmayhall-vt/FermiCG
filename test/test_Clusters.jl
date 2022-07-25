@@ -1,7 +1,7 @@
 using FermiCG
 using Printf
 using Test
-
+using JLD2
 @testset "Clusters" begin
     atoms = []
     push!(atoms,Atom(1,"H",[0,0,0]))
@@ -76,3 +76,24 @@ using Test
    
 end
 
+@testset "Clusters He4" begin
+    @load "test/_testdata_cmf_he4.jld2"
+    #
+    # form Cluster data
+    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=1, 
+                                                       max_roots=40, 
+                                                       delta_elec=1,
+                                                       init_fspace=init_fspace, 
+                                                       rdm1a=Da, rdm1b=Db)
+
+    clusters2    = [(1:5), (6:10), (11:20)]
+    init_fspace2 = [(1, 1), (1, 1), (2, 2)]
+    clusters2 = [Cluster(i,collect(clusters2[i])) for i = 1:length(clusters2)]
+    #
+    # form Cluster data
+    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters2, verbose=1, 
+                                                       max_roots=40, 
+                                                       delta_elec=1,
+                                                       init_fspace=init_fspace2, 
+                                                       rdm1a=Da, rdm1b=Db)
+end

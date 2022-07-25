@@ -874,7 +874,7 @@ function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster};
         ints_i = subset(ints, ci.orb_list, rdm1a, rdm1b) 
 
         if (rdm1a != nothing && init_fspace == nothing)
-            error(" Cant embed withing init_fspace")
+            error(" Can't embed without specifiying reference number of electrons: init_fspace")
         end
 
         if all( (rdm1a,rdm1b,init_fspace) .!= nothing)
@@ -886,7 +886,7 @@ function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster};
             occs = diag(rdm1b)
             occs[ci.orb_list] .= 0
             nb_embed = sum(occs)
-            verbose == 0 || @printf(" Number of embedded electrons a,b: %f %f", na_embed, nb_embed)
+            verbose == 0 || @printf(" Number of embedded electrons a,b: %f %f\n", na_embed, nb_embed)
         end
             
         delta_e_i = ()
@@ -898,12 +898,71 @@ function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster};
         # Get list of Fock-space sectors for current cluster
         #
         sectors = FermiCG.possible_focksectors(ci, delta_elec=delta_e_i)
+        
+    
+        #
+        # Initialize our basis to build
+        #
+        basis_i = ClusterBasis(ci, T=T) 
+
+        #
+        # Compute reference energy of cluster. This is used to compute the gaps for each
+        # cluster state.
+        #
+        cluster_ref_energy = 0.0
+        if init_fspace != nothing   
+            # define current fock sector
+            sec = (init_fspace[ci.idx][1], init_fspace[ci.idx][2])
+            
+            problem = FermiCG.StringCI.FCIProblem(length(ci), sec[1], sec[2])
+            verbose == 0 || display(problem)
+            verbose == 0 || flush(stdout)
+           
+            nr = min(max_roots, problem.dim)
+
+            if problem.dim < 5000 || problem.dim == nr 
+                #
+                # Build full Hamiltonian matrix in cluster's Slater Det basis
+                Hmat = FermiCG.StringCI.build_H_matrix(ints_i, problem)
+                F = eigen(Hmat)
+
+                e = F.values[1:nr]
+                basis_i[sec] = F.vectors[:,1:nr]
+                #display(e)
+                cluster_ref_energy = e[1]
+            else
+                #
+                # Do sparse build 
+                #Hmat = FermiCG.StringCI.build_H_matrix(ints_i, problem)
+                #e = real(e)[1:nr]
+                #e,v = Arpack.eigs(Hmat, nev = nr, which=:SR)
+                #basis_i[sec] = v[:,1:nr]
+                e, basis_i[sec] = StringCI.do_fci(problem, ints_i, nr)
+                cluster_ref_energy = e[1]
+            end
+            #@printf(" Cluster %4i reference energy: %12.8f\n", ci.idx, cluster_ref_energy)
+            if verbose > 0
+                state=1
+                for ei in e
+                    @printf("   State %4i Energy: %12.8f %12.8f\n",state,ei, ei - cluster_ref_energy)
+                    state += 1
+                end
+                flush(stdout)
+            end
+        end
 
         #
         # Loop over sectors and do FCI for each
-        basis_i = ClusterBasis(ci, T=T) 
         for sec in sectors
-            
+           
+            # if we have already computed the sector for a specified reference fock space config, 
+            # then skip it here.
+            if init_fspace != nothing   
+                if all(sec .== init_fspace[ci.idx])
+                    continue
+                end
+            end
+
             #
             # prepare for FCI calculation for give sector of Fock space
             problem = FermiCG.StringCI.FCIProblem(length(ci), sec[1], sec[2])
@@ -933,7 +992,8 @@ function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster};
             if verbose > 0
                 state=1
                 for ei in e
-                    @printf("   State %4i Energy: %12.8f %12.8f\n",state,ei, ei+ints.h0)
+                    @printf("   State %4i Energy: %12.8f %12.8f\n",state,ei, ei - cluster_ref_energy)
+                    #@printf("   State %4i Energy: %12.8f %12.8f\n",state,ei, cluster_ref_energy - ei)
                     state += 1
                 end
                 flush(stdout)
