@@ -10,13 +10,13 @@ body3_mol = []
 
 mol = gto.Mole()
 atom = [
-        ["He",   (-1.5,       0.0,        0.0)],   
-        ["X",   ( 1.5,       0.0,        0.0)],   
-        ["X",   ( 0.0,      -1.5,        0.0)],   
+        ["X",   (-1.0,       0.0,        0.0)],   
+        ["X",   ( 1.0,       0.0,        0.0)],   
+        ["X",   ( 0.0,      -1.0,        0.0)],   
+        ["X",   ( 0.0,       1.0,        0.0)]   
         ]
-        #["X",   ( 0.0,       1.5,        0.0)]   
 
-basis = "6-31g"
+basis = "aug-cc-pvdz"
 mol.atom = atom
 mol.basis={"X":gto.basis.load(basis, "He"), "He":basis}
 mol.build()
@@ -76,9 +76,9 @@ for ind,mol in body1_mol:
 
     e = myci.e_tot
 
-    print(mol.atom)
-    print(mol.ao_labels())
-    print(rdm1)
+    #print(mol.atom)
+    #print(mol.ao_labels())
+    #print(rdm1)
     results[(i,)] = [e, rdm1, rdm2]
 
 
@@ -127,4 +127,8 @@ for ind,mol in body3_mol:
 
 
 for f_ind,f_res in results.items():
-    print(f_ind, np.trace(f_res[1] @ S))
+    print("%12s %12.8f %12.8f"%(f_ind, f_res[0], np.trace(f_res[1] @ S)))
+
+
+
+
