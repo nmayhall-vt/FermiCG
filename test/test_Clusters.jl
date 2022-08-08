@@ -77,7 +77,7 @@ using JLD2
 end
 
 @testset "Clusters He4" begin
-    @load "test/_testdata_cmf_he4.jld2"
+    @load "_testdata_cmf_he4.jld2"
     #
     # form Cluster data
     cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=1, 
