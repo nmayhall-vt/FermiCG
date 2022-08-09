@@ -9,11 +9,12 @@ body3_mol = []
 
 
 mol = gto.Mole()
+R = 0.5
 atom = [
-        ["X",   (-1.0,       0.0,        0.0)],   
-        ["X",   ( 1.0,       0.0,        0.0)],   
-        ["X",   ( 0.0,      -1.0,        0.0)],   
-        ["X",   ( 0.0,       1.0,        0.0)]   
+        ["X",   (-R,       0.0,        0.0)],   
+        ["X",   ( R,       0.0,        0.0)],   
+        ["X",   ( 0.0,      -R,        0.0)],   
+        ["X",   ( 0.0,       R,        0.0)]   
         ]
 
 basis = "aug-cc-pvdz"
@@ -71,7 +72,12 @@ for ind,mol in body1_mol:
     rdm1 = myci.make_rdm1()
     rdm2 = myci.make_rdm2()
 
-    rdm1 = mf.mo_coeff @ rdm1 @ mf.mo_coeff.T
+    C = mf.mo_coeff
+    rdm1 = C @ rdm1 @ C.T
+    rdm2 = np.einsum('pqrs,Pp->Pqrs',rdm2,C)
+    rdm2 = np.einsum('Pqrs,Qq->PQrs',rdm2,C)
+    rdm2 = np.einsum('PQrs,Rr->PQRs',rdm2,C)
+    rdm2 = np.einsum('PQRs,Ss->PQRS',rdm2,C)
     i = ind[0]
 
     e = myci.e_tot
@@ -80,6 +86,7 @@ for ind,mol in body1_mol:
     #print(mol.ao_labels())
     #print(rdm1)
     results[(i,)] = [e, rdm1, rdm2]
+    print("%12s %12.8f %12.8f %12.8f"%(ind, myci.e_tot, np.trace(rdm1 @ S), np.einsum('pqQP,pP,qQ',rdm2,S,S)))
 
 
 
@@ -126,9 +133,20 @@ for ind,mol in body3_mol:
     results[(i,j,k)] = results_curr 
 
 
+e_tot = 0.0
+num_elec_1rdm = 0.0
+num_elec_2rdm = 0.0
 for f_ind,f_res in results.items():
-    print("%12s %12.8f %12.8f"%(f_ind, f_res[0], np.trace(f_res[1] @ S)))
+    e_tot += f_res[0]
+    num_elec_1rdm_i = np.trace(f_res[1] @ S)
+    num_elec_2rdm_i =  np.einsum('pqQP,pP,qQ',f_res[2],S,S)
+    num_elec_1rdm += num_elec_1rdm_i
+    num_elec_2rdm += num_elec_2rdm_i 
+    print("%12s %12.8f %12.8f %12.8f"%(f_ind, f_res[0], num_elec_1rdm_i, num_elec_2rdm_i))
 
+print(" Etot: %12.8f"%e_tot)
+print(" tr(1RDM): %12.8f"%num_elec_1rdm)
+print(" tr(2RDM): %12.8f"%num_elec_2rdm)
 
 
 
