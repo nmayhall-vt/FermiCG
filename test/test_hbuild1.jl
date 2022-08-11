@@ -85,7 +85,7 @@ end
 
     cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
 
-    ci_vector = FermiCG.ClusteredState(clusters, nroots = nroots)
+    ci_vector = FermiCG.TPSCIstate(clusters, nroots = nroots)
 
     FermiCG.expand_to_full_space!(ci_vector, cluster_bases, na, nb)
     

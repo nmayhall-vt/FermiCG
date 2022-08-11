@@ -5,12 +5,24 @@ using BenchmarkTools
 mutable struct LinOp
     matvec
     dim::Int
+    sym::Bool
 end
 
 Base.size(lop::LinOp) = return (lop.dim,lop.dim)
 Base.:(*)(lop::LinOp, v::AbstractVector{T}) where {T} = return lop.matvec(v)
 Base.:(*)(lop::LinOp, v::AbstractMatrix{T}) where {T} = return lop.matvec(v)
+issymmetric(lop::LinOp) = return lop.sym
 
+mutable struct LinOpMat{T} <: AbstractMatrix{T} 
+    matvec
+    dim::Int
+    sym::Bool
+end
+
+Base.size(lop::LinOpMat{T}) where {T} = return (lop.dim,lop.dim)
+Base.:(*)(lop::LinOpMat{T}, v::AbstractVector{T}) where {T} = return lop.matvec(v)
+Base.:(*)(lop::LinOpMat{T}, v::AbstractMatrix{T}) where {T} = return lop.matvec(v)
+issymmetric(lop::LinOpMat{T}) where {T} = return lop.sym
     
 
 mutable struct Davidson
@@ -30,9 +42,11 @@ mutable struct Davidson
     ritz_v::Array{Float64,2}
     ritz_e::Vector{Float64}
     resid::Vector{Float64}
+    lindep::Float64
+    lindep_thresh::Float64
 end
 
-function Davidson(op; max_iter=100, max_ss_vecs=8, tol=1e-8, nroots=1, v0=nothing)
+function Davidson(op; max_iter=100, max_ss_vecs=8, tol=1e-8, nroots=1, v0=nothing, lindep_thresh=1e-10)
     size(op)[1] == size(op)[2] || throw(DimensionError())
     dim = size(op)[1]
     if v0==nothing
@@ -56,7 +70,9 @@ function Davidson(op; max_iter=100, max_ss_vecs=8, tol=1e-8, nroots=1, v0=nothin
                     zeros(dim,0),
                     zeros(nroots,nroots),
                     zeros(nroots),
-                    zeros(nroots))
+                    zeros(nroots),
+                    1.0,
+                    lindep_thresh)
 end
 
 function print_iter(solver::Davidson)
@@ -77,6 +93,8 @@ function print_iter(solver::Davidson)
             @printf("%5.1e  ", solver.resid[i])
         end
     end
+    @printf(" LinDep: ")
+    @printf("%5.1e* ", solver.lindep)
     println("")
     flush(stdout)
 end
@@ -92,15 +110,21 @@ function _apply_diagonal_precond!(res_s::Vector{Float64}, Adiag::Vector{Float64}
 end
 
 function iteration(solver::Davidson; Adiag=nothing, iprint=0)
-    #@printf(" Davidson Iter: %4i SS_Curr %4i\n", iter, size(solver.vec_curr,2))
+    
     #
     # perform sig_curr = A*vec_curr 
     solver.sig_curr = Matrix(solver.op * solver.vec_curr)
+   
     #
     # add these new vectors to previous quantities
     solver.sig_prev = hcat(solver.sig_prev, solver.sig_curr)
     solver.vec_prev = hcat(solver.vec_prev, solver.vec_curr)
-    
+   
+    #
+    # Check orthogonality
+    ss_metric = solver.vec_prev'*solver.vec_prev
+    solver.lindep = abs(1.0 - det(ss_metric))
+
     #
     # form H in current subspace
     Hss = solver.vec_prev' * solver.sig_prev
@@ -113,40 +137,29 @@ function iteration(solver::Davidson; Adiag=nothing, iprint=0)
     if ss_size >= solver.max_ss_vecs
         ritz_v = ritz_v[:,sortperm(ritz_e)][:,1:solver.nroots]
         ritz_e = ritz_e[sortperm(ritz_e)][1:1:solver.nroots]
+        #ritz_v = ritz_v[:,sortperm(ritz_e)][:,1:solver.max_ss_vecs]
+        #ritz_e = ritz_e[sortperm(ritz_e)][1:1:solver.max_ss_vecs]
     else
         ritz_v = ritz_v[:,sortperm(ritz_e)]
         ritz_e = ritz_e[sortperm(ritz_e)]
     end
+
     solver.ritz_e = ritz_e
     solver.ritz_v = ritz_v
 
     solver.sig_prev = solver.sig_prev * ritz_v 
     solver.vec_prev = solver.vec_prev * ritz_v
-    Hss1 = solver.vec_prev' * solver.sig_prev
     Hss = ritz_v' * Hss * ritz_v
-    # make sure these match
-    all([abs(Hss1[i]-Hss[i])<1e-12 for i in 1:Base.length(Hss)]) || throw(Exception)
 
-    if iprint>0
-        println(" Determinant of subspace overlap: ",det(solver.vec_prev'*solver.vec_prev))
-    end
-    #Hss = solver.vec_curr' * sigma
-    if iprint>0
-        [@printf(" Ritz Value: %12.8f \n",i) for i in ritz_e]
-    end
-    res = similar(solver.vec_prev[:,1:solver.nroots])
+    res = deepcopy(solver.sig_prev[:,1:solver.nroots])
     for s in 1:solver.nroots
-        res[:,s] .= -solver.vec_prev[:,s] * Hss[s,s]
+        res[:,s] .-= solver.vec_prev[:,s] * Hss[s,s]
     end
-    res[:,:] .+= solver.sig_prev[:,1:solver.nroots]
+
     
-    #@btime $res = - $solver.vec_prev * $Hss[1:$solver.nroots,1:$solver.nroots]
-    #@btime $res .+= $solver.sig_prev
-    #res = solver.sig_prev - (solver.vec_prev * Hss)
-    #@btime $res = $solver.sig_prev - ($solver.vec_prev * $Hss)
     ss = deepcopy(solver.vec_prev)
 
-    new = zeros(solver.dim,0) 
+    new = zeros(solver.dim, 0) 
     #solver.statusconv = [false for i in 1:solver.nroots]
     for s in 1:solver.nroots
         # |v'> = (I-|SS><SS|)|v>
@@ -155,23 +168,18 @@ function iteration(solver::Davidson; Adiag=nothing, iprint=0)
         if norm(res[:,s]) <= solver.tol
             solver.status[s] = true
             continue
+        else
+            solver.status[s] = false 
         end
         if Adiag != nothing
             level_shift = 1e-3
-
             denom = (ritz_e[s]  + level_shift)
             _apply_diagonal_precond!(res[:,s], Adiag, denom)
-            #@btime $_apply_diagonal_precond!($res[:,$s], $Adiag, $denom)
-            #@inbounds @simd for i in 1:solver.dim
-            #    res_s[i] = res_s[i] / (denom - Adiag[i])
-            #end
         end
-        #scr = solver.vec_prev' * res[:,s]
-        #res[:,s] = res[:,s] - (solver.vec_prev * scr)
         scr = ss' * res[:,s]
-        res[:,s] = res[:,s] - (ss * scr)
+        res[:,s] .= res[:,s] .- (ss * scr)
         nres = norm(res[:,s])
-        if nres>1e-12
+        if nres > solver.tol
             ss = hcat(ss,res[:,s]/nres)
             new = hcat(new,res[:,s]/nres)
         end
@@ -190,8 +198,26 @@ function solve(solver::Davidson; Adiag=nothing, iprint=0)
             solver.converged == true
             break
         end
+        if solver.lindep > solver.lindep_thresh && iter < solver.max_iter
+            @warn "Linear dependency detected. Restarting."
+            flush(stdout)
+            F = qr(solver.vec_prev[:,1:solver.nroots])
+            solver.vec_curr = Array(F.Q)
+            solver.sig_curr = Array(F.Q)
+            solver.vec_prev = zeros(solver.dim, 0) 
+            solver.sig_prev =  zeros(solver.dim, 0)
+            solver.ritz_v = zeros(solver.nroots,solver.nroots)
+            solver.ritz_e = zeros(solver.nroots)
+            solver.resid = zeros(solver.nroots)
+        end
     end
     return solver.ritz_e[1:solver.nroots], solver.vec_prev[:,1:solver.nroots]
-    #return solver.ritz_e[1:solver.nroots], solver.vec_prev*solver.ritz_v[:,1:solver.nroots]
+    #return solver.fritz_e[1:solver.nroots], solver.vec_prev*solver.ritz_v[:,1:solver.nroots]
 end
 
+#function orthogonalize!(solver)
+#
+#    # |vv_i>  = |v_i> - |w
+#    new_v = zeros(solver.dim, nroots)
+#    for r in 1:nroots
+#end

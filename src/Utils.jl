@@ -1,7 +1,3 @@
-using TensorOperations
-using Printf
-
-
 """
 replace this with table lookup
 """
@@ -32,4 +28,37 @@ function fiedler_sort(C,K)
     fvec = get_fiedler(abs.(C'*K*C))
     perm, = bubble_sort(fvec)
     return C[:,perm]
+end
+
+function Base.:+(a::Tuple{T,T}, b::Tuple{T,T}) where T<:Integer
+    return (a[1]+b[1], a[2]+b[2])
+end
+function Base.:-(a::Tuple{T,T}, b::Tuple{T,T}) where T<:Integer
+    return (a[1]-b[1], a[2]-b[2])
+end
+
+
+
+"""
+    function bubble_sort(inp)
+
+Sort inp (stable)
+"""
+function bubble_sort(inp)
+    #={{{=#
+    cmpcount, swapcount = 0, 0
+    blist = copy(inp)
+    bperm = collect(1:length(inp))
+    for j in 1:length(blist)
+        for i in 1:(length(blist)-j)
+            cmpcount += 1
+            if blist[i] > blist[i+1]
+                swapcount += 1
+                blist[i], blist[i+1] = blist[i+1], blist[i]
+                bperm[i], bperm[i+1] = bperm[i+1], bperm[i]
+            end
+        end
+    end
+    return bperm, swapcount
+#=}}}=#
 end

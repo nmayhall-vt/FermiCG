@@ -112,7 +112,7 @@ using StaticArrays
 
 
 
-    ci_vector = FermiCG.ClusteredState(clusters, R=nroots)
+    ci_vector = FermiCG.TPSCIstate(clusters, R=nroots)
  
     ref_fock = FermiCG.FockConfig(init_fspace)
     FermiCG.add_fockconfig!(ci_vector, ref_fock)

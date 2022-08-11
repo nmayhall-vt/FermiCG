@@ -162,21 +162,52 @@ Build exchange matrix in AO basis
 
 """
 function pyscf_get_jk(mol::Molecule, density)
-	pyscf = pyimport("pyscf")
+    pyscf = pyimport("pyscf")
     pyscf.lib.num_threads(1)
 
     # 
     # get pyscf molecule type
     pymol = FermiCG.make_pyscf_mole(mol)
 
-	h0 = pyscf.gto.mole.energy_nuc(pymol)
-	h  = pyscf.scf.hf.get_hcore(pymol)
+    h0 = pyscf.gto.mole.energy_nuc(pymol)
+    h  = pyscf.scf.hf.get_hcore(pymol)
     j, k = pyscf.scf.hf.get_jk(pymol, density, hermi=1)
     return h, j, k
 end 
 
 """
-	pyscf_build_ints(mol, c_act, d1_embed)
+pyscf_build_ints(mol, C)
+
+build 1 and 2 electron integrals using a pyscf SCF object
+# Arguments
+- `mol`: PySCF Molecule object
+- `c`: MO coeffs
+
+returns an `InCoreInts` type
+"""
+function pyscf_build_ints(mol::Molecule, C)
+
+    pyscf = pyimport("pyscf")
+    pyscf.lib.num_threads(1)
+
+    norb = size(C)[2]
+    # get pyscf molecule type
+    pymol = FermiCG.make_pyscf_mole(mol)
+
+    h0 = pyscf.gto.mole.energy_nuc(pymol)
+    h1  = pyscf.scf.hf.get_hcore(pymol)
+
+    # now rotate to MO basis
+    h1 = C' * h1 * C
+    h2 = pyscf.ao2mo.kernel(pymol, C, aosym="s4",compact=false)
+    h2 = reshape(h2, (norb, norb, norb, norb))
+
+    return InCoreInts(h0, h1, h2)
+end
+
+
+"""
+pyscf_build_ints(mol, c_act, d1_embed)
 
 build 1 and 2 electron integrals using a pyscf SCF object
 # Arguments
@@ -188,19 +219,19 @@ returns an `InCoreInts` type
 """
 function pyscf_build_ints(mol::Molecule, c_act, d1_embed)
 
-	pyscf = pyimport("pyscf")
+    pyscf = pyimport("pyscf")
     pyscf.lib.num_threads(1)
 
-	nact = size(c_act)[2]
-	#mycas = pyscf.mcscf.CASSCF(mf, length(active), 0)
+    nact = size(c_act)[2]
+    #mycas = pyscf.mcscf.CASSCF(mf, length(active), 0)
     # 
     # get pyscf molecule type
     pymol = FermiCG.make_pyscf_mole(mol)
 
-	h0 = pyscf.gto.mole.energy_nuc(pymol)
-	h  = pyscf.scf.hf.get_hcore(pymol)
+    h0 = pyscf.gto.mole.energy_nuc(pymol)
+    h  = pyscf.scf.hf.get_hcore(pymol)
     j, k = pyscf.scf.hf.get_jk(pymol, d1_embed, hermi=1)
-	
+
     # get core energy
     #h0 = tr(d1_embed * ( h + .5*j - .5*k))
     #mf = pyscf.scf.RHF(pymol)
@@ -209,29 +240,29 @@ function pyscf_build_ints(mol::Molecule, c_act, d1_embed)
 
     # now rotate to MO basis
     h = c_act' * h * c_act
-	j = c_act' * j * c_act;
-	k = c_act' * k * c_act;
-	h2 = pyscf.ao2mo.kernel(pymol, c_act, aosym="s4",compact=false)
-	h2 = reshape(h2, (nact, nact, nact, nact))
+    j = c_act' * j * c_act;
+    k = c_act' * k * c_act;
+    h2 = pyscf.ao2mo.kernel(pymol, c_act, aosym="s4",compact=false)
+    h2 = reshape(h2, (nact, nact, nact, nact))
 
-	# The use of d1_embed only really makes sense if it has zero electrons in the
-	# active space. Let's warn the user if that's not true
-	S = pymol.intor("int1e_ovlp_sph")
-	n_act = tr(S * d1_embed * S * c_act * c_act')
-	if isapprox(abs(n_act),0,atol=1e-8) == false
-		println(n_act)
-		display(d1_embed)
-		error(" I found embedded electrons in the active space?!")
-	end
+    # The use of d1_embed only really makes sense if it has zero electrons in the
+    # active space. Let's warn the user if that's not true
+    S = pymol.intor("int1e_ovlp_sph")
+    n_act = tr(S * d1_embed * S * c_act * c_act')
+    if isapprox(abs(n_act),0,atol=1e-8) == false
+        println(n_act)
+        display(d1_embed)
+        error(" I found embedded electrons in the active space?!")
+    end
 
-	#println(size(e2))
-	#println(h0)
+    #println(size(e2))
+    #println(h0)
 
-	h1 = h + j - .5*k;
-	#display(h + j - .5*k)
+    h1 = h + j - .5*k;
+    #display(h + j - .5*k)
 
-	h = InCoreInts(h0, h1, h2);
-	return h
+    h = InCoreInts(h0, h1, h2);
+    return h
 end
 
 #"""
@@ -261,46 +292,66 @@ end
 
 
 """
-	pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1, verbose=1)
+    pyscf_fci(ham, na, nb; 
+        max_cycle=40, conv_tol=1e-11, nroots=1, verbose=1, do_rdm1=true, do_rdm2=true)
 
 Use PySCF to compute Full CI
 """
-function pyscf_fci(ham, na, nb; max_cycle=20, conv_tol=1e-8, nroots=1, verbose=1)
-	# println(" Use PYSCF to compute FCI")
-	pyscf = pyimport("pyscf")
+function pyscf_fci(ham, na, nb; 
+        max_cycle=40, conv_tol=1e-11, nroots=1, verbose=1, do_rdm1=true, do_rdm2=true)
+    # println(" Use PYSCF to compute FCI")
+    pyscf = pyimport("pyscf")
     pyscf.lib.num_threads(1)
-	fci = pyimport("pyscf.fci")
-	cisolver = pyscf.fci.direct_spin1.FCI()
-	cisolver.max_cycle = max_cycle
-	cisolver.conv_tol = conv_tol
-	nelec = na + nb
-	norb = size(ham.h1)[1]
-	efci, ci = cisolver.kernel(ham.h1, ham.h2, norb , (na,nb), ecore=0, nroots =nroots, verbose=100)
+    fci = pyimport("pyscf.fci")
+    cisolver = pyscf.fci.direct_spin1.FCI()
+    cisolver.max_cycle = max_cycle
+    cisolver.conv_tol = conv_tol
+    nelec = na + nb
+    norb = size(ham.h1)[1]
+    efci, ci = cisolver.kernel(ham.h1, ham.h2, norb , (na,nb), ecore=0, nroots =nroots, verbose=verbose)
     #@printf(" Length of CI Vector: %i\n", length(ci[1]))
     #println(size(ci[1]))
-	fci_dim = size(ci,1)*size(ci,2)
-	# d1 = cisolver.make_rdm1(ci, norb, nelec)
+    fci_dim = size(ci,1)*size(ci,2)
+    # d1 = cisolver.make_rdm1(ci, norb, nelec)
 
-	d1a,d1b = cisolver.make_rdm1s(ci, norb, (na,nb))
+    d1a = Array([])
+    d1b = Array([])
+    d1  = Array([])
+    d2  = Array([])
 
-	d1,d2 = cisolver.make_rdm12(ci, norb, (na,nb))
-	#@printf(" Energy2: %12.8f\n", FermiCG.compute_energy(ham.h0, ham.h1, ham.h2, d1a+d1b, d2))
-	# print(" PYSCF 1RDM: ")
-	F = eigen(d1)
-	occs = F.values
-	sum_n = sum(occs)
-	# @printf(" Sum of diagonals = %12.8f\n", sum_n)
-    if verbose > 1
-        @printf(" Natural Orbital Occupations:\n")
-        [@printf(" %4i %12.8f\n",i,occs[i]) for i in 1:size(occs)[1] ]
-        @printf(" -----------------\n")
-        @printf(" %4s %12.8f\n\n","sum",sum_n)
+    if do_rdm1 
+        d1a,d1b = cisolver.make_rdm1s(ci, norb, (na,nb))
     end
-    if verbose>1
-        pretty_table(d1; formatters = ft_printf("%5.3f"), noheader=true)
+
+    if do_rdm2
+        d1,d2 = cisolver.make_rdm12(ci, norb, (na,nb))
+    end
+
+    #@printf(" Energy2: %12.8f\n", FermiCG.compute_energy(ham.h0, ham.h1, ham.h2, d1a+d1b, d2))
+    # print(" PYSCF 1RDM: ")
+    if do_rdm1
+        F = eigen(d1)
+        occs = F.values
+        sum_n = sum(occs)
+        # @printf(" Sum of diagonals = %12.8f\n", sum_n)
+        if verbose > 1
+            @printf(" Natural Orbital Occupations:\n")
+            [@printf(" %4i %12.8f\n",i,occs[i]) for i in 1:size(occs)[1] ]
+            @printf(" -----------------\n")
+            @printf(" %4s %12.8f\n\n","sum",sum_n)
+        end
+        if verbose>1
+            pretty_table(d1; formatters = ft_printf("%5.3f"), noheader=true)
+        end
     end
     if verbose>0
-        @printf(" FCI:        %12.8f %12.8f \n", efci+ham.h0, efci)
+        if nroots == 1
+            @printf(" FCI:        %12.8f %12.8f \n", efci+ham.h0, efci)
+        elseif nroots > 1
+            for r in 1:nroots
+                @printf(" FCI:        %12.8f %12.8f \n", efci[r]+ham.h0, efci[r])
+            end
+        end
     end
 
     return efci, d1a,d1b, d2, ci
@@ -315,11 +366,40 @@ function get_nuclear_rep(mol::Molecule)
 end
 
 """
+	localize(C::Array{Float64,2}, method::String, mol::Molecule)
+
+Localize the orbitals using method = `method` (pm, boys, lowdin)
+"""
+function localize(C::Array{Float64,2}, method::String, mol::Molecule; verbose=4)
+    """
+    mf is a pyscf scf object
+    """
+    pyscf = pyimport("pyscf")
+    #pyscf.lib.num_threads(1)
+    pyscflo = pyimport("pyscf.lo")
+    pymol = make_pyscf_mole(mol)
+
+    if lowercase(method) == "lowdin"
+	    ClS = pymol.intor("int1e_ovlp_sph")
+        F = svd(Cl)
+        # display(Cl - F.U * Diagonal(F.S) * F.Vt)
+        # display(Cl - F.vectors * Diagonal(F.values) * F.vectors')
+        return F.U * Diagonal(F.S.^(-.5)) * F.Vt
+    elseif lowercase(method) == "pm"
+        return pyscflo.PM(pymol).kernel(C, verbose=verbose);
+    elseif lowercase(method) == "boys"
+        return pyscflo.Boys(pymol).kernel(C, verbose=verbose);
+        #Cl = pyscflo.Boys(mf.mol, C).kernel(verbose=4)
+        #return Cl
+    end
+end
+
+"""
 	localize(C::Array{Float64,2},method::String, mf)
 
 Localize the orbitals using method = `method`
 """
-function localize(C::Array{Float64,2},method::String, mf)
+function localize(C::Array{Float64,2}, method::String, mf)
     """
     mf is a pyscf scf object
     """

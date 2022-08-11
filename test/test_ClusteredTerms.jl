@@ -63,7 +63,7 @@ using LinearAlgebra
 
     cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
 
-    ci_vector = FermiCG.ClusteredState(clusters)
+    ci_vector = FermiCG.TPSCIstate(clusters)
     FermiCG.add_fockconfig!(ci_vector,[(2,2),(2,2),(1,1),(1,1)])
     FermiCG.add_fockconfig!(ci_vector,[(1,2),(3,2),(2,1),(1,1)])
     FermiCG.add_fockconfig!(ci_vector,[(2,2),(2,2),(2,1),(1,1)])

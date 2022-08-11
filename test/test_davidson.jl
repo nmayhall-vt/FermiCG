@@ -7,6 +7,7 @@ using Arpack
 using Random
 using Profile 
 
+if true 
 @testset "davidson" begin
     atoms = []
     push!(atoms,Atom(1,"H",[0,0,0]))
@@ -70,4 +71,40 @@ using Profile
     @test isapprox(e[1], e_fci, atol=1e-10)
     #@profilehtml FermiCG.solve(davidson, Adiag=Adiag)
     #FermiCG.solve(davidson, Adiag=Diagonal(A))
+    
+
+    if 1==1
+        problem = StringCI.FCIProblem(norbs, 4, 5)
+        e, v = StringCI.do_fci(problem, ints, 1, tol=1e-12);
+        rdma, rdmb = StringCI.compute_1rdm(problem, v[:,1], v[:,1]);
+        ee, d1a, d1b, d2, ci = FermiCG.pyscf_fci(ints, problem.na, problem.nb);
+        display(rdma-d1a)
+        display(rdmb-d1b)
+        @test isapprox(e[1], ee, atol=1e-10)
+        @test isapprox(norm(rdma-d1a), 0, atol=1e-5)
+        @test isapprox(norm(rdmb-d1b), 0, atol=1e-5)
+    end
+        
+    #rdm1a, rdm1b, rdm2aa, rdm2bb = StringCI.compute_1rdm(problem, v[:,1], v[:,1]);
+
+end
+end
+
+
+@testset "davidson_rand" begin
+
+    N = 1000
+    nr = 8
+    A = Diagonal(rand(N)) + .01*rand(N,N)
+    A = A'+A
+
+
+    davidson = FermiCG.Davidson(A,max_iter=400, nroots=nr, tol=1e-6)
+    #@time e,v = FermiCG.solve(davidson, Adiag=diag(A));
+    @time e,v = FermiCG.solve(davidson);
+
+    @time eref, vref = Arpack.eigs(A, nev=nr, which=:SR)
+
+    @test isapprox(e, eref, atol=1e-10)
+    println(size(v), size(vref))
 end
