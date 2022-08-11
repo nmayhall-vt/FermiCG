@@ -27,6 +27,7 @@ using ThreadPools
 using Distributed
 using JLD2
 using LinearMaps
+using InCoreIntegrals
 # using Unicode
 #
 #####################################
@@ -43,7 +44,6 @@ include("Solvers.jl");
 # Problem definition stuff
 include("type_Atom.jl");
 include("type_Molecule.jl");
-include("type_InCoreInts.jl");
 
 # Local data
 include("type_Cluster.jl")

@@ -551,6 +551,14 @@ git-tree-sha1 = "debdd00ffef04665ccbb3e150747a77560e8fad1"
 uuid = "615f187c-cbe4-4ef1-ba3b-2fcf58d6d173"
 version = "0.1.1"
 
+[[deps.InCoreIntegrals]]
+deps = ["Documenter", "LinearAlgebra", "NPZ", "Random", "TensorOperations"]
+git-tree-sha1 = "65a088e9c2155bb6a735ede525e63413f7534245"
+repo-rev = "main"
+repo-url = "https://github.com/nmayhall-vt/InCoreIntegrals.jl"
+uuid = "d8079e1f-d74b-4a3d-abb0-c0b53e3a8379"
+version = "0.1.0"
+
 [[deps.Indexing]]
 git-tree-sha1 = "ce1566720fd6b19ff3411404d4b977acd4814f9f"
 uuid = "313cdc1a-70c2-5d6a-ae34-0150d3930a38"
