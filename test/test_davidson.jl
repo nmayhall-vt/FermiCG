@@ -6,6 +6,7 @@ using LinearMaps
 using Arpack
 using Random
 using Profile 
+using ActiveSpaceSolvers
 
 if true 
 @testset "davidson" begin
@@ -46,14 +47,14 @@ if true
 
     norbs = size(ints.h1)[1]
 
-    problem = StringCI.FCIProblem(norbs, na, nb)
-    display(problem)
-    v0 = rand(problem.dim,nr)
+    ansatz = FCIAnsatz(norbs, na, nb)
+    display(ansatz)
+    v0 = rand(ansatz.dim,nr)
     v0[:,1] .= 0
     v0[1,1] = 1
     v0 = v0 * inv(sqrt(v0'*v0))
 
-    Hmap = StringCI.get_map(ints, problem)
+    Hmap = LinearMap(ints, ansatz)
     Random.seed!(3);
     A = Diagonal(rand(20)) + .0001*rand(20,20)
     A = A'+A
@@ -61,12 +62,13 @@ if true
 
     #davidson = FermiCG.Davidson(A,max_iter=400, nroots=nr, tol=1e-5)
     davidson = FermiCG.Davidson(Hmap,v0=v0,max_iter=80, max_ss_vecs=40, nroots=nr, tol=1e-5)
-    Adiag = StringCI.compute_fock_diagonal(problem,mf.mo_energy, e_mf)
+    #Adiag = StringCI.compute_fock_diagonal(ansatz,mf.mo_energy, e_mf)
     #FermiCG.solve(davidson)
     @printf(" Now iterate: \n")
     flush(stdout)
     #@time FermiCG.iteration(davidson, Adiag=Adiag, iprint=2)
-    @time e,v = FermiCG.solve(davidson, Adiag=Adiag);
+    @time e,v = FermiCG.solve(davidson);
+    #@time e,v = FermiCG.solve(davidson, Adiag=Adiag);
 
     @test isapprox(e[1], e_fci, atol=1e-10)
     #@profilehtml FermiCG.solve(davidson, Adiag=Adiag)
@@ -74,10 +76,12 @@ if true
     
 
     if 1==1
-        problem = StringCI.FCIProblem(norbs, 4, 5)
-        e, v = StringCI.do_fci(problem, ints, 1, tol=1e-12);
-        rdma, rdmb = StringCI.compute_1rdm(problem, v[:,1], v[:,1]);
-        ee, d1a, d1b, d2, ci = FermiCG.pyscf_fci(ints, problem.na, problem.nb);
+        ansatz = FCIAnsatz(norbs, 4, 5)
+        solution = solve(ints, ansatz, SolverSettings(nroots=1, tol=1e-12));
+        e = solution.energies
+        v = solution.vectors
+        rdma, rdmb = compute_1rdm(solution);
+        ee, d1a, d1b, d2, ci = FermiCG.pyscf_fci(ints, ansatz.na, ansatz.nb);
         display(rdma-d1a)
         display(rdmb-d1b)
         @test isapprox(e[1], ee, atol=1e-10)
@@ -85,7 +89,7 @@ if true
         @test isapprox(norm(rdmb-d1b), 0, atol=1e-5)
     end
         
-    #rdm1a, rdm1b, rdm2aa, rdm2bb = StringCI.compute_1rdm(problem, v[:,1], v[:,1]);
+    #rdm1a, rdm1b, rdm2aa, rdm2bb = compute_1rdm(ansatz, v[:,1], v[:,1]);
 
 end
 end

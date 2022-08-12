@@ -50,8 +50,8 @@ using Test
     tst1 = 0
     for ci in clusters
         display(cluster_bases[ci.idx])
-        for (sector,vecs) in cluster_bases[ci.idx].basis
-            tst1 += sum(abs.(vecs))
+        for (sector, solution) in cluster_bases[ci.idx].basis
+            tst1 += sum(abs.(solution.vectors))
         end
     end
     println(tst1)
@@ -67,8 +67,8 @@ using Test
     tst1 = 0
     for ci in clusters
         display(cluster_bases[ci.idx])
-        for (sector,vecs) in cluster_bases[ci.idx].basis
-            tst1 += sum(abs.(vecs))
+        for (sector, solution) in cluster_bases[ci.idx].basis
+            tst1 += sum(abs.(solution.vectors))
         end
     end
     println(tst1)

@@ -26,13 +26,13 @@ using Arpack
 
 
     norb = size(ints.h1)[1]
-    problem = FermiCG.StringCI.FCIProblem(norb, n_elec_a, n_elec_b)
+    ansatz = FCIAnsatz(norb, n_elec_a, n_elec_b)
 
 
-    display(problem)
+    display(ansatz)
 
-    @time Hmat = FermiCG.StringCI.build_H_matrix(ints, problem)
-    Ssq = FermiCG.StringCI.build_S2_matrix(problem)
+    @time Hmat = build_H_matrix(ints, ansatz)
+    Ssq = build_S2_matrix(ansatz)
     println("Ssq")
     println(Ssq)
     F = eigen(Hmat+0.01*Ssq)

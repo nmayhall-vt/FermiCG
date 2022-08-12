@@ -45,11 +45,11 @@ flush(stdout)
 
 
 norb = size(ints.h1)[1]
-problem = FermiCG.StringCI.FCIProblem(norb, na, nb)
+ansatz = FCIAnsatz(norb, na, nb)
 
-display(problem)
+display(ansatz)
 
-Hmat = FermiCG.StringCI.build_H_matrix(ints, problem)
+Hmat = build_H_matrix(ansatz)
 EIG = eigen(Hmat)
 v = EIG.vectors
 e = EIG.values
@@ -58,4 +58,4 @@ v = v[:,1]
 
 
 
-basis = FermiCG.StringCI.svd_state(v,problem,frag,norb-frag,1e-6)
+basis = svd_state(v,ansatz,frag,norb-frag,1e-6)

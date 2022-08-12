@@ -92,7 +92,6 @@ include("pyscf/PyscfFunctions.jl");
 #
 #####################################
 
-export StringCI
 export InCoreInts
 export Molecule
 export Atom
