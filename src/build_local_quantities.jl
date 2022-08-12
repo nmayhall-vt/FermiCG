@@ -1,3 +1,5 @@
+using ActiveSpaceSolvers
+
 """
     get_ortho_compliment(tss::ClusterSubspace, cb::ClusterBasis)
 
@@ -649,7 +651,8 @@ Returns new basis for the cluster
 """
 function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db; 
         thresh_schmidt=1e-3, thresh_orb=1e-8, thresh_ci=1e-6,do_embedding=true,
-        eig_nr=1, eig_max_cycles=200)
+        eig_nr=1, eig_max_cycles=200,
+        A::Type=FCIAnsatz)
 
     println()
     println("------------------------------------------------------------")
@@ -833,6 +836,7 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db;
     @printf("  α: %12.8f  β:%12.8f \n ",na_actv,nb_actv)
 
     norb2 = size(ints_f.h1,1)
+
     ansatz = FCIAnsatz(norb2, na_actv, nb_actv)
     Hmap = LinearMap(ints_f, ansatz)
     v0 = svd(rand(ansatz.dim,eig_nr)).U
@@ -841,11 +845,16 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db;
     @printf(" Now iterate: \n")
     flush(stdout)
     #@time FermiCG.iteration(davidson, Adiag=Adiag, iprint=2)
-    @time e,v = FermiCG.solve(davidson);
-    e = real(e)[1]
-    v = v[:,1]
+    @time e,v = solve(davidson);
+
+    solution = Solution(ansatz, e, v)
+    ansatz = FCIAnsatz(norb2, na_actv, nb_actv)
     
-    basis = svd_state(v,ansatz,length(active),nkeep,thresh_schmidt)
+    #solution = solve(ints_f, ansatz, SolverSettings(maxiter=200, nroots=eig_nr, tol=1e-8))
+    #solution = solve(ints_f, ansatz, SolverSettings(maxiter=200, nroots=eig_nr, tol=1e-8))
+    
+    basis = svd_state(solution, length(active), nkeep, thresh_schmidt)
+
     return basis
 end
 
@@ -970,9 +979,10 @@ Return a Vector of `ClusterBasis` for each `Cluster`  using the Embedded Schmidt
 - `thresh_ci`: threshold for the ci problem
 """
 function compute_cluster_est_basis(ints::InCoreInts, clusters::Vector{Cluster},Da,Db; 
-        thresh_schmidt=1e-3, thresh_orb=1e-8, thresh_ci=1e-6,
-	do_embedding=true,verbose=0,init_fspace=nothing,delta_elec=nothing,
-	est_nr=1, est_max_cycles=200, est_thresh=1e-6)
+                thresh_schmidt=1e-3, thresh_orb=1e-8, thresh_ci=1e-6,
+                do_embedding=true,verbose=0,init_fspace=nothing,delta_elec=nothing,
+                est_nr=1, est_max_cycles=200, est_thresh=1e-6, 
+                A::Type=FCIAnsatz)
 #={{{=#
     # initialize output
     cluster_bases = Vector{ClusterBasis}()
@@ -1009,7 +1019,7 @@ function compute_cluster_est_basis(ints::InCoreInts, clusters::Vector{Cluster},D
 
         for sec in sectors
             if sec in keys(basis) 
-                basis_i[sec] = basis[sec]
+                basis_i[sec] = Solution(FCIAnsatz(length(ci), sec[1], sec[2]), zeros(size(basis[sec],2)), basis[sec])
 		#display(basis[sec])
 		#st = "fock_"*string(ci.idx)*"_"*string(sec)
 		#npzwrite(st, Matrix(basis[sec]))
