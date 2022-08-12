@@ -1,3 +1,5 @@
+using ActiveSpaceSolvers
+
 """
     cluster::Cluster                            # Cluster to which basis belongs
     basis::Dict{Tuple,Matrix{T}}                # Basis vectors (nα, nβ)=>[I,s]
@@ -6,21 +8,21 @@ These basis coefficients map local slater determinants to local vectors
 `(nα, nβ): 
 V[αstring*βstring, cluster_state]`
 """
-struct ClusterBasis{T}
+struct ClusterBasis{A,T}
     cluster::Cluster
-    basis::Dict{Tuple{Int16,Int16},Matrix{T}}
+    basis::Dict{Tuple{Int16,Int16},Solution{A,T}}
 end
-ClusterBasis(ci::Cluster; T::Type = Float64) = ClusterBasis(ci, Dict{Tuple{Int16,Int16},Matrix{T}}())
+ClusterBasis(ci::Cluster; T::Type = Float64, A=FCIAnsatz) = ClusterBasis(ci, Dict{Tuple{Int16,Int16},Solution{A,T}}())
 
 """
     ClusterBasis(cb::ClusterBasis, T::Type)
 
 Convert from one data type to another
 """
-function ClusterBasis(cb::ClusterBasis, T::Type)
-    out = ClusterBasis{T}(cb.cluster, Dict{Tuple{Int16,Int16},Matrix{T}}())
+function ClusterBasis(cb::ClusterBasis{A,TT}, T::Type) where {A,TT}
+    out = ClusterBasis{A,T}(cb.cluster, Dict{Tuple{Int16,Int16},Matrix{T}}())
     for (fspace,basis) in cb.basis
-        out.basis[fspace] = Matrix{T}(basis)
+        out.basis[fspace] = Solution(basis.ansatz, Vector{T}(basis.energies), Matrix{T}(basis.vectors))
     end
     return out
 end
@@ -62,7 +64,7 @@ Rotate `cb` by unitary matrices in `U`
 function rotate!(cb::ClusterBasis,U::Dict{Tuple,Matrix{T}}) where {T} 
 #={{{=#
     for (fspace,mat) in U
-        cb[fspace] .= cb[fspace] * mat
+        cb[fspace].vectors .= cb[fspace] * mat
     end
 end
 #=}}}=#

@@ -25,6 +25,14 @@ git-tree-sha1 = "03e0550477d86222521d254b741d470ba17ea0b5"
 uuid = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
 version = "0.3.4"
 
+[[deps.ActiveSpaceSolvers]]
+deps = ["Arpack", "BenchmarkTools", "Documenter", "InCoreIntegrals", "JLD2", "KrylovKit", "LinearAlgebra", "LinearMaps", "NPZ", "Parameters", "Printf", "Profile", "StaticArrays", "TensorOperations", "TimerOutputs"]
+git-tree-sha1 = "e4965e11a4de81e318b2cd486e8afb079cb8bd7f"
+repo-rev = "main"
+repo-url = "https://github.com/nmayhall-vt/ActiveSpaceSolvers.jl"
+uuid = "f8e94ea7-44cc-4f7e-92b7-2a8da6f47aca"
+version = "0.1.0"
+
 [[deps.Adapt]]
 deps = ["LinearAlgebra"]
 git-tree-sha1 = "195c5505521008abea5aee4f96930717958eac6f"

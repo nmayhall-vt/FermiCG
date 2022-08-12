@@ -4,6 +4,7 @@ authors = ["Nick Mayhall <nmayhall@vt.edu> and contributors"]
 version = "0.1.0"
 
 [deps]
+ActiveSpaceSolvers = "f8e94ea7-44cc-4f7e-92b7-2a8da6f47aca"
 Arpack = "7d9fca2a-8960-54d3-9f78-7d1dccf2cb97"
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 Clustering = "aaaa29a8-35af-508c-8bc3-b662a17a0fe5"

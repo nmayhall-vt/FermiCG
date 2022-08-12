@@ -37,7 +37,6 @@ using InCoreIntegrals
 #
 include("Utils.jl")
 include("hosvd.jl")
-include("StringCI/StringCI.jl");
 include("SymDenseMats.jl");
 include("Solvers.jl");
 
