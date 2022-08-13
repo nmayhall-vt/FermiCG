@@ -846,7 +846,7 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db;
     @printf(" Now iterate: \n")
     flush(stdout)
     #@time FermiCG.iteration(davidson, Adiag=Adiag, iprint=2)
-    @time e,v = solve(davidson);
+    @time e,v = BlockDavidson.solve(davidson);
 
     solution = Solution(ansatz, e, v)
     ansatz = FCIAnsatz(norb2, na_actv, nb_actv)
