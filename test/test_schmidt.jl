@@ -4,6 +4,7 @@ using Printf
 using Arpack 
 using Test
 using OrderedCollections
+using BlockDavidson
 
 @testset "EST" begin
     atoms = []

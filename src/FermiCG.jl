@@ -28,6 +28,8 @@ using Distributed
 using JLD2
 using LinearMaps
 using InCoreIntegrals
+
+function solve end
 # using Unicode
 #
 #####################################
@@ -38,7 +40,6 @@ using InCoreIntegrals
 include("Utils.jl")
 include("hosvd.jl")
 include("SymDenseMats.jl");
-include("Solvers.jl");
 
 # Problem definition stuff
 include("type_Atom.jl");

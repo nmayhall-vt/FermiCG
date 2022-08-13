@@ -6,6 +6,7 @@ using LinearMaps
 using Arpack
 using Random
 using Profile 
+using BlockDavidson
 using ActiveSpaceSolvers
 
 if true 
@@ -67,7 +68,7 @@ if true
     @printf(" Now iterate: \n")
     flush(stdout)
     #@time FermiCG.iteration(davidson, Adiag=Adiag, iprint=2)
-    @time e,v = FermiCG.solve(davidson);
+    @time e,v = BlockDavidson.solve(davidson);
     #@time e,v = FermiCG.solve(davidson, Adiag=Adiag);
 
     @test isapprox(e[1], e_fci, atol=1e-10)
@@ -77,7 +78,7 @@ if true
 
     if 1==1
         ansatz = FCIAnsatz(norbs, 4, 5)
-        solution = solve(ints, ansatz, SolverSettings(nroots=1, tol=1e-12));
+        solution = ActiveSpaceSolvers.solve(ints, ansatz, SolverSettings(nroots=1, tol=1e-12));
         e = solution.energies
         v = solution.vectors
         rdma, rdmb = compute_1rdm(solution);
@@ -103,9 +104,9 @@ end
     A = A'+A
 
 
-    davidson = FermiCG.Davidson(A,max_iter=400, nroots=nr, tol=1e-6)
+    davidson = Davidson(A,max_iter=400, nroots=nr, tol=1e-6)
     #@time e,v = FermiCG.solve(davidson, Adiag=diag(A));
-    @time e,v = FermiCG.solve(davidson);
+    @time e,v = BlockDavidson.solve(davidson);
 
     @time eref, vref = Arpack.eigs(A, nev=nr, which=:SR)
 

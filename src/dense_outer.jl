@@ -1,3 +1,4 @@
+using BlockDavidson
 
 """
     function add_single_excitons(v::BSstate{T,N,R}) where {T,N,R}
