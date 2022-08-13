@@ -332,8 +332,8 @@ function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rd
     for ci in clusters
         flush(stdout)
 
-        problem = FermiCG.StringCI.FCIProblem(length(ci), fspace[ci.idx][1],fspace[ci.idx][2])
-        verbose < 2 || display(problem)
+        ansatz = FCIAnsatz(length(ci), fspace[ci.idx][1],fspace[ci.idx][2])
+        verbose < 2 || display(ansatz)
         ints_i = form_casci_ints(ints, ci, rdm1a, rdm1b)
 
         no = length(ci)
@@ -342,7 +342,7 @@ function cmf_ci_iteration(ints::InCoreInts, clusters::Vector{Cluster}, rdm1a, rd
         d1a =zeros(no,no)
         d1b =zeros(no,no)
         d2 = zeros(no, no, no, no)
-        if problem.dim == 1
+        if ansatz.dim == 1
 
             #
             # we have a slater determinant. Compute energy and dms

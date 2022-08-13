@@ -55,7 +55,7 @@ specified by `cluster_bases`.
 """
 function BSstate(clusters::Vector{Cluster}, 
         fconfig::FockConfig{N}, 
-        cluster_bases::Vector{ClusterBasis{T}}; R=1) where {N, T} 
+        cluster_bases::Vector{ClusterBasis{A,T}}; R=1) where {N, A, T} 
     #={{{=#
 
     # 

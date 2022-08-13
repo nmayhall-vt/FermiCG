@@ -1,4 +1,6 @@
 using TimerOutputs
+using BlockDavidson
+
 """
     build_full_H(ci_vector::TPSCIstate, cluster_ops, clustered_ham::ClusteredOperator)
 

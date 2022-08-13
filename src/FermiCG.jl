@@ -27,6 +27,9 @@ using ThreadPools
 using Distributed
 using JLD2
 using LinearMaps
+using InCoreIntegrals
+
+function solve end
 # using Unicode
 #
 #####################################
@@ -36,14 +39,11 @@ using LinearMaps
 #
 include("Utils.jl")
 include("hosvd.jl")
-include("StringCI/StringCI.jl");
 include("SymDenseMats.jl");
-include("Solvers.jl");
 
 # Problem definition stuff
 include("type_Atom.jl");
 include("type_Molecule.jl");
-include("type_InCoreInts.jl");
 
 # Local data
 include("type_Cluster.jl")
@@ -93,7 +93,6 @@ include("pyscf/PyscfFunctions.jl");
 #
 #####################################
 
-export StringCI
 export InCoreInts
 export Molecule
 export Atom
