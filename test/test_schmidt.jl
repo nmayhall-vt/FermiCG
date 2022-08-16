@@ -1,5 +1,6 @@
-using LinearAlgebra
 using FermiCG
+using ClusterMeanField
+using LinearAlgebra
 using Printf
 using Arpack 
 using Test
@@ -59,11 +60,7 @@ using OrderedCollections
     display(rdm1b)
     
 
-    #e_cmf, D1,D2,temp,temp2 = FermiCG.cmf_ci(ints, clusters, init_fspace, rdm1a, verbose=0)
-    #Da = D1
-    #Db = D1
-
-    e_cmf, U, Da, Db  = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, rdm1,
+    e_cmf, U, Da, Db  = cmf_oo(ints, clusters, init_fspace, rdm1, rdm1,
                                        max_iter_oo=40, verbose=0, gconv=1e-6, method="bfgs")
     ints = FermiCG.orbital_rotation(ints,U)
 

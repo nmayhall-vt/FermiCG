@@ -25,6 +25,14 @@ git-tree-sha1 = "03e0550477d86222521d254b741d470ba17ea0b5"
 uuid = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
 version = "0.3.4"
 
+[[deps.ActiveSpaceSolvers]]
+deps = ["Arpack", "BenchmarkTools", "Documenter", "InCoreIntegrals", "InteractiveUtils", "JLD2", "KrylovKit", "LinearAlgebra", "LinearMaps", "NPZ", "OrderedCollections", "Parameters", "Printf", "Profile", "StaticArrays", "TensorOperations", "TimerOutputs"]
+git-tree-sha1 = "8cff588aac1305550d7ba2c29c960fbe475612d5"
+repo-rev = "main"
+repo-url = "https://github.com/nmayhall-vt/ActiveSpaceSolvers.jl"
+uuid = "f8e94ea7-44cc-4f7e-92b7-2a8da6f47aca"
+version = "0.1.0"
+
 [[deps.Adapt]]
 deps = ["LinearAlgebra"]
 git-tree-sha1 = "af92965fb30777147966f58acb05da51c5616b5f"
@@ -106,6 +114,14 @@ git-tree-sha1 = "08d0b679fd7caa49e2bca9214b131289e19808c0"
 uuid = "ad839575-38b3-5650-b840-f874b8c74a25"
 version = "0.12.5"
 
+[[deps.BlockDavidson]]
+deps = ["InteractiveUtils", "LinearAlgebra", "LinearMaps", "Printf", "Random"]
+git-tree-sha1 = "99d5082ca6bf43150466f4b5b606814194ec353d"
+repo-rev = "main"
+repo-url = "https://github.com/nmayhall-vt/BlockDavidson.jl"
+uuid = "b4c031f8-e7c9-4879-896c-063a10ff8103"
+version = "0.1.0"
+
 [[deps.Blosc]]
 deps = ["Blosc_jll"]
 git-tree-sha1 = "310b77648d38c223d947ff3f50f511d08690b8d5"
@@ -152,6 +168,14 @@ deps = ["ChainRulesCore", "LinearAlgebra", "Test"]
 git-tree-sha1 = "bf98fa45a0a4cee295de98d4c1462be26345b9a1"
 uuid = "9e997f8a-9a97-42d5-a9f1-ce6bfc15e2c0"
 version = "0.1.2"
+
+[[deps.ClusterMeanField]]
+deps = ["ActiveSpaceSolvers", "Arpack", "InCoreIntegrals", "LinearAlgebra", "NPZ", "Optim", "Printf", "PyCall", "Random", "StaticArrays", "TensorOperations"]
+git-tree-sha1 = "12c68ff18cd5c6d95b404a4a1ad24c1c92ee8735"
+repo-rev = "main"
+repo-url = "https://github.com/nmayhall-vt/ClusterMeanField.jl"
+uuid = "3e8e530f-db5a-4e5f-8d4d-9676e9551b72"
+version = "0.1.0"
 
 [[deps.Clustering]]
 deps = ["Distances", "LinearAlgebra", "NearestNeighbors", "Printf", "SparseArrays", "Statistics", "StatsBase"]
@@ -550,6 +574,14 @@ version = "0.2.2"
 git-tree-sha1 = "debdd00ffef04665ccbb3e150747a77560e8fad1"
 uuid = "615f187c-cbe4-4ef1-ba3b-2fcf58d6d173"
 version = "0.1.1"
+
+[[deps.InCoreIntegrals]]
+deps = ["Documenter", "JLD2", "LinearAlgebra", "NPZ", "Random", "TensorOperations"]
+git-tree-sha1 = "c3135791b8a1f90ea783607ad8cc5f1f782f94e9"
+repo-rev = "main"
+repo-url = "https://github.com/nmayhall-vt/InCoreIntegrals.jl"
+uuid = "d8079e1f-d74b-4a3d-abb0-c0b53e3a8379"
+version = "0.1.0"
 
 [[deps.Indexing]]
 git-tree-sha1 = "ce1566720fd6b19ff3411404d4b977acd4814f9f"

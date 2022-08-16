@@ -28,8 +28,9 @@ using Distributed
 using JLD2
 using LinearMaps
 using InCoreIntegrals
+using ClusterMeanField
+using ActiveSpaceSolvers
 
-function solve end
 # using Unicode
 #
 #####################################
@@ -41,12 +42,7 @@ include("Utils.jl")
 include("hosvd.jl")
 include("SymDenseMats.jl");
 
-# Problem definition stuff
-include("type_Atom.jl");
-include("type_Molecule.jl");
-
 # Local data
-include("type_Cluster.jl")
 include("type_ClusterOps.jl")
 include("type_ClusterBasis.jl")
 include("type_ClusterSubspace.jl")
@@ -88,8 +84,6 @@ include("tpsci_helpers.jl")
 include("dense_inner.jl")
 include("dense_outer.jl")
 
-include("CMFs.jl")
-include("pyscf/PyscfFunctions.jl");
 #
 #####################################
 

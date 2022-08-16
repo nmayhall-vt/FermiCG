@@ -919,7 +919,7 @@ function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster};
         #
         # Get list of Fock-space sectors for current cluster
         #
-        sectors = FermiCG.possible_focksectors(ci, delta_elec=delta_e_i)
+        sectors = ClusterMeanField.possible_focksectors(ci, delta_elec=delta_e_i)
 
         #
         # Loop over sectors and do FCI for each
@@ -1004,7 +1004,7 @@ function compute_cluster_est_basis(ints::InCoreInts, clusters::Vector{Cluster},D
         #
         # Get list of Fock-space sectors for current cluster
         #
-        sectors = FermiCG.possible_focksectors(ci, delta_elec=delta_e_i)
+        sectors = ClusterMeanField.possible_focksectors(ci, delta_elec=delta_e_i)
 
         #
         # Loop over sectors and do FCI for each
