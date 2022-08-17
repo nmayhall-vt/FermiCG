@@ -1,7 +1,10 @@
 using FermiCG
+using ClusterMeanField
+using InCoreIntegrals
 using Printf
 using Test
 
+#function tmp()
 @testset "Clusters" begin
     atoms = []
     push!(atoms,Atom(1,"H",[0,0,0]))
@@ -15,20 +18,20 @@ using Test
     mol     = Molecule(0,1,atoms,basis)
     
 
-    mf = FermiCG.pyscf_do_scf(mol)
+    mf = pyscf_do_scf(mol)
     nbas = size(mf.mo_coeff)[1]
-    ints = FermiCG.pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
-    e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,1,1)
+    ints = pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
+    e_fci, d1_fci, d2_fci = pyscf_fci(ints,1,1)
     @printf(" FCI Energy: %12.8f\n", e_fci)
     
     C = mf.mo_coeff
-    Cl = FermiCG.localize(mf.mo_coeff,"lowdin",mf)
-    FermiCG.pyscf_write_molden(mol,Cl,filename="lowdin.molden")
-    S = FermiCG.get_ovlp(mf)
+    Cl = localize(mf.mo_coeff,"lowdin",mf)
+    pyscf_write_molden(mol,Cl,filename="lowdin.molden")
+    S = get_ovlp(mf)
     U =  C' * S * Cl
     println(" Build Integrals")
     flush(stdout)
-    ints = FermiCG.orbital_rotation(ints,U)
+    ints = orbital_rotation(ints,U)
     println(" done.")
     flush(stdout)
 
@@ -51,7 +54,7 @@ using Test
     for ci in clusters
         display(cluster_bases[ci.idx])
         for (sector,vecs) in cluster_bases[ci.idx].basis
-            tst1 += sum(abs.(vecs))
+            tst1 += sum(abs.(vecs.vectors))
         end
     end
     println(tst1)
@@ -68,7 +71,7 @@ using Test
     for ci in clusters
         display(cluster_bases[ci.idx])
         for (sector,vecs) in cluster_bases[ci.idx].basis
-            tst1 += sum(abs.(vecs))
+            tst1 += sum(abs.(vecs.vectors))
         end
     end
     println(tst1)

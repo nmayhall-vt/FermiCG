@@ -615,7 +615,8 @@ function add_cmf_operators!(ops, bases, ints, Da, Db; verbose=0)
         verbose == 0 || display(ci)
         norbs = length(cb.cluster)
         
-        ints_i = form_casci_ints(ints, ci, Da, Db)
+        ints_i = subset(ints, ci.orb_list, Da, Db)
+        #ints_i = form_casci_ints(ints, ci, Da, Db)
 
 
         dicti = Dict{Tuple,Array}()
@@ -846,7 +847,7 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db;
     @printf(" Now iterate: \n")
     flush(stdout)
     #@time FermiCG.iteration(davidson, Adiag=Adiag, iprint=2)
-    @time e,v = BlockDavidson.solve(davidson);
+    @time e,v = BlockDavidson.eigs(davidson);
 
     solution = Solution(ansatz, e, v)
     ansatz = FCIAnsatz(norb2, na_actv, nb_actv)
@@ -890,14 +891,19 @@ function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster};
 
     for ci in clusters
         verbose == 0 || display(ci)
+        
+        if (rdm1a != nothing && init_fspace == nothing)
+            error(" Cant embed without init_fspace")
+        end
 
         #
         # Get subset of integrals living on cluster, ci
-        ints_i = subset(ints, ci.orb_list, rdm1a, rdm1b) 
-
-        if (rdm1a != nothing && init_fspace == nothing)
-            error(" Cant embed withing init_fspace")
+        if rdm1a == nothing && rdm1b == nothing
+            ints_i = subset(ints, ci.orb_list) 
+        else
+            ints_i = subset(ints, ci.orb_list, rdm1a, rdm1b) 
         end
+
 
         if all( (rdm1a,rdm1b,init_fspace) .!= nothing)
             # 

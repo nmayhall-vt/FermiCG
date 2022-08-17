@@ -62,3 +62,15 @@ function bubble_sort(inp)
     return bperm, swapcount
 #=}}}=#
 end
+
+
+
+
+function check_orthogonality(mat; thresh=1e-12)
+    Id = mat' * mat
+    if maximum(abs.(I-Id)) > thresh
+        @warn("problem with orthogonality ", maximum(abs.(I-Id)))
+        return false
+    end
+    return true
+end

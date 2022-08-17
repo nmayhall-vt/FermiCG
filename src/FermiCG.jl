@@ -27,9 +27,12 @@ using ThreadPools
 using Distributed
 using JLD2
 using LinearMaps
+
+# our packages
 using InCoreIntegrals
-using ClusterMeanField
+using BlockDavidson 
 using ActiveSpaceSolvers
+using ClusterMeanField
 
 # using Unicode
 #

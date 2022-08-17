@@ -3,9 +3,9 @@ using FermiCG
 using Printf
 using Test
 using Arpack
+using ActiveSpaceSolvers
 
-
-@testset "fci" begin
+@testset "S^2" begin
     atoms = []
     push!(atoms,Atom(1,"H",[0,0,0]))
     push!(atoms,Atom(2,"H",[0,0,1]))
@@ -26,13 +26,13 @@ using Arpack
 
 
     norb = size(ints.h1)[1]
-    problem = FermiCG.StringCI.FCIProblem(norb, n_elec_a, n_elec_b)
+    ansatz = FCIAnsatz(norb, n_elec_a, n_elec_b)
 
 
-    display(problem)
+    display(ansatz)
 
-    @time Hmat = FermiCG.StringCI.build_H_matrix(ints, problem)
-    Ssq = FermiCG.StringCI.build_S2_matrix(problem)
+    @time Hmat = build_H_matrix(ints, ansatz)
+    Ssq = build_S2_matrix(ansatz)
     println("Ssq")
     println(Ssq)
     F = eigen(Hmat+0.01*Ssq)
@@ -45,6 +45,6 @@ using Arpack
     for (i,ei) in enumerate(e)
         @printf(" Energy: %12.8f   <S2>: %12.8f\n",ei+ints.h0,ss[i])
     end
-    @test isapprox(e[1], e_fci , atol=1e-10)
+    @test isapprox(e[1], e_fci+ints.h0 , atol=1e-10)
 end
 

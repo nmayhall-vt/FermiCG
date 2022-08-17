@@ -9,7 +9,7 @@ using PyCall
 using Arpack
 using JLD2
 
-if false 
+if true 
 @testset "tpsci" begin
     atoms = []
 
@@ -106,10 +106,9 @@ if false
     cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=0, max_roots=max_roots, 
                                                        init_fspace=init_fspace, rdm1a=Da, rdm1b=Db, T=Float64)
 
-    
+   
     clustered_ham = FermiCG.extract_ClusteredTerms(ints, clusters)
     cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
-
 
     FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
         
@@ -289,24 +288,24 @@ end
     display(e0+e2)
 
     ref = [
-           -18.32512226024639
-           -18.04260833429895
-           -18.016245886981604
-           -17.986259649774958
-           -17.95388664714469
-           -17.92637656089058
-           -17.909347539008866
+           -18.32512226009612
+           -18.04260857388741
+           -18.016245789838038
+           -17.98625964965542
+           -17.95388667701979
+           -17.926376566609566
+           -17.90934752366829
           ]
     @test isapprox(abs.(ref), abs.(e0), atol=1e-8)
-    
+
     ref = [
-           -18.329242607660643
-           -18.05229946775759
-           -18.026861793675902
-           -17.994775613520986
-           -17.962143890203432
-           -17.934857273405683
-           -17.91769596347915
+           -18.3292426077094
+           -18.052299762978592
+           -18.026861702843316
+           -17.994775608990167
+           -17.962143920119015
+           -17.934857276475224
+           -17.91769594509578
           ]
     @test isapprox(abs.(ref), abs.(e0+e2), atol=1e-8)
 
