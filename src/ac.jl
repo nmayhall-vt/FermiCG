@@ -3,7 +3,7 @@ using Polynomials
 
 
 """
-    compute_ac_fixed(v_cmf::BSTstate{T,N,R}, 
+    compute_ac_fixed(v_in::BSTstate{T,N,R}, 
                     cluster_ops::Vector{ClusterOps{T}}, 
                     clustered_ham::ClusteredOperator{T,N}, 
                     lambda_grid::Vector{T},
@@ -24,22 +24,18 @@ H(λ) = Hcmf + <V> + λ*(H - Hcmf - <V>)
 dE/dλ  (@λ') = <λ'|H-H0|λ'> 
        = <λ'|H|λ'> - <λ'|Hcmf|λ'> - <V> 
 """
-function compute_ac_fixed(v_cmf::BSTstate{T,N,R}, 
+function compute_ac_fixed(v_in::BSTstate{T,N,R}, 
                     cluster_ops::Vector{ClusterOps{T}}, 
                     clustered_ham::ClusteredOperator{T,N}, 
-                    lambda_ref::T,
                     lambda_grid::Vector{T};
-                    thresh_var  = 1e-2,
-                    thresh_foi  = 1e-6,
-                    thresh_pt   = 1e-5,
                     h0="Hcmf") where {N,T,R}
 
 
     H = deepcopy(clustered_ham) 
-    H0 = build_1B_operator(v_cmf.clusters, op_string = "Hcmf", T=T)
+    H0 = build_1B_operator(v_in.clusters, op_string = "Hcmf", T=T)
     
-    E = compute_expectation_value(v_cmf, cluster_ops, H)[1]
-    E0 = compute_expectation_value(v_cmf, cluster_ops, H0)[1]
+    E = compute_expectation_value(v_in, cluster_ops, H)[1]
+    E0 = compute_expectation_value(v_in, cluster_ops, H0)[1]
    
     Eshift = E-E0
     
@@ -48,32 +44,8 @@ function compute_ac_fixed(v_cmf::BSTstate{T,N,R},
     dims = Vector{Int}([]) 
     times = Vector{T}([]) 
 
-    v = deepcopy(v_cmf)
+    v = deepcopy(v_in)
    
-
-    # compute BST space with reference lambda
-    λ = lambda_ref
-    @printf(" Reference λ = %12.8f\n", λ)
-    H0_curr = deepcopy(H0) 
-    H_curr = deepcopy(H) 
-
-    scale!(H_curr, λ)
-    scale!(H0_curr, 1-λ)
-
-    Hλ = H_curr + H0_curr
-
-    e_var, v = FermiCG.block_sparse_tucker(v, cluster_ops, Hλ,
-                                               max_iter    = 20,
-                                               max_iter_pt = 200, 
-                                               nbody       = 4,
-                                               H0          = "Hcmf",
-                                               thresh_var  = thresh_var,
-                                               thresh_foi  = thresh_foi,
-                                               thresh_pt   = thresh_pt,
-                                               ci_conv     = 1e-5,
-                                               do_pt       = true,
-                                               resolve_ss  = false, 
-                                               tol_tucker  = 1e-4)
 
     for λ in lambda_grid
         @printf(" λ = %12.8f\n", λ)
