@@ -75,7 +75,7 @@ end
     max_roots = 400
     nroots = 10 
 
-    clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
+    clusters = [MOCluster(i,collect(clusters[i])) for i = 1:length(clusters)]
     
     cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=0, max_roots=max_roots) 
 

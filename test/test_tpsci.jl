@@ -1,3 +1,5 @@
+using QCBase
+using RDM
 using FermiCG
 using Printf
 using Test
@@ -85,12 +87,12 @@ if true
 
     #
     # define clusters
-    clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
+    clusters = [MOCluster(i,collect(clusters[i])) for i = 1:length(clusters)]
     display(clusters)
 
-    rdm1 = zeros(size(ints.h1))
 
-    e_cmf, U, Da, Db  = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, rdm1, 
+    d1 = RDM1(n_orb(ints))
+    e_cmf, U, d1  = FermiCG.cmf_oo(ints, clusters, init_fspace, d1, 
                                        max_iter_oo=40, verbose=0, gconv=1e-6, method="bfgs")
     #FermiCG.pyscf_write_molden(mol,Cl*U,filename="cmf.molden")
     ints = FermiCG.orbital_rotation(ints,U)
@@ -104,13 +106,13 @@ if true
     #display(Da)
     #cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=2, max_roots=max_roots)
     cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=0, max_roots=max_roots, 
-                                                       init_fspace=init_fspace, rdm1a=Da, rdm1b=Db, T=Float64)
+                                                       init_fspace=init_fspace, rdm1a=d1.a, rdm1b=d1.b, T=Float64)
 
    
     clustered_ham = FermiCG.extract_ClusteredTerms(ints, clusters)
     cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
 
-    FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
+    FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, d1.a, d1.b);
         
     ref_fock = FermiCG.FockConfig(init_fspace)
 
@@ -241,22 +243,22 @@ end
     display(e0+e2)
 
     ref = [
-           -16.886058282127408
-           -15.435804238762836
-           -15.42280922860447
-           -15.422679313623284
-           -15.409353983787529
+           -16.886058281626212
+           -15.435802929062476
+           -15.422809456476203
+           -15.422679566409494
+           -15.409354655967498
           ]
-    @test isapprox(abs.(ref), abs.(e0), atol=1e-8)
+    @test isapprox(abs.(ref), abs.(e0), atol=1e-6)
     
     ref = [
-           -16.886190528051184
-           -15.43619659959889
-           -15.423267329074774
-           -15.423025783287512
-           -15.4097340230104
+           -16.886190527549452
+           -15.43619528363379
+           -15.423267558873505
+           -15.423026036933145
+           -15.409734698775203
           ]
-    @test isapprox(abs.(ref), abs.(e0+e2), atol=1e-8)
+    @test isapprox(abs.(ref), abs.(e0+e2), atol=1e-6)
 
 
 end
@@ -288,24 +290,24 @@ end
     display(e0+e2)
 
     ref = [
-           -18.32512226009612
-           -18.04260857388741
-           -18.016245789838038
-           -17.98625964965542
-           -17.95388667701979
-           -17.926376566609566
-           -17.90934752366829
+           -18.325122260097313
+           -18.042608504459068
+           -18.016245791070634
+           -17.98625963504881
+           -17.953886676248466
+           -17.926376571612963
+           -17.909347523592057
           ]
     @test isapprox(abs.(ref), abs.(e0), atol=1e-8)
 
     ref = [
-           -18.3292426077094
-           -18.052299762978592
-           -18.026861702843316
-           -17.994775608990167
-           -17.962143920119015
-           -17.934857276475224
-           -17.91769594509578
+           -18.329242607711198
+           -18.05229968442359
+           -18.02686170408086
+           -17.99477559067351
+           -17.96214391869347
+           -17.934857281798372
+           -17.917695945026022
           ]
     @test isapprox(abs.(ref), abs.(e0+e2), atol=1e-8)
 
@@ -320,7 +322,7 @@ end
     clustered_ham = FermiCG.extract_ClusteredTerms(ints, clusters)
 
 
-    FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
+    FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, d1.a, d1.b);
 
 
     nroots = 4

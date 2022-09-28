@@ -5,13 +5,13 @@ e.g.
     v[FockConfig][TuckerConfig] => Tucker Decomposed Tensor
 
 # Data
-- `clusters::Vector{Cluster}`
+- `clusters::Vector{MOCluster}`
 - `data::OrderedDict{FockConfig,OrderedDict{TuckerConfig,Tucker}}`
 - `p_spaces::Vector{ClusterSubspace}`
 - `q_spaces::Vector{ClusterSubspace}`
 """
 struct BSTstate{T,N,R} 
-    clusters::Vector{Cluster}
+    clusters::Vector{MOCluster}
     data::OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N,R}}}
     p_spaces::Vector{ClusterSubspace}
     q_spaces::Vector{ClusterSubspace}
@@ -25,7 +25,7 @@ Base.size(ts::BSTstate{T,N,R}) where {T,N,R} =  (length(ts), R)
 
 
 """
-    BSTstate(clusters::Vector{Cluster}, 
+    BSTstate(clusters::Vector{MOCluster}, 
         fconfig::FockConfig{N}, 
         cluster_bases::Vector{ClusterBasis}) where {N} 
 
@@ -40,7 +40,7 @@ specified by `cluster_bases`.
 # Returns
 - `BSTstate`
 """
-function BSTstate(clusters::Vector{Cluster}, 
+function BSTstate(clusters::Vector{MOCluster}, 
         fconfig::FockConfig{N}, 
         cluster_bases::Vector{ClusterBasis{A, T}}; R=1) where {T, N, A} 
     #={{{=#
@@ -109,7 +109,7 @@ end
 
 
 """
-    BSTstate(clusters::Vector{Cluster}, 
+    BSTstate(clusters::Vector{MOCluster}, 
         p_spaces::Vector{FermiCG.ClusterSubspace}, 
         q_spaces::Vector{FermiCG.ClusterSubspace}) 
 
@@ -121,7 +121,7 @@ Constructor - specify input p and q spaces
 # Returns
 - `BSTstate`
 """
-function BSTstate(clusters::Vector{Cluster}, 
+function BSTstate(clusters::Vector{MOCluster}, 
         p_spaces::Vector{FermiCG.ClusterSubspace}, 
         q_spaces::Vector{FermiCG.ClusterSubspace};
         T=Float64, R=1) 

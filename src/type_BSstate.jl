@@ -14,13 +14,13 @@ Represents a state in an set of abitrary (yet dense) subspaces of a set of FockC
 v[FockConfig][TuckerConfig] => Dense matrix: C(n1*n2*...nN, R)
 E.g., used in n-body Tucker
     
-    clusters::Vector{Cluster}
+    clusters::Vector{MOCluster}
     data::OrderedDict{FockConfig,OrderedDict{TuckerConfig,Array}}
     p_spaces::Vector{ClusterSubspace}
     q_spaces::Vector{ClusterSubspace}
 """
 struct BSstate{T,N,R} <: AbstractState 
-    clusters::Vector{Cluster}
+    clusters::Vector{MOCluster}
     data::OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Array{T} }}
     p_spaces::Vector{ClusterSubspace}
     q_spaces::Vector{ClusterSubspace}
@@ -38,7 +38,7 @@ Base.iterate(ts::BSstate, state=1) = iterate(ts.data, state)
 
 
 """
-    BSstate(clusters::Vector{Cluster}, 
+    BSstate(clusters::Vector{MOCluster}, 
         fconfig::FockConfig{N}, 
         cluster_bases::Vector{ClusterBasis}) where {N} 
 
@@ -53,7 +53,7 @@ specified by `cluster_bases`.
 # Returns
 - `BSstate`
 """
-function BSstate(clusters::Vector{Cluster}, 
+function BSstate(clusters::Vector{MOCluster}, 
         fconfig::FockConfig{N}, 
         cluster_bases::Vector{ClusterBasis{A,T}}; R=1) where {N, A, T} 
     #={{{=#
@@ -90,7 +90,7 @@ end
 
 
 #"""
-#    function BSstate(clusters::Vector{Cluster}, 
+#    function BSstate(clusters::Vector{MOCluster}, 
 #        p_spaces::Vector{FermiCG.ClusterSubspace}, 
 #        q_spaces::Vector{FermiCG.ClusterSubspace}) 
 #
@@ -102,7 +102,7 @@ end
 ## Returns
 #- `BSstate`
 #"""
-#function BSstate(clusters::Vector{Cluster}, 
+#function BSstate(clusters::Vector{MOCluster}, 
 #        p_spaces::Vector{FermiCG.ClusterSubspace}, 
 #        q_spaces::Vector{FermiCG.ClusterSubspace}; T=Float64, R=1) 
 #    #={{{=#
@@ -148,13 +148,13 @@ end
 
 Constructor creating an empty vector
 # Arguments
-- `clusters::Vector{Cluster}`
+- `clusters::Vector{MOCluster}`
 - `T`:  Type of data for coefficients
 - `R`:  Number of roots
 # Returns
 - `BSstate`
 """
-function BSstate(clusters::Vector{Cluster}, 
+function BSstate(clusters::Vector{MOCluster}, 
         p_spaces::Vector{ClusterSubspace}, 
         q_spaces::Vector{ClusterSubspace}; 
         T=Float64, R=1)
@@ -167,13 +167,13 @@ end
 #    BSstate(clusters, p_spaces, q_spaces, foi; nroots=1)
 #
 #Constructor to build state directly from a definition of a first order interacting space (or more generic even i suppose)
-#- `clusters::Vector{Cluster}`
+#- `clusters::Vector{MOCluster}`
 #- `p_spaces::Vector{ClusterSubspace}`
 #- `q_spaces::Vector{ClusterSubspace}`
 #- `foi::OrderedDict{FockConfig,Vector{TuckerConfig}}` 
 #- `nroots`
 #"""
-#function BSstate(clusters::Vector{Cluster}, p_spaces::Vector{ClusterSubspace}, q_spaces::Vector{ClusterSubspace}, 
+#function BSstate(clusters::Vector{MOCluster}, p_spaces::Vector{ClusterSubspace}, q_spaces::Vector{ClusterSubspace}, 
 #        foi::OrderedDict{FockConfig,Vector{TuckerConfig}}; nroots=1)
 #   #={{{=#
 #    length(p_spaces) == length(clusters) || error("# of clusters don't match # of subspaces")

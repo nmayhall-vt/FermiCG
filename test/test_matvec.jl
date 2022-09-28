@@ -64,7 +64,7 @@ using StaticArrays
 
     #
     # define clusters
-    clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
+    clusters = [MOCluster(i,collect(clusters[i])) for i = 1:length(clusters)]
     display(clusters)
 
     rdm1 = zeros(size(ints.h1))

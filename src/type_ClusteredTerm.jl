@@ -33,7 +33,7 @@ struct ClusteredTerm1B{T} <: ClusteredTerm{T}
     ops::Tuple{String}
     delta::TransferConfig{1}
     parity::Tuple{Int}
-    clusters::Tuple{Cluster}
+    clusters::Tuple{MOCluster}
     ints::Array{T,1}
     cache::Dict
 end
@@ -43,7 +43,7 @@ struct ClusteredTerm2B{T} <: ClusteredTerm{T}
     delta::TransferConfig{2}
     parity::Tuple{Int,Int}
     #active::Vector{Int16}
-    clusters::Tuple{Cluster,Cluster}
+    clusters::Tuple{MOCluster,MOCluster}
     ints::Array{T,2}
     cache::Dict
 end
@@ -53,7 +53,7 @@ struct ClusteredTerm3B{T} <: ClusteredTerm{T}
     delta::TransferConfig{3}
     parity::Tuple{Int,Int,Int}
     #active::Vector{Int16}
-    clusters::Tuple{Cluster,Cluster,Cluster}
+    clusters::Tuple{MOCluster,MOCluster,MOCluster}
     ints::Array{T,3}
     cache::Dict
 end
@@ -62,7 +62,7 @@ struct ClusteredTerm4B{T} <: ClusteredTerm{T}
     ops::Tuple{String,String,String,String}
     delta::TransferConfig{4}
     parity::Tuple{Int,Int,Int,Int}
-    clusters::Tuple{Cluster,Cluster,Cluster,Cluster}
+    clusters::Tuple{MOCluster,MOCluster,MOCluster,MOCluster}
     ints::Array{T,4}
     cache::Dict
 end

@@ -1,8 +1,10 @@
+using QCBase
 using NPZ
 using JSON
 using Random
 using LinearAlgebra
 using FermiCG
+using Test
 
 @testset "hamiltonian stuff" begin
     atoms = []

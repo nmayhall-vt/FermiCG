@@ -29,7 +29,9 @@ using JLD2
 using LinearMaps
 
 # our packages
+using QCBase
 using InCoreIntegrals
+using RDM
 using BlockDavidson 
 using ActiveSpaceSolvers
 using ClusterMeanField
@@ -90,14 +92,15 @@ include("dense_outer.jl")
 #
 #####################################
 
+export RDM 
 export InCoreInts
 export Molecule
 export Atom
-export Cluster
+export MOCluster
 export ClusterBasis
 export TPSCIstate
 export ClusterConfig 
 export FockConfig 
 export TuckerConfig 
-
+export n_orb
 end

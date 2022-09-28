@@ -57,13 +57,13 @@ using PyCall
 
     #
     # define clusters
-    clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
+    clusters = [MOCluster(i,collect(clusters[i])) for i = 1:length(clusters)]
     display(clusters)
     
     #
     # do CMF
-    rdm1 = zeros(size(ints.h1))
-    e_cmf, U, Da, Db  = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, rdm1, 
+    d1 = RDM1(n_orb(ints))
+    e_cmf, U, d1  = FermiCG.cmf_oo(ints, clusters, init_fspace, d1, 
                                        max_iter_oo=40, verbose=0, gconv=1e-6, 
                                        method="bfgs")
     ints = FermiCG.orbital_rotation(ints,U)
@@ -77,11 +77,11 @@ using PyCall
     cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=0, 
                                                        max_roots=max_roots, 
                                                        init_fspace=init_fspace, 
-                                                       rdm1a=Da, rdm1b=Db)
+                                                       rdm1a=d1.a, rdm1b=d1.b)
 
     clustered_ham = FermiCG.extract_ClusteredTerms(ints, clusters)
     cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
-    FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
+    FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, d1.a, d1.b);
 
 
     v = FermiCG.BSTstate(clusters, FockConfig(init_fspace), cluster_bases)

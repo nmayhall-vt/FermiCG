@@ -1,7 +1,7 @@
 using ActiveSpaceSolvers
 
 """
-    cluster::Cluster                            # Cluster to which basis belongs
+    cluster::MOCluster                            # Cluster to which basis belongs
     basis::Dict{Tuple,Matrix{T}}                # Basis vectors (nα, nβ)=>[I,s]
 
 These basis coefficients map local slater determinants to local vectors
@@ -9,10 +9,10 @@ These basis coefficients map local slater determinants to local vectors
 V[αstring*βstring, cluster_state]`
 """
 struct ClusterBasis{A,T}
-    cluster::Cluster
+    cluster::MOCluster
     basis::Dict{Tuple{Int16,Int16},Solution{A,T}}
 end
-ClusterBasis(ci::Cluster; T::Type = Float64, A=FCIAnsatz) = ClusterBasis(ci, Dict{Tuple{Int16,Int16},Solution{A,T}}())
+ClusterBasis(ci::MOCluster; T::Type = Float64, A=FCIAnsatz) = ClusterBasis(ci, Dict{Tuple{Int16,Int16},Solution{A,T}}())
 
 """
     ClusterBasis(cb::ClusterBasis, T::Type)

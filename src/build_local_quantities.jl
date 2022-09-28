@@ -1,6 +1,9 @@
 using ActiveSpaceSolvers
 using BlockDavidson
 
+
+
+
 """
     get_ortho_compliment(tss::ClusterSubspace, cb::ClusterBasis)
 
@@ -36,7 +39,7 @@ end
 """
 function compute_cluster_ops(cluster_bases, ints::InCoreInts{T}) where {T}
 #={{{=#
-    clusters = Vector{Cluster}()
+    clusters = Vector{MOCluster}()
     for ci in cluster_bases
         push!(clusters, ci.cluster)
     end
@@ -651,7 +654,7 @@ thresh_schmidt  :   threshold for determining how many singular vectors to inclu
 
 Returns new basis for the cluster
 """
-function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db; 
+function form_schmidt_basis(ints::InCoreInts, ci::MOCluster, Da, Db; 
         thresh_schmidt=1e-3, thresh_orb=1e-8, thresh_ci=1e-6,do_embedding=true,
         eig_nr=1, eig_max_cycles=200,
         A::Type=FCIAnsatz)
@@ -821,7 +824,8 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db;
 
     #ints_f = subset(ints2,collect(1:size(Cfrag,2)+size(Cbath,2)), denvt_a, denvt_b)
 
-    ints_f = FermiCG.form_1rdm_dressed_ints(ints2,no_range,denvt_a,denvt_b)
+    ints_f = subset(ints2,no_range,denvt_a,denvt_b)
+    #ints_f = FermiCG.form_1rdm_dressed_ints(ints2,no_range,denvt_a,denvt_b)
 
     else
         denvt_a *= 0 
@@ -862,13 +866,13 @@ end
 
 
 """
-    compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster}; 
+    compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{MOCluster}; 
         init_fspace=nothing, delta_elec=nothing, verbose=0, max_roots=10, 
         rdm1a=nothing, rdm1b=nothing, T::Type=Float64)
 
 Return a Vector of `ClusterBasis` for each `Cluster` 
 - `ints::InCoreInts`: In-core integrals
-- `clusters::Vector{Cluster}`: Clusters 
+- `clusters::Vector{MOCluster}`: Clusters 
 - `verbose::Int`: Print level
 - `init_fspace`: list of pairs of (nα,nβ) for each cluster for defining reference space
                  for selecting out only certain fock sectors
@@ -879,7 +883,7 @@ Return a Vector of `ClusterBasis` for each `Cluster`
 - `ansatze`: should be a list of Ansatz objects so that we know how to solve each cluster. Default is FCIAnsatz     
 - `T`: Data type of the eigenvectors 
 """
-function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster}; 
+function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{MOCluster}; 
                 init_fspace=nothing, delta_elec=nothing, verbose=0, max_roots=10, 
                 rdm1a=nothing, rdm1b=nothing, 
                 ansatze=nothing,     
@@ -970,13 +974,13 @@ end
 
 
 """
-    compute_cluster_est_basis(ints::InCoreInts, clusters::Vector{Cluster}; 
+    compute_cluster_est_basis(ints::InCoreInts, clusters::Vector{MOCluster}; 
         init_fspace=nothing, delta_elec=nothing, verbose=0, max_roots=10, 
         rdm1a=nothing, rdm1b=nothing)
 
 Return a Vector of `ClusterBasis` for each `Cluster`  using the Embedded Schmidt Truncation
 - `ints::InCoreInts`: In-core integrals
-- `clusters::Vector{Cluster}`: Clusters 
+- `clusters::Vector{MOCluster}`: Clusters 
 - `Da`: background density matrix for embedding local hamiltonian (alpha)
 - `Db`: background density matrix for embedding local hamiltonian (beta)
 - `init_fspace`: list of pairs of (nα,nβ) for each cluster for defining reference space
@@ -985,7 +989,7 @@ Return a Vector of `ClusterBasis` for each `Cluster`  using the Embedded Schmidt
 - `thresh_orb`: threshold for the orbital
 - `thresh_ci`: threshold for the ci problem
 """
-function compute_cluster_est_basis(ints::InCoreInts, clusters::Vector{Cluster},Da,Db; 
+function compute_cluster_est_basis(ints::InCoreInts, clusters::Vector{MOCluster},Da,Db; 
                 thresh_schmidt=1e-3, thresh_orb=1e-8, thresh_ci=1e-6,
                 do_embedding=true,verbose=0,init_fspace=nothing,delta_elec=nothing,
                 est_nr=1, est_max_cycles=200, est_thresh=1e-6, 

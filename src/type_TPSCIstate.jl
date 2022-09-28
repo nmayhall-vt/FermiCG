@@ -1,13 +1,13 @@
 using StaticArrays
 using LinearAlgebra
 """
-    clusters::Vector{Cluster}
+    clusters::Vector{MOCluster}
     data::OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, Vector{T}}}
 
 This represents an arbitrarily sparse state. E.g., used in TPSCI
 """
 struct TPSCIstate{T,N,R} <: AbstractState 
-    clusters::Vector{Cluster}
+    clusters::Vector{MOCluster}
     data::OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, MVector{R,T}}}
 end
 Base.haskey(ts::TPSCIstate, i) = return haskey(ts.data,i)
@@ -19,7 +19,7 @@ Base.haskey(ts::TPSCIstate, i) = return haskey(ts.data,i)
 
 Constructor creating an empty vector
 # Arguments
-- `clusters::Vector{Cluster}`
+- `clusters::Vector{MOCluster}`
 - `T`:  Type of data for coefficients
 - `R`:  Number of roots
 # Returns
@@ -54,7 +54,7 @@ function TPSCIstate(v::TPSCIstate{TT,NN,RR}; T=TT, R=RR) where {TT,NN,RR}
 end
 
 """
-    TPSCIstate(clusters::Vector{Cluster}, fconfig::FockConfig{N}; T=Float64, R=1) where {N}
+    TPSCIstate(clusters::Vector{MOCluster}, fconfig::FockConfig{N}; T=Float64, R=1) where {N}
 
 Constructor using only a single FockConfig. This allows us to turn the CMF state into a TPSCIstate.
 # Arguments
@@ -65,7 +65,7 @@ Constructor using only a single FockConfig. This allows us to turn the CMF state
 # Returns
 - `TPSCIstate`
 """
-function TPSCIstate(clusters::Vector{Cluster}, fconfig::FockConfig{N}; T=Float64, R=1) where {N}
+function TPSCIstate(clusters::Vector{MOCluster}, fconfig::FockConfig{N}; T=Float64, R=1) where {N}
     #={{{=#
 
     state = TPSCIstate(clusters, T=T, R=R)

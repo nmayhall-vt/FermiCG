@@ -1,3 +1,5 @@
+using QCBase
+using ClusterMeanField
 using FermiCG
 using Printf
 using Test
@@ -58,26 +60,26 @@ using JLD2
 
     #
     # define clusters
-    clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
+    clusters = [MOCluster(i,collect(clusters[i])) for i = 1:length(clusters)]
     display(clusters)
 
 
     #
     # do CMF
-    rdm1 = zeros(size(ints.h1))
-    e_cmf, U, Da, Db  = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, rdm1, 
+    d1 = RDM1(n_orb(ints))
+    e_cmf, U, d1  = FermiCG.cmf_oo(ints, clusters, init_fspace, d1, 
                                        max_iter_oo=60, verbose=0, gconv=1e-10, 
                                        method="bfgs")
     ints = FermiCG.orbital_rotation(ints,U)
 
     @test isapprox(e_cmf, -6.5218473576915414, atol=1e-9)
-    @save "_testdata_cmf_h12.jld2" ints Da Db e_cmf clusters init_fspace
+    @save "_testdata_cmf_h12.jld2" ints d1 e_cmf clusters init_fspace
 end
 
 
 @testset "H12_CMF_basis" begin
     
-    @load "_testdata_cmf_h12.jld2" ints Da Db e_cmf clusters init_fspace
+    @load "_testdata_cmf_h12.jld2" ints d1 e_cmf clusters init_fspace
     
     max_roots = 20
 
@@ -86,11 +88,11 @@ end
     cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=1, 
                                                        max_roots=max_roots, 
                                                        init_fspace=init_fspace, 
-                                                       rdm1a=Da, rdm1b=Db)
+                                                       rdm1a=d1.a, rdm1b=d1.b)
 
     clustered_ham = FermiCG.extract_ClusteredTerms(ints, clusters)
     cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
-    FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
+    FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, d1.a, d1.b);
 
     check = 0.0
     for ci_ops in cluster_ops
@@ -102,6 +104,6 @@ end
     end
     println(check)
     #@test isapprox(check, 159955.9925735096, atol=1e-6)
-    @save "_testdata_cmf_h12.jld2" ints Da Db e_cmf clusters init_fspace cluster_bases  clustered_ham cluster_ops
+    @save "_testdata_cmf_h12.jld2" ints d1 e_cmf clusters init_fspace cluster_bases  clustered_ham cluster_ops
 end
 

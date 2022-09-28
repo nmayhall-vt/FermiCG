@@ -56,14 +56,14 @@ if true
 
     #
     # define clusters
-    clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
+    clusters = [MOCluster(i,collect(clusters[i])) for i = 1:length(clusters)]
     display(clusters)
 
 
     #
     # do CMF
-    rdm1 = zeros(size(ints.h1))
-    e_cmf, U, Da, Db  = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, rdm1, 
+    d1 = RDM1(n_orb(ints))
+    e_cmf, U, d1  = FermiCG.cmf_oo(ints, clusters, init_fspace, d1, 
                                        max_iter_oo=60, verbose=0, gconv=1e-10, 
                                        method="bfgs")
     ints = FermiCG.orbital_rotation(ints,U)
@@ -72,7 +72,7 @@ if true
     FermiCG.pyscf_write_molden(mol, C, filename="he4_cmf.molden")
 
     @test isapprox(e_cmf, -11.545601384796, atol=1e-9)
-    @save "_testdata_cmf_he4.jld2" ints Da Db e_cmf clusters init_fspace C
+    @save "_testdata_cmf_he4.jld2" ints d1 e_cmf clusters init_fspace C
 end
 end
 
@@ -88,11 +88,11 @@ end
                                                        max_roots=max_roots, 
                                                        delta_elec=1,
                                                        init_fspace=init_fspace, 
-                                                       rdm1a=Da, rdm1b=Db)
+                                                       rdm1a=d1.a, rdm1b=d1.b)
 
     clustered_ham = FermiCG.extract_ClusteredTerms(ints, clusters)
     cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
-    FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, Da, Db);
+    FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, d1.a, d1.b);
 
     check = 0.0
     for ci_ops in cluster_ops
@@ -103,7 +103,7 @@ end
         end
     end
     println(check)
-    @test isapprox(check, 51116.898762307974, atol=1e-8)
-    @save "_testdata_cmf_he4.jld2" ints C Da Db e_cmf clusters init_fspace cluster_bases  clustered_ham cluster_ops
+    @test isapprox(check, 51116.898762307974, atol=1e-6)
+    @save "_testdata_cmf_he4.jld2" ints C d1 e_cmf clusters init_fspace cluster_bases  clustered_ham cluster_ops
 end
 
