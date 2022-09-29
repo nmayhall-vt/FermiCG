@@ -617,6 +617,25 @@ function extract_roots(v::TPSCIstate{T,N,R}, roots) where {T,N,R}
 end
 
 
+
+"""
+    add_spin_focksectors(state::TPSCIstate{T,N,R}) where {T,N,R}
+
+Add the focksectors needed to spin adapt the given `TPSCIstate`
+"""
+function add_spin_focksectors(state::TPSCIstate{T,N,R}) where {T,N,R}
+    out = deepcopy(state)
+    gs = ClusterConfig([1 for i in 1:N])
+    for (fock, configs) in state.data
+
+        for f in possible_spin_focksectors(state.clusters, fock)
+            FermiCG.add_fockconfig!(out, f)
+            out[f][gs] = zeros(T,R)
+        end
+    end
+    return out
+end
+
 nroots(v::TPSCIstate{T,N,R}) where {T,N,R} = R
 type(v::TPSCIstate{T,N,R}) where {T,N,R} = T
 nclusters(v::TPSCIstate{T,N,R}) where {T,N,R} = N

@@ -46,3 +46,78 @@ function replace(tc::FockConfig, idx, fock)
     end
     return FockConfig(new)
 end
+
+"""
+    n_elec_a(fc::FockConfig)
+
+Return number of alpha electrons in `fc`
+"""
+function n_elec_a(fc::FockConfig)
+    return sum([i[1] for i in fc])
+end
+
+"""
+    n_elec_b(fc::FockConfig)
+
+Return number of beta electrons in `fc`
+"""
+function n_elec_b(fc::FockConfig)
+    return sum([i[2] for i in fc])
+end
+
+"""
+    n_elec(fc::FockConfig)
+
+Return number of electrons in `fc`
+"""
+function n_elec(fc::FockConfig)
+    return n_elec_a(fc) + n_elec_b(fc)
+end
+
+
+"""
+    possible_spin_focksectors(clusters, ref_fock; verbose=1)
+
+Generate list of focksectors needed to spin-complete ref_fock
+"""
+function possible_spin_focksectors(clusters, ref_focki; verbose=1)
+
+
+    spaces = Vector{Vector{Tuple{Int,Int}}}([])
+    for ci in clusters
+
+        na = ref_fock[ci.idx][1]
+        nb = ref_fock[ci.idx][2]
+        
+        spacesi = [(na, nb)]
+        nai = na
+        nbi = nb
+        if na > nb 
+            mult = na-nb + 1; 
+            for m = 2:mult 
+                nai -= 1
+                nbi += 1
+                push!(spacesi, (nai, nbi))
+            end
+        end
+        if na < nb 
+            mult = nb-na + 1; 
+            for m = 2:mult 
+                nai += 1
+                nbi -= 1
+                push!(spacesi, (nai, nbi))
+            end
+        end
+        push!(spaces, spacesi)
+    end
+    out = Vector{typeof(ref_focki)}([])
+    for (fi,f) in enumerate(Iterators.product(spaces...))
+        focki = FockConfig([f...])
+        FermiCG.n_elec_a(focki) == FermiCG.n_elec_a(ref_fock) || continue
+        FermiCG.n_elec_b(focki) == FermiCG.n_elec_b(ref_fock) || continue
+        verbose < 1 || display(focki)
+        push!(out, focki)
+    end
+
+    return out
+end

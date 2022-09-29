@@ -866,6 +866,96 @@ end
 
 
 """
+         compute_cluster_eigenbasis_spin(   ints::InCoreInts{T}, 
+                                            clusters::Vector{MOCluster}, 
+                                            rdm1::RDM1{T},
+                                            occupations::Vector{Integer},
+                                            ref_fock::FockConfig; 
+                                            verbose=0, 
+                                            max_roots=10, 
+                                            ansatze=nothing) where {T}
+"""
+function compute_cluster_eigenbasis_spin(   ints::InCoreInts{T}, 
+                                            clusters::Vector{MOCluster}, 
+                                            rdm1::RDM1{T},
+                                            delta_elec::Vector{Integer},
+                                            ref_fock::FockConfig; 
+                                            verbose=0, 
+                                            max_roots=10, 
+                                            ansatze=nothing) where {T}
+#={{{=#
+    # initialize output
+    #
+    cluster_bases = Vector{ClusterBasis{A,T}}()
+
+    for ci in clusters
+        verbose == 0 || display(ci)
+        
+            
+        ints_i = subset(ints, ci, rdm1) 
+
+
+        # 
+        # Verify that density matrix provided is consistent with reference fock sectors
+        occs = diag(rdm1a)
+        occs[ci.orb_list] .= 0
+        na_embed = sum(occs)
+        occs = diag(rdm1b)
+        occs[ci.orb_list] .= 0
+        nb_embed = sum(occs)
+        verbose == 0 || @printf(" Number of embedded electrons a,b: %f %f", na_embed, nb_embed)
+
+            
+        delta_e_i = delta_elec[ci.idx] 
+        
+        #
+        # Get list of Fock-space sectors for current cluster
+        #
+        sectors = possible_focksectors(ci, delta_elec=delta_e_i)
+
+        #
+        # Loop over sectors and do FCI for each
+        basis_i = ClusterBasis(ci, T=T) 
+        for sec in sectors
+            
+            #
+            # prepare for FCI calculation for give sector of Fock space
+            ansatz = FCIAnsatz(length(ci), sec[1], sec[2])
+            verbose == 0 || display(ansatz)
+            verbose == 0 || flush(stdout)
+            
+            nr = min(max_roots, ansatz.dim)
+
+            if ansatz.dim < 500 || ansatz.dim == nr 
+                #
+                # Build full Hamiltonian matrix in cluster's Slater Det basis
+                Hmat = build_H_matrix(ints_i, ansatz)
+                F = eigen(Hmat)
+
+                basis_i[sec] = Solution(ansatz, F.values[1:nr], F.vectors[:,1:nr])
+                #display(e)
+            else
+                #
+                # Do sparse build 
+                basis_i[sec] = solve(ints_i, ansatz, SolverSettings(nroots=nr))
+            end
+            if verbose > 0
+                state=1
+                for ei in basis_i[sec].energies
+                    @printf("   State %4i Energy: %12.8f %12.8f\n",state,ei, ei+ints.h0)
+                    state += 1
+                end
+                flush(stdout)
+            end
+        end
+        push!(cluster_bases,basis_i)
+    end
+    return cluster_bases
+end
+#=}}}=#
+
+
+"""
     compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{MOCluster}; 
         init_fspace=nothing, delta_elec=nothing, verbose=0, max_roots=10, 
         rdm1a=nothing, rdm1b=nothing, T::Type=Float64)
@@ -929,7 +1019,7 @@ function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{MOCluster
         #
         # Get list of Fock-space sectors for current cluster
         #
-        sectors = ClusterMeanField.possible_focksectors(ci, delta_elec=delta_e_i)
+        sectors = possible_focksectors(ci, delta_elec=delta_e_i)
 
         #
         # Loop over sectors and do FCI for each
@@ -944,7 +1034,7 @@ function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{MOCluster
             
             nr = min(max_roots, ansatz.dim)
 
-            if ansatz.dim < 5000 || ansatz.dim == nr 
+            if ansatz.dim < 500 || ansatz.dim == nr 
                 #
                 # Build full Hamiltonian matrix in cluster's Slater Det basis
                 Hmat = build_H_matrix(ints_i, ansatz)
@@ -955,6 +1045,10 @@ function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{MOCluster
             else
                 #
                 # Do sparse build 
+                if ansatz.dim > 3000
+                    display(norm(ints_i.h1))
+                    display(norm(ints_i.h2))
+                end
                 basis_i[sec] = solve(ints_i, ansatz, SolverSettings(nroots=nr))
             end
             if verbose > 0

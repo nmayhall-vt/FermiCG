@@ -51,7 +51,6 @@ include("SymDenseMats.jl");
 include("type_ClusterOps.jl")
 include("type_ClusterBasis.jl")
 include("type_ClusterSubspace.jl")
-include("build_local_quantities.jl")
 
 #indexing
 include("type_SparseIndex.jl")
@@ -61,6 +60,7 @@ include("type_FockConfig.jl")
 include("type_TuckerConfig.jl")
 include("type_OperatorConfig.jl")
 include("Indexing.jl")
+include("build_local_quantities.jl")
 
 include("type_AbstractState.jl")
 include("type_BSstate.jl")
