@@ -80,9 +80,7 @@ end
 
 Generate list of focksectors needed to spin-complete ref_fock
 """
-function possible_spin_focksectors(clusters, ref_focki; verbose=1)
-
-
+function possible_spin_focksectors(clusters, ref_fock; verbose=1)
     spaces = Vector{Vector{Tuple{Int,Int}}}([])
     for ci in clusters
 
@@ -110,7 +108,7 @@ function possible_spin_focksectors(clusters, ref_focki; verbose=1)
         end
         push!(spaces, spacesi)
     end
-    out = Vector{typeof(ref_focki)}([])
+    out = Vector{typeof(ref_fock)}([])
     for (fi,f) in enumerate(Iterators.product(spaces...))
         focki = FockConfig([f...])
         FermiCG.n_elec_a(focki) == FermiCG.n_elec_a(ref_fock) || continue
@@ -121,3 +119,6 @@ function possible_spin_focksectors(clusters, ref_focki; verbose=1)
 
     return out
 end
+
+
+

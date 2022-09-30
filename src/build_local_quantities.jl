@@ -866,64 +866,62 @@ end
 
 
 """
-         compute_cluster_eigenbasis_spin(   ints::InCoreInts{T}, 
-                                            clusters::Vector{MOCluster}, 
-                                            rdm1::RDM1{T},
-                                            occupations::Vector{Integer},
-                                            ref_fock::FockConfig; 
-                                            verbose=0, 
-                                            max_roots=10, 
-                                            ansatze=nothing) where {T}
 """
 function compute_cluster_eigenbasis_spin(   ints::InCoreInts{T}, 
                                             clusters::Vector{MOCluster}, 
                                             rdm1::RDM1{T},
-                                            delta_elec::Vector{Integer},
+                                            delta_elec::Vector,
                                             ref_fock::FockConfig; 
                                             verbose=0, 
                                             max_roots=10, 
-                                            ansatze=nothing) where {T}
-#={{{=#
+                                            A::Type=FCIAnsatz) where T
+    #={{{=#
     # initialize output
     #
     cluster_bases = Vector{ClusterBasis{A,T}}()
 
     for ci in clusters
         verbose == 0 || display(ci)
-        
-            
+
+
         ints_i = subset(ints, ci, rdm1) 
 
 
         # 
         # Verify that density matrix provided is consistent with reference fock sectors
-        occs = diag(rdm1a)
+        occs = diag(rdm1.a)
         occs[ci.orb_list] .= 0
         na_embed = sum(occs)
-        occs = diag(rdm1b)
+        occs = diag(rdm1.b)
         occs[ci.orb_list] .= 0
         nb_embed = sum(occs)
         verbose == 0 || @printf(" Number of embedded electrons a,b: %f %f", na_embed, nb_embed)
 
-            
+
         delta_e_i = delta_elec[ci.idx] 
-        
+
         #
         # Get list of Fock-space sectors for current cluster
         #
-        sectors = possible_focksectors(ci, delta_elec=delta_e_i)
+        ni = ref_fock[ci.idx][1] + ref_fock[ci.idx][2]  # number of electrons in ci
+        sectors = []
+        for nj in ni-delta_e_i:ni+delta_e_i
+            naj = nj÷2 + nj%2
+            nbj = nj÷2
+            push!(sectors, (naj, nbj))
+        end
 
         #
         # Loop over sectors and do FCI for each
         basis_i = ClusterBasis(ci, T=T) 
         for sec in sectors
-            
+
             #
             # prepare for FCI calculation for give sector of Fock space
             ansatz = FCIAnsatz(length(ci), sec[1], sec[2])
             verbose == 0 || display(ansatz)
             verbose == 0 || flush(stdout)
-            
+
             nr = min(max_roots, ansatz.dim)
 
             if ansatz.dim < 500 || ansatz.dim == nr 
@@ -933,21 +931,43 @@ function compute_cluster_eigenbasis_spin(   ints::InCoreInts{T},
                 F = eigen(Hmat)
 
                 basis_i[sec] = Solution(ansatz, F.values[1:nr], F.vectors[:,1:nr])
+
                 #display(e)
             else
                 #
                 # Do sparse build 
                 basis_i[sec] = solve(ints_i, ansatz, SolverSettings(nroots=nr))
             end
+
+            #
+            # Loop over spin-flips
+            # 
+            # s2 = s(s+1) 
+            
+
+            s2 = compute_s2(basis_i[sec])    
+
+            nr = length(basis_i[sec].energies)
+            for r in 1:nr
+                S = (-1 + sqrt(1+4*s2[r]))/2
+                gr = 2*S+1 # Degeneracy
+
+                # if gr is even (doublet, quartet, ...), we do N+1 applications of S- and N s+
+                #
+            end
+            
+
             if verbose > 0
                 state=1
-                for ei in basis_i[sec].energies
-                    @printf("   State %4i Energy: %12.8f %12.8f\n",state,ei, ei+ints.h0)
-                    state += 1
+                for i in 1:length(basis_i[sec].energies)
+                    @printf("   State %4i Energy: %12.8f S2: %12.8f\n",i, basis_i[sec].energies[i], s2[i])
                 end
                 flush(stdout)
             end
+
+
         end
+
         push!(cluster_bases,basis_i)
     end
     return cluster_bases
