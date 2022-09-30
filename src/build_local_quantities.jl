@@ -895,7 +895,7 @@ function compute_cluster_eigenbasis_spin(   ints::InCoreInts{T},
         occs = diag(rdm1.b)
         occs[ci.orb_list] .= 0
         nb_embed = sum(occs)
-        verbose == 0 || @printf(" Number of embedded electrons a,b: %f %f", na_embed, nb_embed)
+        verbose == 0 || @printf(" Number of embedded electrons a,b: %f %f\n", na_embed, nb_embed)
 
 
         delta_e_i = delta_elec[ci.idx] 
@@ -919,8 +919,9 @@ function compute_cluster_eigenbasis_spin(   ints::InCoreInts{T},
             #
             # prepare for FCI calculation for give sector of Fock space
             ansatz = FCIAnsatz(length(ci), sec[1], sec[2])
-            verbose == 0 || display(ansatz)
-            verbose == 0 || flush(stdout)
+            #verbose == 0 || @printf(" Preparing to compute : \n")
+            #verbose == 0 || display(ansatz)
+            #verbose == 0 || flush(stdout)
 
             nr = min(max_roots, ansatz.dim)
 
@@ -948,24 +949,72 @@ function compute_cluster_eigenbasis_spin(   ints::InCoreInts{T},
             s2 = compute_s2(basis_i[sec])    
 
             nr = length(basis_i[sec].energies)
-            for r in 1:nr
-                S = (-1 + sqrt(1+4*s2[r]))/2
-                gr = 2*S+1 # Degeneracy
-
-                # if gr is even (doublet, quartet, ...), we do N+1 applications of S- and N s+
-                #
-            end
+            #for r in 1:nr
+            #    S = (-1 + sqrt(1+4*s2[r]))/2
+            #    gr = 2*S+1 # Degeneracy
+            #end
+          
+            #
+            #   S-
+            #
+            # find how many applications of S- we need to try
             
+            n_sm = minimum((sec[1], ansatz.no-sec[2]))
+            vi = deepcopy(basis_i[sec].vectors)
+            ansatzi = deepcopy(basis_i[sec].ansatz)
+            for smi in 1:n_sm
+                vi, ansatzi = apply_sminus(vi, ansatzi)
+                if size(vi,2) == 0
+                    # we have killed all the spin states
+                    continue
+                end
 
-            if verbose > 0
-                state=1
-                for i in 1:length(basis_i[sec].energies)
-                    @printf("   State %4i Energy: %12.8f S2: %12.8f\n",i, basis_i[sec].energies[i], s2[i])
+                Hmapi = LinearMap(ints_i, ansatzi)
+                ei = diag(Matrix(vi' * (Hmapi*vi)))
+                #ei = compute_energy(vi, ansatzi)
+            
+                si = Solution(ansatzi, ei, vi)
+                seci = (ansatzi.na, ansatzi.nb)
+                basis_i[seci] = si
+            end
+            #
+            #   S+
+            #
+            # find how many applications of S+ we need to try
+            
+            n_sp = minimum((sec[2], ansatz.no-sec[1]))
+            vi = deepcopy(basis_i[sec].vectors)
+            ansatzi = deepcopy(basis_i[sec].ansatz)
+            for spi in 1:n_sp
+                vi, ansatzi = apply_splus(vi, ansatzi)
+                if size(vi,2) == 0
+                    # we have killed all the spin states
+                    continue
+                end
+
+                Hmapi = LinearMap(ints_i, ansatzi)
+                ei = diag(Matrix(vi' * (Hmapi*vi)))
+                #ei = compute_energy(vi, ansatzi)
+            
+                si = Solution(ansatzi, ei, vi)
+                seci = (ansatzi.na, ansatzi.nb)
+                basis_i[seci] = si
+            end
+
+        end
+           
+        flush(stdout)
+        if verbose > 0
+            println()
+            for (sec, sol) in basis_i    
+                println()
+                display(sol.ansatz)
+                s2 = compute_s2(sol)    
+                for i in 1:length(sol.energies)
+                    @printf("   State %4i Energy: %12.8f S2: %12.8f\n",i, sol.energies[i], s2[i])
                 end
                 flush(stdout)
             end
-
-
         end
 
         push!(cluster_bases,basis_i)
