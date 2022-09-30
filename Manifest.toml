@@ -27,7 +27,7 @@ version = "0.3.4"
 
 [[deps.ActiveSpaceSolvers]]
 deps = ["Arpack", "BenchmarkTools", "BlockDavidson", "Documenter", "InCoreIntegrals", "InteractiveUtils", "JLD2", "KrylovKit", "LinearAlgebra", "LinearMaps", "NPZ", "OrderedCollections", "Parameters", "Printf", "Profile", "QCBase", "StaticArrays", "TensorOperations", "TimerOutputs"]
-git-tree-sha1 = "457abf172decb669bc7683777307ef131e9f36b3"
+git-tree-sha1 = "fbc82fdd60ce9f24e567e3369c68310c53949e9d"
 repo-rev = "main"
 repo-url = "https://github.com/nmayhall-vt/ActiveSpaceSolvers.jl"
 uuid = "f8e94ea7-44cc-4f7e-92b7-2a8da6f47aca"

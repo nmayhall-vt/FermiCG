@@ -1045,10 +1045,10 @@ function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{MOCluster
             else
                 #
                 # Do sparse build 
-                if ansatz.dim > 3000
-                    display(norm(ints_i.h1))
-                    display(norm(ints_i.h2))
-                end
+                #if ansatz.dim > 3000
+                #    display(norm(ints_i.h1))
+                #    display(norm(ints_i.h2))
+                #end
                 basis_i[sec] = solve(ints_i, ansatz, SolverSettings(nroots=nr))
             end
             if verbose > 0
