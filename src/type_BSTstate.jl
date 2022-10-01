@@ -26,6 +26,45 @@ Base.size(ts::BSTstate{T,N,R}) where {T,N,R} =  (length(ts), R)
 
 """
     BSTstate(clusters::Vector{MOCluster}, 
+             p_spaces::Vector{ClusterSubspace},
+             cluster_bases::Vector{ClusterBasis}; R=1) where {N} 
+
+Constructor needing only prespecified p-spaces. 
+The Q space is defined as the orthogonal complement of p-space within the available basis, 
+specified by `cluster_bases`.
+# Arguments
+- `clusters`: vector of clusters types
+- `p_spaces`: list of pspaces for each cluster 
+- `cluster_basis`: list of ClusterBasis types - needed to know the dimensions of the q-spaces
+- `R`: number of roots
+# Returns
+- `BSTstate`
+"""
+function BSTstate(clusters::Vector{MOCluster}, 
+                  p_spaces::Vector{ClusterSubspace},
+                  cluster_bases::Vector{ClusterBasis{A,T}}; R=1) where {T,A} 
+    #={{{=#
+
+    N = length(clusters)
+    # 
+    # start by building the P and Q spaces needed
+    q_spaces = Vector{ClusterSubspace}()
+
+    # define q spaces
+    for tssp in p_spaces 
+        tss = get_ortho_compliment(tssp, cluster_bases[tssp.cluster.idx])
+        push!(q_spaces, tss)
+    end
+
+    data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N,R}} }()
+
+    return BSTstate{T,N,R}(clusters, data, p_spaces, q_spaces) 
+#=}}}=#
+end
+
+
+"""
+    BSTstate(clusters::Vector{MOCluster}, 
         fconfig::FockConfig{N}, 
         cluster_bases::Vector{ClusterBasis}) where {N} 
 
@@ -64,6 +103,9 @@ function BSTstate(clusters::Vector{MOCluster},
 
     data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N,R}} }()
     state = BSTstate{T,N,R}(clusters, data, p_spaces, q_spaces) 
+    
+    # Replace below with "fill_p_space!"
+
     add_fockconfig!(state, fconfig)
 
     factors = []
@@ -260,10 +302,45 @@ end
 
 """
     add_fockconfig!(s::BSTstate, fock::FockConfig)
+
+Add an uninitialized `FockConfig` to the current basis. Typically, you'll want to 
+initialize it right after with `add_tuckerconfig!`
 """
-function add_fockconfig!(s::BSTstate{T,N}, fock::FockConfig) where {T,N}
-    s.data[fock] = OrderedDict{TuckerConfig, Tucker{T,N}}()
+function add_fockconfig!(s::BSTstate{T,N,R}, fock::FockConfig) where {T,N,R}
+    s.data[fock] = OrderedDict{TuckerConfig, Tucker{T,N,R}}()
 end
+
+function fill_p_space!(s::BSTstate{T,N,R}, na, nb) where {T,N,R}
+
+    sectors = [] 
+    for ci in s.clusters
+        sectors_i = []
+        for (fock, range) in s.p_spaces[ci.idx].data
+            push!(sectors_i, fock)
+        end
+        push!(sectors, sectors_i)
+    end
+    for fconfig in Iterators.product(sectors...)
+        fi = FockConfig([fconfig...])
+        if n_elec_a(fi) == na && n_elec_b(fi) == nb 
+            add_fockconfig!(s, fi)
+            
+            factors = []
+            dims = []
+            for ci in s.clusters
+                dim = length(s.p_spaces[ci.idx][fi[ci.idx]])
+                push!(factors, Matrix(1.0I, dim, dim))
+                push!(dims, dim)
+            end
+            factors = tuple(factors...) 
+
+            tconfig = TuckerConfig([s.p_spaces[ci.idx].data[fi[ci.idx]] for ci in s.clusters])
+            core = tuple([reshape(ones(prod(dims)), tuple(dims...)) for r in 1:R]...)
+            s[fi][tconfig] = Tucker{T,N,R}(core, factors)
+        end
+    end
+end
+
 
 """
     Base.length(s::BSTstate)
@@ -753,3 +830,22 @@ end
 nroots(v::BSTstate{T,N,R}) where {T,N,R} = R
 type(v::BSTstate{T,N,R}) where {T,N,R} = T
 nclusters(v::BSTstate{T,N,R}) where {T,N,R} = N
+
+
+
+
+"""
+    add_spin_focksectors(state::BSTstate{T,N,R}) where {T,N,R}
+
+Add the focksectors needed to spin adapt the given `BSTstate`
+"""
+function add_spin_focksectors(state::BSTstate{T,N,R}) where {T,N,R}
+    out = deepcopy(state)
+    for (fock, configs) in state.data
+        for f in possible_spin_focksectors(state.clusters, fock)
+            add_fockconfig!(out, f)
+        end
+    end
+    expand_each_fock_space!(state)
+    return out
+end

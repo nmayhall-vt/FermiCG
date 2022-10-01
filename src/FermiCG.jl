@@ -98,9 +98,16 @@ export Molecule
 export Atom
 export MOCluster
 export ClusterBasis
+export ClusterSubspace
+export ClusteredOperator
 export TPSCIstate
+export BSTstate
 export ClusterConfig 
 export FockConfig 
 export TuckerConfig 
 export n_orb
+export add_subspace!
+export add_fockconfig!
+export expand_each_fock_space!
+export block_sparse_tucker
 end

@@ -24,3 +24,6 @@ function Base.display(tss::ClusterSubspace)
 end
 
 
+function add_subspace!(css::ClusterSubspace, fock::Tuple, range::UnitRange)
+    css[fock] = range
+end

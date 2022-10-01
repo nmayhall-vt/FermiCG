@@ -17,5 +17,6 @@ Random.seed!(1234567)
     include("test_bst.jl")
     include("test_bs.jl")
     include("test_schmidt.jl")
+    include("test_openshell.jl")
 end
 
