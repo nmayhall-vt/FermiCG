@@ -164,7 +164,7 @@ version = "0.1.4"
 
 [[deps.ClusterMeanField]]
 deps = ["ActiveSpaceSolvers", "Arpack", "BlockDavidson", "InCoreIntegrals", "JLD2", "LinearAlgebra", "NPZ", "Optim", "Printf", "PyCall", "QCBase", "RDM", "Random", "StatProfilerHTML", "StaticArrays", "TensorOperations", "Term"]
-git-tree-sha1 = "14f56c6d77459af53517a5b11d1380c8e42c4533"
+git-tree-sha1 = "edd5ac85ee230b3bc80205dcc105a1325ec4490f"
 repo-rev = "main"
 repo-url = "https://github.com/nmayhall-vt/ClusterMeanField.jl"
 uuid = "3e8e530f-db5a-4e5f-8d4d-9676e9551b72"
@@ -973,9 +973,9 @@ version = "0.4.4"
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
 
 [[deps.Observables]]
-git-tree-sha1 = "dfd8d34871bc3ad08cd16026c1828e271d554db9"
+git-tree-sha1 = "5a9ea4b9430d511980c01e9f7173739595bbd335"
 uuid = "510215fc-4207-5dde-b226-833fc4488ee2"
-version = "0.5.1"
+version = "0.5.2"
 
 [[deps.OffsetArrays]]
 deps = ["Adapt"]
@@ -1236,9 +1236,9 @@ version = "1.3.0"
 
 [[deps.RecipesPipeline]]
 deps = ["Dates", "NaNMath", "PlotUtils", "RecipesBase"]
-git-tree-sha1 = "e7eac76a958f8664f2718508435d058168c7953d"
+git-tree-sha1 = "017f217e647cf20b0081b9be938b78c3443356a0"
 uuid = "01d81517-befc-4cb6-b9ec-a95719d0359c"
-version = "0.6.3"
+version = "0.6.6"
 
 [[deps.Reexport]]
 git-tree-sha1 = "45e428421666073eab6f2da5c9d310d99bb12f9b"
