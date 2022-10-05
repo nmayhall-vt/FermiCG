@@ -51,10 +51,13 @@ function compute_cluster_ops(cluster_bases, ints::InCoreInts{T}) where {T}
 
 
     for ci in clusters
-        cb = cluster_bases[ci.idx]
-        
-        cluster_ops[ci.idx]["H"] = FermiCG.tdm_H(cb, subset(ints, ci.orb_list), verbose=0) 
 
+        display(ci)
+        flush(stdout)
+
+        cb = cluster_bases[ci.idx]
+       
+        cluster_ops[ci.idx]["H"] = FermiCG.tdm_H(cb, subset(ints, ci.orb_list), verbose=0) 
         cluster_ops[ci.idx]["A"], cluster_ops[ci.idx]["a"] = FermiCG.tdm_A(cb,"alpha") 
         cluster_ops[ci.idx]["B"], cluster_ops[ci.idx]["b"] = FermiCG.tdm_A(cb,"beta")
         cluster_ops[ci.idx]["AA"], cluster_ops[ci.idx]["aa"] = FermiCG.tdm_AA(cb,"alpha") 
@@ -126,7 +129,6 @@ function compute_cluster_ops(cluster_bases, ints::InCoreInts{T}) where {T}
         cluster_ops[ci.idx]["S2"] = FermiCG.tdm_S2(cb, subset(ints, ci.orb_list), verbose=0) 
 
 
-
         to_delete = [
                      #"AAa",
                      #"Aaa",
@@ -161,12 +163,15 @@ function compute_cluster_ops(cluster_bases, ints::InCoreInts{T}) where {T}
             end
         end
 
+
         # Compute single excitation operator
         tmp = Dict{Tuple,Array}()
         for (fock,basis) in cb
             tmp[(fock,fock)] = (cluster_ops[ci.idx]["Aa"][(fock,fock)] + cluster_ops[ci.idx]["Bb"][(fock,fock)])
         end
         cluster_ops[ci.idx]["E1"] = tmp 
+
+        
 
         #
         # reshape data into 3index quantities: e.g., (pqr, I, J)
@@ -239,7 +244,7 @@ function tdm_S2(cb::ClusterBasis, ints; verbose=0)
         focktrans = (fock,fock)
         verbose == 0 || display(basis.ansatz)
 
-        dicti[focktrans] = cb[fock]' * (build_S2_matrix(basis.ansatz) * cb[fock])
+        dicti[focktrans] = cb[fock]' * apply_S2_matrix(basis.ansatz, cb[fock].vectors)
 
         if verbose > 0
             for e in 1:size(cb[fock],2)
@@ -866,6 +871,14 @@ end
 
 
 """
+    compute_cluster_eigenbasis_spin(   ints::InCoreInts{T}, 
+                                       clusters::Vector{MOCluster}, 
+                                       rdm1::RDM1{T},
+                                       delta_elec::Vector,
+                                       ref_fock::FockConfig; 
+                                       verbose=0, 
+                                       max_roots=10, 
+                                       A::Type=FCIAnsatz) where T
 """
 function compute_cluster_eigenbasis_spin(   ints::InCoreInts{T}, 
                                             clusters::Vector{MOCluster}, 
@@ -882,7 +895,7 @@ function compute_cluster_eigenbasis_spin(   ints::InCoreInts{T},
 
     for ci in clusters
         verbose == 0 || display(ci)
-
+        
 
         ints_i = subset(ints, ci, rdm1) 
 
@@ -919,9 +932,9 @@ function compute_cluster_eigenbasis_spin(   ints::InCoreInts{T},
             #
             # prepare for FCI calculation for give sector of Fock space
             ansatz = FCIAnsatz(length(ci), sec[1], sec[2])
-            #verbose == 0 || @printf(" Preparing to compute : \n")
-            #verbose == 0 || display(ansatz)
-            #verbose == 0 || flush(stdout)
+            verbose == 0 || @printf(" Preparing to compute : \n")
+            verbose == 0 || display(ansatz)
+            verbose == 0 || flush(stdout)
 
             nr = min(max_roots, ansatz.dim)
 
@@ -958,12 +971,17 @@ function compute_cluster_eigenbasis_spin(   ints::InCoreInts{T},
             #   S-
             #
             # find how many applications of S- we need to try
-            
+           
+            verbose == 0 || println(" Compute higher and lower Ms components")
             n_sm = minimum((sec[1], ansatz.no-sec[2]))
             vi = deepcopy(basis_i[sec].vectors)
             ansatzi = deepcopy(basis_i[sec].ansatz)
             for smi in 1:n_sm
                 vi, ansatzi = apply_sminus(vi, ansatzi)
+
+                verbose == 0 || display(ansatzi) 
+                flush(stdout)
+
                 if size(vi,2) == 0
                     # we have killed all the spin states
                     continue
@@ -987,6 +1005,10 @@ function compute_cluster_eigenbasis_spin(   ints::InCoreInts{T},
             ansatzi = deepcopy(basis_i[sec].ansatz)
             for spi in 1:n_sp
                 vi, ansatzi = apply_splus(vi, ansatzi)
+                
+                verbose == 0 || display(ansatzi) 
+                flush(stdout)
+
                 if size(vi,2) == 0
                     # we have killed all the spin states
                     continue
