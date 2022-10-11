@@ -10,7 +10,6 @@ module FermiCG
 using Compat
 using KrylovKit
 using LinearAlgebra
-using NDTensors
 using Printf
 using TimerOutputs
 using OrderedCollections 
