@@ -1,5 +1,3 @@
-using Profile
-using BenchmarkTools
 
 """
     build_sigma!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, clustered_ham)

@@ -8,15 +8,11 @@ module FermiCG
 # External packages
 #
 using Compat
-using HDF5
 using KrylovKit
 using LinearAlgebra
 using NDTensors
-using PackageCompiler
-using Parameters
 using Printf
 using TimerOutputs
-using BenchmarkTools 
 using OrderedCollections 
 using IterTools
 using LinearAlgebra

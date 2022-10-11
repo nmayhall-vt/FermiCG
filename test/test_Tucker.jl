@@ -3,7 +3,6 @@ using Printf
 using Test
 using LinearAlgebra
 using Profile 
-using HDF5
 
 using PyCall
 pydir = joinpath(dirname(pathof(FermiCG)), "python")

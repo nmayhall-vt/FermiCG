@@ -1,6 +1,5 @@
 using QCBase
 using NPZ
-using JSON
 using Random
 using LinearAlgebra
 using FermiCG

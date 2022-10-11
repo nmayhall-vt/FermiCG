@@ -879,6 +879,22 @@ end
                                        verbose=0, 
                                        max_roots=10, 
                                        A::Type=FCIAnsatz) where T
+
+Return a Vector of `ClusterBasis` for each `Cluster`.
+For each number of electrons specified by ref_fock +- 1->delta_elec (for each cluster), 
+we solve the CASCI problem, collecting `max_roots` of the lowest energy eigenvectors for the half-filled (or of odd number nalpha = nbeta+1) level. Then we apply S^- and S^+ to generate the higher/lower m_s blocks directly. 
+
+# Arguments
+#
+- `ints`: InCoreInts integrals
+- `clusters`: Clusters 
+- `verbose`: Print level
+- `ref_fock`:  reference space for defining target focksectors with `delta_elec`
+- `delta_elec`: number of electrons different from reference (init_fspace) for each cluster
+- `max_roots::Int`: Maximum number of vectors for each focksector basis
+- `rdm1`: background density matrix for embedding local hamiltonian 
+- `A`: the type of Ansatz object used to solve each cluster. Default is FCIAnsatz     
+- `T`: Data type of the eigenvectors 
 """
 function compute_cluster_eigenbasis_spin(   ints::InCoreInts{T}, 
                                             clusters::Vector{MOCluster}, 
@@ -1174,14 +1190,14 @@ Return a Vector of `ClusterBasis` for each `Cluster`  using the Embedded Schmidt
 - `thresh_orb`: threshold for the orbital
 - `thresh_ci`: threshold for the ci problem
 """
-function compute_cluster_est_basis(ints::InCoreInts, clusters::Vector{MOCluster},Da,Db; 
+function compute_cluster_est_basis(ints::InCoreInts{T}, clusters::Vector{MOCluster},Da,Db; 
                 thresh_schmidt=1e-3, thresh_orb=1e-8, thresh_ci=1e-6,
                 do_embedding=true,verbose=0,init_fspace=nothing,delta_elec=nothing,
                 est_nr=1, est_max_cycles=200, est_thresh=1e-6, 
-                A::Type=FCIAnsatz)
+                A::Type=FCIAnsatz) where T
 #={{{=#
     # initialize output
-    cluster_bases = Vector{ClusterBasis}()
+    cluster_bases = Vector{ClusterBasis{A,T}}()
 
     for ci in clusters
         verbose == 0 || display(ci)

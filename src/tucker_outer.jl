@@ -1,6 +1,4 @@
-using Profile
 using LinearMaps
-using BenchmarkTools
 using IterativeSolvers
 using BlockDavidson
 #using TensorDecompositions
@@ -854,20 +852,20 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops,
                                                            max_number=max_number,
                                                            prescreen=thresh)
 
-                        if (term isa ClusteredTerm2B) && false
-                            @btime del = form_sigma_block_expand2($term, $cluster_ops,
-                                                                $sig_fock, $sig_tconfig,
-                                                                $ket_fock, $ket_tconfig, $ket_tuck,
-                                                                $scr[Threads.threadid()],
-                                                                max_number=$max_number,
-                                                                prescreen=$thresh)
-                            #del = form_sigma_block_expand2(term, cluster_ops,
-                            #                                    sig_fock, sig_tconfig,
-                            #                                    ket_fock, ket_tconfig, ket_tuck,
-                            #                                    scr[Threads.threadid()],
-                            #                                    max_number=max_number,
-                            #                                    prescreen=thresh)
-                        end
+                        #if (term isa ClusteredTerm2B) && false
+                        #    @btime del = form_sigma_block_expand2($term, $cluster_ops,
+                        #                                        $sig_fock, $sig_tconfig,
+                        #                                        $ket_fock, $ket_tconfig, $ket_tuck,
+                        #                                        $scr[Threads.threadid()],
+                        #                                        max_number=$max_number,
+                        #                                        prescreen=$thresh)
+                        #    #del = form_sigma_block_expand2(term, cluster_ops,
+                        #    #                                    sig_fock, sig_tconfig,
+                        #    #                                    ket_fock, ket_tconfig, ket_tuck,
+                        #    #                                    scr[Threads.threadid()],
+                        #    #                                    max_number=max_number,
+                        #    #                                    prescreen=thresh)
+                        #end
 
                         if length(sig_tuck) == 0
                             continue

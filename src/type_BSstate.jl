@@ -1,6 +1,4 @@
-using Profile
 using LinearMaps
-using BenchmarkTools
 #using KrylovKit
 using IterativeSolvers
 using LinearAlgebra

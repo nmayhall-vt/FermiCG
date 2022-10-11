@@ -1,5 +1,6 @@
 using FermiCG
 using ClusterMeanField
+using RDM
 using LinearAlgebra
 using Printf
 using Arpack 
