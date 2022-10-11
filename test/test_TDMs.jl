@@ -43,7 +43,7 @@ using Test
 
     max_roots = 20
 
-    clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
+    clusters = [MOCluster(i,collect(clusters[i])) for i = 1:length(clusters)]
     display(clusters)
 
     #cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=0, 

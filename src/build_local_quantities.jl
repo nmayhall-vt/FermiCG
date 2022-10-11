@@ -1,3 +1,9 @@
+using ActiveSpaceSolvers
+using BlockDavidson
+
+
+
+
 """
     get_ortho_compliment(tss::ClusterSubspace, cb::ClusterBasis)
 
@@ -33,7 +39,7 @@ end
 """
 function compute_cluster_ops(cluster_bases, ints::InCoreInts{T}) where {T}
 #={{{=#
-    clusters = Vector{Cluster}()
+    clusters = Vector{MOCluster}()
     for ci in cluster_bases
         push!(clusters, ci.cluster)
     end
@@ -45,10 +51,13 @@ function compute_cluster_ops(cluster_bases, ints::InCoreInts{T}) where {T}
 
 
     for ci in clusters
-        cb = cluster_bases[ci.idx]
-        
-        cluster_ops[ci.idx]["H"] = FermiCG.tdm_H(cb, subset(ints, ci.orb_list), verbose=0) 
 
+        display(ci)
+        flush(stdout)
+
+        cb = cluster_bases[ci.idx]
+       
+        cluster_ops[ci.idx]["H"] = FermiCG.tdm_H(cb, subset(ints, ci.orb_list), verbose=0) 
         cluster_ops[ci.idx]["A"], cluster_ops[ci.idx]["a"] = FermiCG.tdm_A(cb,"alpha") 
         cluster_ops[ci.idx]["B"], cluster_ops[ci.idx]["b"] = FermiCG.tdm_A(cb,"beta")
         cluster_ops[ci.idx]["AA"], cluster_ops[ci.idx]["aa"] = FermiCG.tdm_AA(cb,"alpha") 
@@ -120,7 +129,6 @@ function compute_cluster_ops(cluster_bases, ints::InCoreInts{T}) where {T}
         cluster_ops[ci.idx]["S2"] = FermiCG.tdm_S2(cb, subset(ints, ci.orb_list), verbose=0) 
 
 
-
         to_delete = [
                      #"AAa",
                      #"Aaa",
@@ -155,12 +163,15 @@ function compute_cluster_ops(cluster_bases, ints::InCoreInts{T}) where {T}
             end
         end
 
+
         # Compute single excitation operator
         tmp = Dict{Tuple,Array}()
         for (fock,basis) in cb
             tmp[(fock,fock)] = (cluster_ops[ci.idx]["Aa"][(fock,fock)] + cluster_ops[ci.idx]["Bb"][(fock,fock)])
         end
         cluster_ops[ci.idx]["E1"] = tmp 
+
+        
 
         #
         # reshape data into 3index quantities: e.g., (pqr, I, J)
@@ -201,9 +212,8 @@ function tdm_H(cb::ClusterBasis, ints; verbose=0)
     verbose == 0 || display(cb.cluster)
     for (fock,basis) in cb
         focktrans = (fock,fock)
-        problem = StringCI.FCIProblem(norbs, fock[1], fock[2])
-        verbose == 0 || display(problem)
-        Hmap = StringCI.get_map(ints, problem)
+        verbose == 0 || display(basis.ansatz)
+        Hmap = LinearMap(ints, basis.ansatz)
 
         dicti[focktrans] = cb[fock]' * Matrix((Hmap * cb[fock]))
 
@@ -232,10 +242,9 @@ function tdm_S2(cb::ClusterBasis, ints; verbose=0)
     verbose == 0 || display(cb.cluster)
     for (fock,basis) in cb
         focktrans = (fock,fock)
-        problem = StringCI.FCIProblem(norbs, fock[1], fock[2])
-        verbose == 0 || display(problem)
+        verbose == 0 || display(basis.ansatz)
 
-        dicti[focktrans] = cb[fock]' * (StringCI.build_S2_matrix(problem) * cb[fock])
+        dicti[focktrans] = cb[fock]' * apply_S2_matrix(basis.ansatz, cb[fock].vectors)
 
         if verbose > 0
             for e in 1:size(cb[fock],2)
@@ -283,7 +292,11 @@ function tdm_A(cb::ClusterBasis, spin_case; verbose=0)
             if haskey(cb, fockbra) && haskey(cb, fockket)
                 basis_bra = cb[fockbra]
                 basis_ket = cb[fockket]
-                dicti[focktrans] = FermiCG.StringCI.compute_annihilation(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket, spin_case)
+                if spin_case == "alpha"
+                    dicti[focktrans] = compute_operator_a_a(basis_bra, basis_ket)
+                else
+                    dicti[focktrans] = compute_operator_a_b(basis_bra, basis_ket)
+                end
                 # adjoint 
                 basis_bra = cb[fockket]
                 basis_ket = cb[fockbra]
@@ -332,10 +345,11 @@ function tdm_AA(cb::ClusterBasis, spin_case; verbose=0)
             if haskey(cb, fockbra) && haskey(cb, fockket)
                 basis_bra = cb[fockbra]
                 basis_ket = cb[fockket]
-                #println()
-                #println("::::::::::::::: ", fockbra, fockket)
-                #println(":: ", size(basis_bra), size(basis_ket))
-                dicti[focktrans] = FermiCG.StringCI.compute_AA(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket, spin_case)
+                if spin_case == "alpha"
+                    dicti[focktrans] = compute_operator_cc_aa(basis_bra, basis_ket)
+                else
+                    dicti[focktrans] = compute_operator_cc_bb(basis_bra, basis_ket)
+                end
                 # adjoint 
                 basis_bra = cb[fockket]
                 basis_ket = cb[fockbra]
@@ -375,8 +389,11 @@ function tdm_Aa(cb::ClusterBasis, spin_case; verbose=0)
             if haskey(cb, fockbra) && haskey(cb, fockket)
                 basis_bra = cb[fockbra]
                 basis_ket = cb[fockket]
-                dicti[focktrans] = FermiCG.StringCI.compute_Aa(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket, spin_case)
-                #dicti[focktrans] = reshape(dicti[focktrans],(norbs*norbs, size(dicti[focktrans],3), size(dicti[focktrans],4)))
+                if spin_case == "alpha"
+                    dicti[focktrans] = compute_operator_ca_aa(basis_bra, basis_ket)
+                else
+                    dicti[focktrans] = compute_operator_ca_bb(basis_bra, basis_ket)
+                end
             end
         end
     end
@@ -415,12 +432,11 @@ function tdm_Ab(cb::ClusterBasis; verbose=0)
             if haskey(cb, fockbra) && haskey(cb, fockket)
                 basis_bra = cb[fockbra]
                 basis_ket = cb[fockket]
-                dicti[focktrans] = FermiCG.StringCI.compute_Ab(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket)
+                dicti[focktrans] = compute_operator_ca_ab(basis_bra, basis_ket)
                 
                 # adjoint 
                 basis_bra = cb[fockket]
                 basis_ket = cb[fockbra]
-                #dicti[focktrans] = FermiCG.StringCI.compute_Ba(norbs, fockket[1], fockket[2], fockket[1], fockket[2], basis_bra, basis_ket)
                 dicti_adj[focktrans_adj] =  permutedims(dicti[focktrans], [2,1,4,3])
             end
         end
@@ -462,7 +478,7 @@ function tdm_AB(cb::ClusterBasis; verbose=0)
             if haskey(cb, fockbra) && haskey(cb, fockket)
                 basis_bra = cb[fockbra]
                 basis_ket = cb[fockket]
-                dicti[focktrans] = FermiCG.StringCI.compute_AB(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket)
+                dicti[focktrans] = compute_operator_cc_ab(basis_bra, basis_ket)
                 dictj[focktrans] = -permutedims(dicti[focktrans], [2,1,3,4])
                 
                 # adjoint 
@@ -512,7 +528,11 @@ function tdm_AAa(cb::ClusterBasis, spin_case; verbose=0)
             if haskey(cb, fockbra) && haskey(cb, fockket)
                 basis_bra = cb[fockbra]
                 basis_ket = cb[fockket]
-                dicti[focktrans] = FermiCG.StringCI.compute_AAa(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket, spin_case)
+                if spin_case == "alpha"
+                    dicti[focktrans] = compute_operator_cca_aaa(basis_bra, basis_ket)
+                else
+                    dicti[focktrans] = compute_operator_cca_bbb(basis_bra, basis_ket)
+                end
                 # adjoint 
                 basis_bra = cb[fockket]
                 basis_ket = cb[fockbra]
@@ -564,10 +584,10 @@ function tdm_ABa(cb::ClusterBasis, spin_case; verbose=0)
                 basis_bra = cb[fockbra]
                 basis_ket = cb[fockket]
                 if spin_case == "alpha"
-                    dicti[focktrans]     = FermiCG.StringCI.compute_ABa(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket)
+                    dicti[focktrans]     = compute_operator_cca_aba(basis_bra, basis_ket)
                     dictj[focktrans] = -permutedims(dicti[focktrans], [2,1,3,4,5])
                 elseif spin_case == "beta"
-                    dicti[focktrans]     = FermiCG.StringCI.compute_ABb(norbs, fockbra[1], fockbra[2], fockket[1], fockket[2], basis_bra, basis_ket)
+                    dicti[focktrans]     = compute_operator_cca_abb(basis_bra, basis_ket)
                     dictj[focktrans] = -permutedims(dicti[focktrans], [2,1,3,4,5])
                 else
                     error("Wrong spin_case: ",spin_case)
@@ -603,7 +623,8 @@ function add_cmf_operators!(ops, bases, ints, Da, Db; verbose=0)
         verbose == 0 || display(ci)
         norbs = length(cb.cluster)
         
-        ints_i = form_casci_ints(ints, ci, Da, Db)
+        ints_i = subset(ints, ci.orb_list, Da, Db)
+        #ints_i = form_casci_ints(ints, ci, Da, Db)
 
 
         dicti = Dict{Tuple,Array}()
@@ -613,9 +634,8 @@ function add_cmf_operators!(ops, bases, ints, Da, Db; verbose=0)
         verbose == 0 || display(cb.cluster)
         for (fock,basis) in cb
             focktrans = (fock,fock)
-            problem = StringCI.FCIProblem(norbs, fock[1], fock[2])
-            verbose == 0 || display(problem)
-            Hmap = StringCI.get_map(ints_i, problem)
+            verbose == 0 || display(basis.ansatz)
+            Hmap = LinearMap(ints_i, basis.ansatz)
 
             dicti[focktrans] = cb[fock]' * Matrix((Hmap * cb[fock]))
 
@@ -639,9 +659,10 @@ thresh_schmidt  :   threshold for determining how many singular vectors to inclu
 
 Returns new basis for the cluster
 """
-function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db; 
+function form_schmidt_basis(ints::InCoreInts, ci::MOCluster, Da, Db; 
         thresh_schmidt=1e-3, thresh_orb=1e-8, thresh_ci=1e-6,do_embedding=true,
-        eig_nr=1, eig_max_cycles=200)
+        eig_nr=1, eig_max_cycles=200,
+        A::Type=FCIAnsatz)
 
     println()
     println("------------------------------------------------------------")
@@ -808,7 +829,8 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db;
 
     #ints_f = subset(ints2,collect(1:size(Cfrag,2)+size(Cbath,2)), denvt_a, denvt_b)
 
-    ints_f = FermiCG.form_1rdm_dressed_ints(ints2,no_range,denvt_a,denvt_b)
+    ints_f = subset(ints2,no_range,denvt_a,denvt_b)
+    #ints_f = FermiCG.form_1rdm_dressed_ints(ints2,no_range,denvt_a,denvt_b)
 
     else
         denvt_a *= 0 
@@ -825,31 +847,213 @@ function form_schmidt_basis(ints::InCoreInts, ci::Cluster, Da, Db;
     @printf("  α: %12.8f  β:%12.8f \n ",na_actv,nb_actv)
 
     norb2 = size(ints_f.h1,1)
-    problem = FermiCG.StringCI.FCIProblem(norb2, na_actv, nb_actv)
-    Hmap = StringCI.get_map(ints_f, problem)
-    v0 = svd(rand(problem.dim,eig_nr)).U
+
+    ansatz = FCIAnsatz(norb2, na_actv, nb_actv)
+    Hmap = LinearMap(ints_f, ansatz)
+    v0 = svd(rand(ansatz.dim,eig_nr)).U
     davidson = FermiCG.Davidson(Hmap,v0=v0,max_iter=200, max_ss_vecs=20, nroots=eig_nr, tol=1e-8)
     #FermiCG.solve(davidson)
     @printf(" Now iterate: \n")
     flush(stdout)
     #@time FermiCG.iteration(davidson, Adiag=Adiag, iprint=2)
-    @time e,v = FermiCG.solve(davidson);
-    e = real(e)[1]
-    v = v[:,1]
+    @time e,v = BlockDavidson.eigs(davidson);
+
+    solution = Solution(ansatz, e, v)
+    ansatz = FCIAnsatz(norb2, na_actv, nb_actv)
     
-    basis = FermiCG.StringCI.svd_state(v,problem,length(active),nkeep,thresh_schmidt)
+    #solution = solve(ints_f, ansatz, SolverSettings(maxiter=200, nroots=eig_nr, tol=1e-8))
+    #solution = solve(ints_f, ansatz, SolverSettings(maxiter=200, nroots=eig_nr, tol=1e-8))
+    
+    basis = svd_state(solution, length(active), nkeep, thresh_schmidt)
+
     return basis
 end
 
 
 """
-    compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster}; 
+    compute_cluster_eigenbasis_spin(   ints::InCoreInts{T}, 
+                                       clusters::Vector{MOCluster}, 
+                                       rdm1::RDM1{T},
+                                       delta_elec::Vector,
+                                       ref_fock::FockConfig; 
+                                       verbose=0, 
+                                       max_roots=10, 
+                                       A::Type=FCIAnsatz) where T
+"""
+function compute_cluster_eigenbasis_spin(   ints::InCoreInts{T}, 
+                                            clusters::Vector{MOCluster}, 
+                                            rdm1::RDM1{T},
+                                            delta_elec::Vector,
+                                            ref_fock::FockConfig; 
+                                            verbose=0, 
+                                            max_roots=10, 
+                                            A::Type=FCIAnsatz) where T
+    #={{{=#
+    # initialize output
+    #
+    cluster_bases = Vector{ClusterBasis{A,T}}()
+
+    for ci in clusters
+        verbose == 0 || display(ci)
+        
+
+        ints_i = subset(ints, ci, rdm1) 
+
+
+        # 
+        # Verify that density matrix provided is consistent with reference fock sectors
+        occs = diag(rdm1.a)
+        occs[ci.orb_list] .= 0
+        na_embed = sum(occs)
+        occs = diag(rdm1.b)
+        occs[ci.orb_list] .= 0
+        nb_embed = sum(occs)
+        verbose == 0 || @printf(" Number of embedded electrons a,b: %f %f\n", na_embed, nb_embed)
+
+
+        delta_e_i = delta_elec[ci.idx] 
+
+        #
+        # Get list of Fock-space sectors for current cluster
+        #
+        ni = ref_fock[ci.idx][1] + ref_fock[ci.idx][2]  # number of electrons in ci
+        sectors = []
+        for nj in ni-delta_e_i:ni+delta_e_i
+            naj = nj÷2 + nj%2
+            nbj = nj÷2
+            push!(sectors, (naj, nbj))
+        end
+
+        #
+        # Loop over sectors and do FCI for each
+        basis_i = ClusterBasis(ci, T=T) 
+        for sec in sectors
+
+            #
+            # prepare for FCI calculation for give sector of Fock space
+            ansatz = FCIAnsatz(length(ci), sec[1], sec[2])
+            verbose == 0 || @printf(" Preparing to compute : \n")
+            verbose == 0 || display(ansatz)
+            verbose == 0 || flush(stdout)
+
+            nr = min(max_roots, ansatz.dim)
+
+            if ansatz.dim < 500 || ansatz.dim == nr 
+                #
+                # Build full Hamiltonian matrix in cluster's Slater Det basis
+                Hmat = build_H_matrix(ints_i, ansatz)
+                F = eigen(Hmat)
+
+                basis_i[sec] = Solution(ansatz, F.values[1:nr], F.vectors[:,1:nr])
+
+                #display(e)
+            else
+                #
+                # Do sparse build 
+                basis_i[sec] = solve(ints_i, ansatz, SolverSettings(nroots=nr))
+            end
+
+            #
+            # Loop over spin-flips
+            # 
+            # s2 = s(s+1) 
+            
+
+            s2 = compute_s2(basis_i[sec])    
+
+            nr = length(basis_i[sec].energies)
+            #for r in 1:nr
+            #    S = (-1 + sqrt(1+4*s2[r]))/2
+            #    gr = 2*S+1 # Degeneracy
+            #end
+          
+            #
+            #   S-
+            #
+            # find how many applications of S- we need to try
+           
+            verbose == 0 || println(" Compute higher and lower Ms components")
+            n_sm = minimum((sec[1], ansatz.no-sec[2]))
+            vi = deepcopy(basis_i[sec].vectors)
+            ansatzi = deepcopy(basis_i[sec].ansatz)
+            for smi in 1:n_sm
+                vi, ansatzi = apply_sminus(vi, ansatzi)
+
+                verbose == 0 || display(ansatzi) 
+                flush(stdout)
+
+                if size(vi,2) == 0
+                    # we have killed all the spin states
+                    continue
+                end
+
+                Hmapi = LinearMap(ints_i, ansatzi)
+                ei = diag(Matrix(vi' * (Hmapi*vi)))
+                #ei = compute_energy(vi, ansatzi)
+            
+                si = Solution(ansatzi, ei, vi)
+                seci = (ansatzi.na, ansatzi.nb)
+                basis_i[seci] = si
+            end
+            #
+            #   S+
+            #
+            # find how many applications of S+ we need to try
+            
+            n_sp = minimum((sec[2], ansatz.no-sec[1]))
+            vi = deepcopy(basis_i[sec].vectors)
+            ansatzi = deepcopy(basis_i[sec].ansatz)
+            for spi in 1:n_sp
+                vi, ansatzi = apply_splus(vi, ansatzi)
+                
+                verbose == 0 || display(ansatzi) 
+                flush(stdout)
+
+                if size(vi,2) == 0
+                    # we have killed all the spin states
+                    continue
+                end
+
+                Hmapi = LinearMap(ints_i, ansatzi)
+                ei = diag(Matrix(vi' * (Hmapi*vi)))
+                #ei = compute_energy(vi, ansatzi)
+            
+                si = Solution(ansatzi, ei, vi)
+                seci = (ansatzi.na, ansatzi.nb)
+                basis_i[seci] = si
+            end
+
+        end
+           
+        flush(stdout)
+        if verbose > 0
+            println()
+            for (sec, sol) in basis_i    
+                println()
+                display(sol.ansatz)
+                s2 = compute_s2(sol)    
+                for i in 1:length(sol.energies)
+                    @printf("   State %4i Energy: %12.8f S2: %12.8f\n",i, sol.energies[i], s2[i])
+                end
+                flush(stdout)
+            end
+        end
+
+        push!(cluster_bases,basis_i)
+    end
+    return cluster_bases
+end
+#=}}}=#
+
+
+"""
+    compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{MOCluster}; 
         init_fspace=nothing, delta_elec=nothing, verbose=0, max_roots=10, 
         rdm1a=nothing, rdm1b=nothing, T::Type=Float64)
 
 Return a Vector of `ClusterBasis` for each `Cluster` 
 - `ints::InCoreInts`: In-core integrals
-- `clusters::Vector{Cluster}`: Clusters 
+- `clusters::Vector{MOCluster}`: Clusters 
 - `verbose::Int`: Print level
 - `init_fspace`: list of pairs of (nα,nβ) for each cluster for defining reference space
                  for selecting out only certain fock sectors
@@ -857,25 +1061,34 @@ Return a Vector of `ClusterBasis` for each `Cluster`
 - `max_roots::Int`: Maximum number of vectors for each focksector basis
 - `rdm1a`: background density matrix for embedding local hamiltonian (alpha)
 - `rdm1b`: background density matrix for embedding local hamiltonian (beta)
+- `ansatze`: should be a list of Ansatz objects so that we know how to solve each cluster. Default is FCIAnsatz     
 - `T`: Data type of the eigenvectors 
 """
-function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster}; 
+function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{MOCluster}; 
                 init_fspace=nothing, delta_elec=nothing, verbose=0, max_roots=10, 
-                rdm1a=nothing, rdm1b=nothing, T::Type=Float64)
+                rdm1a=nothing, rdm1b=nothing, 
+                ansatze=nothing,     
+                T::Type=Float64, A::Type=FCIAnsatz)
 #={{{=#
     # initialize output
-    cluster_bases = Vector{ClusterBasis{T}}()
+    #
+    cluster_bases = Vector{ClusterBasis{A,T}}()
 
     for ci in clusters
         verbose == 0 || display(ci)
+        
+        if (rdm1a != nothing && init_fspace == nothing)
+            error(" Cant embed without init_fspace")
+        end
 
         #
         # Get subset of integrals living on cluster, ci
-        ints_i = subset(ints, ci.orb_list, rdm1a, rdm1b) 
-
-        if (rdm1a != nothing && init_fspace == nothing)
-            error(" Cant embed withing init_fspace")
+        if rdm1a == nothing && rdm1b == nothing
+            ints_i = subset(ints, ci.orb_list) 
+        else
+            ints_i = subset(ints, ci.orb_list, rdm1a, rdm1b) 
         end
+
 
         if all( (rdm1a,rdm1b,init_fspace) .!= nothing)
             # 
@@ -897,7 +1110,7 @@ function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster};
         #
         # Get list of Fock-space sectors for current cluster
         #
-        sectors = FermiCG.possible_focksectors(ci, delta_elec=delta_e_i)
+        sectors = possible_focksectors(ci, delta_elec=delta_e_i)
 
         #
         # Loop over sectors and do FCI for each
@@ -906,33 +1119,32 @@ function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{Cluster};
             
             #
             # prepare for FCI calculation for give sector of Fock space
-            problem = FermiCG.StringCI.FCIProblem(length(ci), sec[1], sec[2])
-            verbose == 0 || display(problem)
+            ansatz = FCIAnsatz(length(ci), sec[1], sec[2])
+            verbose == 0 || display(ansatz)
             verbose == 0 || flush(stdout)
             
-            nr = min(max_roots, problem.dim)
+            nr = min(max_roots, ansatz.dim)
 
-            if problem.dim < 5000 || problem.dim == nr 
+            if ansatz.dim < 500 || ansatz.dim == nr 
                 #
                 # Build full Hamiltonian matrix in cluster's Slater Det basis
-                Hmat = FermiCG.StringCI.build_H_matrix(ints_i, problem)
+                Hmat = build_H_matrix(ints_i, ansatz)
                 F = eigen(Hmat)
 
-                e = F.values[1:nr]
-                basis_i[sec] = F.vectors[:,1:nr]
+                basis_i[sec] = Solution(ansatz, F.values[1:nr], F.vectors[:,1:nr])
                 #display(e)
             else
                 #
                 # Do sparse build 
-                #Hmat = FermiCG.StringCI.build_H_matrix(ints_i, problem)
-                #e = real(e)[1:nr]
-                #e,v = Arpack.eigs(Hmat, nev = nr, which=:SR)
-                #basis_i[sec] = v[:,1:nr]
-                e, basis_i[sec] = StringCI.do_fci(problem, ints_i, nr)
+                #if ansatz.dim > 3000
+                #    display(norm(ints_i.h1))
+                #    display(norm(ints_i.h2))
+                #end
+                basis_i[sec] = solve(ints_i, ansatz, SolverSettings(nroots=nr))
             end
             if verbose > 0
                 state=1
-                for ei in e
+                for ei in basis_i[sec].energies
                     @printf("   State %4i Energy: %12.8f %12.8f\n",state,ei, ei+ints.h0)
                     state += 1
                 end
@@ -947,13 +1159,13 @@ end
 
 
 """
-    compute_cluster_est_basis(ints::InCoreInts, clusters::Vector{Cluster}; 
+    compute_cluster_est_basis(ints::InCoreInts, clusters::Vector{MOCluster}; 
         init_fspace=nothing, delta_elec=nothing, verbose=0, max_roots=10, 
         rdm1a=nothing, rdm1b=nothing)
 
 Return a Vector of `ClusterBasis` for each `Cluster`  using the Embedded Schmidt Truncation
 - `ints::InCoreInts`: In-core integrals
-- `clusters::Vector{Cluster}`: Clusters 
+- `clusters::Vector{MOCluster}`: Clusters 
 - `Da`: background density matrix for embedding local hamiltonian (alpha)
 - `Db`: background density matrix for embedding local hamiltonian (beta)
 - `init_fspace`: list of pairs of (nα,nβ) for each cluster for defining reference space
@@ -962,10 +1174,11 @@ Return a Vector of `ClusterBasis` for each `Cluster`  using the Embedded Schmidt
 - `thresh_orb`: threshold for the orbital
 - `thresh_ci`: threshold for the ci problem
 """
-function compute_cluster_est_basis(ints::InCoreInts, clusters::Vector{Cluster},Da,Db; 
-        thresh_schmidt=1e-3, thresh_orb=1e-8, thresh_ci=1e-6,
-	do_embedding=true,verbose=0,init_fspace=nothing,delta_elec=nothing,
-	est_nr=1, est_max_cycles=200, est_thresh=1e-6)
+function compute_cluster_est_basis(ints::InCoreInts, clusters::Vector{MOCluster},Da,Db; 
+                thresh_schmidt=1e-3, thresh_orb=1e-8, thresh_ci=1e-6,
+                do_embedding=true,verbose=0,init_fspace=nothing,delta_elec=nothing,
+                est_nr=1, est_max_cycles=200, est_thresh=1e-6, 
+                A::Type=FCIAnsatz)
 #={{{=#
     # initialize output
     cluster_bases = Vector{ClusterBasis}()
@@ -986,7 +1199,7 @@ function compute_cluster_est_basis(ints::InCoreInts, clusters::Vector{Cluster},D
         #
         # Get list of Fock-space sectors for current cluster
         #
-        sectors = FermiCG.possible_focksectors(ci, delta_elec=delta_e_i)
+        sectors = ClusterMeanField.possible_focksectors(ci, delta_elec=delta_e_i)
 
         #
         # Loop over sectors and do FCI for each
@@ -1002,7 +1215,7 @@ function compute_cluster_est_basis(ints::InCoreInts, clusters::Vector{Cluster},D
 
         for sec in sectors
             if sec in keys(basis) 
-                basis_i[sec] = basis[sec]
+                basis_i[sec] = Solution(FCIAnsatz(length(ci), sec[1], sec[2]), zeros(size(basis[sec],2)), basis[sec])
 		#display(basis[sec])
 		#st = "fock_"*string(ci.idx)*"_"*string(sec)
 		#npzwrite(st, Matrix(basis[sec]))

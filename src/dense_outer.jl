@@ -1,3 +1,4 @@
+using BlockDavidson
 
 """
     function add_single_excitons(v::BSstate{T,N,R}) where {T,N,R}
@@ -200,7 +201,7 @@ function ci_solve(ci_vector::BSstate{T,N,R}, cluster_ops, clustered_ham;
 
         davidson = Davidson(Hmap,v0=v0,max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)
         flush(stdout)
-        time = @elapsed e,v = FermiCG.solve(davidson, iprint=verbose)
+        time = @elapsed e,v = BlockDavidson.eigs(davidson)
         @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
         #println(" Memory used by cache: ", mem_used_by_cache(clustered_ham))
         set_vector!(vec,v)

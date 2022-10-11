@@ -3,7 +3,7 @@ using FermiCG
 using Printf
 using Test
 using Arpack
-
+using ActiveSpaceSolvers
 
 @testset "fci" begin
     atoms = []
@@ -28,17 +28,17 @@ using Arpack
     n_elec_b = 3
 
     norb = size(ints.h1)[1]
-    problem = FermiCG.StringCI.FCIProblem(norb, n_elec_a, n_elec_b)
+    problem = FCIAnsatz(norb, n_elec_a, n_elec_b)
 
 
     display(problem)
 
-    @time Hmat = FermiCG.StringCI.build_H_matrix(ints, problem)
-    @time e,v = eigs(Hmat, nev = 10, which=:SR)
+    @time Hmat = build_H_matrix(ints, problem)
+    @time e,v = Arpack.eigs(Hmat, nev = 10, which=:SR)
     e = real(e)
     for ei in e
-        @printf(" Energy: %12.8f\n",ei+ints.h0)
+        @printf(" Energy: %12.8f\n",ei)
     end
-    @test isapprox(e[1], e_fci , atol=1e-10)
+    @test isapprox(e[1], e_fci+ints.h0 , atol=1e-10)
 end
 

@@ -2,14 +2,14 @@
 Defines a single cluster's subspace for Tucker. Each focksector is allowed to have a distinct cluster state range 
 for the subspace.
 
-    cluster::Cluster
+    cluster::MOCluster
     data::OrderedDict{Tuple{UInt8,UInt8}, UnitRange{Int}}
 """
 struct ClusterSubspace
-    cluster::Cluster
+    cluster::MOCluster
     data::OrderedDict{Tuple{UInt8,UInt8}, UnitRange{Int}}
 end
-function ClusterSubspace(cluster::Cluster)
+function ClusterSubspace(cluster::MOCluster)
     return ClusterSubspace(cluster,OrderedDict{Tuple{UInt8,UInt8}, UnitRange{Int}}())
 end
 Base.haskey(css::ClusterSubspace, i) = return haskey(css.data,i)
@@ -24,3 +24,6 @@ function Base.display(tss::ClusterSubspace)
 end
 
 
+function add_subspace!(css::ClusterSubspace, fock::Tuple, range::UnitRange)
+    css[fock] = range
+end
