@@ -1,13 +1,13 @@
 using StaticArrays
 using LinearAlgebra
 """
-    clusters::Vector{Cluster}
+    clusters::Vector{MOCluster}
     data::OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, Vector{T}}}
 
 This represents an arbitrarily sparse state. E.g., used in TPSCI
 """
 struct TPSCIstate{T,N,R} <: AbstractState 
-    clusters::Vector{Cluster}
+    clusters::Vector{MOCluster}
     data::OrderedDict{FockConfig{N}, OrderedDict{ClusterConfig{N}, MVector{R,T}}}
 end
 Base.haskey(ts::TPSCIstate, i) = return haskey(ts.data,i)
@@ -19,7 +19,7 @@ Base.haskey(ts::TPSCIstate, i) = return haskey(ts.data,i)
 
 Constructor creating an empty vector
 # Arguments
-- `clusters::Vector{Cluster}`
+- `clusters::Vector{MOCluster}`
 - `T`:  Type of data for coefficients
 - `R`:  Number of roots
 # Returns
@@ -54,7 +54,7 @@ function TPSCIstate(v::TPSCIstate{TT,NN,RR}; T=TT, R=RR) where {TT,NN,RR}
 end
 
 """
-    TPSCIstate(clusters::Vector{Cluster}, fconfig::FockConfig{N}; T=Float64, R=1) where {N}
+    TPSCIstate(clusters::Vector{MOCluster}, fconfig::FockConfig{N}; T=Float64, R=1) where {N}
 
 Constructor using only a single FockConfig. This allows us to turn the CMF state into a TPSCIstate.
 # Arguments
@@ -65,7 +65,7 @@ Constructor using only a single FockConfig. This allows us to turn the CMF state
 # Returns
 - `TPSCIstate`
 """
-function TPSCIstate(clusters::Vector{Cluster}, fconfig::FockConfig{N}; T=Float64, R=1) where {N}
+function TPSCIstate(clusters::Vector{MOCluster}, fconfig::FockConfig{N}; T=Float64, R=1) where {N}
     #={{{=#
 
     state = TPSCIstate(clusters, T=T, R=R)
@@ -616,6 +616,25 @@ function extract_roots(v::TPSCIstate{T,N,R}, roots) where {T,N,R}
     return out
 end
 
+
+
+"""
+    add_spin_focksectors(state::TPSCIstate{T,N,R}) where {T,N,R}
+
+Add the focksectors needed to spin adapt the given `TPSCIstate`
+"""
+function add_spin_focksectors(state::TPSCIstate{T,N,R}) where {T,N,R}
+    out = deepcopy(state)
+    gs = ClusterConfig([1 for i in 1:N])
+    for (fock, configs) in state.data
+
+        for f in possible_spin_focksectors(state.clusters, fock)
+            FermiCG.add_fockconfig!(out, f)
+            out[f][gs] = zeros(T,R)
+        end
+    end
+    return out
+end
 
 nroots(v::TPSCIstate{T,N,R}) where {T,N,R} = R
 type(v::TPSCIstate{T,N,R}) where {T,N,R} = T

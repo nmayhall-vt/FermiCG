@@ -3,7 +3,6 @@ using Printf
 using Test
 using LinearAlgebra
 using Profile 
-using HDF5
 using Random
 using PyCall
 using Arpack
@@ -64,7 +63,7 @@ using StaticArrays
 
     #
     # define clusters
-    clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
+    clusters = [MOCluster(i,collect(clusters[i])) for i = 1:length(clusters)]
     display(clusters)
 
     rdm1 = zeros(size(ints.h1))

@@ -1,3 +1,5 @@
+using BlockDavidson
+
 ########################################################################################################
 ########################################################################################################
 
@@ -531,8 +533,6 @@ function tucker_ci_solve!(ci_vector::BSstate, cluster_ops, clustered_ham; tol=1e
     nr = size(v0)[2] 
     
     davidson = Davidson(Hmap,v0=v0,max_iter=80, max_ss_vecs=40, nroots=nr, tol=1e-5)
-    #Adiag = StringCI.compute_fock_diagonal(problem,mf.mo_energy, e_mf)
-    #FermiCG.solve(davidson)
     @printf(" Now iterate: \n")
     flush(stdout)
     #@time FermiCG.iteration(davidson, Adiag=Adiag, iprint=2)

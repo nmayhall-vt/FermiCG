@@ -1,5 +1,7 @@
-using LinearAlgebra
 using FermiCG
+using ClusterMeanField
+using RDM
+using LinearAlgebra
 using Printf
 using Arpack 
 using Test
@@ -45,7 +47,7 @@ using OrderedCollections
     clusters    = [(1:4),(5:8)]
     init_fspace = [(2,2),(2,2)]
 
-    clusters = [Cluster(i,collect(clusters[i])) for i = 1:length(clusters)]
+    clusters = [MOCluster(i,collect(clusters[i])) for i = 1:length(clusters)]
     display(clusters)
 
     rdm1 = zeros(size(ints.h1))
@@ -59,20 +61,10 @@ using OrderedCollections
     display(rdm1b)
     
 
-    #e_cmf, D1,D2,temp,temp2 = FermiCG.cmf_ci(ints, clusters, init_fspace, rdm1a, verbose=0)
-    #Da = D1
-    #Db = D1
-
-    e_cmf, U, Da, Db  = FermiCG.cmf_oo(ints, clusters, init_fspace, rdm1, rdm1,
+    d1 = RDM1(n_orb(ints))
+    e_cmf, U, d1  = cmf_oo(ints, clusters, init_fspace, d1,
                                        max_iter_oo=40, verbose=0, gconv=1e-6, method="bfgs")
     ints = FermiCG.orbital_rotation(ints,U)
-
-    rdm1a = Da
-    rdm1b = Db
-
-    display(Da)
-    println()
-    display(Db)
 
 
     #for ci in clusters
@@ -81,8 +73,8 @@ using OrderedCollections
     #end
 
 
-    cb_cmf = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=1, max_roots=5,rdm1a=Da,rdm1b=Db,init_fspace=init_fspace) 
-    cb_est = FermiCG.compute_cluster_est_basis(ints, clusters, rdm1a, rdm1b, thresh_schmidt=1e-4, init_fspace=init_fspace)
+    cb_cmf = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=1, max_roots=5,rdm1a=d1.a, rdm1b=d1.b,init_fspace=init_fspace) 
+    cb_est = FermiCG.compute_cluster_est_basis(ints, clusters, d1.a, d1.b, thresh_schmidt=1e-4, init_fspace=init_fspace)
 
     
     clustered_ham = FermiCG.extract_ClusteredTerms(ints, clusters)
@@ -106,9 +98,9 @@ using OrderedCollections
     
 
     H = FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
-    #display(size(H))
-    #display(H)
-    #println()
+    display(size(H))
+    display(H)
+    println()
 
     display(ci_vector,root=1)
     e,v = Arpack.eigs(H, nev = 8, which=:SR)

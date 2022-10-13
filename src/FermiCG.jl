@@ -8,15 +8,10 @@ module FermiCG
 # External packages
 #
 using Compat
-using HDF5
 using KrylovKit
 using LinearAlgebra
-using NDTensors
-using PackageCompiler
-using Parameters
 using Printf
 using TimerOutputs
-using BenchmarkTools 
 using OrderedCollections 
 using IterTools
 using LinearAlgebra
@@ -27,6 +22,15 @@ using ThreadPools
 using Distributed
 using JLD2
 using LinearMaps
+
+# our packages
+using QCBase
+using InCoreIntegrals
+using RDM
+using BlockDavidson 
+using ActiveSpaceSolvers
+using ClusterMeanField
+
 # using Unicode
 #
 #####################################
@@ -36,21 +40,12 @@ using LinearMaps
 #
 include("Utils.jl")
 include("hosvd.jl")
-include("StringCI/StringCI.jl");
 include("SymDenseMats.jl");
-include("Solvers.jl");
-
-# Problem definition stuff
-include("type_Atom.jl");
-include("type_Molecule.jl");
-include("type_InCoreInts.jl");
 
 # Local data
-include("type_Cluster.jl")
 include("type_ClusterOps.jl")
 include("type_ClusterBasis.jl")
 include("type_ClusterSubspace.jl")
-include("build_local_quantities.jl")
 
 #indexing
 include("type_SparseIndex.jl")
@@ -60,6 +55,7 @@ include("type_FockConfig.jl")
 include("type_TuckerConfig.jl")
 include("type_OperatorConfig.jl")
 include("Indexing.jl")
+include("build_local_quantities.jl")
 
 include("type_AbstractState.jl")
 include("type_BSstate.jl")
@@ -88,20 +84,25 @@ include("tpsci_helpers.jl")
 include("dense_inner.jl")
 include("dense_outer.jl")
 
-include("CMFs.jl")
-include("pyscf/PyscfFunctions.jl");
 #
 #####################################
 
-export StringCI
+export RDM 
 export InCoreInts
 export Molecule
 export Atom
-export Cluster
+export MOCluster
 export ClusterBasis
+export ClusterSubspace
+export ClusteredOperator
 export TPSCIstate
+export BSTstate
 export ClusterConfig 
 export FockConfig 
 export TuckerConfig 
-
+export n_orb
+export add_subspace!
+export add_fockconfig!
+export expand_each_fock_space!
+export block_sparse_tucker
 end

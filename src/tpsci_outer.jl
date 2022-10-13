@@ -1,4 +1,6 @@
 using TimerOutputs
+using BlockDavidson
+
 """
     build_full_H(ci_vector::TPSCIstate, cluster_ops, clustered_ham::ClusteredOperator)
 
@@ -32,8 +34,10 @@ function build_full_H(ci_vector::TPSCIstate, cluster_ops, clustered_ham::Cluster
                     for term in clustered_ham[fock_trans]
                     
                         check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
-                        
+                       
                         me = contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
+                        println(me)
+                        println(typeof(term))
                         H[bra_idx, ket_idx] += me 
                     end
 
@@ -261,9 +265,9 @@ function tps_ci_direct( ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham
             time = @elapsed e0,v = Arpack.eigs(H, nev = R, which=:SR)
         
         elseif solver == "davidson"
-            davidson = FermiCG.Davidson(H, v0=get_vector(ci_vector), 
+            davidson = Davidson(H, v0=get_vector(ci_vector), 
                                         max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)
-            time = @elapsed e0,v = FermiCG.solve(davidson);
+            time = @elapsed e0,v = BlockDavidson.eigs(davidson);
         end
         @printf(" %-50s", "Diagonalization time: ")
         @printf("%10.6f seconds\n",time)
@@ -397,9 +401,9 @@ function tps_ci_davidson(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ha
     end
 
 
-    Hmap = FermiCG.LinOpMat{T}(matvec, dim, true)
+    Hmap = LinOpMat{T}(matvec, dim, true)
 
-    davidson = FermiCG.Davidson(Hmap, v0=get_vector(ci_vector), 
+    davidson = Davidson(Hmap, v0=get_vector(ci_vector), 
                                 max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)
 
     #time = @elapsed e0,v = Arpack.eigs(Hmap, nev = R, which=:SR)
@@ -423,9 +427,9 @@ function tps_ci_davidson(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ha
         Hd .+= Eref - E0
         @printf(" Now iterate: \n")
         flush(stdout)
-        @time e,v = FermiCG.solve(davidson, Adiag=Hd);
+        @time e,v = BlockDavidson.eigs(davidson, Adiag=Hd);
     else
-        @time e,v = FermiCG.solve(davidson);
+        @time e,v = BlockDavidson.eigs(davidson);
     end
     set_vector!(vec_out, v)
     
@@ -1070,7 +1074,7 @@ end
 For each fock space sector defined, add all possible basis states
 - `basis::Vector{ClusterBasis}` 
 """
-function expand_each_fock_space!(s::TPSCIstate{T,N,R}, bases::Vector{ClusterBasis}) where {T,N,R}
+function expand_each_fock_space!(s::TPSCIstate{T,N,R}, bases::Vector{ClusterBasis{A,T}}) where {T,N,R,A}
     # {{{
     println("\n Make each Fock-Block the full space")
     # create full space for each fock block defined
@@ -1104,7 +1108,7 @@ Define all possible fock space sectors and add all possible basis states
 - `na`: Number of alpha electrons total
 - `nb`: Number of alpha electrons total
 """
-function expand_to_full_space!(s::AbstractState, bases::Vector{ClusterBasis}, na, nb)
+function expand_to_full_space!(s::AbstractState, bases::Vector{ClusterBasis{A,T}}, na, nb) where {A,T}
     # {{{
     println("\n Expand to full space")
     ns = []

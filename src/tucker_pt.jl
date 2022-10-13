@@ -1,4 +1,3 @@
-using StatProfilerHTML
 """
 
  | PHP  PHQ ||PC| = |PC| E 
@@ -572,22 +571,22 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
                                                        ket_fock, ket_tconfig, ket_tuck,
                                                        max_number=max_number,
                                                        prescreen=thresh)
-                    if term isa ClusteredTerm2B && false 
-                                    
-                        #@profilehtml for ii in 1:3
-                        #    form_sigma_block_expand(term, cluster_ops,
-                        #                               sig_fock, sig_tconfig,
-                        #                               ket_fock, ket_tconfig, ket_tuck,
-                        #                               max_number=max_number,
-                        #                               prescreen=thresh)
-                        #end
-                        @btime form_sigma_block_expand($term, $cluster_ops,
-                                                       $sig_fock, $sig_tconfig,
-                                                       $ket_fock, $ket_tconfig, $ket_tuck,
-                                                       max_number=$max_number,
-                                                       prescreen=$thresh)
-                        error("stop")
-                    end
+#                    if term isa ClusteredTerm2B && false 
+#                                    
+#                        #@profilehtml for ii in 1:3
+#                        #    form_sigma_block_expand(term, cluster_ops,
+#                        #                               sig_fock, sig_tconfig,
+#                        #                               ket_fock, ket_tconfig, ket_tuck,
+#                        #                               max_number=max_number,
+#                        #                               prescreen=thresh)
+#                        #end
+#                        @btime form_sigma_block_expand($term, $cluster_ops,
+#                                                       $sig_fock, $sig_tconfig,
+#                                                       $ket_fock, $ket_tconfig, $ket_tuck,
+#                                                       max_number=$max_number,
+#                                                       prescreen=$thresh)
+#                        error("stop")
+#                    end
 
 
                     if length(sig_tuck) == 0

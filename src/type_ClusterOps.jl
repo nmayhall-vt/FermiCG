@@ -1,5 +1,5 @@
 struct ClusterOps{T}
-    cluster::Cluster
+    cluster::MOCluster
     data::Dict{String,Dict{Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}},Array{T}}}
 end
 
@@ -37,13 +37,13 @@ function Base.display(co::ClusterOps)
         end
     end
 end
-function ClusterOps(ci::Cluster; T::Type=Float64)
+function ClusterOps(ci::MOCluster; T::Type=Float64)
     dic1 = Dict{Tuple{Tuple{Int16,Int16},Tuple{Int16,Int16}},Array{T}}()
     dic2 = Dict{String,typeof(dic1)}() 
     return ClusterOps(ci, dic2)
 end
 
-function ClusterOps(ci::Cluster, T::Type)
+function ClusterOps(ci::MOCluster, T::Type)
     return ClusterOps(ci, T=T)
 end
 

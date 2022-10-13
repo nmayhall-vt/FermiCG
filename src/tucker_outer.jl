@@ -1,7 +1,6 @@
-using Profile
 using LinearMaps
-using BenchmarkTools
 using IterativeSolvers
+using BlockDavidson
 #using TensorDecompositions
 #using TimerOutputs
 
@@ -169,7 +168,7 @@ function ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_ham;
         davidson = Davidson(Hmap,v0=v0,max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, 
                             tol=conv_thresh, lindep_thresh=lindep_thresh)
         flush(stdout)
-        time = @elapsed e,v = FermiCG.solve(davidson, iprint=verbose)
+        time = @elapsed e,v = BlockDavidson.eigs(davidson)
         @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
         #println(" Memory used by cache: ", mem_used_by_cache(clustered_ham))
         set_vector!(vec,v)
@@ -853,20 +852,20 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops,
                                                            max_number=max_number,
                                                            prescreen=thresh)
 
-                        if (term isa ClusteredTerm2B) && false
-                            @btime del = form_sigma_block_expand2($term, $cluster_ops,
-                                                                $sig_fock, $sig_tconfig,
-                                                                $ket_fock, $ket_tconfig, $ket_tuck,
-                                                                $scr[Threads.threadid()],
-                                                                max_number=$max_number,
-                                                                prescreen=$thresh)
-                            #del = form_sigma_block_expand2(term, cluster_ops,
-                            #                                    sig_fock, sig_tconfig,
-                            #                                    ket_fock, ket_tconfig, ket_tuck,
-                            #                                    scr[Threads.threadid()],
-                            #                                    max_number=max_number,
-                            #                                    prescreen=thresh)
-                        end
+                        #if (term isa ClusteredTerm2B) && false
+                        #    @btime del = form_sigma_block_expand2($term, $cluster_ops,
+                        #                                        $sig_fock, $sig_tconfig,
+                        #                                        $ket_fock, $ket_tconfig, $ket_tuck,
+                        #                                        $scr[Threads.threadid()],
+                        #                                        max_number=$max_number,
+                        #                                        prescreen=$thresh)
+                        #    #del = form_sigma_block_expand2(term, cluster_ops,
+                        #    #                                    sig_fock, sig_tconfig,
+                        #    #                                    ket_fock, ket_tconfig, ket_tuck,
+                        #    #                                    scr[Threads.threadid()],
+                        #    #                                    max_number=max_number,
+                        #    #                                    prescreen=thresh)
+                        #end
 
                         if length(sig_tuck) == 0
                             continue
