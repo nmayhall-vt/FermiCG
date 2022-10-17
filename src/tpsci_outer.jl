@@ -407,13 +407,13 @@ function tps_ci_davidson(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ha
                                 max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)
 
     #time = @elapsed e0,v = Arpack.eigs(Hmap, nev = R, which=:SR)
-    time = @elapsed e0,v, info = KrylovKit.eigsolve(Hmap, R, :SR, 
-                                                    verbosity=  verbose, 
-                                                    maxiter=    max_iter, 
-                                                    #krylovdim=20, 
-                                                    issymmetric=true, 
-                                                    ishermitian=true, 
-                                                    tol=        conv_thresh)
+    #time = @elapsed e0,v, info = KrylovKit.eigsolve(Hmap, R, :SR, 
+    #                                                verbosity=  verbose, 
+    #                                                maxiter=    max_iter, 
+    #                                                #krylovdim=20, 
+    #                                                issymmetric=true, 
+    #                                                ishermitian=true, 
+    #                                                tol=        conv_thresh)
 
     e = nothing
     v = nothing
