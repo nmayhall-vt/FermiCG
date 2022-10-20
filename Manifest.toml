@@ -122,7 +122,9 @@ version = "0.1.4"
 
 [[deps.ClusterMeanField]]
 deps = ["ActiveSpaceSolvers", "Arpack", "BlockDavidson", "InCoreIntegrals", "JLD2", "LinearAlgebra", "NPZ", "Optim", "Printf", "PyCall", "QCBase", "RDM", "Random", "StatProfilerHTML", "StaticArrays", "TensorOperations", "Term"]
-path = "/Users/nmayhall/code/ClusterMeanField.jl/"
+git-tree-sha1 = "64f3fecbf46452233217bdd54a7ee543e1ad0ff6"
+repo-rev = "main"
+repo-url = "https://github.com/nmayhall-vt/ClusterMeanField.jl"
 uuid = "3e8e530f-db5a-4e5f-8d4d-9676e9551b72"
 version = "0.1.0"
 
