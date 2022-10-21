@@ -65,6 +65,12 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
     ref_vec = deepcopy(input_vec)
     clustered_S2 = extract_S2(input_vec.clusters)
 
+    e_projected_list = []
+    e_variational_list = []
+    dim_projected_list = []
+    dim_variational_list = []
+    converged = false
+
     to = TimerOutput()
     println(" max_iter         : ", max_iter         ) 
     println(" max_iter_pt      : ", max_iter_pt      ) 
@@ -116,6 +122,8 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
                                                                 nbody       = nbody,
                                                                 lindep_thresh = ci_lindep_thresh,
                                                                 solver      = solver)
+            push!(e_projected_list, e0)
+            push!(dim_projected_list, length(ref_vec))
         else
             tmp = deepcopy(ref_vec)
             zero!(tmp)
@@ -123,6 +131,8 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
             flush(stdout)
             @time build_sigma!(tmp, ref_vec, cluster_ops, clustered_ham)
             e0 = orth_dot(tmp,ref_vec)
+            push!(e_projected_list, e0)
+            push!(dim_projected_list, length(ref_vec))
         end
         #       sig = deepcopy(ref_vec)
         #       zero!(sig)
@@ -191,6 +201,19 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
             ovlp = nonorth_dot(pt1_vec, ref_vec, verbose=0)
             [@printf("%12.8f ",ovlp[r]) for r in 1:R]
             println()
+        else
+#            ## form residual
+#            # |r_i> = |sig_i> - e_i|v_i>
+#            #
+#            println(" Form residuals:")
+#            tmp = deepcopy(ref_vec)
+#            tmp_e0 = nonorth_dot(pt1_vec, ref_vec)
+#            scale!(tmp, tmp_e0 .* -1)
+#            nonorth_add!(pt1_vec, tmp) 
+#            norms = orth_dot(pt1_vec, pt1_vec)
+#            @printf(" %-48s", "Residuals: ")
+#            [@printf("%12.8f ",sqrt(n)) for n in norms]
+#            println()
         end
 
         # 
@@ -219,6 +242,8 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
                                                              nbody       = nbody,
                                                              lindep_thresh = ci_lindep_thresh,
                                                              solver      = solver)
+        push!(e_variational_list, e_var)
+        push!(dim_variational_list, length(var_vec))
 
         tmp = deepcopy(var_vec)
         zero!(tmp)
@@ -249,27 +274,49 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
     	#show(to)
         println("")
 
-        if maximum(abs.(e_last - e_var)) < tol_tucker 
-            @printf("*Converged %-20s", "E(Ref): ")
-            [@printf("%12.8f ", e0[r]) for r in 1:R]
-            println("")
-            @printf("*Converged %-20s", "E(BST): ")
-            [@printf("%12.8f ", e_var[r]) for r in 1:R]
-            println("")
-            show(to)
-            println()
-            @printf(" ==================================================================|\n")
-            return e_var, ref_vec
+        if maximum(abs.(e_last - e_var)) < tol_tucker
+            converged = true
             break
         end
         e_last = e_var
 
     end
-    @printf(" Not converged %-20s", "E(BST): ")
-    [@printf("%12.8f ", e0[r]) for r in 1:R]
-    println("")
+        
+    if converged 
+        @printf("*Converged %-20s", "E(Ref): ")
+        [@printf("%12.8f ", e0[r]) for r in 1:R]
+        println("")
+        @printf("*Converged %-20s", "E(BST): ")
+        [@printf("%12.8f ", e_var[r]) for r in 1:R]
+    else
+        @printf(" Not converged %-20s", "E(Ref): ")
+        [@printf("%12.8f ", e0[r]) for r in 1:R]
+        println("")
+        @printf(" Not converged %-20s", "E(BST): ")
+        [@printf("%12.8f ", e_var[r]) for r in 1:R]
+    end
+    println()
+    println()
+
+
+    println(" Energies per BST iteration:")
+    println("   Projected Energies: ")
+    for (i,ei) in enumerate(e_projected_list)
+        @printf("   Iter: %3i  ", i)
+        [@printf(" %12.8f", ei[r]) for r in 1:R]
+        @printf(" Dim: %9i\n", dim_projected_list[i])
+    end
+    println()
+    println("   Variational Energies: ")
+    for (i,ei) in enumerate(e_variational_list)
+        @printf("   Iter: %3i  ", i)
+        [@printf(" %12.8f", ei[r]) for r in 1:R]
+        @printf(" Dim: %9i\n", dim_variational_list[i])
+    end
     show(to)
-    return e_var,ref_vec 
+    println()
+    @printf(" ==================================================================|\n")
+    return e_var, ref_vec
 end
 #=}}}=#
    
