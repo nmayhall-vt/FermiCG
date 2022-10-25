@@ -846,6 +846,6 @@ function add_spin_focksectors(state::BSTstate{T,N,R}) where {T,N,R}
             add_fockconfig!(out, f)
         end
     end
-    expand_each_fock_space!(state)
+    #expand_each_fock_space!(state)
     return out
 end
