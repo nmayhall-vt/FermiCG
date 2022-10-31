@@ -909,6 +909,7 @@ function compute_cluster_eigenbasis_spin(   ints::InCoreInts{T},
     #
     cluster_bases = Vector{ClusterBasis{A,T}}()
 
+    length(delta_elec) == length(clusters) || error("length(delta_elec) != length(clusters)") 
     for ci in clusters
         verbose == 0 || display(ci)
         
@@ -934,7 +935,13 @@ function compute_cluster_eigenbasis_spin(   ints::InCoreInts{T},
         #
         ni = ref_fock[ci.idx][1] + ref_fock[ci.idx][2]  # number of electrons in ci
         sectors = []
+        max_e = 2*length(ci)
+        min_e = 0
         for nj in ni-delta_e_i:ni+delta_e_i
+        
+            nj <= max_e || continue
+            nj >= min_e || continue
+
             naj = nj÷2 + nj%2
             nbj = nj÷2
             push!(sectors, (naj, nbj))
