@@ -641,6 +641,7 @@ end
 
 Analyzes charge transfer for each root of the TPSCIstate
 Prints total weight of charge transfer in each root
+Only works currently if all clusters have same # of electrons!!
 # Arguments
 - `s::TPSCIstate`
 - `ne_cluster`:  Int, number of total electrons in each cluster
