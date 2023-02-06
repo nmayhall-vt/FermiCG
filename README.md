@@ -39,17 +39,15 @@ A Julia package for course-grained electronic structure calculations
 	julia> using Pkg; Pkg.build("PyCall")
 	```
 	where `-tauto` let's Julia pick the max number of threads. Use `-t N` to select `N` manually. Removing defaults to 1 thread. 
-
 2. Run tests
-	
-        ```julia
+        ```
 	julia> Pkg.test()
 	```
 
 ### Installation with Conda
 1. Download
 
-	```julia
+	```
 	git clone https://github.com/nmayhall-vt/FermiCG.git
 	cd FermiCG/
 	```
@@ -57,7 +55,7 @@ A Julia package for course-grained electronic structure calculations
 
 2. Create python virtual environment which will hold the PYSCF executable
 
-	```julia
+	```
         conda create -n my_env python=3.7 
         conda activate my_env
         conda install numpy
@@ -75,15 +73,14 @@ A Julia package for course-grained electronic structure calculations
 	where `-tauto` let's Julia pick the max number of threads. Use `-t N` to select `N` manually. Removing defaults to 1 thread. 
 
 2. Run tests
-	
-        ```julia
+        ```
 	julia> Pkg.test()
 	```
 
 ### Installation with Conda on Apple M1 Mac
 1. Download
 
-	```julia
+	```
 	git clone https://github.com/nmayhall-vt/FermiCG.git
 	cd FermiCG/
 	```
@@ -91,7 +88,7 @@ A Julia package for course-grained electronic structure calculations
 
 2. Create python virtual environment which will hold the PYSCF executable
 
-	```julia
+	```
         CONDA_SUBDIR=osx-64 conda create -n myenv_x86 python=3.7
         conda activate my_env_X86
         conda config --env --set subdir osx-64
@@ -109,7 +106,7 @@ A Julia package for course-grained electronic structure calculations
 	```
 	where `-tauto` let's Julia pick the max number of threads. Use `-t N` to select `N` manually. Removing defaults to 1 thread. 
 2. Run tests
-	```julia
+	```
 	julia> Pkg.test()
 	```
 
