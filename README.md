@@ -17,13 +17,14 @@ A Julia package for course-grained electronic structure calculations
 1. `TPSCI` - this is a generalization of the CIPSI method to a TPS basis. Essentially, one starts with a small number of TPS functions, solves the Schrodinger equation in this small subspace, then uses perturbation theory to determine which TPS's to add to improve the energy. This is done iteratively until the results stop changing. First published [here](https://pubs.acs.org/doi/10.1021/acs.jctc.0c00141).
 1. `BST` - "Block-Sparse-Tucker"
 
-### Installation with Virtual Enviorment
+### Installation with Virtual Environment
 1. Download
 
 	```julia
 	git clone https://github.com/nmayhall-vt/FermiCG.git
 	cd FermiCG/
 	```
+
 
 2. Create python virtual environment which will hold the PYSCF executable
 
@@ -34,14 +35,12 @@ A Julia package for course-grained electronic structure calculations
 	pip install -r requirements.txt
 	export TPSCI_PYTHON=$(which python)
 	cd ../../
-	julia --project=./ -tauto 
+	julia --project=./ -tauto
 	julia> using Pkg; Pkg.build("PyCall")
 	```
-	where `-tauto` let's Julia pick the max number of threads. Use `-t N` to select `N` manually. Removing defaults to 1 thread. 
-
-3. Run tests
-       
-        ```julia
+	where `-tauto` let's Julia pick the max number of threads. Use `-t N` to select `N` manually. Removing defaults to 1 thread.
+2. Run tests
+	```
 	julia> Pkg.test()
 	```
 
