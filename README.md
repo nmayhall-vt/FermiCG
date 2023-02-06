@@ -17,7 +17,7 @@ A Julia package for course-grained electronic structure calculations
 1. `TPSCI` - this is a generalization of the CIPSI method to a TPS basis. Essentially, one starts with a small number of TPS functions, solves the Schrodinger equation in this small subspace, then uses perturbation theory to determine which TPS's to add to improve the energy. This is done iteratively until the results stop changing. First published [here](https://pubs.acs.org/doi/10.1021/acs.jctc.0c00141).
 1. `BST` - "Block-Sparse-Tucker"
 
-### Installation
+### Installation with Virtual Enviorment
 1. Download
 
 	```julia
@@ -43,5 +43,69 @@ A Julia package for course-grained electronic structure calculations
 	```
 	julia> Pkg.test()
 	```
+
+### Installation with Conda
+1. Download
+
+	```julia
+	git clone https://github.com/nmayhall-vt/FermiCG.git
+	cd FermiCG/
+	```
+
+2. Create python virtual environment which will hold the PYSCF executable
+
+	```julia
+        conda create -n my_env python=3.7 #python=3.6 and python=3.8 should also work
+        conda activate my_env
+        conda install numpy
+        pip install pyscf
+	export TPSCI_PYTHON=$(which python)
+	export PYTHON_PATH=$(which python)
+	julia --project=./ -tauto 
+        julia> using Pkg; Pkg.add("Conda")
+        julia> import Conda
+        julia> Conda.add("pip")
+        julia> Conda.pip_interop(true)
+        julia> Conda.pip("install", "pyscf")
+	julia> using Pkg; Pkg.build("PyCall")
+	```
+	where `-tauto` let's Julia pick the max number of threads. Use `-t N` to select `N` manually. Removing defaults to 1 thread. 
+2. Run tests
+	```
+	julia> Pkg.test()
+	```
+
+### Installation with Conda on Apple M1 Mac
+1. Download
+
+	```julia
+	git clone https://github.com/nmayhall-vt/FermiCG.git
+	cd FermiCG/
+	```
+
+2. Create python virtual environment which will hold the PYSCF executable
+
+	```julia
+        CONDA_SUBDIR=osx-64 conda create -n myenv_x86 python=3.7 #python 3.6 and 3.8 will also work
+        conda activate my_env_X86
+        conda config --env --set subdir osx-64
+        conda install numpy
+        pip install pyscf
+	export TPSCI_PYTHON=$(which python)
+	export PYTHON_PATH=$(which python)
+	julia --project=./ -tauto 
+        julia> using Pkg; Pkg.add("Conda")
+        julia> import Conda
+        julia> Conda.add("pip")
+        julia> Conda.pip_interop(true)
+        julia> Conda.pip("install", "pyscf")
+	julia> using Pkg; Pkg.build("PyCall")
+	```
+	where `-tauto` let's Julia pick the max number of threads. Use `-t N` to select `N` manually. Removing defaults to 1 thread. 
+2. Run tests
+	```
+	julia> Pkg.test()
+	```
+
 
 
