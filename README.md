@@ -17,16 +17,11 @@ A Julia package for course-grained electronic structure calculations
 1. `TPSCI` - this is a generalization of the CIPSI method to a TPS basis. Essentially, one starts with a small number of TPS functions, solves the Schrodinger equation in this small subspace, then uses perturbation theory to determine which TPS's to add to improve the energy. This is done iteratively until the results stop changing. First published [here](https://pubs.acs.org/doi/10.1021/acs.jctc.0c00141).
 1. `BST` - "Block-Sparse-Tucker"
 
-### Download
-
-	```julia
-	git clone https://github.com/nmayhall-vt/FermiCG.git
-	```
-
 ### Installation with Virtual Environment
 Create python virtual environment which will hold the PYSCF executable
 
 	```julia
+	git clone https://github.com/nmayhall-vt/FermiCG.git
 	cd FermiCG/
 	cd src/python
 	virtualenv -p python3 venv
@@ -49,6 +44,7 @@ Run tests
 Create python virtual environment which will hold the PYSCF executable
 
 	```julia
+	git clone https://github.com/nmayhall-vt/FermiCG.git
 	cd FermiCG/
         conda create -n my_env python=3.7 
         conda activate my_env
@@ -76,6 +72,8 @@ Run tests
 Create python virtual environment which will hold the PYSCF executable
 
 	```julia
+	git clone https://github.com/nmayhall-vt/FermiCG.git
+	cd FermiCG/
         CONDA_SUBDIR=osx-64 conda create -n myenv_x86 python=3.7
         conda activate my_env_X86
         conda config --env --set subdir osx-64
