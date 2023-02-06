@@ -39,8 +39,10 @@ A Julia package for course-grained electronic structure calculations
 	julia> using Pkg; Pkg.build("PyCall")
 	```
 	where `-tauto` let's Julia pick the max number of threads. Use `-t N` to select `N` manually. Removing defaults to 1 thread. 
+
 2. Run tests
-	```julia
+	
+        ```julia
 	julia> Pkg.test()
 	```
 
@@ -56,7 +58,7 @@ A Julia package for course-grained electronic structure calculations
 2. Create python virtual environment which will hold the PYSCF executable
 
 	```julia
-        conda create -n my_env python=3.7 #python=3.6 and python=3.8 should also work
+        conda create -n my_env python=3.7 
         conda activate my_env
         conda install numpy
         pip install pyscf
@@ -71,8 +73,10 @@ A Julia package for course-grained electronic structure calculations
 	julia> using Pkg; Pkg.build("PyCall")
 	```
 	where `-tauto` let's Julia pick the max number of threads. Use `-t N` to select `N` manually. Removing defaults to 1 thread. 
+
 2. Run tests
-	```julia
+	
+        ```julia
 	julia> Pkg.test()
 	```
 
@@ -88,7 +92,7 @@ A Julia package for course-grained electronic structure calculations
 2. Create python virtual environment which will hold the PYSCF executable
 
 	```julia
-        CONDA_SUBDIR=osx-64 conda create -n myenv_x86 python=3.7 #python 3.6 and 3.8 will also work
+        CONDA_SUBDIR=osx-64 conda create -n myenv_x86 python=3.7
         conda activate my_env_X86
         conda config --env --set subdir osx-64
         conda install numpy
