@@ -17,12 +17,18 @@ A Julia package for course-grained electronic structure calculations
 1. `TPSCI` - this is a generalization of the CIPSI method to a TPS basis. Essentially, one starts with a small number of TPS functions, solves the Schrodinger equation in this small subspace, then uses perturbation theory to determine which TPS's to add to improve the energy. This is done iteratively until the results stop changing. First published [here](https://pubs.acs.org/doi/10.1021/acs.jctc.0c00141).
 1. `BST` - "Block-Sparse-Tucker"
 
-#### Installation with Virtual Environment
+### Download
+Downlond FermiCG and change into main directory
+
+```
+git clone https://github.com/nmayhall-vt/FermiCG.git
+cd FermiCG/
+```
+
+### Installation with Virtual Environment
 Create python virtual environment which will hold the PYSCF executable
 
 ```julia
-git clone https://github.com/nmayhall-vt/FermiCG.git
-cd FermiCG/
 cd src/python
 virtualenv -p python3 venv
 source venv/bin/activate
@@ -41,17 +47,20 @@ julia> Pkg.test()
 ```
 
 ### Installation with Conda
-Create conda virtual environment which will hold the PYSCF executable
+Create conda virtual environment which will hold the PYSCF executable and set path for python version
 
 ```julia
-git clone https://github.com/nmayhall-vt/FermiCG.git
-cd FermiCG/
 conda create -n my_env python=3.7 
 conda activate my_env
 conda install numpy
 pip install pyscf
 export TPSCI_PYTHON=$(which python)
 export PYTHON_PATH=$(which python)
+```
+
+Start a Julia REPL and add Conda to install PYSCF using pip
+
+```julia
 julia --project=./ -tauto 
 julia> using Pkg; Pkg.add("Conda")
 julia> import Conda
@@ -69,11 +78,9 @@ julia> Pkg.test()
 ```
 
 ### Installation with Conda on Apple M1 Mac
-Create conda virtual environment which will hold the PYSCF executable
+Create conda virtual environment (specific to M1 chips) which will hold the PYSCF executable and set path for python version
 
 ```julia
-git clone https://github.com/nmayhall-vt/FermiCG.git
-cd FermiCG/
 CONDA_SUBDIR=osx-64 conda create -n myenv_x86 python=3.7
 conda activate my_env_X86
 conda config --env --set subdir osx-64
@@ -81,6 +88,11 @@ conda install numpy
 pip install pyscf
 export TPSCI_PYTHON=$(which python)
 export PYTHON_PATH=$(which python)
+```
+
+Start a Julia REPL and add Conda to install PYSCF using pip
+
+```julia
 julia --project=./ -tauto 
 julia> using Pkg; Pkg.add("Conda")
 julia> import Conda
