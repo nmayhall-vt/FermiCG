@@ -54,8 +54,8 @@ conda create -n my_env python=3.7
 conda activate my_env
 conda install numpy
 pip install pyscf
-export TPSCI_PYTHON=$(which python)
 export PYTHON_PATH=$(which python)
+export PYTHONPATH="/usr/bin/python" #this is also in my ~/.bash_profile
 ```
 
 Start a Julia REPL and add Conda to install PYSCF using pip
@@ -86,8 +86,8 @@ conda activate my_env_X86
 conda config --env --set subdir osx-64
 conda install numpy
 pip install pyscf
-export TPSCI_PYTHON=$(which python)
 export PYTHON_PATH=$(which python)
+export PYTHONPATH="/usr/bin/python" #this is also in my ~/.bash_profile
 ```
 
 Start a Julia REPL and add Conda to install PYSCF using pip
