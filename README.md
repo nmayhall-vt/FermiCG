@@ -82,7 +82,7 @@ Create conda virtual environment (specific to M1 chips) which will hold the PYSC
 
 ```julia
 CONDA_SUBDIR=osx-64 conda create -n myenv_x86 python=3.7
-conda activate my_env_X86
+conda activate my_env_x86
 conda config --env --set subdir osx-64
 conda install numpy
 pip install pyscf
