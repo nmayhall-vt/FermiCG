@@ -50,24 +50,20 @@ julia> Pkg.test()
 Create conda virtual environment which will hold the PYSCF executable and set path for python version
 
 ```julia
-conda create -n my_env python=3.7 
-conda activate my_env
+conda create -n fermicg python=3.7 
+conda activate fermicg
 conda install numpy
 pip install pyscf
-export PYTHON_PATH=$(which python)
-export PYTHONPATH="/usr/bin/python" #this is also in my ~/.bash_profile
+conda install h5py==2.10.0
+conda install julia
 ```
 
-Start a Julia REPL and add Conda to install PYSCF using pip
+Start a Julia REPL and build PyCall (make sure PyCall uses the current python version in conda enviornment)
 
 ```julia
 julia --project=./ -tauto 
-julia> using Pkg; Pkg.add("Conda")
-julia> import Conda
-julia> Conda.add("pip")
-julia> Conda.pip_interop(true)
-julia> Conda.pip("install", "pyscf")
-julia> using Pkg; Pkg.build("PyCall")
+julia> using Pkg; Pkg.add("PyCall")
+julia> Pkg.build("PyCall")
 ```
 where `-tauto` let's Julia pick the max number of threads. Use `-t N` to select `N` manually. Removing defaults to 1 thread. 
 
@@ -77,29 +73,27 @@ Run tests
 julia> Pkg.test()
 ```
 
-### Installation with Conda on Apple M1 Mac
+### Installation with Conda on M1 Chip Mac
 Create conda virtual environment (specific to M1 chips) which will hold the PYSCF executable and set path for python version
 
 ```julia
-CONDA_SUBDIR=osx-64 conda create -n myenv_x86 python=3.7
-conda activate my_env_x86
+conda create -n env_osx
+conda activate env_osx
 conda config --env --set subdir osx-64
+conda install python==3.7
 conda install numpy
-pip install pyscf
-export PYTHON_PATH=$(which python)
-export PYTHONPATH="/usr/bin/python" #this is also in my ~/.bash_profile
+conda config --add channels conda-forge
+conda install -c pyscf pyscf
+conda install h5py==2.10.0
+conda install julia
 ```
 
-Start a Julia REPL and add Conda to install PYSCF using pip
+Start a Julia REPL and build PyCall (make sure PyCall uses the current python version in conda enviornment)
 
 ```julia
 julia --project=./ -tauto 
-julia> using Pkg; Pkg.add("Conda")
-julia> import Conda
-julia> Conda.add("pip")
-julia> Conda.pip_interop(true)
-julia> Conda.pip("install", "pyscf")
-julia> using Pkg; Pkg.build("PyCall")
+julia> using Pkg; Pkg.add("PyCall")
+julia> Pkg.build("PyCall")
 ```
 where `-tauto` let's Julia pick the max number of threads. Use `-t N` to select `N` manually. Removing defaults to 1 thread. 
 
