@@ -5,7 +5,7 @@ using JLD2
 
 #@testset "BSTstate" begin
 if false 
-    @load "_testdata_cmf_h12.jld2"
+    @load "_testdata_cmf_h12_64bit.jld2"
     v = FermiCG.BSTstate(clusters, FockConfig(init_fspace), cluster_bases)
     
     e_ci, v_ci = FermiCG.ci_solve(v, cluster_ops, clustered_ham)
@@ -63,7 +63,10 @@ end
 @testset "BST" begin
 
 
-    @load "_testdata_cmf_h12.jld2"
+    @load "_testdata_cmf_h12_64bit.jld2"
+    clustered_ham = FermiCG.extract_ClusteredTerms(ints, clusters)
+    cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
+    FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, d1.a, d1.b);
 
     v = FermiCG.BSTstate(clusters, FockConfig(init_fspace), cluster_bases)
 
@@ -80,22 +83,22 @@ end
                                                resolve_ss  = true,
                                                tol_tucker  = 1e-4)
 
-    @test isapprox(e_var[1], -18.329454973117784, atol=1e-8)
+    @test isapprox(e_var[1], -18.32945552731658, atol=1e-8)
     
 
     e_cepa, v_cepa = FermiCG.do_fois_cepa(v, cluster_ops, clustered_ham, thresh_foi=1e-3, max_iter=50, tol=1e-8)
     display(e_cepa)
-    @test isapprox(e_cepa[1], -18.32978899988935, atol=1e-8)
+    @test isapprox(e_cepa[1], -18.329789530070542, atol=1e-8)
     
     e_pt = FermiCG.compute_pt2_energy(v, cluster_ops, clustered_ham, thresh_foi=1e-3, max_iter=50, tol=1e-8)
     
     e_pt, v_pt = FermiCG.do_fois_pt2(v, cluster_ops, clustered_ham, thresh_foi=1e-3, max_iter=50, tol=1e-8)
     display(e_pt)
-    @test isapprox(e_pt[1], -18.326970022448485, atol=1e-8)
+    @test isapprox(e_pt[1], -18.326971095822113, atol=1e-8)
 
     e_ci, v_ci = FermiCG.ci_solve(v_cepa, cluster_ops, clustered_ham)
     display(e_ci)
-    @test isapprox(e_ci[1], -18.32964089848682, atol=1e-8)
+    @test isapprox(e_ci[1], -18.329641438975646, atol=1e-8)
 
 end
 if false

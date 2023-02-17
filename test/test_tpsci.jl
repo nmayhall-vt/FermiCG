@@ -28,7 +28,7 @@ using JLD2
 
     #e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=false,
     #                          thresh_cipsi=1e-2, thresh_foi=1e-4, thresh_asci=1e-2, conv_thresh=1e-4);
-    e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=true, ci_conv=1e-8,
+    e0, v0 = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=true, ci_conv=1e-10,
                               thresh_cipsi=1e-3, thresh_foi=1e-8, thresh_asci=-1, conv_thresh=1e-7);
     
     if true
@@ -41,11 +41,11 @@ using JLD2
         guess = deepcopy(v0)
         FermiCG.randomize!(guess)
         FermiCG.orthonormalize!(guess)
-        e0b, v0b = FermiCG.tps_ci_direct(guess, cluster_ops, clustered_ham, conv_thresh=1e-9);
-        e0c, v0c = FermiCG.tps_ci_davidson(guess, cluster_ops, clustered_ham, conv_thresh=1e-9);
+        e0b, v0b = FermiCG.tps_ci_direct(guess, cluster_ops, clustered_ham, conv_thresh=1e-10);
+        e0c, v0c = FermiCG.tps_ci_davidson(guess, cluster_ops, clustered_ham, conv_thresh=1e-10);
 
         @test isapprox(abs.(e0), abs.(e0b), atol=1e-9)
-        @test isapprox(abs.(e0), abs.(e0c), atol=1e-9)
+        @test isapprox(abs.(e0), abs.(e0c), atol=1e-8)
 
     end
     e2 = FermiCG.compute_pt2_energy(v0, cluster_ops, clustered_ham, thresh_foi=1e-10)

@@ -5,7 +5,11 @@ using JLD2
 
 @testset "BST vs BS" begin
 
-    @load "_testdata_cmf_h12.jld2"
+    @load "_testdata_cmf_h12_64bit.jld2"
+    
+    clustered_ham = FermiCG.extract_ClusteredTerms(ints, clusters)
+    cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
+    FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, d1.a, d1.b);
   
     v = FermiCG.BSstate(clusters, FermiCG.FockConfig(init_fspace), cluster_bases, R=7)
     FermiCG.add_single_excitons!(v)
@@ -31,6 +35,11 @@ end
 
 @testset "BST vs BS 2" begin
     @load "_testdata_cmf_he4.jld2"
+    
+    clustered_ham = FermiCG.extract_ClusteredTerms(ints, clusters)
+    cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
+    FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, d1.a, d1.b);
+  
   
     v = FermiCG.BSstate(clusters, FermiCG.FockConfig(init_fspace), cluster_bases, R=5)
     FermiCG.add_single_excitons!(v)
