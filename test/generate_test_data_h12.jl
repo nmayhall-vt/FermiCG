@@ -5,8 +5,8 @@ using Printf
 using Test
 using JLD2 
 
-@testset "H12_CMF" begin
-
+    
+function generate()
     molecule = "
     H   0.0     0.0     0.0
     H   0.0     0.0     1.0
@@ -39,18 +39,18 @@ using JLD2
     mol     = Molecule(0,1,atoms,basis)
 
     # get integrals
-    mf = FermiCG.pyscf_do_scf(mol)
+    mf = ClusterMeanField.pyscf_do_scf(mol)
     nbas = size(mf.mo_coeff)[1]
-    ints = FermiCG.pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
-    #e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints, na, nb, conv_tol=1e-10,max_cycle=100, nroots=4, do_rdm1=false, do_rdm2=false);
+    ints = ClusterMeanField.pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
+    #e_fci, d1_fci, d2_fci = ClusterMeanField.pyscf_fci(ints, na, nb, conv_tol=1e-10,max_cycle=100, nroots=4, do_rdm1=false, do_rdm2=false);
     e_fci = -18.33022092
     e_fci_states = [-18.33022092, -18.05457645, -18.02913048, -17.99661028]
 
     # localize orbitals
     C = mf.mo_coeff
-    Cl = FermiCG.localize(mf.mo_coeff,"lowdin",mf)
-    FermiCG.pyscf_write_molden(mol,Cl,filename="lowdin.molden")
-    S = FermiCG.get_ovlp(mf)
+    Cl = ClusterMeanField.localize(mf.mo_coeff,"lowdin",mf)
+    ClusterMeanField.pyscf_write_molden(mol,Cl,filename="lowdin.molden")
+    S = ClusterMeanField.get_ovlp(mf)
     U =  C' * S * Cl
     println(" Rotate Integrals")
     flush(stdout)
@@ -67,43 +67,21 @@ using JLD2
     #
     # do CMF
     d1 = RDM1(n_orb(ints))
-    e_cmf, U, d1  = FermiCG.cmf_oo(ints, clusters, init_fspace, d1, 
+    e_cmf, U, d1  = cmf_oo(ints, clusters, init_fspace, d1, 
                                        max_iter_oo=60, verbose=0, gconv=1e-10, 
                                        method="bfgs")
-    ints = FermiCG.orbital_rotation(ints,U)
+    ints = orbital_rotation(ints,U)
 
     @test isapprox(e_cmf, -6.5218473576915414, atol=1e-9)
-    @save "_testdata_cmf_h12.jld2" ints d1 e_cmf clusters init_fspace
+    max_roots = 100
+    
+    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=0, max_roots=max_roots, 
+                                                       init_fspace=init_fspace, rdm1a=d1.a, rdm1b=d1.b, T=Float64)
+    @save "_testdata_cmf_h12_64bit.jld2" ints d1 e_cmf clusters init_fspace cluster_bases
+    
+    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=0, max_roots=max_roots, 
+                                                       init_fspace=init_fspace, rdm1a=d1.a, rdm1b=d1.b, T=Float32)
+    @save "_testdata_cmf_h12_32bit.jld2" ints d1 e_cmf clusters init_fspace cluster_bases
 end
 
-
-@testset "H12_CMF_basis" begin
-    
-    @load "_testdata_cmf_h12.jld2" ints d1 e_cmf clusters init_fspace
-    
-    max_roots = 20
-
-    #
-    # form Cluster data
-    cluster_bases = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=1, 
-                                                       max_roots=max_roots, 
-                                                       init_fspace=init_fspace, 
-                                                       rdm1a=d1.a, rdm1b=d1.b)
-
-    clustered_ham = FermiCG.extract_ClusteredTerms(ints, clusters)
-    cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
-    FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, d1.a, d1.b);
-
-    check = 0.0
-    for ci_ops in cluster_ops
-        for (opstr, ops) in ci_ops 
-            for (ftrans, op) in ops 
-                check += sum(abs.(op))
-            end
-        end
-    end
-    println(check)
-    #@test isapprox(check, 159955.9925735096, atol=1e-6)
-    @save "_testdata_cmf_h12.jld2" ints d1 e_cmf clusters init_fspace cluster_bases  clustered_ham cluster_ops
-end
-
+generate()

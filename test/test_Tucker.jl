@@ -4,10 +4,6 @@ using Test
 using LinearAlgebra
 using Profile 
 
-using PyCall
-pydir = joinpath(dirname(pathof(FermiCG)), "python")
-pushfirst!(PyVector(pyimport("sys")."path"), pydir)
-ENV["PYTHON"] = Sys.which("python")
 
 #@testset "Clusters" begin
 
@@ -111,24 +107,24 @@ for step in 1:n_steps
     ints = FermiCG.pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
     #e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints, na, nb, conv_tol=1e-10,max_cycle=100, nroots=2)
 	
-    #run fci with pyscf
-    if false 
-        pyscf = pyimport("pyscf")
-        fci = pyimport("pyscf.fci")
-        mp = pyimport("pyscf.mp")
-        mp2 = mp.MP2(mf)
-        push!(out_mp2, mp2.kernel()[1])
-        cisolver = pyscf.fci.direct_spin1.FCI()
-        cisolver.max_cycle = 100 
-        cisolver.conv_tol = 1e-10 
-        nelec = na + nb
-        norb = size(ints.h1)[1]
-        e_fci, ci = cisolver.kernel(ints.h1, ints.h2, norb , nelec, ecore=0, nroots = 1, verbose=100)
-        e_fci = min(e_fci...)
-        @printf(" FCI Energy: %12.8f\n", e_fci)
+    #this is how you would generate reference data
+    # pyscf = pyimport("pyscf")
+    # fci = pyimport("pyscf.fci")
+    # mp = pyimport("pyscf.mp")
+    # mp2 = mp.MP2(mf)
+    # push!(out_mp2, mp2.kernel()[1])
+    # cisolver = pyscf.fci.direct_spin1.FCI()
+    # cisolver.max_cycle = 100 
+    # cisolver.conv_tol = 1e-10 
+    # nelec = na + nb
+    # norb = size(ints.h1)[1]
+    # e_fci, ci = cisolver.kernel(ints.h1, ints.h2, norb , nelec, ecore=0, nroots = 1, verbose=100)
+    # e_fci = min(e_fci...)
+    # @printf(" FCI Energy: %12.8f\n", e_fci)
 
-        push!(out_fci, e_fci + ints.h0)
-    end
+    push!(out_fci, e_fci + ints.h0)
+    
+
     push!(out_radii, rad)
    
     # localize orbitals

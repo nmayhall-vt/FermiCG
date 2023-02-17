@@ -29,7 +29,6 @@ using InCoreIntegrals
 using RDM
 using BlockDavidson 
 using ActiveSpaceSolvers
-using ClusterMeanField
 
 # using Unicode
 #

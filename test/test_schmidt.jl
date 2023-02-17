@@ -1,5 +1,4 @@
 using FermiCG
-using ClusterMeanField
 using RDM
 using LinearAlgebra
 using Printf
@@ -8,70 +7,10 @@ using Test
 using OrderedCollections
 
 @testset "EST" begin
-    atoms = []
-    push!(atoms,Atom(1,"H",[0, 0, 0.1]))
-    push!(atoms,Atom(2,"H",[0, 1,-1]))
-    push!(atoms,Atom(3,"H",[0, 1, 1]))
-    push!(atoms,Atom(4,"H",[0, 2, 0]))
-    push!(atoms,Atom(5,"H",[0, 4, 0]))
-    push!(atoms,Atom(6,"H",[0, 5,-1]))
-    push!(atoms,Atom(7,"H",[0, 5, 1]))
-    push!(atoms,Atom(8,"H",[0, 6, 0]))
-    #basis = "6-31g"
-    basis = "sto-3g"
+    @load "_testdata_cmf_h8.jld2" 
 
     na = 4
     nb = 4
-
-    mol     = Molecule(0,1,atoms,basis)
-    mf = FermiCG.pyscf_do_scf(mol)
-    nbas = size(mf.mo_coeff)[1]
-    ints = FermiCG.pyscf_build_ints(mol,mf.mo_coeff, zeros(nbas,nbas));
-    e_fci, d1_fci, d2_fci = FermiCG.pyscf_fci(ints,na,nb)
-    # @printf(" FCI Energy: %12.8f\n", e_fci)
-
-    FermiCG.pyscf_write_molden(mol,mf.mo_coeff,filename="scf.molden")
-
-    C = mf.mo_coeff
-    rdm_mf = C[:,1:2] * C[:,1:2]'
-    Cl = FermiCG.localize(mf.mo_coeff,"lowdin",mf)
-    FermiCG.pyscf_write_molden(mol,Cl,filename="lowdin.molden")
-    S = FermiCG.get_ovlp(mf)
-    U =  C' * S * Cl
-    println(" Build Integrals")
-    flush(stdout)
-    ints = FermiCG.orbital_rotation(ints,U)
-    println(" done.")
-    flush(stdout)
-
-    clusters    = [(1:4),(5:8)]
-    init_fspace = [(2,2),(2,2)]
-
-    clusters = [MOCluster(i,collect(clusters[i])) for i = 1:length(clusters)]
-    display(clusters)
-
-    rdm1 = zeros(size(ints.h1))
-    rdm1a = rdm_mf*.5
-    rdm1b = rdm_mf*.5
-
-    rdm1a = rdm1
-    rdm1b = rdm1
-
-    display(rdm1a)
-    display(rdm1b)
-    
-
-    d1 = RDM1(n_orb(ints))
-    e_cmf, U, d1  = cmf_oo(ints, clusters, init_fspace, d1,
-                                       max_iter_oo=40, verbose=0, gconv=1e-6, method="bfgs")
-    ints = FermiCG.orbital_rotation(ints,U)
-
-
-    #for ci in clusters
-    #    ints_i = subset(ints, ci.orb_list, rdm1a, rdm1b) 
-    #	print(ints_i.h1)
-    #end
-
 
     cb_cmf = FermiCG.compute_cluster_eigenbasis(ints, clusters, verbose=1, max_roots=5,rdm1a=d1.a, rdm1b=d1.b,init_fspace=init_fspace) 
     cb_est = FermiCG.compute_cluster_est_basis(ints, clusters, d1.a, d1.b, thresh_schmidt=1e-4, init_fspace=init_fspace)
@@ -89,7 +28,7 @@ using OrderedCollections
     ovlp = OrderedDict()
     for ci in clusters
     	for (key,value) in cb_est[ci.idx]
-            println(key)
+            #println(key)
             #display(cb_est[ci.idx][key])    
             ovlp[ci.idx,key] = cb_cmf[ci.idx].basis[key]'*cb_est[ci.idx].basis[key]
         end
@@ -99,7 +38,7 @@ using OrderedCollections
 
     H = FermiCG.build_full_H(ci_vector, cluster_ops, clustered_ham)
     display(size(H))
-    display(H)
+    #display(H)
     println()
 
     display(ci_vector,root=1)

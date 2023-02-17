@@ -36,8 +36,6 @@ function build_full_H(ci_vector::TPSCIstate, cluster_ops, clustered_ham::Cluster
                         check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
                        
                         me = contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
-                        println(me)
-                        println(typeof(term))
                         H[bra_idx, ket_idx] += me 
                     end
 

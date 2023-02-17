@@ -1154,7 +1154,7 @@ function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{MOCluster
                 Hmat = build_H_matrix(ints_i, ansatz)
                 F = eigen(Hmat)
 
-                basis_i[sec] = Solution(ansatz, F.values[1:nr], F.vectors[:,1:nr])
+                basis_i[sec] = Solution(ansatz, Vector{T}(F.values[1:nr]), Matrix{T}(F.vectors[:,1:nr]))
                 #display(e)
             else
                 #
@@ -1222,7 +1222,7 @@ function compute_cluster_est_basis(ints::InCoreInts{T}, clusters::Vector{MOClust
         #
         # Get list of Fock-space sectors for current cluster
         #
-        sectors = ClusterMeanField.possible_focksectors(ci, delta_elec=delta_e_i)
+        sectors = possible_focksectors(ci, delta_elec=delta_e_i)
 
         #
         # Loop over sectors and do FCI for each

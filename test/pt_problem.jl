@@ -1,15 +1,12 @@
-
 using QCBase
 using RDM
 using FermiCG
-using ClusterMeanField
 using Printf
 using Test
 using LinearAlgebra
 using Profile 
 using HDF5
 using Random
-using PyCall
 using JLD2
 
 # load data
