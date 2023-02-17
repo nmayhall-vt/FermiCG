@@ -35,9 +35,6 @@ jobs:
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
-      - uses: actions/setup-python@v2
-        with:
-          python-version: '3.9' # Version range or exact version of a Python version to use, using SemVer's version range syntax
       - uses: actions/cache@v1
         env:
           cache-name: cache-artifacts
@@ -53,30 +50,13 @@ jobs:
       - name: List files in the repository
         run: |
           ls ${{ github.workspace }}
-      - name: Install python dependencies
-        run: |
-          which python; 
-          python -V; 
-          cd src/python; 
-          ls ./; 
-          pip install -r requirements.txt; 
       - name: Run Julia tests
         run: |
-          export TPSCI_PYTHON=$(which python)  
-          export PYTHON=$(which python)  
-          echo $(which python)
-          pip freeze; 
-          cd ../;
           cd FermiCG/
           echo "Contents of current directory:"
           ls -al
           echo "done."
-          julia --color=yes --project=./ -e 'using Pkg; Pkg.build("PyCall"); Pkg.test();'
-      #- run: pip install virtualenv; virtualenv -p python3 venv; source venv/bin/activate; export TPSCI_PYTHON=$(which python)
-      #- run: pip install -r requirements.txt; export TPSCI_PYTHON=$(which python)
-      #- run: which python
-      #- run: cd ../../
-      #- run: julia --project=./ -e "using Pkg; Pkg.test();"
+          julia --color=yes --project=./ 
       - uses: julia-actions/julia-processcoverage@v1
       - uses: codecov/codecov-action@v1
         with:
