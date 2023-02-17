@@ -17,31 +17,91 @@ A Julia package for course-grained electronic structure calculations
 1. `TPSCI` - this is a generalization of the CIPSI method to a TPS basis. Essentially, one starts with a small number of TPS functions, solves the Schrodinger equation in this small subspace, then uses perturbation theory to determine which TPS's to add to improve the energy. This is done iteratively until the results stop changing. First published [here](https://pubs.acs.org/doi/10.1021/acs.jctc.0c00141).
 1. `BST` - "Block-Sparse-Tucker"
 
-### Installation
-1. Download
+### Download
+Downlond FermiCG and change into main directory
 
-	```julia
-	git clone https://github.com/nmayhall-vt/FermiCG.git
-	cd FermiCG/
-	```
+```
+git clone https://github.com/nmayhall-vt/FermiCG.git
+cd FermiCG/
+```
 
+### Installation with Virtual Environment
+Create python virtual environment which will hold the PYSCF executable
 
-2. Create python virtual environment which will hold the PYSCF executable
+```julia
+cd src/python
+virtualenv -p python3 venv
+source venv/bin/activate
+pip install -r requirements.txt
+export TPSCI_PYTHON=$(which python)
+cd ../../
+julia --project=./ -tauto
+julia> using Pkg; Pkg.build("PyCall")
+```
+where `-tauto` let's Julia pick the max number of threads. Use `-t N` to select `N` manually. Removing defaults to 1 thread.
 
-	```julia
-	cd src/python
-	virtualenv -p python3 venv
-	source venv/bin/activate
-	pip install -r requirements.txt
-	export TPSCI_PYTHON=$(which python)
-	cd ../../
-	julia --project=./ -tauto 
-	julia> using Pkg; Pkg.build("PyCall")
-	```
-	where `-tauto` let's Julia pick the max number of threads. Use `-t N` to select `N` manually. Removing defaults to 1 thread. 
-2. Run tests
-	```
-	julia> Pkg.test()
-	```
+Run tests
+
+```
+julia> Pkg.test()
+```
+
+### Installation with Conda
+Create conda virtual environment which will hold the PYSCF executable and set path for python version
+
+```julia
+conda create -n fermicg python=3.7 
+conda activate fermicg
+conda install numpy
+pip install pyscf
+conda install h5py==2.10.0
+conda install julia
+```
+
+Start a Julia REPL and build PyCall (make sure PyCall uses the current python version in conda enviornment)
+
+```julia
+julia --project=./ -tauto 
+julia> using Pkg; Pkg.add("PyCall")
+julia> Pkg.build("PyCall")
+```
+where `-tauto` let's Julia pick the max number of threads. Use `-t N` to select `N` manually. Removing defaults to 1 thread. 
+
+Run tests
+        
+```
+julia> Pkg.test()
+```
+
+### Installation with Conda on M1 Chip Mac
+Create conda virtual environment (specific to M1 chips) which will hold the PYSCF executable and set path for python version
+
+```julia
+conda create -n env_osx
+conda activate env_osx
+conda config --env --set subdir osx-64
+conda install python==3.7
+conda install numpy
+conda config --add channels conda-forge
+conda install -c pyscf pyscf
+conda install h5py==2.10.0
+conda install julia
+```
+
+Start a Julia REPL and build PyCall (make sure PyCall uses the current python version in conda enviornment)
+
+```julia
+julia --project=./ -tauto 
+julia> using Pkg; Pkg.add("PyCall")
+julia> Pkg.build("PyCall")
+```
+where `-tauto` let's Julia pick the max number of threads. Use `-t N` to select `N` manually. Removing defaults to 1 thread. 
+
+Run tests
+	
+```
+julia> Pkg.test()
+```
+
 
 

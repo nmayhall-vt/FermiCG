@@ -293,9 +293,9 @@ function tdm_A(cb::ClusterBasis, spin_case; verbose=0)
                 basis_bra = cb[fockbra]
                 basis_ket = cb[fockket]
                 if spin_case == "alpha"
-                    dicti[focktrans] = compute_operator_a_a(basis_bra, basis_ket)
+                    dicti[focktrans] = compute_operator_c_a(basis_bra, basis_ket)
                 else
-                    dicti[focktrans] = compute_operator_a_b(basis_bra, basis_ket)
+                    dicti[focktrans] = compute_operator_c_b(basis_bra, basis_ket)
                 end
                 # adjoint 
                 basis_bra = cb[fockket]

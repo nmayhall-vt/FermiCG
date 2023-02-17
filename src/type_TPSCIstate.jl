@@ -636,6 +636,99 @@ function add_spin_focksectors(state::TPSCIstate{T,N,R}) where {T,N,R}
     return out
 end
 
+"""
+    ct_analysis(s::TPSCIstate; ne_cluster=10, thresh=1e-5, nroots=1)
+
+Analyzes charge transfer for each root of the TPSCIstate
+Prints total weight of charge transfer in each root
+Only works currently if all clusters have same # of electrons!!
+# Arguments
+- `s::TPSCIstate`
+- `ne_cluster`:  Int, number of total electrons in each cluster
+- `thresh`:  Threshold for printing but does not effect total ct
+- `nroots`: Total number of roots
+"""
+function ct_analysis(s::TPSCIstate; ne_cluster=10, thresh=1e-5, nroots=1)
+    for root in 1:nroots
+        println()
+        @printf(" --------------------------------------------------\n")
+        @printf(" ----------- CHARGE TRANSFER ANALYSIS -------------\n")
+        @printf(" --------------------------------------------------\n")
+        @printf(" ----------                root ------:     = %5i  \n",root)
+        @printf(" --------------------------------------------------\n")
+        @printf(" Printing contributions greater than: %f", thresh)
+        @printf("\n")
+        @printf(" %-20s%-20s%-20s\n", "Weight", "# Configs", "Fock space(α,β)...")
+        @printf(" %-20s%-20s%-20s\n", "-------", "---------", "----------")
+        ct = 0
+        for (fock,configs) in s.data
+            prob = 0
+            for cluster in 1:length(s.clusters)
+                if sum(fock[cluster]) != ne_cluster
+                    prob = 0
+                    for (config, coeff) in configs 
+                        prob += coeff[root]*coeff[root] 
+                    end
+                    if prob > thresh
+                        @printf(" %-20.5f%-20i", prob,length(s.data[fock]))
+                        for sector in fock 
+                            @printf("(%2i,%-2i)", sector[1],sector[2])
+                        end
+                        println()
+                    end
+                end
+                break
+            end
+            ct += prob
+        end
+        print(" --------------------------------------------------\n")
+        @printf(" %-10.5f", ct)
+        @printf(" %-10s", "=   Total charge transfer weight")
+        println()
+        print(" --------------------------------------------------\n")
+    end
+end
+
+"""
+    ct_table(s::TPSCIstate; ne_cluster=10, nroots=1)
+
+Prints total weight of charge transfer in each root in table formate
+# Arguments
+- `s::TPSCIstate`
+- `ne_cluster`:  Int, number of total electrons in each cluster
+- `nroots`: Total number of roots
+"""
+function ct_table(s::TPSCIstate; ne_cluster=10, nroots=1)
+    @printf(" -----------------------\n")
+    @printf(" --- CHARGE TRANSFER ---\n")
+    @printf(" -----------------------\n")
+    @printf(" %-15s%-10s\n", "Root", "Total CT")
+    @printf(" %-15s%-10s\n", "-------", "---------")
+    for root in 1:nroots
+        ct = 0
+        for (fock,configs) in s.data
+            prob = 0
+            for cluster in 1:length(s.clusters)
+                if sum(fock[cluster]) != ne_cluster
+                    prob = 0
+                    for (config, coeff) in configs 
+                        prob += coeff[root]*coeff[root] 
+                    end
+                end
+                break
+            end
+            ct += prob
+        end
+        @printf(" %-15i%-10.5f", root, ct)
+        println()
+    end
+end
+
+
+
+
+
+
 nroots(v::TPSCIstate{T,N,R}) where {T,N,R} = R
 type(v::TPSCIstate{T,N,R}) where {T,N,R} = T
 nclusters(v::TPSCIstate{T,N,R}) where {T,N,R} = N
