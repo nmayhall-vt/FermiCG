@@ -12,6 +12,7 @@ using BlockDavidson
 if true 
 @testset "davidson" begin
     atoms = []
+    
     push!(atoms,Atom(1,"H",[0,0,0]))
     push!(atoms,Atom(2,"H",[0,0,1]))
     push!(atoms,Atom(3,"H",[1,0,2]))
