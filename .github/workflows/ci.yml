@@ -52,7 +52,6 @@ jobs:
           ls ${{ github.workspace }}
       - name: Run Julia tests
         run: |
-          cd FermiCG/
           echo "Contents of current directory:"
           ls -al
           echo "done."
