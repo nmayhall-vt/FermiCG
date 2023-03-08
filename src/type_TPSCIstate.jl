@@ -409,10 +409,13 @@ function overlap(v1::TPSCIstate{T,N,R}, v2::TPSCIstate{T,N,R}) where {T,N,R}
         for (config,coeffs) in configs
             haskey(v1[fock], config) || continue
             for ri in 1:R
-                overlap[ri,ri] += v1[fock][config][ri]*v2[fock][config][ri]
-                for rj in ri+1:R
+                #overlap[ri,ri] += v1[fock][config][ri]*v2[fock][config][ri]
+                #for rj in ri+1:R
+                #    overlap[ri,rj] += v1[fock][config][ri]*v2[fock][config][rj]
+                #    overlap[rj,ri] = overlap[ri,rj]
+                #end
+                for rj in 1:R
                     overlap[ri,rj] += v1[fock][config][ri]*v2[fock][config][rj]
-                    overlap[rj,ri] = overlap[ri,rj]
                 end
             end
         end
