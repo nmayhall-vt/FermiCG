@@ -151,7 +151,7 @@ function form_sigma_block_expand(term::ClusteredTerm2B,
             D = permutedims(g1, [2,1,3])
             try
                 F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
-            catch LAPACKException(1)
+            catch 
                 F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)),alg=LinearAlgebra.QRIteration())
             end
             nkeep = 0
@@ -172,7 +172,7 @@ function form_sigma_block_expand(term::ClusteredTerm2B,
             D = permutedims(g2, [2,1,3])
             try
                 F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
-            catch LAPACKException(1)
+            catch 
                 F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)),alg=LinearAlgebra.QRIteration())
             end
             nkeep = 0
@@ -342,7 +342,7 @@ function form_sigma_block_expand(term::ClusteredTerm3B,
         D = permutedims(g1, [2,1,3])
         try
             F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
-        catch LAPACKException(1)
+        catch 
             F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)),alg=LinearAlgebra.QRIteration())
         end
         nkeep = 0
@@ -366,7 +366,7 @@ function form_sigma_block_expand(term::ClusteredTerm3B,
         D = permutedims(g2, [2,1,3])
         try
             F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
-        catch LAPACKException(1)
+        catch 
             F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)),alg=LinearAlgebra.QRIteration())
         end
         nkeep = 0
@@ -390,7 +390,7 @@ function form_sigma_block_expand(term::ClusteredTerm3B,
         D = permutedims(g3, [2,1,3])
         try
             F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
-        catch LAPACKException(1)
+        catch 
             F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)),alg=LinearAlgebra.QRIteration())
         end
         nkeep = 0
@@ -593,7 +593,7 @@ function form_sigma_block_expand(term::ClusteredTerm4B,
         D = permutedims(g1, [2,1,3])
         try
             F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
-        catch LAPACKException(1)
+        catch 
             F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)),alg=LinearAlgebra.QRIteration())
         end
         nkeep = 0
@@ -611,7 +611,7 @@ function form_sigma_block_expand(term::ClusteredTerm4B,
         D = permutedims(g2, [2,1,3])
         try
             F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
-        catch LAPACKException(1)
+        catch 
             F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)),alg=LinearAlgebra.QRIteration())
         end
         nkeep = 0
@@ -629,7 +629,7 @@ function form_sigma_block_expand(term::ClusteredTerm4B,
         D = permutedims(g3, [2,1,3])
         try
             F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
-        catch LAPACKException(1)
+        catch 
             F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)),alg=LinearAlgebra.QRIteration())
         end
         nkeep = 0
@@ -647,7 +647,7 @@ function form_sigma_block_expand(term::ClusteredTerm4B,
         D = permutedims(g4, [2,1,3])
         try
             F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
-        catch LAPACKException(1)
+        catch 
             F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)),alg=LinearAlgebra.QRIteration())
         end
         nkeep = 0
@@ -839,7 +839,7 @@ function form_sigma_block_expand2(term::ClusteredTerm2B,
     D = permutedims(g1, [2,1,3])
     try
         F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
-    catch LAPACKException(1)
+    catch 
         F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)),alg=LinearAlgebra.QRIteration())
     end
     nkeep = 0
@@ -857,7 +857,7 @@ function form_sigma_block_expand2(term::ClusteredTerm2B,
     D = permutedims(g2, [2,1,3])
     try
         F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
-    catch LAPACKException(1)
+    catch 
         F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)),alg=LinearAlgebra.QRIteration())
     end
     nkeep = 0
