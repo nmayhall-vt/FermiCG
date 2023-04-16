@@ -149,7 +149,11 @@ function form_sigma_block_expand(term::ClusteredTerm2B,
        
         if size(g1,2) > size(g1,1)*size(g1,3)
             D = permutedims(g1, [2,1,3])
-            F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+            try
+                F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+            catch LAPACKException(1)
+                F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)),alg=LinearAlgebra.QRIteration())
+            end
             nkeep = 0
             for si in F.S
                 if scale1*si > prescreen 
@@ -166,7 +170,11 @@ function form_sigma_block_expand(term::ClusteredTerm2B,
 
         if size(g2,2) > size(g2,1)*size(g2,3)
             D = permutedims(g2, [2,1,3])
-            F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+            try
+                F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+            catch LAPACKException(1)
+                F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)),alg=LinearAlgebra.QRIteration())
+            end
             nkeep = 0
             for si in F.S
                 if scale1*si > prescreen 
@@ -332,7 +340,11 @@ function form_sigma_block_expand(term::ClusteredTerm3B,
         #scale1 = 1.0
 
         D = permutedims(g1, [2,1,3])
-        F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+        try
+            F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+        catch LAPACKException(1)
+            F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)),alg=LinearAlgebra.QRIteration())
+        end
         nkeep = 0
         for si in F.S
             if si*scale1 > prescreen
@@ -352,7 +364,11 @@ function form_sigma_block_expand(term::ClusteredTerm3B,
 
 
         D = permutedims(g2, [2,1,3])
-        F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+        try
+            F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+        catch LAPACKException(1)
+            F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)),alg=LinearAlgebra.QRIteration())
+        end
         nkeep = 0
         for si in F.S
             if si*scale1 > prescreen
@@ -372,7 +388,11 @@ function form_sigma_block_expand(term::ClusteredTerm3B,
 
 
         D = permutedims(g3, [2,1,3])
-        F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+        try
+            F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+        catch LAPACKException(1)
+            F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)),alg=LinearAlgebra.QRIteration())
+        end
         nkeep = 0
         for si in F.S
             if si*scale1 > prescreen
@@ -571,7 +591,11 @@ function form_sigma_block_expand(term::ClusteredTerm4B,
         #scale1 = 1.0
         
         D = permutedims(g1, [2,1,3])
-        F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+        try
+            F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+        catch LAPACKException(1)
+            F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)),alg=LinearAlgebra.QRIteration())
+        end
         nkeep = 0
         for si in F.S
             if si*scale1 > prescreen
@@ -585,7 +609,11 @@ function form_sigma_block_expand(term::ClusteredTerm4B,
 
 
         D = permutedims(g2, [2,1,3])
-        F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+        try
+            F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+        catch LAPACKException(1)
+            F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)),alg=LinearAlgebra.QRIteration())
+        end
         nkeep = 0
         for si in F.S
             if si*scale1 > prescreen
@@ -599,7 +627,11 @@ function form_sigma_block_expand(term::ClusteredTerm4B,
 
 
         D = permutedims(g3, [2,1,3])
-        F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+        try
+            F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+        catch LAPACKException(1)
+            F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)),alg=LinearAlgebra.QRIteration())
+        end
         nkeep = 0
         for si in F.S
             if si*scale1 > prescreen
@@ -613,7 +645,11 @@ function form_sigma_block_expand(term::ClusteredTerm4B,
 
 
         D = permutedims(g4, [2,1,3])
-        F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+        try
+            F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+        catch LAPACKException(1)
+            F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)),alg=LinearAlgebra.QRIteration())
+        end
         nkeep = 0
         for si in F.S
             if si*scale1 > prescreen
@@ -801,7 +837,11 @@ function form_sigma_block_expand2(term::ClusteredTerm2B,
 
 
     D = permutedims(g1, [2,1,3])
-    F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+    try
+        F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+    catch LAPACKException(1)
+        F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)),alg=LinearAlgebra.QRIteration())
+    end
     nkeep = 0
     for si in F.S
         if si > prescreen
@@ -815,7 +855,11 @@ function form_sigma_block_expand2(term::ClusteredTerm2B,
 
 
     D = permutedims(g2, [2,1,3])
-    F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+    try
+        F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)))
+    catch LAPACKException(1)
+        F = svd(reshape(D, size(D,1), size(D,2)*size(D,3)),alg=LinearAlgebra.QRIteration())
+    end
     nkeep = 0
     for si in F.S
         if si > prescreen

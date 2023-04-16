@@ -69,7 +69,6 @@ end
     FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, d1.a, d1.b);
 
     v = FermiCG.BSTstate(clusters, FockConfig(init_fspace), cluster_bases)
-
     e_var, v_var = FermiCG.block_sparse_tucker(v, cluster_ops, clustered_ham,
                                                max_iter    = 20,
                                                max_iter_pt = 200, 
