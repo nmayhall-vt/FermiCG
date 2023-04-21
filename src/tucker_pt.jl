@@ -49,13 +49,22 @@ Since there can be non-zero overlap with a multireference state, we need to gene
 
 HC = SCe
 
-|Haa + Hax| |1 | = |I   + Sax| |1 | E
+|Haa + Hax| |Ca| = |I   + Sax| |Ca| E
 |Hxa + Hxx| |Cx|   |Sxa + I  | |Cx|
 
-Haa + Hax*Cx = (1 + Sax*Cx)E
-Hxa + HxxCx = SxaE + CxE
+Haa*Cas + Hax*Cxs = Cas*Es + Sax*Cxs*Es
+Hxa*Cas + Hxx*Cxs = Sxa*Cas*Es + Cxs*Es
 
-(Fxx-Eref-<0|F|0>)*Cx = Sxa*Eref - Hxa
+(Hxx - Es)*Cxs = Sxa*Cas*Es - Hxa*Cas 
+
+# First order
+(Hxx^0 - Es^0)*Cxs^1 = Sxa*Cas^0*Es^1 - Hxa^1*Cas^0 
+
+this isn't done yet...
+
+Hxx^0 = F + <0|V|0> = F + Eref - <0|F|0>
+
+(Fxx + Eref - <0|F|0> - Es)*Cxs = Sxa*Cas*Eref - Hxa
 
 Ax=b
 
