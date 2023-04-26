@@ -89,24 +89,25 @@ function hylleraas_compressed_mp2a(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R}
     max_iter=100,
     verbose=1,
     thresh=1e-8) where {T,N,R}
+    
     #
+    # Extract zeroth-order hamiltonian
     clustered_ham_0 = extract_1body_operator(clustered_ham, op_string=H0)
 
     # 
-    # get <X|H|0>
-    #sig = compress(sig_in, thresh=thresh)
+    # Build exact Hamiltonian within FOIS defined by `sig_in`: <X|H|0>
     sig = deepcopy(sig_in)
-    @printf(" %-50s%10i\n", "Length of input      FOIS: ", length(sig_in))
+    verbose < 1 || @printf(" %-50s%10i\n", "Length of input      FOIS: ", length(sig_in))
     #@printf(" %-50s%10i\n", "Length of compressed FOIS: ", length(sig))
     #project_out!(sig, ref)
     zero!(sig)
 
-    @printf(" %-50s", "Build exact <X|V|0>: ")
-    @time build_sigma!(sig, ref, cluster_ops, clustered_ham)
+    time = @elapsed alloc = @allocated build_sigma!(sig, ref, cluster_ops, clustered_ham)
+    verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute <X|V|0>: ", time, alloc/1e9)
+
 
     # b = <X|H|0> 
     b = -get_vector(sig)
-
 
     # (H0 - E0) |1> = X H |0>
 
@@ -114,18 +115,12 @@ function hylleraas_compressed_mp2a(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R}
 
     # 
     # get E_ref = <0|H|0>
-    tmp = deepcopy(ref)
-    zero!(tmp)
-    build_sigma!(tmp, ref, cluster_ops, clustered_ham)
-    e_ref = orth_dot(ref, tmp)
+    e_ref = compute_expectation_value(ref, cluster_ops, clustered_ham)
 
     # 
     # get E0 = <0|H0|0>
-    tmp = deepcopy(ref)
-    zero!(tmp)
-    @printf(" %-50s", "Compute <0|H0|0>: ")
-    @time build_sigma!(tmp, ref, cluster_ops, clustered_ham_0)
-    e0 = orth_dot(ref, tmp)
+    e0 = compute_expectation_value(ref, cluster_ops, clustered_ham_0)
+
 
     if verbose > 0
         @printf(" %5s %12s %12s\n", "Root", "<0|H|0>", "<0|F|0>")
@@ -134,13 +129,12 @@ function hylleraas_compressed_mp2a(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R}
         end
     end
 
-
     # 
     # get <X|F|0>
     tmp = deepcopy(sig)
     zero!(tmp)
-    @printf(" %-50s", "Compute <X|F|0>: ")
-    @time build_sigma!(tmp, ref, cluster_ops, clustered_ham_0)
+    time = @elapsed alloc = @allocated build_sigma!(tmp, ref, cluster_ops, clustered_ham_0)
+    verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute <X|F|0>: ", time, alloc/1e9)
 
     # b = - <X|H|0> + <X|F|0> = -<X|V|0>
     b .+= get_vector(tmp)
@@ -173,9 +167,10 @@ function hylleraas_compressed_mp2a(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R}
 
     #@printf(" Norm of b         : %18.12f\n", sum(b.*b))
     flush_cache(clustered_ham_0)
-    @printf(" %-50s", "Cache zeroth-order Hamiltonian: ")
-    @time cache_hamiltonian(sig, sig, cluster_ops, clustered_ham_0)
+    time = @elapsed alloc = @allocated cache_hamiltonian(sig, sig, cluster_ops, clustered_ham_0)
     psi1 = deepcopy(sig)
+    verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Cache zeroth-order Hamiltonian: ", time, alloc/1e9)
+
 
     #  (Fxx + Eref - <0|F|0> - Es)*Cxs = Sxa*Cas*Eref - Hxa
     #
@@ -219,8 +214,8 @@ function hylleraas_compressed_mp2a(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R}
         #
         x_vector = zeros(T, dim)
         x_vector = get_vector(sig)[:, r] * 0.1
-        time = @elapsed x, solver = cg!(x_vector, Axx, br, log=true, maxiter=max_iter, verbose=false, abstol=tol)
-        @printf(" %-50s%10.6f seconds\n", "Time to solve for PT1 with conjugate gradient: ", time)
+        time = @elapsed alloc = @allocated x, solver = cg!(x_vector, Axx, br, log=true, maxiter=max_iter, verbose=false, abstol=tol)
+        verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Time to solve for PT1 with conjugate gradient: ", time, alloc/1e9)
 
         set_vector!(psi1, x_vector, root=r)
     end
@@ -233,11 +228,10 @@ function hylleraas_compressed_mp2a(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R}
 
     tmp = deepcopy(ref)
     zero!(tmp)
-    @printf(" %-50s", "Compute <0|H|1>: ")
-    @time build_sigma!(tmp, psi1, cluster_ops, clustered_ham)
+    time = @elapsed alloc = @allocated build_sigma!(tmp, psi1, cluster_ops, clustered_ham)
+    verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute <0|H|1>: ", time, alloc/1e9)
+
     ecorr = nonorth_dot(tmp, ref)
-    #@printf(" <1|1> = %12.8f\n", orth_dot(psi1,psi1))
-    #@printf(" <0|H|1> = %12.8f\n", ecorr)
 
     e_pt2 = zeros(T, R)
     for r in 1:R

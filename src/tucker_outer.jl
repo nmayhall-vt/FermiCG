@@ -751,8 +751,8 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops,
     keys_to_loop = [keys(clustered_ham.trans)...]
         
     @printf(" %-50s%10i\n", "Number of tasks: ", length(keys_to_loop))
-    @printf(" %-50s", "Compute tasks: ")
-    @time Threads.@threads for fock_trans in keys_to_loop
+    @printf(" %-50s\n", "Compute tasks: ")
+    stats = @timed Threads.@threads for fock_trans in keys_to_loop
         for (ket_fock, ket_tconfigs) in ket_cts
             terms = clustered_ham[fock_trans]
 
@@ -916,9 +916,10 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops,
         end
     end
 
-    @printf(" %-50s", "Add results together: ")
+    @printf(" %-50s%10.6f seconds %10.2e Gb GC: %7.1e sec\n", "Time building compressed vector: ", stats.time, stats.bytes/1e9, stats.gctime)
+
     flush(stdout)
-    @time for (fock,tconfigs) in data
+    stats = @timed for (fock,tconfigs) in data
         for (tconfig, tuck) in tconfigs
             if haskey(sig_cts, fock)
                 sig_cts[fock][tconfig] = compress(nonorth_add(tuck), thresh=thresh)
@@ -927,7 +928,10 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops,
             end
         end
     end
+    @printf(" %-50s%10.6f seconds %10.2e Gb GC: %7.1e sec\n", "Add results together: ", stats.time, stats.bytes/1e9, stats.gctime)
+
     flush(stdout)
+
 
 #    # 
 #    # project out A space
