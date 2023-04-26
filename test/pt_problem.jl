@@ -5,8 +5,6 @@ using Printf
 using Test
 using LinearAlgebra
 using Profile 
-using HDF5
-using Random
 using JLD2
 
 # load data
@@ -65,7 +63,7 @@ FermiCG.fill_p_space!(ci_vector, na, nb)
 FermiCG.eye!(ci_vector)
 ebst, vbst = FermiCG.ci_solve(ci_vector, cluster_ops, clustered_ham)
 
-ept2 = FermiCG.compute_pt2_energy(vbst, cluster_ops, clustered_ham, thresh_foi=1e-12)
+ept2 = FermiCG.compute_pt2_energy(vbst, cluster_ops, clustered_ham, thresh_foi=1e-32)
 
 println(" PT2 - tpsci")
 display(ept1)

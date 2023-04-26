@@ -60,17 +60,198 @@ Hxa*Cas + Hxx*Cxs = Sxa*Cas*Es + Cxs*Es
 # First order
 (Hxx^0 - Es^0)*Cxs^1 = Sxa*Cas^0*Es^1 - Hxa^1*Cas^0 
 
+Es^1 = 0
+
+so,
+
+(Hxx^0 - Es^0)*Cxs^1 = - Hxa^1*Cas^0 
+
 this isn't done yet...
 
-Hxx^0 = F + <0|V|0> = F + Eref - <0|F|0>
+Hxx^0 = F + <0|V|0> = F + <0|H|0> - <0|F|0>
 
-(Fxx + Eref - <0|F|0> - Es)*Cxs = Sxa*Cas*Eref - Hxa
+(Fxx + <0|H|0> - <0|F|0> - <s|H|s>)*Cxs = Sxa*Cas*Eref - Hxa
 
 Ax=b
 
 After solving, the Energy can be obtained as:
-E = (Eref + Hax*Cx) / (1 + Sax*Cx)
+
+Cas'*Haa*Cas + Cas'*Hax*Cxs = Es + Cas'*Sax*Cxs*Es
+
+E = (Eref + Cas'*Hax*Cxs) / (1 + Cas'*Sax*Cxs)
+
+
 """
+function hylleraas_compressed_mp2a(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
+    H0="Hcmf",
+    tol=1e-6,
+    nbody=4,
+    max_iter=100,
+    verbose=1,
+    thresh=1e-8) where {T,N,R}
+    #
+    clustered_ham_0 = extract_1body_operator(clustered_ham, op_string=H0)
+
+    # 
+    # get <X|H|0>
+    #sig = compress(sig_in, thresh=thresh)
+    sig = deepcopy(sig_in)
+    @printf(" %-50s%10i\n", "Length of input      FOIS: ", length(sig_in))
+    #@printf(" %-50s%10i\n", "Length of compressed FOIS: ", length(sig))
+    #project_out!(sig, ref)
+    zero!(sig)
+
+    @printf(" %-50s", "Build exact <X|V|0>: ")
+    @time build_sigma!(sig, ref, cluster_ops, clustered_ham)
+
+    # b = <X|H|0> 
+    b = -get_vector(sig)
+
+
+    # (H0 - E0) |1> = X H |0>
+
+    e2 = zeros(T, R)
+
+    # 
+    # get E_ref = <0|H|0>
+    tmp = deepcopy(ref)
+    zero!(tmp)
+    build_sigma!(tmp, ref, cluster_ops, clustered_ham)
+    e_ref = orth_dot(ref, tmp)
+
+    # 
+    # get E0 = <0|H0|0>
+    tmp = deepcopy(ref)
+    zero!(tmp)
+    @printf(" %-50s", "Compute <0|H0|0>: ")
+    @time build_sigma!(tmp, ref, cluster_ops, clustered_ham_0)
+    e0 = orth_dot(ref, tmp)
+
+    if verbose > 0
+        @printf(" %5s %12s %12s\n", "Root", "<0|H|0>", "<0|F|0>")
+        for r in 1:R
+            @printf(" %5s %12.8f %12.8f\n", r, e_ref[r], e0[r])
+        end
+    end
+
+
+    # 
+    # get <X|F|0>
+    tmp = deepcopy(sig)
+    zero!(tmp)
+    @printf(" %-50s", "Compute <X|F|0>: ")
+    @time build_sigma!(tmp, ref, cluster_ops, clustered_ham_0)
+
+    # b = - <X|H|0> + <X|F|0> = -<X|V|0>
+    b .+= get_vector(tmp)
+
+    #
+    # Get Overlap <X|A>C(A)
+    Sx = deepcopy(sig)
+    zero!(Sx)
+    for (fock, tconfigs) in Sx
+        if haskey(ref, fock)
+            for (tconfig, tuck) in tconfigs
+                if haskey(ref[fock], tconfig)
+                    ref_tuck = ref[fock][tconfig]
+                    # Cr(i,j,k...) Ur(Ii) Ur(Jj) ...
+                    # Ux(Ii') Ux(Jj') ...
+                    #
+                    # Cr(i,j,k...) S(ii') S(jj')...
+                    overlaps = Vector{Matrix{T}}()
+                    for i in 1:N
+                        push!(overlaps, ref_tuck.factors[i]' * tuck.factors[i])
+                    end
+                    for r in 1:R
+                        Sx[fock][tconfig].core[r] .= transform_basis(ref_tuck.core[r], overlaps)
+                    end
+                end
+            end
+        end
+    end
+
+
+    #@printf(" Norm of b         : %18.12f\n", sum(b.*b))
+    flush_cache(clustered_ham_0)
+    @printf(" %-50s", "Cache zeroth-order Hamiltonian: ")
+    @time cache_hamiltonian(sig, sig, cluster_ops, clustered_ham_0)
+    psi1 = deepcopy(sig)
+
+    #  (Fxx + Eref - <0|F|0> - Es)*Cxs = Sxa*Cas*Eref - Hxa
+    #
+    # Currently, we need to solve each root separately, this should be fixed
+    # by writing our own CG solver
+    for r in 1:R
+
+        function mymatvec(x)
+
+            xr = BSTstate(sig, R=1)
+            xl = BSTstate(sig, R=1)
+
+            #display(size(xr))
+            #display(size(x))
+            length(xr) .== length(x) || throw(DimensionMismatch)
+            set_vector!(xr, x, root=1)
+            zero!(xl)
+            build_sigma!(xl, xr, cluster_ops, clustered_ham_0, cache=true)
+
+            # subtract off -E0|1>
+            #
+
+            scale!(xr, -e0[1])
+            #scale!(xr,-e0[r])  # pretty sure this should be uncommented - but it diverges, not sure why
+            orth_add!(xl, xr)
+            flush(stdout)
+
+            return get_vector(xl)
+        end
+        br = b[:, r] .+ get_vector(Sx)[:, r] .* (e_ref[r] - e0[r])
+
+
+        dim = length(br)
+        Axx = LinearMap(mymatvec, dim, dim)
+
+
+        #@time cache_hamiltonian(sig, sig, cluster_ops, clustered_ham_0, nbody=1)
+
+        #todo:  setting initial value to zero only makes sense when our reference space is projected out. 
+        #       if it's not, then we want to add the reference state components |guess> += |ref><ref|guess>
+        #
+        x_vector = zeros(T, dim)
+        x_vector = get_vector(sig)[:, r] * 0.1
+        time = @elapsed x, solver = cg!(x_vector, Axx, br, log=true, maxiter=max_iter, verbose=false, abstol=tol)
+        @printf(" %-50s%10.6f seconds\n", "Time to solve for PT1 with conjugate gradient: ", time)
+
+        set_vector!(psi1, x_vector, root=r)
+    end
+
+    flush_cache(clustered_ham_0)
+
+    SxC = orth_dot(Sx, psi1)
+    #@printf(" %-50s%10.2f\n", "<A|X>C(X): ", SxC)
+    #@printf(" <A|X>C(X) = %12.8f\n", SxC)
+
+    tmp = deepcopy(ref)
+    zero!(tmp)
+    @printf(" %-50s", "Compute <0|H|1>: ")
+    @time build_sigma!(tmp, psi1, cluster_ops, clustered_ham)
+    ecorr = nonorth_dot(tmp, ref)
+    #@printf(" <1|1> = %12.8f\n", orth_dot(psi1,psi1))
+    #@printf(" <0|H|1> = %12.8f\n", ecorr)
+
+    e_pt2 = zeros(T, R)
+    for r in 1:R
+        e_pt2[r] = (e_ref[r] + ecorr[r]) / (1 + SxC[r])
+        @printf(" State %3i: %-35s%14.8f\n", r, "E(PT2) corr: ", e_pt2[r] - e_ref[r])
+    end
+    for r in 1:R
+        @printf(" State %3i: %-35s%14.8f\n", r, "E(PT2): ", e_pt2[r])
+    end
+
+    return psi1, e_pt2
+
+end
+
 function hylleraas_compressed_mp2(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
                                   H0 = "Hcmf", 
                                   tol=1e-6,   
@@ -296,7 +477,7 @@ function do_fois_pt2(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     @printf(" %-50s\n", "Compute compressed FOIS: ")
     time = @elapsed pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
     @printf(" %-50s%10.6f seconds\n", "Time spent building compressed FOIS: ",time)
-    #display(orth_overlap(pt1_vec, pt1_vec))
+    # display(orth_overlap(pt1_vec, pt1_vec))
     #display(eigen(get_vector(pt1_vec)'*get_vector(pt1_vec)))
     project_out!(pt1_vec, ref)
     
@@ -317,7 +498,9 @@ function do_fois_pt2(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     # 
     # Solve for first order wavefunction 
     @printf(" %-50s%10i\n", "Compute PT vector. Reference space dim: ", length(ref_vec))
-    pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol, max_iter=max_iter, H0=H0)
+    # display(orth_overlap(pt1_vec, pt1_vec))
+    pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham)
+    # pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol, max_iter=max_iter, H0=H0)
     #@printf(" E(Ref)      = %12.8f\n", e0[1])
     #@printf(" E(PT2) tot  = %12.8f\n", e_pt2)
     @printf(" ==================================================================|\n")
