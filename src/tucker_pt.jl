@@ -289,6 +289,17 @@ end
 
 
 
+"""
+    pseudo_canon_pt1(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, cluster_ops, clustered_ham;
+    H0="Hcmf",
+    tol=1e-6,
+    nbody=4,
+    max_iter=100,
+    verbose=1,
+    thresh=1e-8) where {T,N,R}
+
+TBW
+"""
 function pseudo_canon_pt1(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     H0="Hcmf",
     tol=1e-6,
@@ -307,7 +318,10 @@ function pseudo_canon_pt1(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, clus
     # Build exact Hamiltonian within FOIS defined by `sig_in`: <X|H|0>
     sig = deepcopy(sig_in)
     ref = deepcopy(ref_in)
-  
+
+    # e_ref = compute_expectation_value(ref, cluster_ops, clustered_ham)
+    # display(e_ref)
+    
 
     verbose < 1 || @printf(" %-50s%10i\n", "Length of input      FOIS: ", length(sig_in))
     zero!(sig)
@@ -328,55 +342,7 @@ function pseudo_canon_pt1(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, clus
     form_1body_operator_diagonal!(ref, Fdiag_ref, cluster_ops)
 
 
-    # zero!(Fdiag)
-    # for (fock, tconfigs) in sig    
-    #     for (tconfig, tuck) in tconfigs
-
-    #         #
-    #         # Initialize energy list of lists
-    #         energies = Vector{Vector{T}}([])
-    #         for ci in 1:N
-    #             push!(energies,[])
-    #         end
-
-    #         # 
-    #         # Rotate tucker fractors to diagonalize each cluster hamiltonian
-    #         for ci in clusters
-    #             Ui = tuck.factors[ci.idx]
-    #             if size(Ui,2) > 1
-
-    #                 # build the local "fock" operator in the current tucker basis
-    #                 Hi = cluster_ops[ci.idx][H0][(fock[ci.idx],fock[ci.idx])][tconfig[ci.idx], tconfig[ci.idx]]
-    #                 Hi = Ui' * Hi * Ui
-                    
-    #                 F = eigen(Symmetric(Hi))
-    #                 sig[fock][tconfig].factors[ci.idx] .= Ui * F.vectors
-    #                 Fdiag[fock][tconfig].factors[ci.idx] .= sig[fock][tconfig].factors[ci.idx]
-
-    #                 energies[ci.idx] = F.values
-    #             else
-    #                 Hi = cluster_ops[ci.idx][H0][(fock[ci.idx],fock[ci.idx])][tconfig[ci.idx], tconfig[ci.idx]]
-    #                 e = Ui' * Hi * Ui
-                    
-    #                 length(e) == 1 || throw(DimensionMismatch)
-
-    #                 energies[ci.idx] = [e[1]]
-    #             end
-    #         end
-
-    #         #
-    #         # Add the local energies together to form zeroth order energies for each element
-    #         fcore = Fdiag[fock][tconfig].core 
-    #         length(fcore) == 1 || throw(DimensionMismatch)
-    #         for i in CartesianIndices(fcore[1])
-    #             for ci in 1:N
-    #                 fcore[1][i] += energies[ci][i[ci]]
-    #             end
-    #         end
-    #     end
-    # end
-
-
+   
     #
     # Compute <X|H|0>
     time = @elapsed alloc = @allocated build_sigma!(sig, ref, cluster_ops, clustered_ham)
@@ -422,7 +388,7 @@ function pseudo_canon_pt1(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, clus
     fv = get_vector(Fdiag, 1)
     f0 = get_vector(Fdiag_ref, 1)
     e0 = zeros(T, R)
-    for r in 1:R
+    time = @elapsed alloc = @allocated for r in 1:R
 
         Sxr = get_vector(Sx, r)
         σr = get_vector(sig, r)
@@ -439,6 +405,7 @@ function pseudo_canon_pt1(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, clus
     end
 
 
+    verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute 1st order state: ", time, alloc/1e9)
 
 
     if verbose > 0
@@ -450,10 +417,7 @@ function pseudo_canon_pt1(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, clus
 
 
 
-    verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Cache zeroth-order Hamiltonian: ", time, alloc/1e9)
 
-
-    println(norm(psi1))
 
     SxC = orth_dot(Sx, psi1)
 
