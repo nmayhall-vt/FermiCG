@@ -308,11 +308,6 @@ function pseudo_canon_pt1(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, clus
     sig = deepcopy(sig_in)
     ref = deepcopy(ref_in)
   
-    
-    # 
-    # Compress FOIS
-    project_out!(sig, ref)
-    pt1_vec = compress(sig, thresh=1e-16)
 
     verbose < 1 || @printf(" %-50s%10i\n", "Length of input      FOIS: ", length(sig_in))
     zero!(sig)
@@ -420,7 +415,7 @@ function pseudo_canon_pt1(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, clus
     #   Cx = (<0|F|0> - Fx)^-1 * <x|H - F - <0|V|0> |a> Ca
     #   Cx = (<0|F|0> - Fx)^-1 * (<x|H|0> - <x|F|0> - <0|V|0> <x|0> )
     #   Cx = (<0|F|0> - Fx)^-1 * (<x|H|0> - Fx<x|0> - <0|V|0> <x|0> )
-    #   Cx = (<0|F|0> - Fx)^-1 * (<x|H|0> - (Fx + <0|H|0> - <0|F|0>) <x|0> )
+    #   Cx = (<0|F|0> - Fx + Fx.Sx)^-1 * (<x|H|0> - (Fx + <0|H|0> - <0|F|0>) <x|0> )
     #
     psi1 = deepcopy(sig)
     zero!(psi1)
@@ -430,14 +425,16 @@ function pseudo_canon_pt1(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, clus
     for r in 1:R
 
         Sxr = get_vector(Sx, r)
+        σr = get_vector(sig, r)
+        ψr = get_vector(ref, r)
 
-        e0[r] = dot(get_vector(ref, r), f0 .* get_vector(ref, r))
-        denom = -fv .+ e0[r] .+ .00001
+        e0[r] = dot(ψr, f0 .* ψr)
 
+        denom = fv .- (fv .* Sxr) .- e0[r] # project out the reference state
 
-        num = get_vector(sig, r) .- ((fv .+ e_ref[r] .- e0[r]) .* Sxr )
+        num = σr .- ((fv .+ e_ref[r] .- e0[r]) .* Sxr )
 
-        tmp = num ./ denom
+        tmp = - num ./ denom
         set_vector!(psi1, tmp[:,1], root=r)
     end
 
