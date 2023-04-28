@@ -184,8 +184,8 @@ function tps_ci_direct( ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham
 
     H = zeros(T, 1,1)
 
-    if H_old != nothing
-        v_old != nothing || error(" can't specify H_old w/out v_old")
+    if H_old !== nothing
+        v_old !== nothing || error(" can't specify H_old w/out v_old")
         v_tot = copy(ci_vector)
         v_new = copy(ci_vector)
         
@@ -621,7 +621,7 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
         println(" ===================================================================")
 
         if it > 1
-            if thresh_var != nothing 
+            if thresh_var !== nothing 
                 l1 = length(vec_var)
                 clip!(vec_var, thresh=thresh_var)
                 l2 = length(vec_var)
