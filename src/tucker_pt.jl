@@ -429,13 +429,13 @@ function pseudo_canon_pt1(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, clus
     e0 = zeros(T, R)
     for r in 1:R
 
-        Sxr = get_vector(Sx)[:, r]
+        Sxr = get_vector(Sx, r)
 
         e0[r] = dot(get_vector(ref, r), f0 .* get_vector(ref, r))
-        denom = -fv .+ e0[r] .+ .0000001
+        denom = -fv .+ e0[r] .+ .00001
 
 
-        num = get_vector(sig, r) .- ((fv .+ e_ref .- e0[r]) .* Sxr )
+        num = get_vector(sig, r) .- ((fv .+ e_ref[r] .- e0[r]) .* Sxr )
 
         tmp = num ./ denom
         set_vector!(psi1, tmp[:,1], root=r)
