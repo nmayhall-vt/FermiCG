@@ -318,13 +318,43 @@ function pseudo_canon_pt1(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, clus
     # Build exact Hamiltonian within FOIS defined by `sig_in`: <X|H|0>
     sig = deepcopy(sig_in)
     ref = deepcopy(ref_in)
+   
+    #
+    # Compute <X|H|0>
+    zero!(sig)
+    time = @elapsed alloc = @allocated build_sigma!(sig, ref, cluster_ops, clustered_ham)
+    verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute <X|H|0>: ", time, alloc/1e9)
+   
+    function proj!(v::BSTstate{T,N,Rv},w::BSTstate{T,N,Rw}) where {Rv,Rw}
+        for (fock,tconfigs) in v.data
+            haskey(w, fock) || continue
+            for (tconfig, tuck) in tconfigs
+                haskey(w[fock], tconfig) || continue
+                w_tuck = w[fock][tconfig]
+
+                v_tuck = deepcopy(v[fock][tconfig])
+                for rv in 1:Rv
+                    for rw in 1:Rw
+                        ovlp = nonorth_dot(v_tuck, w_tuck, rv, rw)
+                        tmp = scale(w_tuck, -1.0 * ovlp)
+                        #v[fock][tconfig] = nonorth_add(tuck, tmp, thresh=thresh)
+                        v_tuck = nonorth_add(v_tuck, tmp, thresh=thresh)
+                    end
+                end
+                v[fock][tconfig] = v_tuck
+                println(fock)
+            end
+        end
+    end
+    proj!(sig,ref)
+    # # project_out!(sig, ref)
+    # sig = compress(sig, thresh=1e-36)
 
     # e_ref = compute_expectation_value(ref, cluster_ops, clustered_ham)
     # display(e_ref)
     
 
     verbose < 1 || @printf(" %-50s%10i\n", "Length of input      FOIS: ", length(sig_in))
-    zero!(sig)
 
 
     # 
@@ -341,12 +371,6 @@ function pseudo_canon_pt1(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, clus
     Fdiag_ref = BSTstate(ref, R=1)
     form_1body_operator_diagonal!(ref, Fdiag_ref, cluster_ops)
 
-
-   
-    #
-    # Compute <X|H|0>
-    time = @elapsed alloc = @allocated build_sigma!(sig, ref, cluster_ops, clustered_ham)
-    verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute <X|H|0>: ", time, alloc/1e9)
 
 
     #
@@ -375,6 +399,9 @@ function pseudo_canon_pt1(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, clus
     end
 
 
+    # sigv = get_vector(sig)
+    # for r in 1:R
+    #     sigv
 
     # 
     # Form the first order vector
@@ -384,21 +411,26 @@ function pseudo_canon_pt1(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, clus
     #   Cx = (<0|F|0> - Fx + Fx.Sx)^-1 * (<x|H|0> - (Fx + <0|H|0> - <0|F|0>) <x|0> )
     #
     psi1 = deepcopy(sig)
+    println("nick: ", orth_dot(sig,sig))
     zero!(psi1)
     fv = get_vector(Fdiag, 1)
     f0 = get_vector(Fdiag_ref, 1)
     e0 = zeros(T, R)
     time = @elapsed alloc = @allocated for r in 1:R
 
-        Sxr = get_vector(Sx, r)
         σr = get_vector(sig, r)
         ψr = get_vector(ref, r)
+        Sxr = get_vector(Sx, r)
 
         e0[r] = dot(ψr, f0 .* ψr)
 
-        denom = fv .- (fv .* Sxr) .- e0[r] # project out the reference state
-
-        num = σr .- ((fv .+ e_ref[r] .- e0[r]) .* Sxr )
+        denom = fv .- e0[r] .+ .000001
+        # num = σr 
+        num = σr .- ((fv .+ e_ref[r] .- e0[r]) .* Sxr)
+        # for rj in 1:R
+        #     denom .-= (fv .* Sxr)  # project out the reference state
+        #     num .-= ((fv .+ e_ref[r] .- e0[r]) .* Sxr)
+        # end
 
         tmp = - num ./ denom
         set_vector!(psi1, tmp[:,1], root=r)
@@ -435,7 +467,8 @@ function pseudo_canon_pt1(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, clus
     
     e_pt2 = zeros(T, R)
     for r in 1:R
-        e_pt2[r] = (e_ref[r] + ecorr[r]) / (1 + SxC[r])
+        # e_pt2[r] = (e_ref[r] + ecorr[r]) / (1 + SxC[r])
+        e_pt2[r] = e_ref[r] + ecorr[r] 
         @printf(" State %3i: %-35s%14.8f\n", r, "E(PT2) corr: ", e_pt2[r] - e_ref[r])
     end
     for r in 1:R
