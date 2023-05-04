@@ -234,7 +234,7 @@ end
 
 TBW
 """
-function form_1body_operator_diagonal!(sig::BSTstate{T,N,R}, Fdiag::BSTstate{T,N,1}, cluster_ops; H0="Hcmf") where {T,N,R}
+function form_1body_operator_diagonal!(sig::BSTstate{T,N,R}, Fdiag::BSTstate{T,N,1}, cluster_ops; H0="Hcmf", pseudo_canon=false) where {T,N,R}
     # Fdiag = BSTstate(v, R=1)
     clusters = sig.clusters
 
@@ -259,11 +259,17 @@ function form_1body_operator_diagonal!(sig::BSTstate{T,N,R}, Fdiag::BSTstate{T,N
                     Hi = cluster_ops[ci.idx][H0][(fock[ci.idx], fock[ci.idx])][tconfig[ci.idx], tconfig[ci.idx]]
                     Hi = Ui' * Hi * Ui
 
-                    F = eigen(Symmetric(Hi))
-                    sig[fock][tconfig].factors[ci.idx] .= Ui * F.vectors
-                    Fdiag[fock][tconfig].factors[ci.idx] .= sig[fock][tconfig].factors[ci.idx]
+                    if pseudo_canon
+                        # diagonalize and rotate tucker factors
+                        F = eigen(Symmetric(Hi))
+                        sig[fock][tconfig].factors[ci.idx] .= Ui * F.vectors
+                        Fdiag[fock][tconfig].factors[ci.idx] .= sig[fock][tconfig].factors[ci.idx]
 
-                    energies[ci.idx] = F.values
+                        energies[ci.idx] = F.values
+                    else
+                        # just take diagonal
+                        energies[ci.idx] = diag(Hi) 
+                    end
                 elseif size(Ui, 2) == 1
                     Hi = cluster_ops[ci.idx][H0][(fock[ci.idx], fock[ci.idx])][tconfig[ci.idx], tconfig[ci.idx]]
                     e = Ui' * Hi * Ui
@@ -346,7 +352,7 @@ function pseudo_canon_pt1(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, clus
             end
         end
     end
-    proj!(sig,ref)
+    # proj!(sig,ref)
     # # project_out!(sig, ref)
     # sig = compress(sig, thresh=1e-36)
 
@@ -366,10 +372,10 @@ function pseudo_canon_pt1(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, clus
     # Rotate the local tucker factors to diagonalize the zeroth order hamiltonians and build F diagonal
     # Fdiag = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N,R}}}()
     Fdiag = BSTstate(sig, R=1)
-    form_1body_operator_diagonal!(sig, Fdiag, cluster_ops)
+    form_1body_operator_diagonal!(sig, Fdiag, cluster_ops, pseudo_canon=false)
 
     Fdiag_ref = BSTstate(ref, R=1)
-    form_1body_operator_diagonal!(ref, Fdiag_ref, cluster_ops)
+    form_1body_operator_diagonal!(ref, Fdiag_ref, cluster_ops, pseudo_canon=false)
 
 
 
