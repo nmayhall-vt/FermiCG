@@ -315,6 +315,8 @@ function pseudo_canon_pt1_a(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, cl
     thresh=1e-8) where {T,N,R}
 
 
+    println()
+    println(" |...................................BST-PT2............................................")
     #
     # Extract zeroth-order hamiltonian
     clustered_ham_0 = extract_1body_operator(clustered_ham, op_string=H0)
@@ -324,6 +326,13 @@ function pseudo_canon_pt1_a(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, cl
     # Build exact Hamiltonian within FOIS defined by `sig_in`: <X|H|0>
     sig = deepcopy(sig_in)
     ref = deepcopy(ref_in)
+
+
+    #
+    # Rotate the local tucker factors to diagonalize the zeroth order hamiltonians and build F diagonal
+    Fdiag = BSTstate(sig, R=1)
+    form_1body_operator_diagonal!(sig, Fdiag, cluster_ops, pseudo_canon=true)
+
 
     #
     # Compute <X|H|0>
@@ -336,6 +345,7 @@ function pseudo_canon_pt1_a(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, cl
     # 
     # get E_ref = <0|H|0>
     e_ref = compute_expectation_value(ref, cluster_ops, clustered_ham)
+    e0 = compute_expectation_value(ref, cluster_ops, clustered_ham_0)
 
 
     #
@@ -362,58 +372,8 @@ function pseudo_canon_pt1_a(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, cl
         end
     end
 
-    #
-    # Rotate the local tucker factors to diagonalize the zeroth order hamiltonians and build F diagonal
-    Fdiag = BSTstate(sig, R=1)
-    Fdiag_ref = BSTstate(ref, R=1)
-    form_1body_operator_diagonal!(sig, Fdiag, cluster_ops, pseudo_canon=false)
-    form_1body_operator_diagonal!(ref, Fdiag_ref, cluster_ops, pseudo_canon=false)
 
-    # 
-    # Form the first order vector
-    #   Cx = (<0|F|0> - Fx)^-1 * <x|H - F - <0|V|0> |a> Ca
-    #   Cx = (<0|F|0> - Fx)^-1 * (<x|H|0> - <x|F|0> - <0|V|0> <x|0> )
-    #   Cx = (<0|F|0> - Fx)^-1 * (<x|H|0> - Fx<x|0> - <0|V|0> <x|0> )
-    #   Cx = (<0|F|0> - Fx + Fx.Sx)^-1 * (<x|H|0> - (Fx + <0|H|0> - <0|F|0>) <x|0> )
-    #
-    ψ1 = deepcopy(sig)
-    S1 = deepcopy(Sx)
-    zero!(ψ1)
-    zero!(S1)
-    e0 = zeros(R)
-    fv = get_vector(Fdiag, 1)
-    f0 = get_vector(Fdiag_ref, 1)
-    time = @elapsed alloc = @allocated for r in 1:R
-
-        σr = get_vector(sig, r)
-        ψ0r = get_vector(ref, r)
-        S0r = get_vector(Sx, r)
-
-        e0[r] = dot(ψ0r, f0 .* ψ0r)
-
-
-        # denom = fv .- e0[r] .- (fv .* Sxr)  # project out the reference state
-        # num = σr .- ((fv .+ e_ref[r] .- e0[r]) .* Sxr)
-
-        # for rj in 1:R
-        #     denom .-= (fv .* Sxr)  # project out the reference state
-        #     num .-= ((fv .+ e_ref[r] .- e0[r]) .* Sxr)
-        # end
-
-        denom = -fv .+ e0[r] .+ 1e-8
-        num = σr
-
-        tmp = num ./ denom
-        set_vector!(ψ1, tmp[:, 1], root=r)
-
-        tmp = S0r ./ denom
-        set_vector!(S1, tmp[:, 1], root=r)
-    end
-
-
-    verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute 1st order state: ", time, alloc / 1e9)
-
-    if verbose > 0
+    if verbose > 1
         @printf(" %5s %12s %12s\n", "Root", "<0|H|0>", "<0|F|0>")
         for r in 1:R
             @printf(" %5s %12.8f %12.8f\n", r, e_ref[r], e0[r])
@@ -421,22 +381,9 @@ function pseudo_canon_pt1_a(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, cl
     end
 
 
-    SxC = orth_dot(Sx, ψ1)
 
-    # tmp1 = deepcopy(ref)
-    # tmp2 = deepcopy(ref)
-    # zero!(tmp1)
-    # zero!(tmp2)
-    # time = @elapsed alloc = @allocated build_sigma!(tmp1, ψ1, cluster_ops, clustered_ham)
-    # verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute <0|H|1>: ", time, alloc / 1e9)
-    # time = @elapsed alloc = @allocated build_sigma!(tmp2, S1, cluster_ops, clustered_ham)
-    # verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute <0|S1>: ", time, alloc / 1e9)
-
-    # ecorr = nonorth_dot(tmp1, ref)
-    # println(ecorr)
-    # ecorr .-= 2 .* nonorth_dot(tmp2, ref) .* e_ref
-    # println(ecorr)
-
+    #
+    # compute the corrections
     ecorr = zeros(R)
     Fv = get_vector(Fdiag, 1)
     for r in 1:R
@@ -449,22 +396,22 @@ function pseudo_canon_pt1_a(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, cl
         ecorr[r] += sum(sr .* sr ./ denom) * e_ref[r]^2
     end
 
-    for r in 1:R
-        SS = orth_dot(Sx, Sx)
-        @printf(" SxC[r] %12.8f SxSx %12.8f\n", SxC[r], SS[r])
-    end
-
+    
     e_pt2 = zeros(T, R)
     for r in 1:R
         # e_pt2[r] = (e_ref[r] + ecorr[r]) / (1 + SxC[r])
         e_pt2[r] = e_ref[r] + ecorr[r]
         @printf(" State %3i: %-35s%14.8f\n", r, "E(PT2) corr: ", e_pt2[r] - e_ref[r])
     end
-    for r in 1:R
-        @printf(" State %3i: %-35s%14.8f\n", r, "E(PT2): ", e_pt2[r])
-    end
 
-    return ψ1, e_pt2
+    @printf(" %5s %12s %12s\n", "Root", "E(0)", "E(2)") 
+    for r in 1:R
+        @printf(" %5s %12.8f %12.8f\n",r, e_ref[r], e_ref[r] + ecorr[r])
+    end
+    println(" ......................................................................................|")
+
+
+    return sig, e_pt2
 
 end
 
