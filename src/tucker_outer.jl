@@ -1106,8 +1106,9 @@ function project_out!(v::BSTstate{T,N,Rv}, w::BSTstate{T,N,Rw}; thresh=1e-16) wh
                     if haskey(w[fock], tconfig)
                         w_tuck = w[fock][tconfig]
 
+                        ww = sum(w_tuck.core[rw] .* w_tuck.core[rw])
                         for rv in 1:Rv
-                            ovlp = nonorth_dot(tuck, w_tuck, rv, rw) / nonorth_dot(w_tuck, w_tuck, rw, rw)
+                            ovlp = nonorth_dot(tuck, w_tuck, rv, rw) / ww
                             tmp = scale(w_tuck, -1.0 * ovlp)
                             v[fock][tconfig] = nonorth_add(tuck, tmp, thresh=thresh)
                         end
