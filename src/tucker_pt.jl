@@ -50,7 +50,172 @@ After solving, the energy can be obtained as:
 
 
 """
-function hylleraas_compressed_mp2(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
+
+
+
+
+"""
+    compute_pt1_wavefunction(σ_in::BSTstate{T,N,R}, ψ0::BSTstate{T,N,R}, cluster_ops, clustered_ham;
+    H0="Hcmf",
+    nbody=4,
+    verbose=1) where {T,N,R}
+
+H0 = F + <0|H - F|0>
+V  = H - F - <0|H - F|0>
+
+ψ1 = <X|H - F - E0 + F0|0> / (<0|F|0> - Fx)
+   = <X|H|0> - <X|F|0> - (E0-F0)<X|0> / Dx
+
+E2 = <0|V|X>ψ1
+
+The local Tucker factors are first canonicalized to avoid having to solve the Hylleraas functional
+   """
+function compute_pt1_wavefunction(σ_in::BSTstate{T,N,R}, ψ0::BSTstate{T,N,R}, cluster_ops, clustered_ham;
+    H0="Hcmf",
+    nbody=4,
+    verbose=1) where {T,N,R}
+
+    println()
+    println(" |...................................BST-PT2............................................")
+    #
+    # Copy data
+    σ = deepcopy(σ_in)
+    zero!(σ)
+
+
+    #
+    # Extract zeroth-order hamiltonian
+    clustered_ham_0 = extract_1body_operator(clustered_ham, op_string=H0)
+
+
+    #
+    # Rotate the local tucker factors to diagonalize the zeroth order hamiltonians and build F diagonal
+    Fdiag = BSTstate(σ, R=1)
+    form_1body_operator_diagonal!(σ, Fdiag, cluster_ops, pseudo_canon=true)
+    
+
+    # 
+    # get E0 = <0|H|0>
+    E0 = compute_expectation_value(ψ0, cluster_ops, clustered_ham)
+
+
+    # 
+    # get F0 = <0|F|0>
+    F0 = compute_expectation_value(ψ0, cluster_ops, clustered_ham_0)
+
+
+    if verbose > 1
+        @printf(" %5s %12s %12s\n", "Root", "<0|H|0>", "<0|F|0>")
+        for r in 1:R
+            @printf(" %5s %12.8f %12.8f\n", r, E0[r], F0[r])
+        end
+    end
+
+
+    #
+    # Get Overlap <X|A>C(A)
+    Sx = deepcopy(σ)
+    zero!(Sx)
+    for (fock, tconfigs) in Sx
+        if haskey(ψ0, fock)
+            for (tconfig, tuck) in tconfigs
+                if haskey(ψ0[fock], tconfig)
+                    ref_tuck = ψ0[fock][tconfig]
+                    # Cr(i,j,k...) Ur(Ii) Ur(Jj) ...
+                    # Ux(Ii') Ux(Jj') ...
+                    #
+                    # Cr(i,j,k...) S(ii') S(jj')...
+                    overlaps = Vector{Matrix{T}}()
+                    for i in 1:N
+                        push!(overlaps, ref_tuck.factors[i]' * tuck.factors[i])
+                    end
+                    for r in 1:R
+                        Sx[fock][tconfig].core[r] .= transform_basis(ref_tuck.core[r], overlaps)
+                    end
+                end
+            end
+        end
+    end
+
+
+    # 
+    # We need the numerator: <X|V|0> = <X|H|0> - <X|F|0> - (E0 - F0)<X|0>
+    # 
+    # Build exact Hamiltonian within FOIS defined by `sig`: <X|H|0>
+    verbose < 1 || @printf(" %-50s%10i\n", "Length of input      FOIS: ", length(σ))
+    time = @elapsed alloc = @allocated build_sigma!(σ, ψ0, cluster_ops, clustered_ham)
+    verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute <X|H|0>: ", time, alloc/1e9)
+
+    # subtract <X|F|0>
+    XF0 = deepcopy(σ)
+    zero!(XF0)
+    time = @elapsed alloc = @allocated build_sigma!(XF0, ψ0, cluster_ops, clustered_ham_0)
+    verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute <X|F|0>: ", time, alloc/1e9)
+
+    
+    σ = σ - XF0 - scale(Sx, E0 .- F0)
+    
+    ψ1 = deepcopy(σ)
+    Fv = get_vector(Fdiag, 1)
+    for r in 1:R
+        ψ1r = get_vector(ψ1, r)
+        sr = get_vector(Sx, r)
+        
+        denom = Fv .- F0[r] 
+        denom .= -denom
+        
+        ψ1r ./= denom
+        
+        set_vector!(ψ1, ψ1r[:,1], root=r)
+    end
+
+    ecorr = orth_dot(σ, ψ1)
+   
+
+    E2 = zeros(R)
+    for r in 1:R
+        E2[r] = E0[r] + ecorr[r]
+        @printf(" State %3i: %-35s%14.8f\n", r, "E(PT2) corr: ", ecorr[r])
+    end
+
+    @printf(" %5s %12s %12s\n", "Root", "E(0)", "E(2)")
+    for r in 1:R
+        @printf(" %5s %12.8f %12.8f\n", r, E0[r], E2[r])
+    end
+    println(" ......................................................................................|")
+
+    return ψ1, E2 
+
+end
+
+
+"""
+    compute_pt1_wavefunction(ψ0::BSTstate{T,N,R}, cluster_ops, clustered_ham;
+    H0 = "Hcmf",
+    nbody = 4,
+    thresh_foi = 1e-7
+    verbose = 1,
+    max_number = nothing) where {T,N,R}
+
+TBW
+"""
+function compute_pt1_wavefunction(ψ0::BSTstate{T,N,R}, cluster_ops, clustered_ham;
+    H0 = "Hcmf",
+    nbody = 4,
+    thresh_foi = 1e-7,
+    verbose = 1,
+    max_number = nothing) where {T,N,R}
+
+    #
+    # Build target FOIS
+    time = @elapsed alloc = @allocated σ = FermiCG.build_compressed_1st_order_state(ψ0, cluster_ops, clustered_ham, nbody=4, thresh=thresh_foi, max_number=max_number)
+    verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute Compressed FOIS: ", time, alloc/1e9)
+
+    return compute_pt1_wavefunction(σ, ψ0, cluster_ops, clustered_ham, H0=H0, nbody=nbody, verbose=verbose)
+end
+
+
+function hylleraas_compressed_mp2_old(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     H0="Hcmf",
     tol=1e-6,
     nbody=4,
@@ -228,7 +393,6 @@ function hylleraas_compressed_mp2(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R},
 end
 
 
-
 """
     form_1body_operator_diagonal!(sig::BSTstate{T,N,R}, Fdiag::BSTstate{T,N,1}, cluster_ops; H0="Hcmf") where {T,N,R}
 
@@ -306,7 +470,7 @@ end
 
 TBW
 """
-function pseudo_canon_pt1_a(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, cluster_ops, clustered_ham;
+function pseudo_canon_pt1(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     H0="Hcmf",
     tol=1e-6,
     nbody=4,
@@ -380,22 +544,23 @@ function pseudo_canon_pt1_a(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, cl
         end
     end
 
+    
 
-
-    #
-    # compute the corrections
-    ecorr = zeros(R)
+    ψ1 = sig - scale(Sx, e_ref)
     Fv = get_vector(Fdiag, 1)
     for r in 1:R
+        ψ1r = get_vector(ψ1, r)
         sr = get_vector(Sx, r)
         σr = get_vector(sig, r)
         denom = Fv .- e0[r] .- (Fv .* sr)  # project out the reference state
         denom .= -denom
-        ecorr[r] = sum(σr .* σr ./ denom)
-        ecorr[r] -= 2 .* sum(σr .* sr ./ denom) * e_ref[r]
-        ecorr[r] += sum(sr .* sr ./ denom) * e_ref[r]^2
+        ψ1r ./= denom
+        set_vector!(ψ1, ψ1r[:,1], root=r)
+
     end
 
+    ecorr = orth_dot(sig, ψ1)
+    ecorr = ecorr ./ (ones(R) .+ orth_dot(Sx, ψ1))
     
     e_pt2 = zeros(T, R)
     for r in 1:R
@@ -403,10 +568,39 @@ function pseudo_canon_pt1_a(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, cl
         e_pt2[r] = e_ref[r] + ecorr[r]
         @printf(" State %3i: %-35s%14.8f\n", r, "E(PT2) corr: ", e_pt2[r] - e_ref[r])
     end
-
-    @printf(" %5s %12s %12s\n", "Root", "E(0)", "E(2)") 
+    @printf(" %5s %12s %12s\n", "Root", "E(0)", "E(2)")
     for r in 1:R
-        @printf(" %5s %12.8f %12.8f\n",r, e_ref[r], e_ref[r] + ecorr[r])
+        @printf(" %5s %12.8f %12.8f\n", r, e_ref[r], e_ref[r] + ecorr[r])
+    end
+
+    #
+    # compute the corrections
+    ecorr = zeros(R)
+    Fv = get_vector(Fdiag, 1)
+    for r in 1:R
+        ψ1r = get_vector(ψ1, r)
+        sr = get_vector(Sx, r)
+        σr = get_vector(sig, r)
+        
+        denom = Fv .- e0[r] .- (Fv .* sr)  # project out the reference state
+        denom .= -denom
+
+        ecorr[r] = sum(σr .* σr ./ denom)
+        ecorr[r] -= 2 .* sum(σr .* sr ./ denom) * e_ref[r]
+        ecorr[r] += sum(sr .* sr ./ denom) * e_ref[r]^2
+    end
+
+
+    e_pt2 = zeros(T, R)
+    for r in 1:R
+        # e_pt2[r] = (e_ref[r] + ecorr[r]) / (1 + SxC[r])
+        e_pt2[r] = e_ref[r] + ecorr[r]
+        @printf(" State %3i: %-35s%14.8f\n", r, "E(PT2) corr: ", ecorr[r])
+    end
+
+    @printf(" %5s %12s %12s\n", "Root", "E(0)", "E(2)")
+    for r in 1:R
+        @printf(" %5s %12.8f %12.8f\n", r, e_ref[r], e_ref[r] + ecorr[r])
     end
     println(" ......................................................................................|")
 
@@ -414,215 +608,6 @@ function pseudo_canon_pt1_a(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, cl
     return sig, e_pt2
 
 end
-
-
-
-
-
-"""
-    pseudo_canon_pt1(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, cluster_ops, clustered_ham;
-    H0="Hcmf",
-    tol=1e-6,
-    nbody=4,
-    max_iter=100,
-    verbose=1,
-    thresh=1e-8) where {T,N,R}
-
-TBW
-"""
-function pseudo_canon_pt1(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, cluster_ops, clustered_ham;
-    H0="Hcmf",
-    tol=1e-6,
-    nbody=4,
-    max_iter=100,
-    verbose=1,
-    thresh=1e-8) where {T,N,R}
-    
-
-    #
-    # Extract zeroth-order hamiltonian
-    clustered_ham_0 = extract_1body_operator(clustered_ham, op_string=H0)
-
-
-    # 
-    # Build exact Hamiltonian within FOIS defined by `sig_in`: <X|H|0>
-    sig = deepcopy(sig_in)
-    ref = deepcopy(ref_in)
-   
-    #
-    # Compute <X|H|0>
-    zero!(sig)
-    time = @elapsed alloc = @allocated build_sigma!(sig, ref, cluster_ops, clustered_ham)
-    verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute <X|H|0>: ", time, alloc/1e9)
-   
-    function proj!(v::BSTstate{T,N,Rv},w::BSTstate{T,N,Rw}) where {Rv,Rw}
-        for (fock,tconfigs) in v.data
-            haskey(w, fock) || continue
-            for (tconfig, tuck) in tconfigs
-                haskey(w[fock], tconfig) || continue
-                w_tuck = w[fock][tconfig]
-
-                v_tuck = deepcopy(v[fock][tconfig])
-                for rv in 1:Rv
-                    for rw in 1:Rw
-                        ovlp = nonorth_dot(v_tuck, w_tuck, rv, rw)
-                        tmp = scale(w_tuck, -1.0 * ovlp)
-                        #v[fock][tconfig] = nonorth_add(tuck, tmp, thresh=thresh)
-                        v_tuck = nonorth_add(v_tuck, tmp, thresh=thresh)
-                    end
-                end
-                v[fock][tconfig] = v_tuck
-            end
-        end
-    end
-
-    # proj!(sig,ref)
-    # project_out!(sig, ref)
-    # sig = compress(sig, thresh=1e-36)
-
-    # e_ref = compute_expectation_value(ref, cluster_ops, clustered_ham)
-    # display(e_ref)
-
-
-    verbose < 1 || @printf(" %-50s%10i\n", "Length of input      FOIS: ", length(sig_in))
-
-
-    # 
-    # get E_ref = <0|H|0>
-    e_ref = compute_expectation_value(ref, cluster_ops, clustered_ham)
-
-
-
-    #
-    # Build overlap <X|A>C(A)
-    Sx = deepcopy(sig)
-    zero!(Sx)
-    for (fock, tconfigs) in Sx
-        haskey(ref, fock) || continue
-        for (tconfig, tuck) in tconfigs
-            haskey(ref[fock], tconfig) || continue
-            
-            ref_tuck = ref[fock][tconfig]
-            # Cr(i,j,k...) Ur(Ii) Ur(Jj) ...
-            # Ux(Ii') Ux(Jj') ...
-            #
-            # Cr(i,j,k...) S(ii') S(jj')...
-            overlaps = Vector{Matrix{T}}()
-            for i in 1:N
-                push!(overlaps, ref_tuck.factors[i]' * tuck.factors[i])
-            end
-            for r in 1:R
-                Sx[fock][tconfig].core[r] .= transform_basis(ref_tuck.core[r], overlaps)
-            end
-        end
-    end
-
-    # println("<sig|ref>: ", nonorth_dot(sig,ref))
-    # println("<Sx|sig> : ", nonorth_dot(sig,Sx))
-    # println("<Sx|sig> : ", orth_dot(sig,Sx))
-    # println("<Sx|Sx>  : ", nonorth_dot(Sx,Sx))
-    # println("<Sx|H|Sx>: ", compute_expectation_value(compress(Sx, thresh=1e-12), cluster_ops, clustered_ham))
-    # sig = nonorth_add(sig, scale(Sx, -nonorth_dot(sig,ref)/orth_dot(Sx,Sx)[1]), thresh=1e-16)
-    # println("<sig|ref>: ", nonorth_dot(sig,ref))
-    # println("<Sx|ref> : ", nonorth_dot(sig,Sx))
-
-
-    #
-    # Rotate the local tucker factors to diagonalize the zeroth order hamiltonians and build F diagonal
-    # Fdiag = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N,R}}}()
-    Fdiag = BSTstate(sig, R=1)
-    form_1body_operator_diagonal!(sig, Fdiag, cluster_ops, pseudo_canon=false)
-
-    Fdiag_ref = BSTstate(ref, R=1)
-    form_1body_operator_diagonal!(ref, Fdiag_ref, cluster_ops, pseudo_canon=false)
-        
-    fv = get_vector(Fdiag, 1)
-    f0 = get_vector(Fdiag_ref, 1)
-    e0 = dot(get_vector(ref)', f0 .* get_vector(ref))/orth_dot(Sx,Sx)[1]
-    fv = nonorth_add(Fdiag, scale(Sx, -e0))
-
-    println(" here: ", nonorth_dot(Sx,sig))
-    println(" here: ", nonorth_dot(ref,sig))
-
-    # sigv = get_vector(sig)
-    # for r in 1:R
-    #     sigv
-
-    # 
-    # Form the first order vector
-    #   Cx = (<0|F|0> - Fx)^-1 * <x|H - F - <0|V|0> |a> Ca
-    #   Cx = (<0|F|0> - Fx)^-1 * (<x|H|0> - <x|F|0> - <0|V|0> <x|0> )
-    #   Cx = (<0|F|0> - Fx)^-1 * (<x|H|0> - Fx<x|0> - <0|V|0> <x|0> )
-    #   Cx = (<0|F|0> - Fx + Fx.Sx)^-1 * (<x|H|0> - (Fx + <0|H|0> - <0|F|0>) <x|0> )
-    #
-    psi1 = deepcopy(sig)
-    zero!(psi1)
-    fv = get_vector(Fdiag, 1)
-    f0 = get_vector(Fdiag_ref, 1)
-    e0 = zeros(T, R)
-    time = @elapsed alloc = @allocated for r in 1:R
-
-        σr = get_vector(sig, r)
-        ψr = get_vector(ref, r)
-        Sxr = get_vector(Sx, r)
-
-        e0[r] = dot(ψr, f0 .* ψr)
-
-        denom = fv .- e0[r]
-        num = σr 
-        
-        # denom = fv .- e0[r] .- (fv .* Sxr)  # project out the reference state
-        # num = σr .- ((fv .+ e_ref[r] .- e0[r]) .* Sxr)
-        
-        # for rj in 1:R
-        #     denom .-= (fv .* Sxr)  # project out the reference state
-        #     num .-= ((fv .+ e_ref[r] .- e0[r]) .* Sxr)
-        # end
-
-        tmp = - num ./ denom
-        set_vector!(psi1, tmp[:,1], root=r)
-    end
-
-
-    verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute 1st order state: ", time, alloc/1e9)
-
-
-    if verbose > 0
-        @printf(" %5s %12s %12s\n", "Root", "<0|H|0>", "<0|F|0>")
-        for r in 1:R
-            @printf(" %5s %12.8f %12.8f\n", r, e_ref[r], e0[r])
-        end
-    end
-
-
-    SxC = orth_dot(Sx, psi1)
-
-    tmp = deepcopy(ref)
-    zero!(tmp)
-    time = @elapsed alloc = @allocated build_sigma!(tmp, psi1, cluster_ops, clustered_ham)
-    verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute <0|H|1>: ", time, alloc/1e9)
-
-    ecorr = nonorth_dot(tmp, ref)
-    
-    for r in 1:R
-        SS = orth_dot(Sx, Sx)
-        @printf(" SxC[r] %12.8f SxSx %12.8f\n", SxC[r], SS[r])
-    end
-    
-    e_pt2 = zeros(T, R)
-    for r in 1:R
-        # e_pt2[r] = (e_ref[r] + ecorr[r]) / (1 + SxC[r])
-        e_pt2[r] = e_ref[r] + ecorr[r] 
-        @printf(" State %3i: %-35s%14.8f\n", r, "E(PT2) corr: ", e_pt2[r] - e_ref[r])
-    end
-    for r in 1:R
-        @printf(" State %3i: %-35s%14.8f\n", r, "E(PT2): ", e_pt2[r])
-    end
-
-    return psi1, e_pt2
-
-end
-
 
 
 

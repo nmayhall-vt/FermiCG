@@ -889,3 +889,41 @@ function add_spin_focksectors(state::BSTstate{T,N,R}) where {T,N,R}
     #expand_each_fock_space!(state)
     return out
 end
+
+
+
+"""
+    Base.:*(A::BSTstate{T,N,R}, C::T) where {T,N,R}
+
+TBW
+"""
+function Base.:*(A::BSTstate{T,N,R}, C::T) where {T,N,R}
+    B = deepcopy(A)
+    scale!(B, C)
+    return B
+end
+
+"""
+    Base.:-(A::BSTstate{T,N,R}, B::BSTstate{T,N,R}) where {T,N,R}
+
+TBW
+"""
+function Base.:-(A::BSTstate{T,N,R}, B::BSTstate{T,N,R}) where {T,N,R}
+    length(A) == length(B) || throw(DimensionMismatch)
+    C = deepcopy(A)
+    set_vector!(C, get_vector(A) .- get_vector(B))
+    return C
+end
+
+
+"""
+    Base.:+(A::BSTstate{T,N,R}, B::BSTstate{T,N,R}) where {T,N,R}
+
+TBW
+"""
+function Base.:+(A::BSTstate{T,N,R}, B::BSTstate{T,N,R}) where {T,N,R}
+    length(A) == length(B) || throw(DimensionMismatch)
+    C = deepcopy(A)
+    set_vector!(C, get_vector(A) .+ get_vector(B))
+    return C
+end
