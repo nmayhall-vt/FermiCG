@@ -841,8 +841,8 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops,
                                            sig_fock, sig_tconfig,
                                            ket_fock, ket_tconfig, ket_tuck,
                                            prescreen=thresh)
-                        if bound < sqrt(thresh)
-                            #continue
+                        if bound == false 
+                            continue
                         end
                         
 
@@ -922,7 +922,8 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops,
     stats = @timed for (fock,tconfigs) in data
         for (tconfig, tuck) in tconfigs
             if haskey(sig_cts, fock)
-                sig_cts[fock][tconfig] = compress(nonorth_add(tuck), thresh=thresh)
+                sig_cts[fock][tconfig] = nonorth_add(tuck)
+                # sig_cts[fock][tconfig] = compress(nonorth_add(tuck), thresh=thresh)
             else
                 sig_cts[fock] = OrderedDict(tconfig => nonorth_add(tuck))
             end
@@ -933,26 +934,6 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops,
     flush(stdout)
 
 
-#    # 
-#    # project out A space
-#    for (fock,tconfigs) in sig_cts 
-#        for (tconfig, tuck) in tconfigs
-#            if haskey(ket_cts, fock)
-#                if haskey(ket_cts[fock], tconfig)
-#                    ket_tuck_A = ket_cts[fock][tconfig]
-#
-#                    ovlp = nonorth_dot(tuck, ket_tuck_A) / nonorth_dot(ket_tuck_A, ket_tuck_A)
-#                    tmp = scale(ket_tuck_A, -1.0 * ovlp)
-#                    #sig_cts[fock][tconfig] = nonorth_add(tuck, tmp, thresh=1e-16)
-#                end
-#            end
-#        end
-#    end
-   
-  
-    # now combine Tuckers, project out reference space and multiply by resolvents
-    #prune_empty_TuckerConfigs!(sig_cts)
-    #return compress(sig_cts, thresh=thresh)
     return sig_cts
 #=}}}=#
 end

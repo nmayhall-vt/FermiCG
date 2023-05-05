@@ -1018,7 +1018,6 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
     # Add results together to get final FOIS for this job
     for (tconfig, tucks) in data
         sig[sig_fock][tconfig] = nonorth_add(tucks)
-        # sig[sig_fock][tconfig] = compress(nonorth_add(tucks), thresh=thresh)
     end
 
     # Compute PT2 energy for this job
