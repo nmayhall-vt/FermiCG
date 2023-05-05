@@ -587,9 +587,9 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
                             max_number  = nothing,
                             opt_ref     = true,
                             ci_tol      = 1e-6,
-                            verbose     = true) where {T,N,R}
-    verbose < 1 || println()
-    verbose < 1 || println(" |...................................BST-PT2............................................")
+                            verbose     = 1) where {T,N,R}
+    println()
+    println(" |...................................BST-PT2............................................")
     verbose < 1 || println(" H0          : ", H0          ) 
     verbose < 1 || println(" nbody       : ", nbody       ) 
     verbose < 1 || println(" thresh_foi  : ", thresh_foi  ) 
@@ -679,9 +679,9 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     end
 
     tmp = ceil(length(jobs_vec)/100)
-    verbose < 1 || println(" |----------------------------------------------------------------------------------------------------|")
-    verbose < 1 || println(" |0%                                                                                              100%|")
-    verbose < 1 || print(" |")
+    verbose < 2 || println(" |----------------------------------------------------------------------------------------------------|")
+    verbose < 2 || println(" |0%                                                                                              100%|")
+    verbose < 2 || print(" |")
     #@profilehtml @Threads.threads for job in jobs_vec
     nprinted = 0
     alloc = @allocated t = @elapsed begin
@@ -692,7 +692,7 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
             tid = Threads.threadid()
             e2_thread[tid] .+= _pt2_job(fock_sig, job[2], ref_vec, cluster_ops, clustered_ham, clustered_ham_0, 
                           nbody, verbose, thresh_foi, max_number, E0, F0)
-            if verbose > 0
+            if verbose > 1
                 if  jobi%tmp == 0
                     begin
                         lock(lk)
@@ -709,26 +709,26 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
         end
     end
     flush(stdout)
-    for i in nprinted+1:100
+    verbose < 2 || for i in nprinted+1:100
         print("-")
     end
-    verbose < 1 || println("|")
+    verbose < 2 || println("|")
     flush(stdout)
   
     @printf(" %-48s%10.1f s Allocated: %10.1e GB\n", "Time spent computing E2: ",t,alloc*1e-9)
     ecorr = sum(e2_thread) 
    
     E2 = zeros(R)
-    verbose < 1 || for r in 1:R
+    for r in 1:R
         E2[r] = E0[r] + ecorr[r]
         @printf(" State %3i: %-35s%14.8f\n", r, "E(PT2) corr: ", ecorr[r])
     end
 
-    verbose < 1 || @printf(" %5s %12s %12s\n", "Root", "E(0)", "E(2)")
-    verbose < 1 || for r in 1:R
+    @printf(" %5s %12s %12s\n", "Root", "E(0)", "E(2)")
+    for r in 1:R
         @printf(" %5s %12.8f %12.8f\n", r, E0[r], E2[r])
     end
-    verbose < 1 || println(" ......................................................................................|")
+    println(" ......................................................................................|")
     
     return E2 
 end
