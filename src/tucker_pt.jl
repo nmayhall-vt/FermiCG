@@ -69,15 +69,12 @@ V  = H - F - <0|H - F|0>
 E2 = <0|V|X>ψ1
 
 The local Tucker factors are first canonicalized to avoid having to solve the Hylleraas functional
-   """
-function compute_pt1_wavefunction(σ_in::BSTstate{T,N,R}, ψ0::BSTstate{T,N,R}, cluster_ops, clustered_ham;
+"""
+function compute_pt1_wavefunction(σ_in::BSTstate{T,N,R}, ψ0::BSTstate{T,N,R}, cluster_ops, clustered_ham, clustered_ham_0, E0, F0;
     H0="Hcmf",
     nbody=4,
     verbose=1) where {T,N,R}
-
-    verbose < 1 || println()
-    verbose < 1 || println(" |...................................BST-PT2............................................")
-    flush(stdout)
+    
     #
     # Copy data
     σ = deepcopy(σ_in)
@@ -85,34 +82,11 @@ function compute_pt1_wavefunction(σ_in::BSTstate{T,N,R}, ψ0::BSTstate{T,N,R}, 
 
 
     #
-    # Extract zeroth-order hamiltonian
-    clustered_ham_0 = extract_1body_operator(clustered_ham, op_string=H0)
-
-
-    #
     # Rotate the local tucker factors to diagonalize the zeroth order hamiltonians and build F diagonal
     Fdiag = BSTstate(σ, R=1)
     form_1body_operator_diagonal!(σ, Fdiag, cluster_ops, pseudo_canon=true)
     
-
-    # 
-    # get E0 = <0|H|0>
-    E0 = compute_expectation_value(ψ0, cluster_ops, clustered_ham)
-
-
-    # 
-    # get F0 = <0|F|0>
-    F0 = compute_expectation_value(ψ0, cluster_ops, clustered_ham_0)
-
-
-    if verbose > 1
-        @printf(" %5s %12s %12s\n", "Root", "<0|H|0>", "<0|F|0>")
-        for r in 1:R
-            @printf(" %5s %12.8f %12.8f\n", r, E0[r], F0[r])
-        end
-    end
-
-
+    
     #
     # Get Overlap <X|A>C(A)
     Sx = deepcopy(σ)
@@ -162,8 +136,7 @@ function compute_pt1_wavefunction(σ_in::BSTstate{T,N,R}, ψ0::BSTstate{T,N,R}, 
         ψ1r = get_vector(ψ1, r)
         sr = get_vector(Sx, r)
         
-        denom = Fv .- F0[r] .+ 1e-16  # this shift just protects against exact/accidental zeros
-        denom .= -denom
+        denom = F0[r] .- Fv .+ 1e-12  # this shift just protects against exact/accidental zeros
         
         ψ1r ./= denom
         
@@ -171,9 +144,62 @@ function compute_pt1_wavefunction(σ_in::BSTstate{T,N,R}, ψ0::BSTstate{T,N,R}, 
     end
 
     ecorr = orth_dot(σ, ψ1)
-   
-
+  
     E2 = zeros(R)
+    for r in 1:R
+        E2[r] = E0[r] + ecorr[r]
+    end
+    
+    return ψ1, E2, ecorr
+
+end
+
+"""
+    compute_pt1_wavefunction(σ_in::BSTstate{T,N,R}, ψ0::BSTstate{T,N,R}, cluster_ops, clustered_ham;
+    H0="Hcmf",
+    nbody=4,
+    verbose=1) where {T,N,R}
+
+TBW
+"""
+function compute_pt1_wavefunction(σ_in::BSTstate{T,N,R}, ψ0::BSTstate{T,N,R}, cluster_ops, clustered_ham;
+    H0="Hcmf",
+    nbody=4,
+    verbose=1) where {T,N,R}
+
+    verbose < 1 || println()
+    verbose < 1 || println(" |...................................BST-PT2............................................")
+    flush(stdout)
+    #
+    # Copy data
+    σ = deepcopy(σ_in)
+    zero!(σ)
+
+
+    #
+    # Extract zeroth-order hamiltonian
+    clustered_ham_0 = extract_1body_operator(clustered_ham, op_string=H0)
+    
+
+    # 
+    # get E0 = <0|H|0>
+    E0 = compute_expectation_value(ψ0, cluster_ops, clustered_ham)
+
+
+    # 
+    # get F0 = <0|F|0>
+    F0 = compute_expectation_value(ψ0, cluster_ops, clustered_ham_0)
+
+
+    if verbose > 1
+        @printf(" %5s %12s %12s\n", "Root", "<0|H|0>", "<0|F|0>")
+        for r in 1:R
+            @printf(" %5s %12.8f %12.8f\n", r, E0[r], F0[r])
+        end
+    end
+
+    ψ1, E2, ecorr = compute_pt1_wavefunction(σ, ψ0, cluster_ops, clustered_ham, clustered_ham_0,  E0, F0, H0=H0, verbose=verbose)
+
     verbose < 1 || for r in 1:R
         E2[r] = E0[r] + ecorr[r]
         @printf(" State %3i: %-35s%14.8f\n", r, "E(PT2) corr: ", ecorr[r])
@@ -188,6 +214,7 @@ function compute_pt1_wavefunction(σ_in::BSTstate{T,N,R}, ψ0::BSTstate{T,N,R}, 
     return ψ1, E2, ecorr 
 
 end
+
 
 
 """
@@ -460,157 +487,6 @@ end
 
 
 
-"""
-    pseudo_canon_pt1_a(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, cluster_ops, clustered_ham;
-    H0="Hcmf",
-    tol=1e-6,
-    nbody=4,
-    max_iter=100,
-    verbose=1,
-    thresh=1e-8) where {T,N,R}
-
-TBW
-"""
-function pseudo_canon_pt1(sig_in::BSTstate{T,N,R}, ref_in::BSTstate{T,N,R}, cluster_ops, clustered_ham;
-    H0="Hcmf",
-    tol=1e-6,
-    nbody=4,
-    max_iter=100,
-    verbose=1,
-    thresh=1e-8) where {T,N,R}
-
-
-    println()
-    println(" |...................................BST-PT2............................................")
-    #
-    # Extract zeroth-order hamiltonian
-    clustered_ham_0 = extract_1body_operator(clustered_ham, op_string=H0)
-
-
-    # 
-    # Build exact Hamiltonian within FOIS defined by `sig_in`: <X|H|0>
-    sig = deepcopy(sig_in)
-    ref = deepcopy(ref_in)
-
-
-    #
-    # Rotate the local tucker factors to diagonalize the zeroth order hamiltonians and build F diagonal
-    Fdiag = BSTstate(sig, R=1)
-    form_1body_operator_diagonal!(sig, Fdiag, cluster_ops, pseudo_canon=true)
-
-
-    #
-    # Compute <X|H|0>
-    zero!(sig)
-    time = @elapsed alloc = @allocated build_sigma!(sig, ref, cluster_ops, clustered_ham)
-    verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute <X|H|0>: ", time, alloc / 1e9)
-    verbose < 1 || @printf(" %-50s%10i\n", "Length of input      FOIS: ", length(sig_in))
-
-
-    # 
-    # get E_ref = <0|H|0>
-    e_ref = compute_expectation_value(ref, cluster_ops, clustered_ham)
-    e0 = compute_expectation_value(ref, cluster_ops, clustered_ham_0)
-
-
-    #
-    # Build overlap <X|A>C(A)
-    Sx = deepcopy(sig)
-    zero!(Sx)
-    for (fock, tconfigs) in Sx
-        haskey(ref, fock) || continue
-        for (tconfig, tuck) in tconfigs
-            haskey(ref[fock], tconfig) || continue
-
-            ref_tuck = ref[fock][tconfig]
-            # Cr(i,j,k...) Ur(Ii) Ur(Jj) ...
-            # Ux(Ii') Ux(Jj') ...
-            #
-            # Cr(i,j,k...) S(ii') S(jj')...
-            overlaps = Vector{Matrix{T}}()
-            for i in 1:N
-                push!(overlaps, ref_tuck.factors[i]' * tuck.factors[i])
-            end
-            for r in 1:R
-                Sx[fock][tconfig].core[r] .= transform_basis(ref_tuck.core[r], overlaps)
-            end
-        end
-    end
-
-
-    if verbose > 1
-        @printf(" %5s %12s %12s\n", "Root", "<0|H|0>", "<0|F|0>")
-        for r in 1:R
-            @printf(" %5s %12.8f %12.8f\n", r, e_ref[r], e0[r])
-        end
-    end
-
-    
-
-    ψ1 = sig - scale(Sx, e_ref)
-    Fv = get_vector(Fdiag, 1)
-    for r in 1:R
-        ψ1r = get_vector(ψ1, r)
-        sr = get_vector(Sx, r)
-        σr = get_vector(sig, r)
-        denom = Fv .- e0[r] .- (Fv .* sr)  # project out the reference state
-        denom .= -denom
-        ψ1r ./= denom
-        set_vector!(ψ1, ψ1r[:,1], root=r)
-
-    end
-
-    ecorr = orth_dot(sig, ψ1)
-    ecorr = ecorr ./ (ones(R) .+ orth_dot(Sx, ψ1))
-    
-    e_pt2 = zeros(T, R)
-    for r in 1:R
-        # e_pt2[r] = (e_ref[r] + ecorr[r]) / (1 + SxC[r])
-        e_pt2[r] = e_ref[r] + ecorr[r]
-        @printf(" State %3i: %-35s%14.8f\n", r, "E(PT2) corr: ", e_pt2[r] - e_ref[r])
-    end
-    @printf(" %5s %12s %12s\n", "Root", "E(0)", "E(2)")
-    for r in 1:R
-        @printf(" %5s %12.8f %12.8f\n", r, e_ref[r], e_ref[r] + ecorr[r])
-    end
-
-    #
-    # compute the corrections
-    ecorr = zeros(R)
-    Fv = get_vector(Fdiag, 1)
-    for r in 1:R
-        ψ1r = get_vector(ψ1, r)
-        sr = get_vector(Sx, r)
-        σr = get_vector(sig, r)
-        
-        denom = Fv .- e0[r] .- (Fv .* sr)  # project out the reference state
-        denom .= -denom
-
-        ecorr[r] = sum(σr .* σr ./ denom)
-        ecorr[r] -= 2 .* sum(σr .* sr ./ denom) * e_ref[r]
-        ecorr[r] += sum(sr .* sr ./ denom) * e_ref[r]^2
-    end
-
-
-    e_pt2 = zeros(T, R)
-    for r in 1:R
-        # e_pt2[r] = (e_ref[r] + ecorr[r]) / (1 + SxC[r])
-        e_pt2[r] = e_ref[r] + ecorr[r]
-        @printf(" State %3i: %-35s%14.8f\n", r, "E(PT2) corr: ", ecorr[r])
-    end
-
-    @printf(" %5s %12s %12s\n", "Root", "E(0)", "E(2)")
-    for r in 1:R
-        @printf(" %5s %12.8f %12.8f\n", r, e_ref[r], e_ref[r] + ecorr[r])
-    end
-    println(" ......................................................................................|")
-
-
-    return sig, e_pt2
-
-end
-
-
 
 
 """
@@ -694,40 +570,26 @@ end
 #=}}}=#
 
 
-"""
-    compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
-                            H0          = "Hcmf",
-                            max_iter    = 50,
-                            nbody       = 4,
-                            thresh      = 1e-6,
-                            max_number  = nothing,
-                            tol         = 1e-5,
-                            opt_ref     = true,
-                            verbose     = true) where {T,N,R}
-
-Compute the PT2 energy for the `ref` BST state
-"""
 function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
                             H0          = "Hcmf",
-                            max_iter    = 50,
                             nbody       = 4,
                             thresh_foi  = 1e-6,
                             max_number  = nothing,
-                            tol         = 1e-5,
                             opt_ref     = true,
+                            ci_tol      = 1e-6,
                             verbose     = true) where {T,N,R}
-    @printf(" |== Compute PT2 Energy ============================================\n")
-    println(" H0          : ", H0          ) 
-    println(" max_iter    : ", max_iter    ) 
-    println(" nbody       : ", nbody       ) 
-    println(" thresh_foi  : ", thresh_foi  ) 
-    println(" max_number  : ", max_number  ) 
-    println(" tol         : ", tol         ) 
-    println(" opt_ref     : ", opt_ref     ) 
-    println(" verbose     : ", verbose     ) 
-    @printf("\n")
-    @printf(" %-50s", "Length of Reference: ")
-    @printf("%10i\n", length(ref))
+    verbose < 1 || println()
+    verbose < 1 || println(" |...................................BST-PT2............................................")
+    verbose < 1 || println(" H0          : ", H0          ) 
+    verbose < 1 || println(" nbody       : ", nbody       ) 
+    verbose < 1 || println(" thresh_foi  : ", thresh_foi  ) 
+    verbose < 1 || println(" max_number  : ", max_number  ) 
+    verbose < 1 || println(" opt_ref     : ", opt_ref     ) 
+    verbose < 1 || println(" ci_tol      : ", ci_tol       ) 
+    verbose < 1 || println(" verbose     : ", verbose     ) 
+    verbose < 1 || @printf("\n")
+    verbose < 1 || @printf(" %-50s", "Length of Reference: ")
+    verbose < 1 || @printf("%10i\n", length(ref))
     
     lk = ReentrantLock()
 
@@ -736,31 +598,28 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     ref_vec = deepcopy(ref)
     clusters = ref_vec.clusters
    
-    e_ref = zeros(T,R)
+    E0 = zeros(T,R)
 
-    #e_ref[1] = -196.68470072
-    if true 
-        if opt_ref 
-            @printf(" %-50s\n", "Solve zeroth-order problem: ")
-            time = @elapsed e_ref, ref_vec = ci_solve(ref_vec, cluster_ops, clustered_ham, conv_thresh=tol)
-            @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
-        else
-            @printf(" %-50s", "Compute zeroth-order energy: ")
-            flush(stdout)
-            @time e_ref = compute_expectation_value(ref_vec, cluster_ops, clustered_ham)
-        end
+    if opt_ref 
+        @printf(" %-50s\n", "Solve zeroth-order problem: ")
+        time = @elapsed E0, ref_vec = ci_solve(ref_vec, cluster_ops, clustered_ham, conv_thresh=ci_tol)
+        @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
+    else
+        @printf(" %-50s", "Compute zeroth-order energy: ")
+        flush(stdout)
+        @time E0 = compute_expectation_value(ref_vec, cluster_ops, clustered_ham)
     end
 
     # 
     # get E0 = <0|H0|0>
     clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = H0)
     @printf(" %-50s", "Compute <0|H0|0>: ")
-    @time e0 = compute_expectation_value(ref_vec, cluster_ops, clustered_ham_0)
+    @time F0 = compute_expectation_value(ref_vec, cluster_ops, clustered_ham_0)
     
     if verbose > 0 
         @printf(" %5s %12s %12s\n", "Root", "<0|H|0>", "<0|F|0>")
         for r in 1:R
-            @printf(" %5s %12.8f %12.8f\n",r, e_ref[r], e0[r])
+            @printf(" %5s %12.8f %12.8f\n",r, E0[r], F0[r])
         end
     end
 
@@ -822,9 +681,7 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
             fock_sig = job[1]
             tid = Threads.threadid()
             e2_thread[tid] .+= _pt2_job(fock_sig, job[2], ref_vec, cluster_ops, clustered_ham, clustered_ham_0, 
-                          tol, nbody, max_iter, verbose, thresh_foi, max_number, e_ref, e0)
-            #@btime  _pt2_job($fock_sig, $job[2], $ref_vec, $cluster_ops, $clustered_ham, $clustered_ham_0, 
-            #              $tol, $nbody, $max_iter, $verbose, $thresh_foi, $max_number, $e_ref, $e0)
+                          nbody, verbose, thresh_foi, max_number, E0, F0)
             if verbose > 0
                 if  jobi%tmp == 0
                     begin
@@ -849,18 +706,21 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     flush(stdout)
   
     @printf(" %-48s%10.1f s Allocated: %10.1e GB\n", "Time spent computing E2: ",t,alloc*1e-9)
-    e2 = sum(e2_thread) 
-    
-    for r in 1:R
-        @printf(" State %3i: %-35s%14.8f\n", r, "E(PT2) corr: ", e2[r])
-    end
-    for r in 1:R
-        @printf(" State %3i: %-35s%14.8f\n", r, "E(PT2): ", e2[r]+e_ref[r])
+    ecorr = sum(e2_thread) 
+   
+    E2 = zeros(R)
+    verbose < 1 || for r in 1:R
+        E2[r] = E0[r] + ecorr[r]
+        @printf(" State %3i: %-35s%14.8f\n", r, "E(PT2) corr: ", ecorr[r])
     end
 
+    verbose < 1 || @printf(" %5s %12s %12s\n", "Root", "E(0)", "E(2)")
+    verbose < 1 || for r in 1:R
+        @printf(" %5s %12.8f %12.8f\n", r, E0[r], E2[r])
+    end
+    verbose < 1 || println(" ......................................................................................|")
     
-    @printf(" ==================================================================|\n")
-    return e2 
+    return E2 
 end
 
 function compute_pt2_energy_old(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
@@ -1023,7 +883,7 @@ end
 
 
 function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ham, clustered_ham_0,
-    tol, nbody, max_iter, verbose, thresh, max_number, e_ref, e0) where {T,N,R}
+    nbody, verbose, thresh, max_number, E0, F0) where {T,N,R}
 
     sig = BSTstate(ket.clusters, ket.p_spaces, ket.q_spaces, T=T, R=R)
     add_fockconfig!(sig, sig_fock)
@@ -1136,7 +996,6 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
 
                     #add to current sigma vector
                     if haskey(sig[sig_fock], sig_tconfig)
-                        #sig[sig_fock][sig_tconfig] = nonorth_add(sig[sig_fock][sig_tconfig], sig_tuck)
 
                         if haskey(data, sig_tconfig)
                             push!(data[sig_tconfig], sig_tuck)
@@ -1159,11 +1018,11 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
     # Add results together to get final FOIS for this job
     for (tconfig, tucks) in data
         sig[sig_fock][tconfig] = nonorth_add(tucks)
-        #sig[sig_fock][tconfig] = compress(nonorth_add(tucks), thresh=thresh)
+        # sig[sig_fock][tconfig] = compress(nonorth_add(tucks), thresh=thresh)
     end
 
     # Compute PT2 energy for this job
-    v_pt, e_pt, ecorr = compute_pt1_wavefunction(sig, ket, cluster_ops, clustered_ham, verbose=0)
+    v_pt, e_pt, ecorr = compute_pt1_wavefunction(sig, ket, cluster_ops, clustered_ham, clustered_ham_0, E0, F0, verbose=0)
 
     return ecorr 
 end
