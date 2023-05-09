@@ -685,7 +685,11 @@ end
 
 
 """
-    build_compressed_1st_order_state(ket_cts::BSTstate{T,N}, cluster_ops, clustered_ham; 
+    build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops, clustered_ham; 
+        thresh=1e-7, 
+        max_number=nothing, 
+        nbody=4, 
+        compress_twice=true) where {T,N,R}
         thresh=1e-7, 
         max_number=nothing, 
         nbody=4) where {T,N}
@@ -700,6 +704,7 @@ Lots of overhead probably from compression, but never completely uncompresses.
 - `thresh`: Threshold for each HOSVD 
 - `max_number`: max number of tucker factors kept in each HOSVD
 - `nbody`: allows one to limit (max 4body) terms in the Hamiltonian considered
+- `compress_twice`: Should we recompress after adding the tuckers together
 
 #Returns
 - `v1::BSTstate`
@@ -708,7 +713,8 @@ Lots of overhead probably from compression, but never completely uncompresses.
 function build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops, clustered_ham; 
         thresh=1e-7, 
         max_number=nothing, 
-        nbody=4) where {T,N,R}
+        nbody=4, 
+        compress_twice=true) where {T,N,R}
 #={{{=#
     #
     # Initialize data for our output sigma, which we will convert to a
@@ -922,8 +928,11 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops,
     stats = @timed for (fock,tconfigs) in data
         for (tconfig, tuck) in tconfigs
             if haskey(sig_cts, fock)
-                sig_cts[fock][tconfig] = nonorth_add(tuck)
-                # sig_cts[fock][tconfig] = compress(nonorth_add(tuck), thresh=thresh)
+                if compress_twice
+                    sig_cts[fock][tconfig] = compress(nonorth_add(tuck), thresh=thresh)
+                else
+                    sig_cts[fock][tconfig] = nonorth_add(tuck)
+                end
             else
                 sig_cts[fock] = OrderedDict(tconfig => nonorth_add(tuck))
             end
