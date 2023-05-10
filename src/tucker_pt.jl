@@ -587,7 +587,9 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
                             max_number  = nothing,
                             opt_ref     = true,
                             ci_tol      = 1e-6,
-                            verbose     = 1) where {T,N,R}
+                            verbose     = 1,
+                            prescreen   = false,
+                            compress_twice = false) where {T,N,R}
     println()
     println(" |...................................BST-PT2............................................")
     verbose < 1 || println(" H0          : ", H0          ) 
@@ -691,7 +693,7 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
             fock_sig = job[1]
             tid = Threads.threadid()
             e2_thread[tid] .+= _pt2_job(fock_sig, job[2], ref_vec, cluster_ops, clustered_ham, clustered_ham_0, 
-                          nbody, verbose, thresh_foi, max_number, E0, F0)
+                          nbody, verbose, thresh_foi, max_number, E0, F0, prescreen, compress_twice)
             if verbose > 1
                 if  jobi%tmp == 0
                     begin
@@ -735,7 +737,7 @@ end
 
 
 function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ham, clustered_ham_0,
-    nbody, verbose, thresh, max_number, E0, F0) where {T,N,R}
+    nbody, verbose, thresh, max_number, E0, F0, prescreen, compress_twice) where {T,N,R}
 
     sig = BSTstate(ket.clusters, ket.p_spaces, ket.q_spaces, T=T, R=R)
     add_fockconfig!(sig, sig_fock)
@@ -802,12 +804,12 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
                     check_term(term, sig_fock, sig_tconfig, ket_fock, ket_tconfig) || continue
 
 
-                    bound = calc_bound(term, cluster_ops,
-                        sig_fock, sig_tconfig,
-                        ket_fock, ket_tconfig, ket_tuck,
-                        prescreen=thresh)
-                    if bound == false
-                        continue
+                    if prescreen
+                        bound = calc_bound(term, cluster_ops,
+                            sig_fock, sig_tconfig,
+                            ket_fock, ket_tconfig, ket_tuck,
+                            prescreen=thresh)
+                        bound == true || continue
                     end
 
                     sig_tuck = form_sigma_block_expand(term, cluster_ops,
@@ -869,7 +871,11 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
     # 
     # Add results together to get final FOIS for this job
     for (tconfig, tucks) in data
-        sig[sig_fock][tconfig] = nonorth_add(tucks)
+        if compress_twice
+            sig[sig_fock][tconfig] = compress(nonorth_add(tucks), thresh=thresh)
+        else
+            sig[sig_fock][tconfig] = nonorth_add(tucks)
+        end
     end
 
     # Compute PT2 energy for this job

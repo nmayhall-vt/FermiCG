@@ -90,12 +90,10 @@ end
     FermiCG.eye!(ci_vector)
     e_ci, v = FermiCG.ci_solve(ci_vector, cluster_ops, clustered_ham)
 
-    ept = FermiCG.compute_pt2_energy(v, cluster_ops, clustered_ham, thresh_foi=1e-8)
     
     if true 
         e_var, v_var = block_sparse_tucker( v, cluster_ops, clustered_ham,
                                            max_iter    = 20,
-                                           max_iter_pt = 200,
                                            nbody       = 4,
                                            H0          = "Hcmf",
                                            thresh_var  = 1e-1,
@@ -108,10 +106,40 @@ end
                                            tol_tucker  = 1e-4,
                                            solver      = "davidson")
 
-        e_ref = [-14.050153133150385
-                 -14.021579538798385
-                 -14.00597811927653]
+        display(e_var)
+        # e_ref = [-14.050153133150385
+        #          -14.021579538798385
+        #          -14.00597811927653]
+        e_ref = [ -14.050154165401898
+                  -14.021577201080214
+                  -14.005974057426226]
         @test all(isapprox(e_ref, e_var, atol=1e-8)) 
     end
+    
+    ept = FermiCG.compute_pt2_energy(v_var, cluster_ops, clustered_ham, thresh_foi=1e-6, prescreen=false, compress_twice=false)
+    e_ref = [ -14.050283466391429
+    -14.021647997972101
+    -14.006031059765386]
+        
+    @test all(isapprox(e_ref, ept, atol=1e-8)) 
+
+
+    display(ept)
+    ept = FermiCG.compute_pt2_energy(v_var, cluster_ops, clustered_ham, thresh_foi=1e-6, prescreen=false, compress_twice=true)
+    e_ref = [ -14.050283259900635
+    -14.021647644042632
+    -14.006030211224038]
+
+    @test all(isapprox(e_ref, ept, atol=1e-8)) 
+
+    display(ept)
+    ept = FermiCG.compute_pt2_energy(v_var, cluster_ops, clustered_ham, thresh_foi=1e-6, prescreen=true, compress_twice=true)
+    e_ref = [ -14.050282480980837
+            -14.02164721175634
+            -14.006025302851784]
+
+    @test all(isapprox(e_ref, ept, atol=1e-8)) 
+
+    display(ept)
 end
 

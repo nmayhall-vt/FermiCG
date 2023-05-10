@@ -81,10 +81,11 @@ end
                                                resolve_ss  = true,
                                                tol_tucker  = 1e-4)
 
-    @test isapprox(e_var[1], -18.32945552731658, atol=1e-8)
+    @test isapprox(e_var[1], -18.329535820707004, atol=1e-8)
+    # @test isapprox(e_var[1], -18.32945552731658, atol=1e-8)
     
 
-    e_cepa, v_cepa = FermiCG.do_fois_cepa(v, cluster_ops, clustered_ham, thresh_foi=1e-3, max_iter=50, tol=1e-8)
+    e_cepa, v_cepa = FermiCG.do_fois_cepa(v, cluster_ops, clustered_ham, thresh_foi=1e-3, max_iter=50, tol=1e-8, prescreen=false)
     display(e_cepa)
     @test isapprox(e_cepa[1], -18.329789530070542, atol=1e-8)
     

@@ -714,7 +714,8 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops,
         thresh=1e-7, 
         max_number=nothing, 
         nbody=4, 
-        compress_twice=true) where {T,N,R}
+        compress_twice=true, 
+        prescreen=false) where {T,N,R}
 #={{{=#
     #
     # Initialize data for our output sigma, which we will convert to a
@@ -842,13 +843,12 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops,
 #                        end
                         check_term(term, sig_fock, sig_tconfig, ket_fock, ket_tconfig) || continue
 
-
-                        bound = calc_bound(term, cluster_ops,
-                                           sig_fock, sig_tconfig,
-                                           ket_fock, ket_tconfig, ket_tuck,
-                                           prescreen=thresh)
-                        if bound == false 
-                            continue
+                        if prescreen
+                            bound = calc_bound(term, cluster_ops,
+                                            sig_fock, sig_tconfig,
+                                            ket_fock, ket_tconfig, ket_tuck,
+                                            prescreen=thresh)
+                            bound == true || continue
                         end
                         
 
@@ -1005,14 +1005,15 @@ end
 
 
 function do_fois_cepa(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
-            max_iter    = 20,
-	    cepa_shift  = "cepa",
-	    cepa_mit    = 30,
-            nbody       = 4,
-            thresh_foi  = 1e-6,
-            tol         = 1e-5,
-	    compress_type= "matvec",
-            verbose     = true) where {T,N,R}
+    max_iter=20,
+    cepa_shift="cepa",
+    cepa_mit=30,
+    nbody=4,
+    thresh_foi=1e-6,
+    tol=1e-5,
+    compress_type="matvec",
+    prescreen=false,
+    verbose=true) where {T,N,R}
     @printf("\n-------------------------------------------------------\n")
     @printf(" Do CEPA\n")
     @printf("   thresh_foi              = %-8.1e\n", thresh_foi)
@@ -1034,14 +1035,14 @@ function do_fois_cepa(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     # Get First order wavefunction
     println()
     println(" Compute FOIS. Reference space dim = ", length(ref_vec))
-    @time pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+    @time pt1_vec = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi, prescreen=prescreen)
 
     project_out!(pt1_vec, ref)
 
     if compress_type == "pt_vec"
-	println()
-	println(" Compute PT vector. Reference space dim = ", length(ref_vec))
-	pt1_vec, e_pt2 = hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol, do_pt=true)
+        println()
+        println(" Compute PT vector. Reference space dim = ", length(ref_vec))
+        pt1_vec, e_pt2 = hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol, do_pt=true)
     end
 
     display(pt1_vec)
@@ -1066,7 +1067,7 @@ function do_fois_cepa(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     cepa_vec = deepcopy(pt1_vec)
     zero!(cepa_vec)
     println(" Do CEPA: Dim = ", length(cepa_vec))
-    @time e_cepa, x_cepa = tucker_cepa_solve(ref_vec, cepa_vec, cluster_ops, clustered_ham, cepa_shift, cepa_mit,tol=tol, max_iter=max_iter, verbose=verbose)
+    @time e_cepa, x_cepa = tucker_cepa_solve(ref_vec, cepa_vec, cluster_ops, clustered_ham, cepa_shift, cepa_mit, tol=tol, max_iter=max_iter, verbose=verbose)
 
     @printf(" E(cepa) corr =                 %12.8f\n", e_cepa[1])
     @printf(" X(cepa) norm =                 %12.8f\n", sqrt(orth_dot(x_cepa, x_cepa)[1]))
