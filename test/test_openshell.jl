@@ -46,6 +46,13 @@ using JLD2
 
     @test all(isapprox(tpsci_ref, e0a, atol=1e-8)) 
     @test all(isapprox(e2_ref, ept+e0a, atol=1e-8)) 
+    
+    # test spin projection
+    e0a, v0a = FermiCG.tpsci_ci(ci_vector, cluster_ops, clustered_ham, incremental=true,
+        thresh_cipsi = 1e-3, 
+        thresh_foi   = 1e-5,
+        thresh_asci  = -1,
+        spin_proj    = 1);
 end
 
 @testset "openshell_bst" begin

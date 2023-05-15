@@ -79,6 +79,7 @@ include("tpsci_pt1_wavefunction.jl")
 include("tpsci_pt2_energy.jl")
 include("tpsci_outer.jl")
 include("tpsci_helpers.jl")
+include("tpsci.jl")
 
 include("dense_inner.jl")
 include("dense_outer.jl")
