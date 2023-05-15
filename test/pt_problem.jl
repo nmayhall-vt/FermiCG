@@ -5,8 +5,6 @@ using Printf
 using Test
 using LinearAlgebra
 using Profile 
-using HDF5
-using Random
 using JLD2
 
 # load data
@@ -65,10 +63,16 @@ FermiCG.fill_p_space!(ci_vector, na, nb)
 FermiCG.eye!(ci_vector)
 ebst, vbst = FermiCG.ci_solve(ci_vector, cluster_ops, clustered_ham)
 
-ept2 = FermiCG.compute_pt2_energy(vbst, cluster_ops, clustered_ham, thresh_foi=1e-12)
+ept2 = FermiCG.compute_pt2_energy(vbst, cluster_ops, clustered_ham, thresh_foi=1e-64)
 
 println(" PT2 - tpsci")
 display(ept1)
 println(" PT2 - bst")
 display(ept2)
 println(" TPSCI and BST pt2 corrections should be identical - they are not, BST is problably wrong for multidimensional P-space, which was not well tested")
+
+
+
+e_var, v = FermiCG.ci_solve(vbst, cluster_ops, clustered_ham);
+s_bst = FermiCG.build_compressed_1st_order_state(v, cluster_ops, clustered_ham, nbody=4, thresh=1e-64)
+FermiCG.pseudo_canon_pt1(s_bst, v, cluster_ops, clustered_ham, tol=1e-8, verbose=1);

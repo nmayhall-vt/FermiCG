@@ -14,10 +14,9 @@ function compute_pt2_energy(ci_vector_in::TPSCIstate{T,N,R}, cluster_ops, cluste
         thresh_foi=1e-9, 
         prescreen=true,
         verbose=1) where {T,N,R}
-    #={{{=#
 
     println()
-    println(" |........................do batched PT2............................")
+    println(" |..................................do batched PT2......................................")
     println(" thresh_foi    :", thresh_foi   ) 
     println(" prescreen     :", prescreen   ) 
     println(" H0            :", H0   ) 
@@ -147,6 +146,7 @@ function compute_pt2_energy(ci_vector_in::TPSCIstate{T,N,R}, cluster_ops, cluste
     flush(stdout)
    
     @printf(" Time spent computing E2 %12.1f (s)\n",t)
+    flush(stdout)
     e2 = sum(e2_thread) 
 
     #BLAS.set_num_threads(Threads.nthreads())
@@ -155,11 +155,10 @@ function compute_pt2_energy(ci_vector_in::TPSCIstate{T,N,R}, cluster_ops, cluste
     for r in 1:R
         @printf(" %5s %12.8f %12.8f\n",r, Evar[r], Evar[r] + e2[r])
     end
-    println(" ..................................................................|")
+    println(" ......................................................................................|")
 
     return e2
 end
-#=}}}=#
 
 
 function _pt2_job(job, fock_x, cluster_ops, nbody, thresh, 

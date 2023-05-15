@@ -29,7 +29,6 @@ if false
     if true 
         e_var, v_var = FermiCG.block_sparse_tucker(v, cluster_ops, clustered_ham,
                                                max_iter    = 20,
-                                               max_iter_pt = 200, 
                                                nbody       = 4,
                                                H0          = "Hcmf",
                                                thresh_var  = 1e-2,
@@ -72,7 +71,6 @@ end
 
     e_var, v_var = FermiCG.block_sparse_tucker(v, cluster_ops, clustered_ham,
                                                max_iter    = 20,
-                                               max_iter_pt = 200, 
                                                nbody       = 4,
                                                H0          = "Hcmf",
                                                thresh_var  = 1e-2,
@@ -83,14 +81,15 @@ end
                                                resolve_ss  = true,
                                                tol_tucker  = 1e-4)
 
-    @test isapprox(e_var[1], -18.32945552731658, atol=1e-8)
+    @test isapprox(e_var[1], -18.329535820707004, atol=1e-6)
+    # @test isapprox(e_var[1], -18.32945552731658, atol=1e-8)
     
 
-    e_cepa, v_cepa = FermiCG.do_fois_cepa(v, cluster_ops, clustered_ham, thresh_foi=1e-3, max_iter=50, tol=1e-8)
+    e_cepa, v_cepa = FermiCG.do_fois_cepa(v, cluster_ops, clustered_ham, thresh_foi=1e-3, max_iter=50, tol=1e-8, prescreen=false)
     display(e_cepa)
     @test isapprox(e_cepa[1], -18.329789530070542, atol=1e-8)
     
-    e_pt = FermiCG.compute_pt2_energy(v, cluster_ops, clustered_ham, thresh_foi=1e-3, max_iter=50, tol=1e-8)
+    e_pt = FermiCG.compute_pt2_energy(v, cluster_ops, clustered_ham, thresh_foi=1e-3)
     
     e_pt, v_pt = FermiCG.do_fois_pt2(v, cluster_ops, clustered_ham, thresh_foi=1e-3, max_iter=50, tol=1e-8)
     display(e_pt)

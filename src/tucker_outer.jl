@@ -685,7 +685,11 @@ end
 
 
 """
-    build_compressed_1st_order_state(ket_cts::BSTstate{T,N}, cluster_ops, clustered_ham; 
+    build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops, clustered_ham; 
+        thresh=1e-7, 
+        max_number=nothing, 
+        nbody=4, 
+        compress_twice=true) where {T,N,R}
         thresh=1e-7, 
         max_number=nothing, 
         nbody=4) where {T,N}
@@ -700,6 +704,7 @@ Lots of overhead probably from compression, but never completely uncompresses.
 - `thresh`: Threshold for each HOSVD 
 - `max_number`: max number of tucker factors kept in each HOSVD
 - `nbody`: allows one to limit (max 4body) terms in the Hamiltonian considered
+- `compress_twice`: Should we recompress after adding the tuckers together
 
 #Returns
 - `v1::BSTstate`
@@ -708,7 +713,9 @@ Lots of overhead probably from compression, but never completely uncompresses.
 function build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops, clustered_ham; 
         thresh=1e-7, 
         max_number=nothing, 
-        nbody=4) where {T,N,R}
+        nbody=4, 
+        compress_twice=true, 
+        prescreen=false) where {T,N,R}
 #={{{=#
     #
     # Initialize data for our output sigma, which we will convert to a
@@ -751,8 +758,8 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops,
     keys_to_loop = [keys(clustered_ham.trans)...]
         
     @printf(" %-50s%10i\n", "Number of tasks: ", length(keys_to_loop))
-    @printf(" %-50s", "Compute tasks: ")
-    @time Threads.@threads for fock_trans in keys_to_loop
+    @printf(" %-50s\n", "Compute tasks: ")
+    stats = @timed Threads.@threads for fock_trans in keys_to_loop
         for (ket_fock, ket_tconfigs) in ket_cts
             terms = clustered_ham[fock_trans]
 
@@ -836,13 +843,12 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops,
 #                        end
                         check_term(term, sig_fock, sig_tconfig, ket_fock, ket_tconfig) || continue
 
-
-                        bound = calc_bound(term, cluster_ops,
-                                           sig_fock, sig_tconfig,
-                                           ket_fock, ket_tconfig, ket_tuck,
-                                           prescreen=thresh)
-                        if bound < sqrt(thresh)
-                            #continue
+                        if prescreen
+                            bound = calc_bound(term, cluster_ops,
+                                            sig_fock, sig_tconfig,
+                                            ket_fock, ket_tconfig, ket_tuck,
+                                            prescreen=thresh)
+                            bound == true || continue
                         end
                         
 
@@ -916,39 +922,27 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops,
         end
     end
 
-    @printf(" %-50s", "Add results together: ")
+    @printf(" %-50s%10.6f seconds %10.2e Gb GC: %7.1e sec\n", "Time building compressed vector: ", stats.time, stats.bytes/1e9, stats.gctime)
+
     flush(stdout)
-    @time for (fock,tconfigs) in data
+    stats = @timed for (fock,tconfigs) in data
         for (tconfig, tuck) in tconfigs
             if haskey(sig_cts, fock)
-                sig_cts[fock][tconfig] = compress(nonorth_add(tuck), thresh=thresh)
+                if compress_twice
+                    sig_cts[fock][tconfig] = compress(nonorth_add(tuck), thresh=thresh)
+                else
+                    sig_cts[fock][tconfig] = nonorth_add(tuck)
+                end
             else
                 sig_cts[fock] = OrderedDict(tconfig => nonorth_add(tuck))
             end
         end
     end
+    @printf(" %-50s%10.6f seconds %10.2e Gb GC: %7.1e sec\n", "Add results together: ", stats.time, stats.bytes/1e9, stats.gctime)
+
     flush(stdout)
 
-#    # 
-#    # project out A space
-#    for (fock,tconfigs) in sig_cts 
-#        for (tconfig, tuck) in tconfigs
-#            if haskey(ket_cts, fock)
-#                if haskey(ket_cts[fock], tconfig)
-#                    ket_tuck_A = ket_cts[fock][tconfig]
-#
-#                    ovlp = nonorth_dot(tuck, ket_tuck_A) / nonorth_dot(ket_tuck_A, ket_tuck_A)
-#                    tmp = scale(ket_tuck_A, -1.0 * ovlp)
-#                    #sig_cts[fock][tconfig] = nonorth_add(tuck, tmp, thresh=1e-16)
-#                end
-#            end
-#        end
-#    end
-   
-  
-    # now combine Tuckers, project out reference space and multiply by resolvents
-    #prune_empty_TuckerConfigs!(sig_cts)
-    #return compress(sig_cts, thresh=thresh)
+
     return sig_cts
 #=}}}=#
 end
@@ -1011,14 +1005,15 @@ end
 
 
 function do_fois_cepa(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
-            max_iter    = 20,
-	    cepa_shift  = "cepa",
-	    cepa_mit    = 30,
-            nbody       = 4,
-            thresh_foi  = 1e-6,
-            tol         = 1e-5,
-	    compress_type= "matvec",
-            verbose     = true) where {T,N,R}
+    max_iter=20,
+    cepa_shift="cepa",
+    cepa_mit=30,
+    nbody=4,
+    thresh_foi=1e-6,
+    tol=1e-5,
+    compress_type="matvec",
+    prescreen=false,
+    verbose=true) where {T,N,R}
     @printf("\n-------------------------------------------------------\n")
     @printf(" Do CEPA\n")
     @printf("   thresh_foi              = %-8.1e\n", thresh_foi)
@@ -1040,14 +1035,14 @@ function do_fois_cepa(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     # Get First order wavefunction
     println()
     println(" Compute FOIS. Reference space dim = ", length(ref_vec))
-    @time pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+    @time pt1_vec = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi, prescreen=prescreen)
 
     project_out!(pt1_vec, ref)
 
     if compress_type == "pt_vec"
-	println()
-	println(" Compute PT vector. Reference space dim = ", length(ref_vec))
-	pt1_vec, e_pt2 = hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol, do_pt=true)
+        println()
+        println(" Compute PT vector. Reference space dim = ", length(ref_vec))
+        pt1_vec, e_pt2 = hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol, do_pt=true)
     end
 
     display(pt1_vec)
@@ -1072,7 +1067,7 @@ function do_fois_cepa(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     cepa_vec = deepcopy(pt1_vec)
     zero!(cepa_vec)
     println(" Do CEPA: Dim = ", length(cepa_vec))
-    @time e_cepa, x_cepa = tucker_cepa_solve(ref_vec, cepa_vec, cluster_ops, clustered_ham, cepa_shift, cepa_mit,tol=tol, max_iter=max_iter, verbose=verbose)
+    @time e_cepa, x_cepa = tucker_cepa_solve(ref_vec, cepa_vec, cluster_ops, clustered_ham, cepa_shift, cepa_mit, tol=tol, max_iter=max_iter, verbose=verbose)
 
     @printf(" E(cepa) corr =                 %12.8f\n", e_cepa[1])
     @printf(" X(cepa) norm =                 %12.8f\n", sqrt(orth_dot(x_cepa, x_cepa)[1]))
@@ -1102,8 +1097,9 @@ function project_out!(v::BSTstate{T,N,Rv}, w::BSTstate{T,N,Rw}; thresh=1e-16) wh
                     if haskey(w[fock], tconfig)
                         w_tuck = w[fock][tconfig]
 
+                        ww = sum(w_tuck.core[rw] .* w_tuck.core[rw])
                         for rv in 1:Rv
-                            ovlp = nonorth_dot(tuck, w_tuck, rv, rw) / nonorth_dot(w_tuck, w_tuck, rw, rw)
+                            ovlp = nonorth_dot(tuck, w_tuck, rv, rw) / ww
                             tmp = scale(w_tuck, -1.0 * ovlp)
                             v[fock][tconfig] = nonorth_add(tuck, tmp, thresh=thresh)
                         end

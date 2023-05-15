@@ -275,13 +275,13 @@ function orth_add!(ts1::BSTstate, ts2::BSTstate)
 end
 
 """
-    nonorth_add!(ts1::BSTstate, ts2::BSTstate)
+    nonorth_add!(ts1::BSTstate, ts2::BSTstate; thresh=1e-10)
 
 Add coeffs in `ts2` to `ts1`
 
 Note: this does not assume `t1` and `t2` have the same compression vectors
 """
-function nonorth_add!(ts1::BSTstate, ts2::BSTstate)
+function nonorth_add!(ts1::BSTstate, ts2::BSTstate; thresh=1e-10)
 #={{{=#
     for (fock,configs) in ts2
         if haskey(ts1, fock)
@@ -298,6 +298,28 @@ function nonorth_add!(ts1::BSTstate, ts2::BSTstate)
         end
     end
 #=}}}=#
+end
+
+"""
+    nonorth_add(ts1::BSTstate, ts2::BSTstate; thresh=1e-10)
+
+TBW
+"""
+function nonorth_add(ts1::BSTstate, ts2::BSTstate; thresh=1e-10)
+    tmp = deepcopy(ts1)
+    nonorth_add!(tmp, ts2, thresh=1e-10)
+    return tmp
+end
+
+"""
+    orth_add(ts1::BSTstate, ts2::BSTstate)
+
+TBW
+"""
+function orth_add(ts1::BSTstate, ts2::BSTstate)
+    tmp = deepcopy(ts1)
+    orth_add!(tmp, ts2)
+    return tmp
 end
 
 """
@@ -810,6 +832,12 @@ function scale!(ts::BSTstate{T,N,R}, a::T) where {T<:Number, N,R}
     #=}}}=#
 end
 
+function scale(ts::BSTstate{T,N,R}, a::T) where {T<:Number, N,R}
+    tmp = deepcopy(ts)
+    scale!(tmp, a)
+    return tmp
+end
+
 """
     function scale!(ts::FermiCG.BSTstate{T,N,R}, a::Vector{T})
 
@@ -817,6 +845,7 @@ Scale `ts` by a constant for each state,`R`
 """
 function scale!(ts::BSTstate{T,N,R}, a::Vector{T}) where {T<:Number, N,R}
     #={{{=#
+    length(a) == R || throw(DimensionMismatch)   
     for (fock,configs) in ts
         for (config,tuck) in configs
             for r in 1:R
@@ -825,6 +854,17 @@ function scale!(ts::BSTstate{T,N,R}, a::Vector{T}) where {T<:Number, N,R}
         end
     end
     #=}}}=#
+end
+
+"""
+    scale(ts::BSTstate{T,N,R}, a::Vector{T}) where {T<:Number, N,R}
+
+TBW
+"""
+function scale(ts::BSTstate{T,N,R}, a::Vector{T}) where {T<:Number, N,R}
+    tmp = deepcopy(ts)
+    scale!(tmp, a)
+    return tmp
 end
 
 nroots(v::BSTstate{T,N,R}) where {T,N,R} = R
@@ -848,4 +888,42 @@ function add_spin_focksectors(state::BSTstate{T,N,R}) where {T,N,R}
     end
     #expand_each_fock_space!(state)
     return out
+end
+
+
+
+"""
+    Base.:*(A::BSTstate{T,N,R}, C::T) where {T,N,R}
+
+TBW
+"""
+function Base.:*(A::BSTstate{T,N,R}, C::T) where {T,N,R}
+    B = deepcopy(A)
+    scale!(B, C)
+    return B
+end
+
+"""
+    Base.:-(A::BSTstate{T,N,R}, B::BSTstate{T,N,R}) where {T,N,R}
+
+TBW
+"""
+function Base.:-(A::BSTstate{T,N,R}, B::BSTstate{T,N,R}) where {T,N,R}
+    length(A) == length(B) || throw(DimensionMismatch)
+    C = deepcopy(A)
+    set_vector!(C, get_vector(A) .- get_vector(B))
+    return C
+end
+
+
+"""
+    Base.:+(A::BSTstate{T,N,R}, B::BSTstate{T,N,R}) where {T,N,R}
+
+TBW
+"""
+function Base.:+(A::BSTstate{T,N,R}, B::BSTstate{T,N,R}) where {T,N,R}
+    length(A) == length(B) || throw(DimensionMismatch)
+    C = deepcopy(A)
+    set_vector!(C, get_vector(A) .+ get_vector(B))
+    return C
 end

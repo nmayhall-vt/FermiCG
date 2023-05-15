@@ -47,7 +47,7 @@ function compute_pt1_wavefunction(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clu
     @printf(" %-50s", "Compute diagonal")
     @time Hd = compute_diagonal(sig, cluster_ops, clustered_ham_0)
     
-    if E0 == nothing
+    if E0 === nothing
         @printf(" %-50s", "Compute <0|H0|0>:")
         @time E0 = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham_0)
         #E0 = diag(E0)

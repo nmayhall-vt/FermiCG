@@ -1100,13 +1100,13 @@ function compute_cluster_eigenbasis(ints::InCoreInts, clusters::Vector{MOCluster
     for ci in clusters
         verbose == 0 || display(ci)
         
-        if (rdm1a != nothing && init_fspace == nothing)
+        if (rdm1a !== nothing && init_fspace == nothing)
             error(" Cant embed without init_fspace")
         end
 
         #
         # Get subset of integrals living on cluster, ci
-        if rdm1a == nothing && rdm1b == nothing
+        if rdm1a === nothing && rdm1b === nothing
             ints_i = subset(ints, ci.orb_list) 
         else
             ints_i = subset(ints, ci.orb_list, rdm1a, rdm1b) 
