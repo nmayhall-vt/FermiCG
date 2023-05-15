@@ -279,7 +279,6 @@ function tps_ci_direct( ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham
         @printf(" %-50s", "Diagonalization time: ")
         @printf("%10.6f seconds\n",time)
     end
-    println(size(vec_out), size(v))
     set_vector!(vec_out, v)
 
     clustered_S2 = extract_S2(ci_vector.clusters, T=T)

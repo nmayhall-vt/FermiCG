@@ -1,10 +1,13 @@
+using Printf
+
 """
     tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
             thresh_cipsi = 1e-2,
             thresh_foi   = 1e-6,
             thresh_asci  = 1e-2,
             thresh_var   = nothing,
-            spin_proj    = 0, 
+            thresh_spin     = nothing,
+            spin_ext    = 0, 
             max_iter     = 10,
             conv_thresh  = 1e-4,
             nbody        = 4,
@@ -37,7 +40,8 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
     thresh_foi      = 1e-6,
     thresh_asci     = 1e-2,
     thresh_var      = nothing,
-    spin_proj    = 0, 
+    thresh_spin     = nothing,
+    spin_ext       = 0, 
     max_iter        = 10,
     conv_thresh     = 1e-4,
     nbody           = 4,
@@ -56,7 +60,10 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
     e0 = zeros(T,R) 
     e2 = zeros(T,R) 
     e0_last = zeros(T,R)
-    
+   
+    if thresh_spin == nothing 
+        thresh_spin = thresh_foi
+    end
     clustered_S2 = extract_S2(ci_vector.clusters)
 
     println(" ci_vector     : ", size(ci_vector) ) 
@@ -64,6 +71,7 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
     println(" thresh_foi    : ", thresh_foi     ) 
     println(" thresh_asci   : ", thresh_asci    ) 
     println(" thresh_var    : ", thresh_var     ) 
+    println(" thresh_spin   : ", thresh_spin    ) 
     println(" max_iter      : ", max_iter       ) 
     println(" conv_thresh   : ", conv_thresh    ) 
     println(" nbody         : ", nbody          ) 
@@ -110,9 +118,40 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
             add!(vec_var, vec_pt)
             l2 = length(vec_var)
            
-            @printf(" Add pt vector to current space %6i → %6i\n", l1, l2)
+            @printf("%-50s%6i → %6i\n", " Add pt vector to current space", l1, l2)
         end
 
+        @timeit to "s2 proj" if spin_ext == 1
+            # S2|ψs> - |ψs><ψs|S2|ψs> = |rs>
+            # add |rs>
+            spin_residual = copy(vec_var)
+            if threaded 
+                spin_residual = open_matvec_thread(vec_var, cluster_ops, clustered_S2, nbody=nbody, thresh=thresh_foi)
+            else
+                spin_residual = open_matvec_serial(vec_var, cluster_ops, clustered_S2, nbody=nbody, thresh=thresh_foi)
+            end
+
+            spin_expval = FermiCG.overlap(vec_var,spin_residual)
+            # println(" Expectation values of S2:")
+            # for i in 1:size(spin_expval,1)
+            #     for j in 1:size(spin_expval,2)
+            #         @printf(" %6.3f",spin_expval[i,j])
+            #     end
+            #     println()
+            # end
+            spin_residual = spin_residual - (vec_var * spin_expval)
+            for r in 1:R
+                @printf(" Spin Residual %12.8f\n", dot(spin_residual, spin_residual, r, r))
+            end
+            zero!(spin_residual)
+
+            l1 = size(vec_var)[1]
+            add!(vec_var, spin_residual)
+            l2 = size(vec_var)[1]
+            
+            @printf("%-50s%6i → %6i\n", " Add spin completing states", l1, l2)
+            flush(stdout)
+        end
         e0 = nothing
         mem_needed = sizeof(T)*length(vec_var)*length(vec_var)*1e-9
         @printf(" Memory needed to hold full CI matrix: %12.8f (Gb) Max allowed: %12.8f (Gb)\n",mem_needed, max_mem_ci)
@@ -144,57 +183,6 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
         flush(stdout)
       
        
-        @timeit to "s2 proj" if spin_proj == 1
-            # S2|ψs> - |ψs><ψs|S2|ψs> = |rs>
-            # add |rs>
-            spin_residual = copy(vec_var)
-            if threaded 
-                spin_residual = open_matvec_thread(vec_var, cluster_ops, clustered_S2, nbody=nbody, thresh=thresh_foi)
-            else
-                spin_residual = open_matvec_serial(vec_var, cluster_ops, clustered_S2, nbody=nbody, thresh=thresh_foi)
-            end
-
-            spin_expval = FermiCG.overlap(vec_var,spin_residual)
-            println(" Expectation values of S2:")
-            for i in 1:size(spin_expval,1)
-                for j in 1:size(spin_expval,2)
-                    @printf(" %6.3f",spin_expval[i,j])
-                end
-                println()
-            end
-            spin_residual = spin_residual - vec_var * spin_expval
-            vec_var_spin = vec_var + spin_residual
-            zero!(vec_var_spin)
-            vec_var_spin = vec_var_spin + vec_var
-            println()
-            @timeit to "ci" begin
-                if (mem_needed > max_mem_ci) || davidson == true
-                    orthonormalize!(vec_var)
-                    e0, vec_var = tps_ci_davidson(vec_var, cluster_ops, clustered_ham,
-                                                conv_thresh = ci_conv,
-                                                max_iter = ci_max_iter,
-                                                max_ss_vecs = ci_max_ss_vecs)
-                else
-                    if it > 1 
-                        # just update matrix
-                        e0, vec_var, H = tps_ci_direct(vec_var, cluster_ops, clustered_ham, 
-                                                    H_old = H,
-                                                    v_old = vec_var_old,
-                                                    conv_thresh = ci_conv,
-                                                    max_ss_vecs = ci_max_ss_vecs,
-                                                    max_iter = ci_max_iter)
-                    else
-                        e0, vec_var, H = tps_ci_direct(vec_var, cluster_ops, clustered_ham,
-                                                    conv_thresh = ci_conv,
-                                                    max_ss_vecs = ci_max_ss_vecs,
-                                                    max_iter = ci_max_iter)
-                    end
-                end
-            end
-            flush(stdout)
-        end
-
-
         # get barycentric energy <0|H0|0>
         Efock = compute_expectation_value_parallel(vec_var, cluster_ops, clustered_ham_0)
         #Efock = nothing
@@ -205,7 +193,7 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
         l1 = length(vec_asci)
         clip!(vec_asci, thresh=thresh_asci)
         l2 = length(vec_asci)
-        @printf(" Length of ASCI vector %8i → %8i \n", l1, l2)
+        @printf("%-50s%6i → %6i\n", " Length of ASCI vector", l1, l2)
 
         #
         #   -- Incremental sigma vector build --
@@ -347,7 +335,7 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
         #project_out!(sig, vec_asci)
 
 
-        @printf(" Length of PT1  vector %8i → %8i \n", l1, l2)
+        @printf("%-50s%6i → %6i\n", " Length of PT1  vector", l1, l2)
         #add!(vec_var, vec_pt)
 
         if maximum(abs.(e0_last .- e0)) < conv_thresh

@@ -52,7 +52,12 @@ using JLD2
         thresh_cipsi = 1e-3, 
         thresh_foi   = 1e-5,
         thresh_asci  = -1,
-        spin_proj    = 1);
+        spin_ext     = 1);
+    
+    e_ref = [ -14.050151820221835
+    -14.021560215779372
+        -14.005960750225363]
+    @test all(isapprox(e_ref, e0a, atol=1e-8)) 
 end
 
 @testset "openshell_bst" begin
