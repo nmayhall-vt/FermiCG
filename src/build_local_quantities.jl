@@ -1011,7 +1011,7 @@ function compute_cluster_eigenbasis_spin(   ints::InCoreInts{T},
                 end
 
                 Hmapi = LinearMap(ints_i, ansatzi)
-                ei = diag(Matrix(vi' * (Hmapi*vi)))
+                ei = diag(vi' * Matrix(Hmapi*vi))
                 #ei = compute_energy(vi, ansatzi)
             
                 si = Solution(ansatzi, ei, vi)
@@ -1038,7 +1038,7 @@ function compute_cluster_eigenbasis_spin(   ints::InCoreInts{T},
                 end
 
                 Hmapi = LinearMap(ints_i, ansatzi)
-                ei = diag(Matrix(vi' * (Hmapi*vi)))
+                ei = diag(vi' * Matrix(Hmapi*vi))
                 #ei = compute_energy(vi, ansatzi)
             
                 si = Solution(ansatzi, ei, vi)
