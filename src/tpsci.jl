@@ -6,8 +6,8 @@ using Printf
             thresh_foi   = 1e-6,
             thresh_asci  = 1e-2,
             thresh_var   = nothing,
-            thresh_spin     = nothing,
-            spin_ext    = 0, 
+            thresh_spin  = nothing,
+            spin_ext     = 0, 
             max_iter     = 10,
             conv_thresh  = 1e-4,
             nbody        = 4,
@@ -38,10 +38,10 @@ using Printf
 function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
     thresh_cipsi    = 1e-2,
     thresh_foi      = 1e-6,
-    thresh_asci     = 1e-2,
+    thresh_asci     = nothing,
     thresh_var      = nothing,
     thresh_spin     = nothing,
-    spin_ext       = 0, 
+    spin_ext        = 0, 
     max_iter        = 10,
     conv_thresh     = 1e-4,
     nbody           = 4,
@@ -121,14 +121,14 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
             @printf("%-50s%6i → %6i\n", " Add pt vector to current space", l1, l2)
         end
 
-        @timeit to "s2 proj" if spin_ext == 1
+        @timeit to "s2 extension" if spin_ext == 1
             # S2|ψs> - |ψs><ψs|S2|ψs> = |rs>
             # add |rs>
             spin_residual = copy(vec_var)
             if threaded 
-                spin_residual = open_matvec_thread(vec_var, cluster_ops, clustered_S2, nbody=nbody, thresh=thresh_foi)
+                spin_residual = open_matvec_thread(vec_var, cluster_ops, clustered_S2, nbody=nbody, thresh=thresh_spin)
             else
-                spin_residual = open_matvec_serial(vec_var, cluster_ops, clustered_S2, nbody=nbody, thresh=thresh_foi)
+                spin_residual = open_matvec_serial(vec_var, cluster_ops, clustered_S2, nbody=nbody, thresh=thresh_spin)
             end
 
             spin_expval = FermiCG.overlap(vec_var,spin_residual)
@@ -141,7 +141,7 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
             # end
             spin_residual = spin_residual - (vec_var * spin_expval)
             for r in 1:R
-                @printf(" Spin Residual %12.8f\n", dot(spin_residual, spin_residual, r, r))
+                @printf(" S^2 Residual %12.8f\n", dot(spin_residual, spin_residual, r, r))
             end
             zero!(spin_residual)
 
@@ -190,11 +190,13 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
 
 
         vec_asci = copy(vec_var)
-        l1 = length(vec_asci)
-        clip!(vec_asci, thresh=thresh_asci)
-        l2 = length(vec_asci)
-        @printf("%-50s%6i → %6i\n", " Length of ASCI vector", l1, l2)
-
+        if thresh_asci != nothing
+            l1 = length(vec_asci)
+            clip!(vec_asci, thresh=thresh_asci)
+            l2 = length(vec_asci)
+            @printf("%-50s%6i → %6i\n", " Length of ASCI vector", l1, l2)
+        end
+        
         #
         #   -- Incremental sigma vector build --
         #
