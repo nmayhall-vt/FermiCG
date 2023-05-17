@@ -470,22 +470,9 @@ end
     
 function Base.copy(in::TPSCIstate{T,N,R}) where {T,N,R}
     out = TPSCIstate(in.clusters, T=T, R=R)
-    sizehint!(out.data, sizeof(in.data))
     for (fock, configs) in in.data
-        # out[fock] = in[fock]
-        # out[fock] = deepcopy(in[fock])
-        # add_fockconfig!(out, fock)
-        # outf = out[fock]
-        # sizehint!(outf, sizeof(configs))
-        # outf = OrderedDict(i => MVector(r) for (i, r) in configs)
-        # @code_warntype out[fock] = OrderedDict(i => MVector(r) for (i, r) in configs)
-        out[fock] = OrderedDict(i => MVector(r) for (i, r) in configs)
-        # for (config, coeffs) in configs
-        #     # outf[config] = MVector{R,T}(i for i in coeffs)
-        #     # getindex.([dict], keys)
-        #     #outf[config] = [i for i in coeffs] 
-        #     #out[fock][config] .= in[fock][config]
-        # end
+        add_fockconfig!(out, fock)
+        merge!(out[fock], configs)
     end
     return out
 end
@@ -588,13 +575,13 @@ function eye!(s::TPSCIstate{T,N,R}) where {T,N,R}
 end
 
 
+
 """
     add!(s1::TPSCIstate, s2::TPSCIstate)
 
 Add coeffs in `s2` to `s1`
 """
 function add!(s1::TPSCIstate, s2::TPSCIstate)
-    #={{{=#
     for (fock,configs) in s2.data
         if haskey(s1, fock)
             for (config,coeffs) in configs
@@ -608,7 +595,6 @@ function add!(s1::TPSCIstate, s2::TPSCIstate)
             s1[fock] = copy(s2[fock])
         end
     end
-    #=}}}=#
 end
 
 
