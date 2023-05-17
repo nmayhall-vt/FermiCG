@@ -4,10 +4,9 @@ using Printf
     tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
             thresh_cipsi = 1e-2,
             thresh_foi   = 1e-6,
-            thresh_asci  = 1e-2,
+            thresh_asci  = nothing,
             thresh_var   = nothing,
             thresh_spin  = nothing,
-            spin_ext     = 0, 
             max_iter     = 10,
             conv_thresh  = 1e-4,
             nbody        = 4,
@@ -24,6 +23,7 @@ using Printf
 - `thresh_foi`  : threshold for which terms to keep in the H|0> vector used to form the first order wavefunction
 - `thresh_asci` : threshold for determining from which variational configurations  ``|c^{(0)}_i|`` > `thresh_asci` 
 - `thresh_var`  : threshold for clipping the result of the variational wavefunction. Not really needed default set to nothing 
+- `thresh_spin` : threshold for clipping the result of the S2 residual vector for the spin extension. 
 - `max_iter`    : maximum selected CI iterations
 - `conv_thresh` : stop selected CI iterations when energy change is smaller than `conv_thresh`
 - `nbody`       : only consider up to `nbody` terms when searching for new configurations
@@ -41,7 +41,6 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
     thresh_asci     = nothing,
     thresh_var      = nothing,
     thresh_spin     = nothing,
-    spin_ext        = 0, 
     max_iter        = 10,
     conv_thresh     = 1e-4,
     nbody           = 4,
@@ -61,9 +60,6 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
     e2 = zeros(T,R) 
     e0_last = zeros(T,R)
    
-    if thresh_spin == nothing 
-        thresh_spin = thresh_foi
-    end
     clustered_S2 = extract_S2(ci_vector.clusters)
 
     println(" ci_vector     : ", size(ci_vector) ) 
@@ -121,7 +117,7 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
             @printf("%-50s%6i → %6i\n", " Add pt vector to current space", l1, l2)
         end
 
-        @timeit to "s2 extension" if spin_ext == 1
+        @timeit to "s2 extension" if thresh_spin != nothing 
             # S2|ψs> - |ψs><ψs|S2|ψs> = |rs>
             # add |rs>
             spin_residual = copy(vec_var)

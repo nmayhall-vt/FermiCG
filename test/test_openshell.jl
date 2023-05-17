@@ -52,7 +52,7 @@ using JLD2
         thresh_cipsi = 1e-3, 
         thresh_foi   = 1e-5,
         thresh_asci  = -1,
-        spin_ext     = 1);
+        thresh_spin  = 1e-5);
     
     e_ref = [ -14.050151820221835
     -14.021560215779372
