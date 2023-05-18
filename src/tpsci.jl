@@ -302,7 +302,10 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
     
             @printf(" %-50s", "Compute diagonal: ")
             flush(stdout)
-            @timeit to "diagonal" Hd = compute_diagonal(sig, cluster_ops, clustered_ham_0)
+            @time @timeit to "diagonal" Hd = compute_diagonal(sig, cluster_ops, clustered_ham_0)
+            println()
+            flush(stdout)
+    
     
             sig_v = get_vector(sig)
             v_pt  = zeros(T, size(sig_v))

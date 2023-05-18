@@ -1,5 +1,6 @@
 using TimerOutputs
 using BlockDavidson
+using BenchmarkTools
 
 """
     build_full_H(ci_vector::TPSCIstate, cluster_ops, clustered_ham::ClusteredOperator)
@@ -696,12 +697,28 @@ function compute_diagonal(vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham)
     Hd = zeros(size(vector)[1])
     idx = 0
     zero_trans = TransferConfig([(0,0) for i in 1:N])
-    for (fock_bra, configs_bra) in vector.data
-        for (config_bra, coeff_bra) in configs_bra
-            idx += 1
-            for term in clustered_ham[zero_trans]
+    jobs = [] 
+
+    shift = 0   # linear index shift for each fock config
+
+    for (fock, configs) in vector.data
+        
+        terms = clustered_ham[zero_trans]
+        
+        push!(jobs, (fock, terms, shift))
+        
+        shift += length(configs)
+    end
+
+    for (fock, terms, shift) in jobs
+        idx = 1 + shift
+        
+        for (config, coeff) in vector[fock] 
+            for term in terms 
                 try
-                    Hd[idx] += contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_bra, config_bra)
+                    Hd[idx] += contract_matrix_element(term, cluster_ops, fock, config, fock, config)
+                    # @btime contract_matrix_element($term, $cluster_ops, $fock_bra, $config_bra, $fock_bra, $config_bra)
+                    # return 
                 catch
                     display(term)
                     display(fock_bra)
@@ -710,8 +727,10 @@ function compute_diagonal(vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham)
                 end
 
             end
+            idx += 1
         end
     end
+
     return Hd
 end
 #=}}}=#
