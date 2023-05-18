@@ -689,7 +689,7 @@ end
 
 Form the diagonal of the hamiltonan, `clustered_ham`, in the basis defined by `vector`
 """
-function compute_diagonal(vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
+function compute_diagonal(vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
     Hd = zeros(size(vector)[1])
     idx = 0
     zero_trans = TransferConfig([(0,0) for i in 1:N])
@@ -712,66 +712,46 @@ function compute_diagonal(vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham)
     return Hd
 end
 
-
-
 """
-    compute_diagonal_parallel(vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
+    compute_diagonal(vector::TPSCIstate{T,N,R}, cluster_ops, opstring::String) where {T,N,R}
 
-Form the diagonal of the hamiltonan, `clustered_ham`, in the basis defined by `vector`
+Fast version, used for PT2
 """
-function compute_diagonal_parallel(vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
-    #={{{=#
-    Hd = zeros(size(vector)[1])
-    idx = 0
-    zero_trans = TransferConfig([(0,0) for i in 1:N])
-    jobs = [] 
-
-    shift = 0   # linear index shift for each fock config
-
-    for (fock, configs) in vector.data
-        length(configs) > 0 || continue
-        
-        terms = clustered_ham[zero_trans]
-        
-        push!(jobs, (fock, terms, shift))
-        
-        shift += length(configs)
-    end
-
-    Threads.@threads for (fock, terms, shift) in jobs
-        _denom_job!(Hd, vector, cluster_ops, fock, terms, shift)
-    end
-
+function compute_diagonal(vector::TPSCIstate{T,N,R}, cluster_ops, opstring::String) where {T,N,R}
+    Hd = zeros(T, size(vector)[1])
+    compute_diagonal!(Hd, vector, cluster_ops, opstring)
     return Hd
 end
-#=}}}=#
 
-function _denom_job!(Hd, vector::TPSCIstate{T,N,R}, cluster_ops, fock, terms, shift) where {T,N,R}
-    idx = 1 + shift
-   
-    for (config, coeff) in vector[fock] 
-        h = T(0.0)
-        for term in terms 
+
+"""
+    compute_diagonal!(Hd, vector::TPSCIstate{T,N,R}, cluster_ops, opstring::String) where {T,N,R}
+
+
+Fast version, used for PT2, overwrites Hd data with diagonal.
+"""
+function compute_diagonal!(Hd, vector::TPSCIstate{T,N,R}, cluster_ops, opstring::String) where {T,N,R}
+    fill!(Hd,0.0)
+    idx = 1
+    for (fock, configs) in vector.data
+        for c in vector.clusters
+            mat = []
             try
-                # Threads.threadid() == 2 || continue 
-                h += contract_matrix_element(term, cluster_ops, fock, config, fock, config)
-                # @btime contract_matrix_element($term, $cluster_ops, $fock_bra, $config_bra, $fock_bra, $config_bra)
-                # return 
+                mat = diag(cluster_ops[c.idx][opstring][(fock[c.idx],fock[c.idx])])
             catch
-                # display(idx)
-                # display(term)
-                # display(fock)
-                # display(config)
+                println(c, fock[c.idx])
                 error()
             end
-
+            
+            idxc = idx + 0
+            for (config, _) in configs
+                Hd[idxc] += mat[config[c.idx]]
+                idxc += 1
+            end
         end
-        # if idx > length(Hd) 
-        #     println(" here:", idx, fock, " ", Threads.threadid())
-        # end
-        Hd[idx] = h
-        idx += 1
+        idx += length(configs)
     end
+    return Hd
 end
 
 
@@ -780,7 +760,7 @@ end
 
 Form the diagonal of the hamiltonan, `clustered_ham`, in the basis defined by `vector`
 """
-function compute_diagonal!(Hd, vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
+function compute_diagonal!(Hd, vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
     #={{{=#
     idx = 0
     zero_trans = TransferConfig([(0,0) for i in 1:N])

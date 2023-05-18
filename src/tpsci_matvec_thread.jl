@@ -33,7 +33,18 @@ function open_matvec_thread(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered
             all(f[2] >= 0 for f in fock_bra) || continue 
             all(f[1] <= length(clusters[fi]) for (fi,f) in enumerate(fock_bra)) || continue 
             all(f[2] <= length(clusters[fi]) for (fi,f) in enumerate(fock_bra)) || continue 
-           
+          
+            # 
+            # Check to make sure we don't create states that we have already discarded
+            found = true
+            for c in ci_vector.clusters
+                if haskey(cluster_ops[c.idx]["H"], (fock_bra[c.idx], fock_bra[c.idx])) == false
+                    found = false
+                    continue
+                end
+            end
+            found == true || continue
+
             job_input = (terms, fock_ket, configs_ket)
             if haskey(jobs, fock_bra)
                 push!(jobs[fock_bra], job_input)
