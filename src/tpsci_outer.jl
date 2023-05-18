@@ -702,6 +702,7 @@ function compute_diagonal(vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham)
     shift = 0   # linear index shift for each fock config
 
     for (fock, configs) in vector.data
+        length(configs) > 0 || continue
         
         terms = clustered_ham[zero_trans]
         
@@ -710,30 +711,41 @@ function compute_diagonal(vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham)
         shift += length(configs)
     end
 
-    for (fock, terms, shift) in jobs
-        idx = 1 + shift
-        
-        for (config, coeff) in vector[fock] 
-            for term in terms 
-                try
-                    Hd[idx] += contract_matrix_element(term, cluster_ops, fock, config, fock, config)
-                    # @btime contract_matrix_element($term, $cluster_ops, $fock_bra, $config_bra, $fock_bra, $config_bra)
-                    # return 
-                catch
-                    display(term)
-                    display(fock_bra)
-                    display(config_bra)
-                    error()
-                end
-
-            end
-            idx += 1
-        end
+    Threads.@threads for (fock, terms, shift) in jobs
+        _denom_job!(Hd, vector, cluster_ops, fock, terms, shift)
     end
 
     return Hd
 end
 #=}}}=#
+
+function _denom_job!(Hd, vector::TPSCIstate{T,N,R}, cluster_ops, fock, terms, shift) where {T,N,R}
+    idx = 1 + shift
+   
+    for (config, coeff) in vector[fock] 
+        h = T(0.0)
+        for term in terms 
+            try
+                # Threads.threadid() == 2 || continue 
+                h += contract_matrix_element(term, cluster_ops, fock, config, fock, config)
+                # @btime contract_matrix_element($term, $cluster_ops, $fock_bra, $config_bra, $fock_bra, $config_bra)
+                # return 
+            catch
+                # display(idx)
+                # display(term)
+                # display(fock)
+                # display(config)
+                error()
+            end
+
+        end
+        # if idx > length(Hd) 
+        #     println(" here:", idx, fock, " ", Threads.threadid())
+        # end
+        Hd[idx] = h
+        idx += 1
+    end
+end
 
 
 """
