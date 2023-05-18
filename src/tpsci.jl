@@ -52,8 +52,8 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
     max_mem_ci      = 20.0,
     threaded        = true) where {T,N,R}
 
-    vec_var = copy(ci_vector)
-    vec_pt = copy(ci_vector)
+    vec_var = deepcopy(ci_vector)
+    vec_pt = deepcopy(ci_vector)
     length(ci_vector) > 0 || error(" input vector has zero length")
     zero!(vec_pt)
     e0 = zeros(T,R) 
@@ -86,7 +86,7 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
     
     H = zeros(T,size(ci_vector))
    
-    vec_var_old = copy(ci_vector)
+    vec_var_old = deepcopy(ci_vector)
     to = TimerOutput()
 
     for it in 1:max_iter
@@ -107,7 +107,7 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
 
             #project_out!(vec_pt, vec_var)
     
-            vec_var_old = copy(vec_var)
+            vec_var_old = deepcopy(vec_var)
 
             l1 = length(vec_var)
             zero!(vec_pt)
@@ -120,7 +120,7 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
         @timeit to "s2 extension" if thresh_spin != nothing 
             # S2|ψs> - |ψs><ψs|S2|ψs> = |rs>
             # add |rs>
-            spin_residual = copy(vec_var)
+            spin_residual = deepcopy(vec_var)
             if threaded 
                 spin_residual = open_matvec_thread(vec_var, cluster_ops, clustered_S2, nbody=nbody, thresh=thresh_spin)
             else
@@ -185,7 +185,7 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
         flush(stdout)
 
 
-        vec_asci = copy(vec_var)
+        vec_asci = deepcopy(vec_var)
         if thresh_asci != nothing
             l1 = length(vec_asci)
             clip!(vec_asci, thresh=thresh_asci)
@@ -256,7 +256,7 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
             println()
 
 
-            @timeit to "copy" vec_asci_old = copy(vec_asci)
+            @timeit to "copy" vec_asci_old = deepcopy(vec_asci)
 
             @timeit to "matvec" if threaded 
                 del_sig_it = open_matvec_thread(del_v0, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
@@ -294,7 +294,7 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
             #
             # XHX*XC - PHX*XC - XHP*PC + PHP*PC - e*XP + e*PC = -XHP*PC + PHP*PC
 
-            @timeit to "copy" sig_old = copy(sig)
+            @timeit to "copy" sig_old = deepcopy(sig)
 
 
             @timeit to "project out" project_out!(sig, vec_asci)
@@ -319,7 +319,7 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
             end
 
 
-            @timeit to "copy" vec_pt = copy(sig)
+            @timeit to "copy" vec_pt = deepcopy(sig)
             set_vector!(vec_pt,Matrix{T}(v_pt))
         else
             @timeit to "pt1" e2, vec_pt = compute_pt1_wavefunction(vec_asci, cluster_ops, clustered_ham, E0=Efock, thresh_foi=thresh_foi, threaded=threaded, nbody=nbody)

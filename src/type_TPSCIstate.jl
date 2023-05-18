@@ -439,7 +439,7 @@ function orth!(v1::TPSCIstate{T,N,R}) where {T,N,R}
 end
 
 function Base.:*(A::TPSCIstate{T,N,R}, C::AbstractArray) where {T,N,R}
-    B = copy(A)
+    B = deepcopy(A)
     zero!(B)
     set_vector!(B, get_vector(A)*C)
     return B
@@ -456,26 +456,39 @@ end
 
 
 function Base.:-(A::TPSCIstate{T,N,R}, B::TPSCIstate{T,N,R}) where {T,N,R}
-    C = copy(B)
+    C = deepcopy(B)
     scale!(C,-1.0)
     add!(C, A)
     return C
 end
     
 function Base.:+(A::TPSCIstate{T,N,R}, B::TPSCIstate{T,N,R}) where {T,N,R}
-    C = copy(B)
+    C = deepcopy(B)
     add!(C, A)
     return C
 end
     
-function Base.copy(in::TPSCIstate{T,N,R}) where {T,N,R}
+function Base.deepcopy(in::TPSCIstate{T,N,R}) where {T,N,R}
     out = TPSCIstate(in.clusters, T=T, R=R)
     for (fock, configs) in in.data
-        add_fockconfig!(out, fock)
-        merge!(out[fock], configs)
+        # add_fockconfig!(out, fock)
+        length(configs) > 0 || continue
+        # out[fock] = copy(configs)
+        # out[fock] = deepcopy(configs)
+        out[fock] = OrderedDict(zip(keys(configs),copy.(values(configs))))
+        
+        # outf = out[fock]
+        for (config, coeffs) in configs
+            # outf[config] = copy(coeffs)
+            # outf[config] = MVector{R,T}(i for i in coeffs)
+        end
+        # length(out[fock]) == length(in[fock]) || throw(DimensionMismatch)
     end
+    # length(out.data) == length(in.data) || throw(DimensionMismatch)
+    # length(out) == length(in) || throw(DimensionMismatch)
     return out
 end
+
     
 """
     prune_empty_fock_spaces!(s::TPSCIstate)

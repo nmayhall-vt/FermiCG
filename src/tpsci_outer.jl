@@ -174,7 +174,7 @@ function tps_ci_direct( ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham
     #={{{=#
     println()
     @printf(" |== Tensor Product State CI =======================================\n")
-    vec_out = copy(ci_vector)
+    vec_out = deepcopy(ci_vector)
     e0 = zeros(T,R)
     @printf(" Hamiltonian matrix dimension = %5i: \n", length(ci_vector))
     dim = length(ci_vector)
@@ -186,8 +186,8 @@ function tps_ci_direct( ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham
 
     if H_old !== nothing
         v_old !== nothing || error(" can't specify H_old w/out v_old")
-        v_tot = copy(ci_vector)
-        v_new = copy(ci_vector)
+        v_tot = deepcopy(ci_vector)
+        v_new = deepcopy(ci_vector)
         
         project_out!(v_new, v_old)
         
@@ -233,7 +233,7 @@ function tps_ci_direct( ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham
         @time Htmp = build_full_H_parallel(v_new, v_new, cluster_ops, clustered_ham, sym=true)
         _fill_H_block!(H, Htmp, v_new, v_new, indices)
         
-        vec_out = copy(v_tot)
+        vec_out = deepcopy(v_tot)
     else
         @printf(" %-50s", "Build full Hamiltonian matrix with dimension: ")
         @time H = build_full_H_parallel(ci_vector, ci_vector, cluster_ops, clustered_ham, sym=true)

@@ -44,6 +44,8 @@ using JLD2
               -14.02164792
               -14.00602933]
 
+    @info "reference value" tpsci_ref 214 
+    @info "test value" e0a length(v0a) 
     @test all(isapprox(tpsci_ref, e0a, atol=1e-8)) 
     @test all(isapprox(e2_ref, ept+e0a, atol=1e-8)) 
     
