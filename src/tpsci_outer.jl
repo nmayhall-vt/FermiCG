@@ -1,5 +1,6 @@
 using TimerOutputs
 using BlockDavidson
+using BenchmarkTools
 
 """
     build_full_H(ci_vector::TPSCIstate, cluster_ops, clustered_ham::ClusteredOperator)
@@ -683,16 +684,12 @@ function compute_expectation_value_parallel(ci_vector::TPSCIstate{T,N,R}, cluste
 end
 #=}}}=#
 
-
-
-
 """
     compute_diagonal(vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
 
 Form the diagonal of the hamiltonan, `clustered_ham`, in the basis defined by `vector`
 """
-function compute_diagonal(vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
-    #={{{=#
+function compute_diagonal(vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
     Hd = zeros(size(vector)[1])
     idx = 0
     zero_trans = TransferConfig([(0,0) for i in 1:N])
@@ -714,7 +711,48 @@ function compute_diagonal(vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham)
     end
     return Hd
 end
-#=}}}=#
+
+"""
+    compute_diagonal(vector::TPSCIstate{T,N,R}, cluster_ops, opstring::String) where {T,N,R}
+
+Fast version, used for PT2
+"""
+function compute_diagonal(vector::TPSCIstate{T,N,R}, cluster_ops, opstring::String) where {T,N,R}
+    Hd = zeros(T, size(vector)[1])
+    compute_diagonal!(Hd, vector, cluster_ops, opstring)
+    return Hd
+end
+
+
+"""
+    compute_diagonal!(Hd, vector::TPSCIstate{T,N,R}, cluster_ops, opstring::String) where {T,N,R}
+
+
+Fast version, used for PT2, overwrites Hd data with diagonal.
+"""
+function compute_diagonal!(Hd, vector::TPSCIstate{T,N,R}, cluster_ops, opstring::String) where {T,N,R}
+    fill!(Hd,0.0)
+    idx = 1
+    for (fock, configs) in vector.data
+        for c in vector.clusters
+            mat = []
+            try
+                mat = diag(cluster_ops[c.idx][opstring][(fock[c.idx],fock[c.idx])])
+            catch
+                println(c, fock[c.idx])
+                error()
+            end
+            
+            idxc = idx + 0
+            for (config, _) in configs
+                Hd[idxc] += mat[config[c.idx]]
+                idxc += 1
+            end
+        end
+        idx += length(configs)
+    end
+    return Hd
+end
 
 
 """
@@ -722,7 +760,7 @@ end
 
 Form the diagonal of the hamiltonan, `clustered_ham`, in the basis defined by `vector`
 """
-function compute_diagonal!(Hd, vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
+function compute_diagonal!(Hd, vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
     #={{{=#
     idx = 0
     zero_trans = TransferConfig([(0,0) for i in 1:N])
