@@ -77,6 +77,12 @@ git-tree-sha1 = "43b1a4a8f797c1cddadf60499a8a077d4af2cd2d"
 uuid = "d1d4a3ce-64b1-5f1a-9ba4-7e7e69966f35"
 version = "0.1.7"
 
+[[deps.BliContractor]]
+deps = ["ForwardDiff", "Libdl", "LinearAlgebra", "TensorOperations", "Test", "ZygoteRules", "tblis_jll"]
+git-tree-sha1 = "c43f7b9fc6e951110baa9c86ca67345318bba58c"
+uuid = "81fc84e3-e8a8-47e5-b99c-4287f7e3a083"
+version = "1.1.1"
+
 [[deps.BlockDavidson]]
 deps = ["InteractiveUtils", "LinearAlgebra", "LinearMaps", "Printf", "Random"]
 git-tree-sha1 = "7d540db6470a8b8000c36ba1d79c639df99b1707"
@@ -430,6 +436,12 @@ git-tree-sha1 = "129acf094d168394e80ee1dc4bc06ec835e510a3"
 uuid = "2e76f6c2-a576-52d4-95c1-20adfe4de566"
 version = "2.8.1+1"
 
+[[deps.Hwloc_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "2982b2ec1cb2e2d04b2893e211d29e1e30f8abf4"
+uuid = "e33a78d0-f292-5ffc-b300-72abe9b543c8"
+version = "2.9.1+0"
+
 [[deps.IOCapture]]
 deps = ["Logging", "Random"]
 git-tree-sha1 = "f7be53659ab06ddc986428d3a9dcc95f6fa6705a"
@@ -546,6 +558,12 @@ deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
 git-tree-sha1 = "070e4b5b65827f82c16ae0916376cb47377aa1b5"
 uuid = "dad2f222-ce93-54a1-a47d-0025e8a3acab"
 version = "0.0.18+0"
+
+[[deps.LLVMOpenMP_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
+git-tree-sha1 = "f689897ccbe049adb19a065c495e75f372ecd42b"
+uuid = "1d63c593-3942-5779-bab2-d838dc0a180e"
+version = "15.0.4+0"
 
 [[deps.LRUCache]]
 git-tree-sha1 = "48c10e3cc27e30de82463c27bef0b8bdbd1dc634"
@@ -1304,6 +1322,12 @@ git-tree-sha1 = "49ce682769cd5de6c72dcf1b94ed7790cd08974c"
 uuid = "3161d3a3-bdf6-5164-811a-617609db77b4"
 version = "1.5.5+0"
 
+[[deps.ZygoteRules]]
+deps = ["ChainRulesCore", "MacroTools"]
+git-tree-sha1 = "977aed5d006b840e2e40c0b48984f7463109046d"
+uuid = "700de1a5-db45-46bc-99cf-38207098b444"
+version = "0.2.3"
+
 [[deps.fzf_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "868e669ccb12ba16eaf50cb2957ee2ff61261c56"
@@ -1357,6 +1381,12 @@ uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
+
+[[deps.tblis_jll]]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "Hwloc_jll", "JLLWrappers", "LLVMOpenMP_jll", "Libdl", "Pkg"]
+git-tree-sha1 = "c1ef28e5eaddc60824960abbc1190d7d5046f261"
+uuid = "9c7f617c-f299-5d18-afb6-044c7798b3d0"
+version = "1.2.0+4"
 
 [[deps.x264_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
