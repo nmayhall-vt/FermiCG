@@ -334,7 +334,8 @@ end
                         resolve_ss=false,
                         do_pt=true,
                         tol_tucker=1e-6,
-                        solver="davidson") where {T,N,R}
+                        solver="davidson",
+                        verbose=1) where {T,N,R}
 
 # Arguments
 - `input_vec::BSTstate`: initial state
@@ -353,7 +354,8 @@ end
 - `resolve_ss`:  After compressing previous variational state, should we resolve in new subspace?
 - `do_pt = true`: Compute pt1 wavefunction for finding updated compression basis?
 - `tol_tucker`: Convergence threshold for Tucker iterations (energy change)
-- `solver`: 
+- `solver`:
+- `verbose`: How much to print? 
 # Returns
 - `e_var::Float64`: the final variational energy
 - `v_var::BSTstate`: the final variational state
@@ -374,7 +376,8 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
     resolve_ss=false,
     do_pt=true,
     tol_tucker=1e-6,
-    solver="davidson") where {T,N,R}
+    solver="davidson",
+    verbose=1) where {T,N,R}
     
     
     e_last = 0.0
@@ -474,7 +477,7 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
         println()
         @printf(" %-50s%10i\n", "Compute FOIS. Reference space dim: ", length(ref_vec))
 
-        time = @elapsed @timeit to "FOIS" pt1_vec, e_pt2 = compute_pt1_wavefunction(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh_foi=thresh_foi)
+        time = @elapsed @timeit to "FOIS" pt1_vec, e_pt2 = compute_pt1_wavefunction(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh_foi=thresh_foi, verbose=verbose)
         @printf(" %-50s%10.6f seconds\n", "Total time spent building FOIS: ", time)
 
         # 

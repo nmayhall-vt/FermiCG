@@ -77,18 +77,28 @@ function compute_pt1_wavefunction(σ_in::BSTstate{T,N,R}, ψ0::BSTstate{T,N,R}, 
     
     #
     # Copy data
+    verbose < 2 || @printf(" copy sigma... \n")
+    flush(stdout)
     σ = deepcopy(σ_in)
     zero!(σ)
+    verbose < 2 || @printf(" done.\n")
+    flush(stdout)
 
 
     #
     # Rotate the local tucker factors to diagonalize the zeroth order hamiltonians and build F diagonal
+    verbose < 2 || @printf(" form_1body_operator_diagonal... \n")
+    flush(stdout)
     Fdiag = BSTstate(σ, R=1)
     form_1body_operator_diagonal!(σ, Fdiag, cluster_ops, pseudo_canon=true)
+    verbose < 2 || @printf(" done.\n")
+    flush(stdout)
     
     
     #
     # Get Overlap <X|A>C(A)
+    verbose < 2 || @printf(" get_overlap... \n")
+    flush(stdout)
     Sx = deepcopy(σ)
     zero!(Sx)
     for (fock, tconfigs) in Sx
@@ -111,22 +121,34 @@ function compute_pt1_wavefunction(σ_in::BSTstate{T,N,R}, ψ0::BSTstate{T,N,R}, 
             end
         end
     end
+    verbose < 2 || @printf(" done.\n")
+    flush(stdout)
 
 
     # 
     # We need the numerator: <X|V|0> = <X|H|0> - <X|F|0> - (E0 - F0)<X|0>
     # 
     # Build exact Hamiltonian within FOIS defined by `sig`: <X|H|0>
+    verbose < 2 || @printf(" build_sigma!... \n")
+    flush(stdout)
     verbose < 1 || @printf(" %-50s%10i\n", "Length of input      FOIS: ", length(σ))
     time = @elapsed alloc = @allocated build_sigma!(σ, ψ0, cluster_ops, clustered_ham)
     verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute <X|H|0>: ", time, alloc/1e9)
+    verbose < 2 || @printf(" done.\n")
+    flush(stdout)
 
     # subtract <X|F|0>
+    verbose < 2 || @printf(" build_sigma!... \n")
+    flush(stdout)
     XF0 = deepcopy(σ)
     zero!(XF0)
     time = @elapsed alloc = @allocated build_sigma!(XF0, ψ0, cluster_ops, clustered_ham_0)
     verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute <X|F|0>: ", time, alloc/1e9)
+    verbose < 2 || @printf(" done.\n")
+    flush(stdout)
 
+    verbose < 2 || @printf(" compute correction... \n")
+    flush(stdout)
     
     σ = σ - XF0 - scale(Sx, E0 .- F0)
     
@@ -150,6 +172,9 @@ function compute_pt1_wavefunction(σ_in::BSTstate{T,N,R}, ψ0::BSTstate{T,N,R}, 
         E2[r] = E0[r] + ecorr[r]
     end
     
+    verbose < 2 || @printf(" done.\n")
+    flush(stdout)
+    
     return ψ1, E2, ecorr
 
 end
@@ -172,23 +197,39 @@ function compute_pt1_wavefunction(σ_in::BSTstate{T,N,R}, ψ0::BSTstate{T,N,R}, 
     flush(stdout)
     #
     # Copy data
+    verbose < 2 || @printf(" copy sigma... \n")
+    flush(stdout)
     σ = deepcopy(σ_in)
     zero!(σ)
+    verbose < 2 || @printf("done.\n")
+    flush(stdout)
 
 
     #
     # Extract zeroth-order hamiltonian
+    verbose < 2 || @printf(" extract_1body_operator... \n")
+    flush(stdout)
     clustered_ham_0 = extract_1body_operator(clustered_ham, op_string=H0)
+    verbose < 2 || @printf("done.\n")
+    flush(stdout)
     
 
     # 
     # get E0 = <0|H|0>
+    verbose < 2 || @printf(" compute_expectation_value... \n")
+    flush(stdout)
     E0 = compute_expectation_value(ψ0, cluster_ops, clustered_ham)
+    verbose < 2 || @printf("done.\n")
+    flush(stdout)
 
 
     # 
     # get F0 = <0|F|0>
+    verbose < 2 || @printf(" compute_expectation_value... \n")
+    flush(stdout)
     F0 = compute_expectation_value(ψ0, cluster_ops, clustered_ham_0)
+    verbose < 2 || @printf("done.\n")
+    flush(stdout)
 
 
     if verbose > 1
@@ -198,7 +239,11 @@ function compute_pt1_wavefunction(σ_in::BSTstate{T,N,R}, ψ0::BSTstate{T,N,R}, 
         end
     end
 
+    verbose < 2 || @printf(" compute_pt1_wavefunction... \n")
+    flush(stdout)
     ψ1, E2, ecorr = compute_pt1_wavefunction(σ, ψ0, cluster_ops, clustered_ham, clustered_ham_0,  E0, F0, H0=H0, verbose=verbose)
+    verbose < 2 || @printf("done.\n")
+    flush(stdout)
 
     verbose < 1 || for r in 1:R
         E2[r] = E0[r] + ecorr[r]
@@ -240,6 +285,71 @@ function compute_pt1_wavefunction(ψ0::BSTstate{T,N,R}, cluster_ops, clustered_h
     verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute Compressed FOIS: ", time, alloc/1e9)
 
     return compute_pt1_wavefunction(σ, ψ0, cluster_ops, clustered_ham, H0=H0, nbody=nbody, verbose=verbose)
+end
+
+
+"""
+    form_1body_operator_diagonal!(sig::BSTstate{T,N,R}, Fdiag::BSTstate{T,N,1}, cluster_ops; H0="Hcmf") where {T,N,R}
+
+TBW
+"""
+function form_1body_operator_diagonal!(sig::BSTstate{T,N,R}, Fdiag::BSTstate{T,N,1}, cluster_ops; H0="Hcmf", pseudo_canon=false) where {T,N,R}
+    # Fdiag = BSTstate(v, R=1)
+    clusters = sig.clusters
+
+    zero!(Fdiag)
+    for (fock, tconfigs) in sig
+        for (tconfig, tuck) in tconfigs
+
+            #
+            # Initialize energy list of lists
+            energies = Vector{Vector{T}}([])
+            for ci in 1:N
+                push!(energies, [])
+            end
+
+            # 
+            # Rotate tucker fractors to diagonalize each cluster hamiltonian
+            for ci in clusters
+                Ui = tuck.factors[ci.idx]
+                if size(Ui, 2) > 1
+
+                    # build the local "fock" operator in the current tucker basis
+                    Hi = cluster_ops[ci.idx][H0][(fock[ci.idx], fock[ci.idx])][tconfig[ci.idx], tconfig[ci.idx]]
+                    Hi = Ui' * Hi * Ui
+
+                    if pseudo_canon
+                        # diagonalize and rotate tucker factors
+                        F = eigen(Symmetric(Hi))
+                        sig[fock][tconfig].factors[ci.idx] .= Ui * F.vectors
+                        Fdiag[fock][tconfig].factors[ci.idx] .= sig[fock][tconfig].factors[ci.idx]
+
+                        energies[ci.idx] = F.values
+                    else
+                        # just take diagonal
+                        energies[ci.idx] = diag(Hi) 
+                    end
+                elseif size(Ui, 2) == 1
+                    Hi = cluster_ops[ci.idx][H0][(fock[ci.idx], fock[ci.idx])][tconfig[ci.idx], tconfig[ci.idx]]
+                    e = Ui' * Hi * Ui
+
+                    length(e) == 1 || throw(DimensionMismatch)
+
+                    energies[ci.idx] = [e[1]]
+                end
+            end
+
+            #
+            # Add the local energies together to form zeroth order energies for each element
+            fcore = Fdiag[fock][tconfig].core
+            length(fcore) == 1 || throw(DimensionMismatch)
+            for i in CartesianIndices(fcore[1])
+                for ci in 1:N
+                    fcore[1][i] += energies[ci][i[ci]]
+                end
+            end
+        end
+    end
 end
 
 
@@ -418,71 +528,6 @@ function hylleraas_compressed_mp2(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R},
 
     return psi1, e_pt2
 
-end
-
-
-"""
-    form_1body_operator_diagonal!(sig::BSTstate{T,N,R}, Fdiag::BSTstate{T,N,1}, cluster_ops; H0="Hcmf") where {T,N,R}
-
-TBW
-"""
-function form_1body_operator_diagonal!(sig::BSTstate{T,N,R}, Fdiag::BSTstate{T,N,1}, cluster_ops; H0="Hcmf", pseudo_canon=false) where {T,N,R}
-    # Fdiag = BSTstate(v, R=1)
-    clusters = sig.clusters
-
-    zero!(Fdiag)
-    for (fock, tconfigs) in sig
-        for (tconfig, tuck) in tconfigs
-
-            #
-            # Initialize energy list of lists
-            energies = Vector{Vector{T}}([])
-            for ci in 1:N
-                push!(energies, [])
-            end
-
-            # 
-            # Rotate tucker fractors to diagonalize each cluster hamiltonian
-            for ci in clusters
-                Ui = tuck.factors[ci.idx]
-                if size(Ui, 2) > 1
-
-                    # build the local "fock" operator in the current tucker basis
-                    Hi = cluster_ops[ci.idx][H0][(fock[ci.idx], fock[ci.idx])][tconfig[ci.idx], tconfig[ci.idx]]
-                    Hi = Ui' * Hi * Ui
-
-                    if pseudo_canon
-                        # diagonalize and rotate tucker factors
-                        F = eigen(Symmetric(Hi))
-                        sig[fock][tconfig].factors[ci.idx] .= Ui * F.vectors
-                        Fdiag[fock][tconfig].factors[ci.idx] .= sig[fock][tconfig].factors[ci.idx]
-
-                        energies[ci.idx] = F.values
-                    else
-                        # just take diagonal
-                        energies[ci.idx] = diag(Hi) 
-                    end
-                elseif size(Ui, 2) == 1
-                    Hi = cluster_ops[ci.idx][H0][(fock[ci.idx], fock[ci.idx])][tconfig[ci.idx], tconfig[ci.idx]]
-                    e = Ui' * Hi * Ui
-
-                    length(e) == 1 || throw(DimensionMismatch)
-
-                    energies[ci.idx] = [e[1]]
-                end
-            end
-
-            #
-            # Add the local energies together to form zeroth order energies for each element
-            fcore = Fdiag[fock][tconfig].core
-            length(fcore) == 1 || throw(DimensionMismatch)
-            for i in CartesianIndices(fcore[1])
-                for ci in 1:N
-                    fcore[1][i] += energies[ci][i[ci]]
-                end
-            end
-        end
-    end
 end
 
 
