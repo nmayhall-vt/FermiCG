@@ -162,7 +162,7 @@ end
 """
     build_sigma_parallel!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, clustered_ham)
 """
-function build_sigma!(sigma_vector::BSTstate{T,N,R}, ci_vector::BSTstate{T,N,R}, cluster_ops, clustered_ham; nbody=4, cache=false, verbose=2) where {T,N,R}
+function build_sigma!(sigma_vector::BSTstate{T,N,R}, ci_vector::BSTstate{T,N,R}, cluster_ops, clustered_ham; nbody=4, cache=false, verbose=1) where {T,N,R}
     #={{{=#
 
     verbose < 2 || @printf(" in build_sigma!")

@@ -56,7 +56,10 @@ function block_sparse_tucker_old(input_vec::BSTstate{T,N,R}, cluster_ops, cluste
     resolve_ss=false,
     do_pt=true,
     tol_tucker=1e-6,
-    solver="davidson") where {T,N,R}
+    solver="davidson",
+    verbose=1
+    ) where {T,N,R}
+    
     e_last = 0.0
     e0 = 0.0
     e_var = 0.0
@@ -183,7 +186,7 @@ function block_sparse_tucker_old(input_vec::BSTstate{T,N,R}, cluster_ops, cluste
             println()
             @printf(" %-50s%10i\n", "PT vector reference space dim: ", length(ref_vec))
             time = @elapsed begin
-                @timeit to "PT1" pt1_vec, e_pt2 = hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=ci_conv, max_iter=max_iter_pt, H0=H0)
+                @timeit to "PT1" pt1_vec, e_pt2 = hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=ci_conv, max_iter=max_iter_pt, H0=H0,verbose=verbose)
             end
             @printf(" %-50s%10.6f seconds\n", "Time spent compute PT1 vector: ", time)
 

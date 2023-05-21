@@ -129,12 +129,16 @@ function compute_pt1_wavefunction(σ_in::BSTstate{T,N,R}, ψ0::BSTstate{T,N,R}, 
     # We need the numerator: <X|V|0> = <X|H|0> - <X|F|0> - (E0 - F0)<X|0>
     # 
     # Build exact Hamiltonian within FOIS defined by `sig`: <X|H|0>
+    verbose < 2 || @printf("   Norm of σ before: \n")
+    verbose < 2 || println(orth_dot(σ,σ))
     verbose < 2 || @printf(" build_sigma!... \n")
     flush(stdout)
     verbose < 1 || @printf(" %-50s%10i\n", "Length of input      FOIS: ", length(σ))
-    time = @elapsed alloc = @allocated build_sigma!(σ, ψ0, cluster_ops, clustered_ham)
+    time = @elapsed alloc = @allocated build_sigma!(σ, ψ0, cluster_ops, clustered_ham, verbose=verbose)
     verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute <X|H|0>: ", time, alloc/1e9)
     verbose < 2 || @printf(" done.\n")
+    verbose < 2 || @printf("   Norm of σ after: \n")
+    verbose < 2 || println(orth_dot(σ,σ))
     flush(stdout)
 
     # subtract <X|F|0>
@@ -284,6 +288,11 @@ function compute_pt1_wavefunction(ψ0::BSTstate{T,N,R}, cluster_ops, clustered_h
     time = @elapsed alloc = @allocated σ = FermiCG.build_compressed_1st_order_state(ψ0, cluster_ops, clustered_ham, nbody=4, thresh=thresh_foi, max_number=max_number)
     verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute Compressed FOIS: ", time, alloc/1e9)
 
+    dim1 = length(σ)
+    σ = compress(σ, thresh=thresh_foi)
+    dim2 = length(σ)
+    @printf("%10i → %-10i (thresh = %8.1e)\n", dim1, dim2, thresh_foi)
+    
     return compute_pt1_wavefunction(σ, ψ0, cluster_ops, clustered_ham, H0=H0, nbody=nbody, verbose=verbose)
 end
 
@@ -373,7 +382,7 @@ function hylleraas_compressed_mp2(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R},
     #project_out!(sig, ref)
     zero!(sig)
 
-    time = @elapsed alloc = @allocated build_sigma!(sig, ref, cluster_ops, clustered_ham)
+    time = @elapsed alloc = @allocated build_sigma!(sig, ref, cluster_ops, clustered_ham, verbose=verbose)
     verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute <X|V|0>: ", time, alloc/1e9)
 
 
