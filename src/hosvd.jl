@@ -73,7 +73,6 @@ Add together multiple Tucker instances. Assumed non-orthogonal.
 - `tucks::Vector{Tucker{T,N}}`: Vector of Tucker objects
 """
 function nonorth_add(tucks::Vector{Tucker{T,N,R}}; thresh=1e-10, max_number=nothing, type="magnitude") where {T<:Number,N,R}
-#={{{=#
     # sort the Tucker objects to add. This puts them in a well-defined order for reproducibility.
     norms = norm.(tucks)
     perm = sortperm(norms,rev=true)
@@ -145,7 +144,8 @@ function nonorth_add(tucks::Vector{Tucker{T,N,R}}; thresh=1e-10, max_number=noth
     return Tucker{T,N,R}(new_core, Tuple(new_factors))
 
 end
-#=}}}=#
+
+
 
 #function nonorth_add!(t1::Tucker{T,N,R}, t2::Tucker{T,N,R}; thresh=1e-10, max_number=nothing, type="magnitude") where {T<:Number,N,R}
 #    #={{{=#
@@ -198,14 +198,43 @@ end
 ##=}}}=#
 
 #Base.:(+)(t1::Tucker, t2::Tucker) = nonorth_add([t1, t2])
-Base.:(+)(t1::NTuple{R,Array}, t2::NTuple{R,Array}) where R = ntuple(i->t1[i].+t2[i], R)
-add!(t1::NTuple{R,Array}, t2::NTuple{R,Array}) where R = ntuple(i->t1[i] .= t1[i] .+ t2[i], R)
+
+"""
+    Base.:(+)(t1::NTuple{R,Array}, t2::NTuple{R,Array}) where R
+
+TBW
+"""
+function Base.:(+)(t1::NTuple{R,Array}, t2::NTuple{R,Array}) where R
+    return ntuple(i->t1[i].+t2[i], R)
+end
 nonorth_add(t1::Tucker, t2::Tucker; thresh=1e-7) = nonorth_add([t1,t2], thresh=thresh)
 
+"""
+    add!(t1::NTuple{R,Array}, t2::NTuple{R,Array}) where R
+
+TBW
+"""
+function add!(t1::NTuple{R,Array}, t2::NTuple{R,Array}) where R 
+    for r in 1:R
+        @views t1[r] .+= t2[r]
+    end
+end
+
+"""
+    scale(t1::Tucker, a)
+
+TBW
+"""
 function scale(t1::Tucker, a)
     t2core = t1.core .* a
     return Tucker(t2core, t1.factors)
 end
+
+"""
+    scale!(t1::Tucker, a)
+
+TBW
+"""
 function scale!(t1::Tucker, a)
     t1.core .*= a
     return 
@@ -526,6 +555,9 @@ end
 #=}}}=#
 
 """
+    transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}; trans=false) where {T<:Number,N}
+
+TBW
 """
 function transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}; trans=false) where {T<:Number,N}
   #={{{=#
@@ -553,12 +585,30 @@ function transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}; trans=f
 end
 #=}}}=#
 
+
+function transform_basis_ncon(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}; trans=false) where {T<:Number,N}
+   
+    out = deepcopy(v) 
+    tensors = Vector{Array{T}}([v])
+    inds = Vector{Vector{Int}}([collect(1:ndims(v))])
+    for i in 1:N
+        push!(tensors, transforms[i])
+        if trans
+            push!(inds, [-i,i])
+        else
+            push!(inds, [i,-i])
+        end
+    end
+    return @ncon(tensors, inds)
+end
+
 """
 """
 function transform_basis(v::NTuple{R,Array{T,N}}, transforms; trans=false) where {T<:Number,N,R}
   #={{{=#
     R > 0 || error(DimensionMismatch)
     return ntuple(i->transform_basis(v[i],transforms,trans=trans), R)
+    # return ntuple(i->transform_basis_ncon(v[i],transforms,trans=trans), R)
 end
 #=}}}=#
 

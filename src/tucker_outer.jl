@@ -1110,3 +1110,30 @@ function project_out!(v::BSTstate{T,N,Rv}, w::BSTstate{T,N,Rw}; thresh=1e-16) wh
     end
 end
 
+function project_into_new_basis(v1::BSTstate{T,N,R}, v2::BSTstate{T,N,R}) where {T,N,R}
+    #
+    # project state `v1`  into the basis defined by `v2`
+    flush(stdout)
+    out = deepcopy(v2)
+    zero!(out)
+    for (fock, tconfigs) in v2 
+        haskey(v1, fock) || continue
+        for (tconfig, tuck) in tconfigs
+            haskey(v1[fock], tconfig) || continue
+            ref_tuck = v1[fock][tconfig]
+            
+            # Cr(i,j,k...) Ur(Ii) Ur(Jj) ...
+            # Ux(Ii') Ux(Jj') ...
+            #
+            # Cr(i,j,k...) S(ii') S(jj')...
+            overlaps = Vector{Matrix{T}}()
+            for i in 1:N
+                push!(overlaps, ref_tuck.factors[i]' * tuck.factors[i])
+            end
+            for r in 1:R
+                out[fock][tconfig].core[r] .= transform_basis(ref_tuck.core[r], overlaps)
+            end
+        end
+    end
+    return out
+end

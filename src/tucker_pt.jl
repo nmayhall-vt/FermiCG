@@ -99,28 +99,29 @@ function compute_pt1_wavefunction(σ_in::BSTstate{T,N,R}, ψ0::BSTstate{T,N,R}, 
     # Get Overlap <X|A>C(A)
     verbose < 2 || @printf(" get_overlap... \n")
     flush(stdout)
-    Sx = deepcopy(σ)
-    zero!(Sx)
-    for (fock, tconfigs) in Sx
-        if haskey(ψ0, fock)
-            for (tconfig, tuck) in tconfigs
-                if haskey(ψ0[fock], tconfig)
-                    ref_tuck = ψ0[fock][tconfig]
-                    # Cr(i,j,k...) Ur(Ii) Ur(Jj) ...
-                    # Ux(Ii') Ux(Jj') ...
-                    #
-                    # Cr(i,j,k...) S(ii') S(jj')...
-                    overlaps = Vector{Matrix{T}}()
-                    for i in 1:N
-                        push!(overlaps, ref_tuck.factors[i]' * tuck.factors[i])
-                    end
-                    for r in 1:R
-                        Sx[fock][tconfig].core[r] .= transform_basis(ref_tuck.core[r], overlaps)
-                    end
-                end
-            end
-        end
-    end
+    Sx = FermiCG.project_into_new_basis(ψ0, σ)
+    # Sx = deepcopy(σ)
+    # zero!(Sx)
+    # for (fock, tconfigs) in Sx
+    #     if haskey(ψ0, fock)
+    #         for (tconfig, tuck) in tconfigs
+    #             if haskey(ψ0[fock], tconfig)
+    #                 ref_tuck = ψ0[fock][tconfig]
+    #                 # Cr(i,j,k...) Ur(Ii) Ur(Jj) ...
+    #                 # Ux(Ii') Ux(Jj') ...
+    #                 #
+    #                 # Cr(i,j,k...) S(ii') S(jj')...
+    #                 overlaps = Vector{Matrix{T}}()
+    #                 for i in 1:N
+    #                     push!(overlaps, ref_tuck.factors[i]' * tuck.factors[i])
+    #                 end
+    #                 for r in 1:R
+    #                     Sx[fock][tconfig].core[r] .= transform_basis(ref_tuck.core[r], overlaps)
+    #                 end
+    #             end
+    #         end
+    #     end
+    # end
     verbose < 2 || @printf(" done.\n")
     flush(stdout)
 
@@ -288,10 +289,10 @@ function compute_pt1_wavefunction(ψ0::BSTstate{T,N,R}, cluster_ops, clustered_h
     time = @elapsed alloc = @allocated σ = FermiCG.build_compressed_1st_order_state(ψ0, cluster_ops, clustered_ham, nbody=4, thresh=thresh_foi, max_number=max_number)
     verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute Compressed FOIS: ", time, alloc/1e9)
 
-    dim1 = length(σ)
-    σ = compress(σ, thresh=thresh_foi)
-    dim2 = length(σ)
-    @printf("%10i → %-10i (thresh = %8.1e)\n", dim1, dim2, thresh_foi)
+    # dim1 = length(σ)
+    # σ = compress(σ, thresh=thresh_foi)
+    # dim2 = length(σ)
+    # @printf("%10i → %-10i (thresh = %8.1e)\n", dim1, dim2, thresh_foi)
     
     return compute_pt1_wavefunction(σ, ψ0, cluster_ops, clustered_ham, H0=H0, nbody=nbody, verbose=verbose)
 end
