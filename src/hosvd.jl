@@ -294,7 +294,8 @@ TBW
 """
 function add!(t1::NTuple{R,AbstractArray}, t2::NTuple{R,AbstractArray}) where R 
     for r in 1:R
-        @views t1[r] .+= t2[r]
+        # t1[r] .+= t2[r]
+        BLAS.axpy!(1., t2[r], t1[r])
     end
 end
 
