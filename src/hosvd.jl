@@ -672,33 +672,33 @@ function transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}, scr::Ve
     dims = [size(v)...]
 
     scr_i = scr[1]
-    # scr_j = reshape(v, dims[1], prod(dims[2:end]))
-    scr_j = reshape2(v, (dims[1], prod(dims[2:end])))
+    scr_j = reshape(v, dims[1], prod(dims[2:end]))
+    # scr_j = reshape2(v, (dims[1], prod(dims[2:end])))
     for i in 1:N
         scr_i = scr[i]
         if trans
             dims[1] = size(transforms[i], 1)
             
             resize!(scr_i, prod(dims))
-            # scr_i = reshape(scr_i, prod(dims[2:end]), dims[1])
-            scr_i = reshape2(scr_i, (prod(dims[2:end]), dims[1]))
+            scr_i = reshape(scr_i, prod(dims[2:end]), dims[1])
+            # scr_i = reshape2(scr_i, (prod(dims[2:end]), dims[1]))
             
             # scr_i .= scr_j' * transforms[i]'
-            # BLAS.gemm!('T', 'T', 1.0, scr_j, transforms[i], 0.0, scr_i)
+            BLAS.gemm!('T', 'T', 1.0, scr_j, transforms[i], 0.0, scr_i)
             mul!(scr_i, scr_j', transforms[i]')
         else
             dims[1] = size(transforms[i], 2)
             
             #println(" Dims:  ", dims)
             resize!(scr_i, prod(dims))
-            # scr_i = reshape(scr_i, prod(dims[2:end]), dims[1])
-            scr_i = reshape2(scr_i, (prod(dims[2:end]), dims[1]))
+            scr_i = reshape(scr_i, prod(dims[2:end]), dims[1])
+            # scr_i = reshape2(scr_i, (prod(dims[2:end]), dims[1]))
             # @btime reshape($scr_i, prod($dims[2:end]), $dims[1])
            
             #println(size(scr_i), size(scr_j), size(transforms[i]))
            
-            # BLAS.gemm!('T', 'N', 1.0, scr_j, transforms[i], 0.0, scr_i)
-            mul!(scr_i, scr_j', transforms[i])
+            BLAS.gemm!('T', 'N', 1.0, scr_j, transforms[i], 0.0, scr_i)
+            # mul!(scr_i, scr_j', transforms[i])
             # scr_i .= scr_j' * transforms[i]
             # @btime $scr_i .= $scr_j' * $transforms[$i]
 
@@ -707,8 +707,8 @@ function transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}, scr::Ve
         scr_j = scr_i
         
         dims = circshift(dims, -1)
-        # scr_j = reshape(scr_j, dims[1], prod(dims[2:end]))
-        scr_j = reshape2(scr_j, (dims[1], prod(dims[2:end])))
+        scr_j = reshape(scr_j, dims[1], prod(dims[2:end]))
+        # scr_j = reshape2(scr_j, (dims[1], prod(dims[2:end])))
     end
 
 

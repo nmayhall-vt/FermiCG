@@ -107,5 +107,10 @@ using LinearAlgebra
     @timev A2 = FermiCG.transform_basis(A, trans2, trans=true)
     @timev A3 = FermiCG.transform_basis(A, trans2, scr, trans=true)
     @test norm(A3-A2) < 1e-16
+
+    tuckA = FermiCG.Tucker(rand(2,3,4,5,6))
+    tuckB = FermiCG.Tucker(rand(2,3,4,5,6))
+    @timev tuckC = FermiCG.nonorth_add([tuckA, tuckB])
+    @timev tuckD = FermiCG.nonorth_add([tuckA, tuckB], scr)
 end
 
