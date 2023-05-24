@@ -58,7 +58,7 @@ Base.length(t::Tucker) = prod(dims_small(t))
 Base.size(t::Tucker) = dims_small(t) 
 Base.permutedims(t::Tucker{T,N,R}, perm) where {T,N,R} = Tucker{T,N,R}(permutedims(t.core, perm), t.factors[perm])
 Base.permutedims(t::NTuple{R,Array{T,N}}, perm) where {T,N,R} = ntuple(i->permutedims(t[i], perm), R) 
-
+Base.ndims(t::Tucker) = length(t.factors)
 
 function randomize!(t::Tucker{T,N,R}; seed=nothing) where {T,N,R}
     seed == nothing || Random.seed!(seed)
@@ -292,7 +292,7 @@ nonorth_add(t1::Tucker, t2::Tucker; thresh=1e-7) = nonorth_add([t1,t2], thresh=t
 
 TBW
 """
-function add!(t1::NTuple{R,Array}, t2::NTuple{R,Array}) where R 
+function add!(t1::NTuple{R,AbstractArray}, t2::NTuple{R,AbstractArray}) where R 
     for r in 1:R
         @views t1[r] .+= t2[r]
     end
@@ -671,26 +671,32 @@ function transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}, scr::Ve
 
     dims = [size(v)...]
 
-    scr_i = scr[1]
-    scr_j = reshape(v, dims[1], prod(dims[2:end]))
+    scr_i = @view scr[1][1:end]
+    # scr_j = reshape(v, dims[1], prod(dims[2:end]))
+    scr_j = @view v[1:end]
+    scr_j = reshape(scr_j, dims[1], prod(dims[2:end]))
+    # scr_j = reshape(v, dims[1], prod(dims[2:end]))
     # scr_j = reshape2(v, (dims[1], prod(dims[2:end])))
     for i in 1:N
-        scr_i = scr[i]
+        # scr_i = @view scr[i][1:end]
+        # scr_i = scr[i]
         if trans
             dims[1] = size(transforms[i], 1)
             
-            resize!(scr_i, prod(dims))
+            resize!(scr[i], prod(dims))
+            scr_i = @view scr[i][1:end]
             scr_i = reshape(scr_i, prod(dims[2:end]), dims[1])
             # scr_i = reshape2(scr_i, (prod(dims[2:end]), dims[1]))
             
             # scr_i .= scr_j' * transforms[i]'
             BLAS.gemm!('T', 'T', 1.0, scr_j, transforms[i], 0.0, scr_i)
-            mul!(scr_i, scr_j', transforms[i]')
+            # mul!(scr_i, scr_j', transforms[i]')
         else
             dims[1] = size(transforms[i], 2)
             
             #println(" Dims:  ", dims)
-            resize!(scr_i, prod(dims))
+            resize!(scr[i], prod(dims))
+            scr_i = @view scr[i][1:end]
             scr_i = reshape(scr_i, prod(dims[2:end]), dims[1])
             # scr_i = reshape2(scr_i, (prod(dims[2:end]), dims[1]))
             # @btime reshape($scr_i, prod($dims[2:end]), $dims[1])
@@ -712,8 +718,8 @@ function transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}, scr::Ve
     end
 
 
-    # return reshape(scr_i, dims...)
-    return reshape2(scr_i, Tuple(dims))
+    return reshape(scr_i, dims...)
+    # return reshape2(scr_i, Tuple(dims))
 end
 
 

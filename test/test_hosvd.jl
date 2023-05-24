@@ -95,7 +95,7 @@ using LinearAlgebra
     
   
 
-    scr = Vector{Vector{Float64}}([ Vector{Float64}([]) for i in 1:ndims(A)])
+    scr = Vector{Vector{Float64}}([Vector{Float64}([]) for i in 1:ndims(A)])
     A3 = FermiCG.transform_basis(A, trans2, scr)
     display((length(A3), size(A3)))
 
