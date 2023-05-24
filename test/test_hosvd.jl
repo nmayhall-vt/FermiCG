@@ -93,6 +93,19 @@ using LinearAlgebra
     #A2 = FermiCG.tucker_recompose(A, trans2)
     #display((length(A2), size(A2)))
     
+  
+
+    scr = Vector{Vector{Float64}}([ Vector{Float64}([]) for i in 1:ndims(A)])
+    A3 = FermiCG.transform_basis(A, trans2, scr)
+    display((length(A3), size(A3)))
+
+    @test norm(A3-A2) < 1e-16
     
+   
+    # Now test transpose
+    trans2 = [Matrix(t') for t in trans2]
+    @time A2 = FermiCG.transform_basis(A, trans2, trans=true)
+    @time A3 = FermiCG.transform_basis(A, trans2, scr, trans=true)
+    @test norm(A3-A2) < 1e-16
 end
 

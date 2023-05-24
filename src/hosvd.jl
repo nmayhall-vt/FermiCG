@@ -560,7 +560,6 @@ end
 TBW
 """
 function transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}; trans=false) where {T<:Number,N}
-  #={{{=#
     #error("here")
     vv = deepcopy(v)
     dims = [size(vv)...]
@@ -583,7 +582,55 @@ function transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}; trans=f
 
     return reshape(vv,dims...)
 end
-#=}}}=#
+
+using BenchmarkTools
+function transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}, scr::Vector{Vector{T}}; trans=false) where {T<:Number,N}
+
+    length(scr) == ndims(v) || throw(DimensionMismatch)
+
+    dims = [size(v)...]
+
+    vv = deepcopy(v)
+    vv = reshape(vv, dims[1], prod(dims[2:end]))
+
+    #println(" Here1: ", dims)
+    #println(" Here2: ", [size(i) for i in transforms ])
+    scr_i = scr[1]
+    scr_j = vv
+    for i in 1:N
+        scr_i = scr[i]
+        if trans
+            dims[1] = size(transforms[i], 1)
+            
+            resize!(scr_i, prod(dims))
+            scr_i = reshape(scr_i, prod(dims[2:end]), dims[1])
+            
+            # scr_i .= scr_j' * transforms[i]'
+            BLAS.gemm!('T', 'T', 1.0, scr_j, transforms[i], 0.0, scr_i)
+        else
+            dims[1] = size(transforms[i], 2)
+            
+            #println(" Dims:  ", dims)
+            resize!(scr_i, prod(dims))
+            scr_i = reshape(scr_i, prod(dims[2:end]), dims[1])
+            # @btime reshape($scr_i, prod($dims[2:end]), $dims[1])
+           
+            #println(size(scr_i), size(scr_j), size(transforms[i]))
+           
+            BLAS.gemm!('T', 'N', 1.0, scr_j, transforms[i], 0.0, scr_i)
+            # scr_i .= scr_j' * transforms[i]
+            # @btime $scr_i .= $scr_j' * $transforms[$i]
+
+        end
+        
+        scr_j = scr_i
+        
+        dims = circshift(dims, -1)
+        scr_j = reshape(scr_j, dims[1], prod(dims[2:end]))
+    end
+
+    return reshape(scr_i, dims...)
+end
 
 
 function transform_basis_ncon(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}; trans=false) where {T<:Number,N}
@@ -615,6 +662,7 @@ end
 
 
 transform_basis(v::Array{T,N}, transforms::Vector{Matrix{T}}; trans=false) where {T,N} = transform_basis(v, NTuple{N, Matrix{T}}(transforms), trans=trans)
+transform_basis(v::Array{T,N}, transforms::Vector{Matrix{T}}, scr::Vector{Vector{T}}; trans=false) where {T,N} = transform_basis(v, NTuple{N, Matrix{T}}(transforms), scr, trans=trans)
 #transform_basis(v::Vector{Array{T,N}}, transforms::Vector{Matrix{T}}; trans=false) where {T,N} = transform_basis(NTuple{length(v), Array{T}}(v), NTuple{N, Matrix{T}}(transforms), trans=trans)
 
 
