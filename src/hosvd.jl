@@ -1,3 +1,5 @@
+# using BenchmarkTools
+
 """
 Simple Tucker (HOSVD) type
 # Data
@@ -49,6 +51,7 @@ function Tucker(t::Tucker{TT,NN,RR}; R=RR, T=TT) where {TT,NN,RR}
 end
 
 recompose(t::Tucker) = tucker_recompose(t.core, t.factors)
+recompose(t::Tucker, scr) = tucker_recompose(t.core, t.factors, scr)
 dims_large(t::Tucker) = return [size(f,1) for f in t.factors]
 dims_small(t::Tucker) = return [size(f,2) for f in t.factors]
 Base.length(t::Tucker) = prod(dims_small(t))
@@ -144,6 +147,81 @@ function nonorth_add(tucks::Vector{Tucker{T,N,R}}; thresh=1e-10, max_number=noth
     return Tucker{T,N,R}(new_core, Tuple(new_factors))
 
 end
+
+
+function nonorth_add(tucks::Vector{Tucker{T,N,R}}, scr::Vector{Vector{T}}; thresh=1e-10, max_number=nothing, type="magnitude") where {T<:Number,N,R}
+    # sort the Tucker objects to add. This puts them in a well-defined order for reproducibility.
+    norms = norm.(tucks)
+    perm = sortperm(norms,rev=true)
+    tucks = tucks[perm]
+    length(tucks) > 0 ||  error("not enough Tuckers to add", length(tucks))
+    length(tucks) > 1 ||  return tucks[1] 
+
+    # first, ensure the Tuckers all correpsond to appropriately dimensioned uncompressed tensors
+    dims = dims_large(first(tucks))
+    for tuck in tucks
+        all(dims_large(tuck) .== dims) || error("dimension error.", dims_large.(tucks))
+    end
+
+    # first, get orthogonal basis spanning all Tucker objects for each index
+    new_factors = Vector{Matrix{T}}()
+    for i in 1:N
+        Ui = Vector{Matrix{T}}()
+        for tuck in tucks
+            push!(Ui, tuck.factors[i])
+        end
+        Ui = hcat(Ui...)
+      
+        F = svd(Ui)
+
+        nkeep = 0
+        if type == "magnitude"
+            for si in F.S 
+                if si > thresh
+                    nkeep += 1
+                end
+            end
+        elseif type == "sum"
+            target = sum(F.S )
+            curr = 0.0
+            for si in F.S 
+                if abs(curr-target) > thresh
+                    nkeep += 1
+                    curr += si*si
+                end
+            end
+        else
+            error("wrong type")
+        end
+        if max_number != nothing
+            nkeep = min(nkeep, max_number)
+        end
+        Ui = F.U[:,1:nkeep]
+        push!(new_factors, Ui)
+    end
+
+
+    #new_core = zeros([size(new_factors[i],2) for i in 1:N]...)
+    new_core = ntuple(i->zeros([size(new_factors[i],2) for i in 1:N]...), R)
+
+    for tuck in tucks
+        transforms = Vector{Matrix{Float64}}()
+        for i in 1:N 
+            push!(transforms, new_factors[i]'*tuck.factors[i])
+        end
+
+        #tmp = recompose(Tucker{T,N,R}(tuck.core, Tuple(transforms)))
+        #for r in 1:R
+        #    new_core[r] .+= tmp[r]
+        #end
+        #new_core .= new_core .+ recompose(Tucker{T,N,R}(tuck.core, Tuple(transforms)))
+        add!(new_core, recompose(Tucker{T,N,R}(tuck.core, Tuple(transforms)), scr))
+    end
+    return Tucker{T,N,R}(new_core, Tuple(new_factors))
+
+end
+
+
 
 
 
@@ -458,11 +536,10 @@ end
 Recompose Tucker Decomposition 
 """
 tucker_recompose(core, factors) = transform_basis(core, factors, trans=true)
+tucker_recompose(core, factors, scr) = transform_basis(core, factors, scr, trans=true)
 
-"""
-"""
+
 function transform_basis(v::Array{T,N}, transform_list::Dict{Int,Matrix{T}}; trans=false) where {T,N}
-  #={{{=#
     length(transform_list) > 0 || return v
 
     vv = deepcopy(v)
@@ -476,33 +553,32 @@ function transform_basis(v::Array{T,N}, transform_list::Dict{Int,Matrix{T}}; tra
             v_indices = collect(1:N)
             v_indices[i] = -i
             if trans
-#                if size(transform_list[i],1) == size(transform_list[i],2) 
-#                    TensorOperations.tensorcontract!(1, vv, collect(1:N), 'C', 
-#                                                     transform_list[i], [-i,i], 'C', 
-#                                                     0, vv, v_indices)
-#                else
-#                    vv = TensorOperations.tensorcontract(vv, collect(1:N), transform_list[i], [-i,i], v_indices)
-#                end
+            #    if size(transform_list[i],1) == size(transform_list[i],2) 
+            #        TensorOperations.tensorcontract!(1, vv, collect(1:N), 'C', 
+            #                                         transform_list[i], [-i,i], 'C', 
+            #                                         0, vv, v_indices)
+            #    else
+            #        vv = TensorOperations.tensorcontract(vv, collect(1:N), transform_list[i], [-i,i], v_indices)
+            #    end
                     
                 vv = TensorOperations.tensorcontract(vv, collect(1:N), transform_list[i], [-i,i], v_indices)
             else
-#                if size(transform_list[i],1) == size(transform_list[i],2)
-#                    TensorOperations.tensorcontract!(1, vv, collect(1:N), 'N', 
-#                                                     transform_list[i], [i,-i], 'N', 
-#                                                     0, vv, v_indices)
-#                else
-#                    vv = TensorOperations.tensorcontract(vv, collect(1:N), transform_list[i], [i,-i], v_indices)
-#                end
+            #    if size(transform_list[i],1) == size(transform_list[i],2)
+            #        TensorOperations.tensorcontract!(1, vv, collect(1:N), 'N', 
+            #                                         transform_list[i], [i,-i], 'N', 
+            #                                         0, vv, v_indices)
+            #    else
+            #        vv = TensorOperations.tensorcontract(vv, collect(1:N), transform_list[i], [i,-i], v_indices)
+            #    end
                 vv = TensorOperations.tensorcontract(vv, collect(1:N), transform_list[i], [i,-i], v_indices)
             end
         end
     end
     return vv
 end
-#=}}}=#
+
 
 function transform_basis2(v::Array{T,N}, transform_list::Dict{Int,Matrix{T}}; trans=false) where {T,N}
-  #={{{=#
     #
     #   e.g., 
     #   v(i,j,k,l) U(iI) U(jJ) U(lL) = V(I,J,k,L)
@@ -552,7 +628,7 @@ function transform_basis2(v::Array{T,N}, transform_list::Dict{Int,Matrix{T}}; tr
 
     return reshape(vv,dims...)
 end
-#=}}}=#
+
 
 """
     transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}; trans=false) where {T<:Number,N}
@@ -583,20 +659,22 @@ function transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}; trans=f
     return reshape(vv,dims...)
 end
 
-using BenchmarkTools
+"""
+    transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}, scr::Vector{Vector{T}}; trans=false) where {T<:Number,N}
+
+Transform a tensor (`v`) by a sequence of matrices (`transforms`). 
+This version takes in a set of scratch arrays (`scr`), one for each index in the tensor
+"""
 function transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}, scr::Vector{Vector{T}}; trans=false) where {T<:Number,N}
 
     length(scr) == ndims(v) || throw(DimensionMismatch)
 
     dims = [size(v)...]
 
-    vv = deepcopy(v)
-    vv = reshape(vv, dims[1], prod(dims[2:end]))
-
     #println(" Here1: ", dims)
     #println(" Here2: ", [size(i) for i in transforms ])
     scr_i = scr[1]
-    scr_j = vv
+    scr_j = reshape(v, dims[1], prod(dims[2:end]))
     for i in 1:N
         scr_i = scr[i]
         if trans
@@ -629,6 +707,10 @@ function transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}, scr::Ve
         scr_j = reshape(scr_j, dims[1], prod(dims[2:end]))
     end
 
+    for i in scr
+        i = reshape(i, length(i))
+    end
+
     return reshape(scr_i, dims...)
 end
 
@@ -649,15 +731,18 @@ function transform_basis_ncon(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}; tr
     return @ncon(tensors, inds)
 end
 
-"""
-"""
 function transform_basis(v::NTuple{R,Array{T,N}}, transforms; trans=false) where {T<:Number,N,R}
-  #={{{=#
     R > 0 || error(DimensionMismatch)
     return ntuple(i->transform_basis(v[i],transforms,trans=trans), R)
     # return ntuple(i->transform_basis_ncon(v[i],transforms,trans=trans), R)
 end
-#=}}}=#
+
+function transform_basis(v::NTuple{R,Array{T,N}}, transforms, scr; trans=false) where {T<:Number,N,R}
+    R > 0 || error(DimensionMismatch)
+    # scr2 = Vector{Vector{Float64}}([ Vector{Float64}([]) for i in transforms]);
+    return ntuple(i->transform_basis(v[i], transforms, scr, trans=trans), R)
+    # return ntuple(i->transform_basis_ncon(v[i],transforms,trans=trans), R)
+end
 
 
 

@@ -104,8 +104,8 @@ using LinearAlgebra
    
     # Now test transpose
     trans2 = [Matrix(t') for t in trans2]
-    @time A2 = FermiCG.transform_basis(A, trans2, trans=true)
-    @time A3 = FermiCG.transform_basis(A, trans2, scr, trans=true)
+    @timev A2 = FermiCG.transform_basis(A, trans2, trans=true)
+    @timev A3 = FermiCG.transform_basis(A, trans2, scr, trans=true)
     @test norm(A3-A2) < 1e-16
 end
 
