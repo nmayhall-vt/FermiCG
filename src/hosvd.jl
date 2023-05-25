@@ -1,5 +1,7 @@
 using BenchmarkTools
 using InteractiveUtils
+using LoopVectorization
+using Strided
 
 """
 Simple Tucker (HOSVD) type
@@ -331,7 +333,6 @@ end
 Try to compress further 
 """
 function compress(t::Tucker{T,N,R}; thresh=1e-7, max_number=nothing, type="magnitude") where {T,N,R}
-#={{{=#
     length(t) > 0 || return t
     tt = Tucker(t.core, thresh=thresh, max_number=max_number, type=type)
 
@@ -344,7 +345,7 @@ function compress(t::Tucker{T,N,R}; thresh=1e-7, max_number=nothing, type="magni
     return Tucker(tt.core, NTuple{N}(new_factors)) 
 #    return Tucker(recompose(t), thresh=thresh, max_number=max_number)
 end
-#=}}}=#
+
 
 """
     function nonorth_overlap(t1::Tucker{T,N,R}, t2::Tucker{T,N,R}) where {T,N,R}
@@ -352,7 +353,6 @@ end
 Note: This doesn't assume `t1` and `t2` have the same compression vectors. Returns RxR overlap matrix 
 """
 function nonorth_overlap(t1::Tucker{T,N,R}, t2::Tucker{T,N,R}) where {T,N,R}
-#={{{=#
     
     out = zeros(T,R,R)
     overlaps = Dict{Int,Matrix{T}}()
@@ -371,7 +371,6 @@ function nonorth_overlap(t1::Tucker{T,N,R}, t2::Tucker{T,N,R}) where {T,N,R}
     return out
     #return sum(tucker_recompose(t1.core, overlaps) .* t2.core)
 end
-#=}}}=#
 
 """
     function nonorth_dot(t1::Tucker{T,N,R}, t2::Tucker{T,N,R}) where {T,N,R}
@@ -459,16 +458,24 @@ function tucker_decompose(Av::NTuple{R,Array{T,N}}; thresh=1e-7, max_number=noth
     end
     verbose <= 0 || println(" Tucker Decompose:", size(Av[1]))
 
+    tmp = similar(Av[1])
+
     for i in 1:N
         idx = collect(1:N)
         idx[i] = -1
         perm = sortperm(idx)
+        # permutedims!(dest, src, perm)
 
-        tmp = reshape(permutedims(Av[1],perm), size(Av[1],i), length(Av[1])÷size(Av[1],i))
-        G = tmp*tmp'
+        tmp = reshape(tmp, size(Av[1])[perm]...)
+        permutedims!(tmp, Av[1], perm)
+        # tmp = reshape(permutedims(Av[1],perm), size(Av[1],i), length(Av[1])÷size(Av[1],i))
+        
+        tmp2 = reshape(tmp, size(Av[1],i), length(Av[1])÷size(Av[1],i))
+        G = tmp2*tmp2'
         for r in 2:R
-            tmp .= reshape(permutedims(Av[r],perm), size(Av[r],i), length(Av[r])÷size(Av[r],i))
-            G .+= tmp*tmp'
+            permutedims!(tmp, Av[r],perm)
+            tmp2 .= reshape(tmp, size(Av[r],i), length(Av[r])÷size(Av[r],i))
+            G .+= tmp2*tmp2'
         end
         F = eigen(G) 
         F.values .= abs.(F.values)
@@ -642,7 +649,7 @@ end
 TBW
 """
 function transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}; trans=false) where {T<:Number,N}
-    #error("here")
+    # error("here")
     vv = deepcopy(v)
     dims = [size(vv)...]
             
@@ -756,7 +763,8 @@ function add_transformed_tensor(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}, 
     end
 
     # println(size(out), size(scr_j))
-    out .+= reshape(scr_j, dims...)
+    @turbo out .+= reshape(scr_j, dims...)
+    # out .+= reshape(scr_j, dims...)
     # return reshape(scr_i, dims...)
     # return Array{T,N}(reshape(scr_j, dims...))
 end
