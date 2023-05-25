@@ -120,6 +120,8 @@ end
                                            tol_tucker  = 1e-4,
                                            solver      = "davidson")
 
+
+        println("e_var")
         display(e_var)
         # e_ref = [-14.050153133150385
         #          -14.021579538798385
@@ -127,6 +129,8 @@ end
         e_ref = [ -14.050154165401898
                   -14.021577201080214
                   -14.005974057426226]
+        println("e_ref")
+        display(e_ref)
         @test all(isapprox(e_ref, e_var, atol=1e-8)) 
     end
     

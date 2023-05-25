@@ -4,7 +4,7 @@ using BlockDavidson
 #using TensorDecompositions
 #using TimerOutputs
 
-
+using StatProfilerHTML
 
 
 
@@ -716,7 +716,6 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops,
         nbody=4, 
         compress_twice=true, 
         prescreen=false) where {T,N,R}
-#={{{=#
     #
     # Initialize data for our output sigma, which we will convert to a
     sig_cts = BSTstate(ket_cts.clusters, OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N,R}} }(),  ket_cts.p_spaces, ket_cts.q_spaces)
@@ -924,17 +923,46 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops,
 
     @printf(" %-50s%10.6f seconds %10.2e Gb GC: %7.1e sec\n", "Time building compressed vector: ", stats.time, stats.bytes/1e9, stats.gctime)
 
+    # return sig_cts, data, compress_twice, thresh, N
+    _add_results!(sig_cts, data, compress_twice, thresh, N)
+    # @profilehtml _add_results!(sig_cts, data, compress_twice, thresh, N)
+
+    return sig_cts
+end
+   
+function _add_results!(sig_cts, data, compress_twice, thresh, N)
+    scr = Vector{Vector{Float64}}([Vector{Float64}([]) for i in 1:N]);
+
     flush(stdout)
     stats = @timed for (fock,tconfigs) in data
         for (tconfig, tuck) in tconfigs
             if haskey(sig_cts, fock)
                 if compress_twice
-                    sig_cts[fock][tconfig] = compress(nonorth_add(tuck), thresh=thresh)
+                    sig_cts[fock][tconfig] = compress(nonorth_add(tuck, scr), thresh=thresh)
+
+                    # sig_cts[fock][tconfig] = compress(nonorth_add(tuck), thresh=thresh)
+                    # println("start")
+                    # @time sig_cts[fock][tconfig] = compress(nonorth_add(tuck, scr), thresh=thresh)
+                    # flush(stdout)
+                    # println(length(sig_cts[fock][tconfig]))
+                    # println(fock)
+                    # println(tconfig)
+                    # flush(stdout)
+                    # println("finish")
+                    # dim1 = length(sig_cts[fock][tconfig])
+                    # sig_cts[fock][tconfig] = compress(sig_cts[fock][tconfig], thresh=thresh)
+                    # dim2 = length(sig_cts[fock][tconfig])
                 else
-                    sig_cts[fock][tconfig] = nonorth_add(tuck)
+                    sig_cts[fock][tconfig] = nonorth_add(tuck, scr)
                 end
             else
-                sig_cts[fock] = OrderedDict(tconfig => nonorth_add(tuck))
+                # if compress_twice
+                    sig_cts[fock] = OrderedDict(tconfig => nonorth_add(tuck, scr))
+                    # sig_cts[fock] = OrderedDict(tconfig => compress(nonorth_add(tuck, scr)))
+                # end
+                # dim1 = length(sig_cts[fock][tconfig])
+                # sig_cts[fock][tconfig] = compress(sig_cts[fock][tconfig], thresh=thresh)
+                # dim2 = length(sig_cts[fock][tconfig])
             end
         end
     end
@@ -944,9 +972,9 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops,
 
 
     return sig_cts
-#=}}}=#
+
 end
-    
+
     
 function do_fois_ci(ref::BSTstate, cluster_ops, clustered_ham;
             H0          = "Hcmf",

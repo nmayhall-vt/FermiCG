@@ -1,4 +1,5 @@
-# using BenchmarkTools
+using BenchmarkTools
+using InteractiveUtils
 
 """
 Simple Tucker (HOSVD) type
@@ -127,6 +128,7 @@ function nonorth_add(tucks::Vector{Tucker{T,N,R}}; thresh=1e-10, max_number=noth
         push!(new_factors, Ui)
     end
 
+    # println("new_factors1: ", size.(new_factors))
 
     #new_core = zeros([size(new_factors[i],2) for i in 1:N]...)
     new_core = ntuple(i->zeros([size(new_factors[i],2) for i in 1:N]...), R)
@@ -200,6 +202,7 @@ function nonorth_add(tucks::Vector{Tucker{T,N,R}}, scr::Vector{Vector{T}}; thres
         push!(new_factors, Ui)
     end
 
+    # println("new_factors2: ", size.(new_factors))
 
     #new_core = zeros([size(new_factors[i],2) for i in 1:N]...)
     new_core = ntuple(i->zeros([size(new_factors[i],2) for i in 1:N]...), R)
@@ -210,12 +213,14 @@ function nonorth_add(tucks::Vector{Tucker{T,N,R}}, scr::Vector{Vector{T}}; thres
             push!(transforms, new_factors[i]'*tuck.factors[i])
         end
 
+
         #tmp = recompose(Tucker{T,N,R}(tuck.core, Tuple(transforms)))
-        #for r in 1:R
-        #    new_core[r] .+= tmp[r]
-        #end
+        for r in 1:R
+           add_transformed_tensor(tuck.core[r], Tuple(transforms), new_core[r], scr, trans=true)
+        #    println("nick: ", norm(new_core[r]))
+        end
         #new_core .= new_core .+ recompose(Tucker{T,N,R}(tuck.core, Tuple(transforms)))
-        add!(new_core, recompose(Tucker{T,N,R}(tuck.core, Tuple(transforms)), scr))
+        # add!(new_core, recompose(Tucker{T,N,R}(tuck.core, Tuple(transforms)), scr))
     end
     return Tucker{T,N,R}(new_core, Tuple(new_factors))
 
@@ -641,12 +646,16 @@ function transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}; trans=f
     vv = deepcopy(v)
     dims = [size(vv)...]
             
+    # println("In old: ", norm(v))
+    # flush(stdout)
     vv = reshape(vv,dims[1],prod(dims[2:end]))
     
     for i in 1:N
 
         if trans
             vv = vv' * transforms[i]'
+            # @printf("old: %2i %12.8f %12.8f %12.8f\n", i, norm(vv), norm(vv), norm(transforms[i]))
+            # flush(stdout)
             dims[1] = size(transforms[i])[1]
         else
             vv = vv' * transforms[i]
@@ -657,17 +666,25 @@ function transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}; trans=f
         vv = reshape(vv,dims[1],prod(dims[2:end]))
     end
 
+    # @printf("old: %12.8f \n", norm(vv))
+    # flush(stdout)
     return reshape(vv,dims...)
 end
 
 """
-    transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}, scr::Vector{Vector{T}}; trans=false) where {T<:Number,N}
+    add_transformed_tensor(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}, out::Array{T,N}, scr::Vector{Vector{T}}; trans=false) where {T<:Number,N}
 
 Transform a tensor (`v`) by a sequence of matrices (`transforms`). 
 This version takes in a set of scratch arrays (`scr`), one for each index in the tensor
-"""
-function transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}, scr::Vector{Vector{T}}; trans=false) where {T<:Number,N}
 
+out(IJK) += v(ijk) U(Ii) U(Jj) U(Kk) 
+"""
+function add_transformed_tensor(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}, out::Array{T,N}, scr::Vector{Vector{T}}; trans=false) where {T<:Number,N}
+
+    # println("In new: ", norm(v))
+    # flush(stdout)
+    # println(size.(transforms))
+    # println(size(v))
     length(scr) == ndims(v) || throw(DimensionMismatch)
 
     dims = [size(v)...]
@@ -676,52 +693,124 @@ function transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}, scr::Ve
     # scr_j = reshape(v, dims[1], prod(dims[2:end]))
     scr_j = @view v[1:end]
     scr_j = reshape(scr_j, dims[1], prod(dims[2:end]))
-    # scr_j = reshape(v, dims[1], prod(dims[2:end]))
-    # scr_j = reshape2(v, (dims[1], prod(dims[2:end])))
+
+
+    # collect all the scalar values and multiply at once
+    scale = 1.0
+    do_scale = false
+    for i in 1:N
+        if length(transforms[i]) == 1
+            scale = scale * transforms[i][1]
+            do_scale = true
+        end
+    end
+    if do_scale
+        BLAS.scal!(scale, scr_j)
+    end
+    
     for i in 1:N
         # scr_i = @view scr[i][1:end]
         # scr_i = scr[i]
+        
+        # don't do matrix multiplies if 0 dimensional
+        if length(transforms[i]) == 1
+            # println("did 1d")
+
+            # BLAS.scal!(transforms[i][1], scr_j)
+            dims = circshift(dims, -1)
+            scr_j = reshape(scr_j, dims[1], prod(dims[2:end]))
+            continue
+        end
+
         if trans
             dims[1] = size(transforms[i], 1)
-            
+
             resize!(scr[i], prod(dims))
             scr_i = @view scr[i][1:end]
             scr_i = reshape(scr_i, prod(dims[2:end]), dims[1])
-            # scr_i = reshape2(scr_i, (prod(dims[2:end]), dims[1]))
             
+            
+            # scr_i .= scr_j' * transforms[i]'
+
             # scr_i .= scr_j' * transforms[i]'
             BLAS.gemm!('T', 'T', 1.0, scr_j, transforms[i], 0.0, scr_i)
             # mul!(scr_i, scr_j', transforms[i]')
         else
             dims[1] = size(transforms[i], 2)
             
+            
+            #println(" Dims:  ", dims)
+
             #println(" Dims:  ", dims)
             resize!(scr[i], prod(dims))
             scr_i = @view scr[i][1:end]
             scr_i = reshape(scr_i, prod(dims[2:end]), dims[1])
-            # scr_i = reshape2(scr_i, (prod(dims[2:end]), dims[1]))
-            # @btime reshape($scr_i, prod($dims[2:end]), $dims[1])
-           
-            #println(size(scr_i), size(scr_j), size(transforms[i]))
-           
+            # println(size(scr_j), " ", size(transforms[i]), " ", size(scr_i))
             BLAS.gemm!('T', 'N', 1.0, scr_j, transforms[i], 0.0, scr_i)
-            # mul!(scr_i, scr_j', transforms[i])
-            # scr_i .= scr_j' * transforms[i]
-            # @btime $scr_i .= $scr_j' * $transforms[$i]
-
         end
-        
+
         scr_j = scr_i
-        
+
         dims = circshift(dims, -1)
         scr_j = reshape(scr_j, dims[1], prod(dims[2:end]))
-        # scr_j = reshape2(scr_j, (dims[1], prod(dims[2:end])))
     end
 
-
-    return reshape(scr_i, dims...)
-    # return reshape2(scr_i, Tuple(dims))
+    # println(size(out), size(scr_j))
+    out .+= reshape(scr_j, dims...)
+    # return reshape(scr_i, dims...)
+    # return Array{T,N}(reshape(scr_j, dims...))
 end
+
+# """
+#     transform_basis!(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}, scr::Vector{Vector{T}}; trans=false) where {T<:Number,N}
+
+# Transform a tensor (`v`) by a sequence of matrices (`transforms`). 
+# This version takes in a set of scratch arrays (`scr`), one for each index in the tensor
+# """
+# function transform_basis(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}, scr_v::Vector{T}, scr_i::Vector{T}; trans=false) where {T<:Number,N}
+
+#     length(transforms) == ndims(v) || throw(DimensionMismatch)
+
+#     # error("here")
+#     dims = [size(v)...]
+
+#     vscr_i = @view scr_i[1:end]
+#     vscr_v = @view v[1:end]
+#     vscr_v = reshape(vscr_v, dims[1], prod(dims[2:end]))
+#     for i in 1:N
+#         if trans
+#             dims[1] = size(transforms[i], 1)
+
+#             resize!(scr_i, prod(dims))
+#             vscr_i = @view scr_i[1:end]
+#             vscr_i = reshape(vscr_i, prod(dims[2:end]), dims[1])
+
+#             BLAS.gemm!('T', 'T', 1.0, vscr_v, transforms[i], 0.0, vscr_i)
+#         else
+#             dims[1] = size(transforms[i], 2)
+
+#             resize!(scr_i, prod(dims))
+#             vscr_i = @view scr_i[1:end]
+#             vscr_i = reshape(vscr_i, prod(dims[2:end]), dims[1])
+#             BLAS.gemm!('T', 'N', 1.0, vscr_v, transforms[i], 0.0, vscr_i)
+#         end
+
+#         # println("a: ", norm(vscr_i))
+#         dims = circshift(dims, -1)
+
+#         resize!(scr_v, length(scr_i))
+#         vscr_v = @view scr_v[1:end]
+#         vscr_v = reshape(vscr_v, size(vscr_i)...)
+#         vscr_v .= vscr_i
+
+#         # vscr_v = deepcopy(vscr_i)
+#         vscr_v = reshape(vscr_v, dims[1], prod(dims[2:end]))
+#     end
+#     return Array{T,N}(reshape(vscr_v, dims...))
+#     # return reshape(vscr_v, dims...)
+#     # return vscr_v
+# end
+
 
 
 function transform_basis_ncon(v::Array{T,N}, transforms::NTuple{N,Matrix{T}}; trans=false) where {T<:Number,N}
@@ -743,20 +832,23 @@ end
 function transform_basis(v::NTuple{R,Array{T,N}}, transforms; trans=false) where {T<:Number,N,R}
     R > 0 || error(DimensionMismatch)
     return ntuple(i->transform_basis(v[i],transforms,trans=trans), R)
-    # return ntuple(i->transform_basis_ncon(v[i],transforms,trans=trans), R)
 end
 
 function transform_basis(v::NTuple{R,Array{T,N}}, transforms, scr; trans=false) where {T<:Number,N,R}
     R > 0 || error(DimensionMismatch)
-    # scr2 = Vector{Vector{Float64}}([ Vector{Float64}([]) for i in transforms]);
     return ntuple(i->transform_basis(v[i], transforms, scr, trans=trans), R)
-    # return ntuple(i->transform_basis_ncon(v[i],transforms,trans=trans), R)
+end
+
+function transform_basis(v::NTuple{R,Array{T,N}}, transforms, scr1, scr2; trans=false) where {T<:Number,N,R}
+    R > 0 || error(DimensionMismatch)
+    return ntuple(i->transform_basis(v[i], transforms, scr1, scr2, trans=trans), R)
 end
 
 
 
 transform_basis(v::Array{T,N}, transforms::Vector{Matrix{T}}; trans=false) where {T,N} = transform_basis(v, NTuple{N, Matrix{T}}(transforms), trans=trans)
 transform_basis(v::Array{T,N}, transforms::Vector{Matrix{T}}, scr::Vector{Vector{T}}; trans=false) where {T,N} = transform_basis(v, NTuple{N, Matrix{T}}(transforms), scr, trans=trans)
+transform_basis(v::Array{T,N}, transforms::Vector{Matrix{T}}, s_v::Vector{T}, s_i::Vector{T}; trans=false) where {T,N} = transform_basis(v, NTuple{N, Matrix{T}}(transforms), s_v::Vector{T}, s_i::Vector{T}, trans=trans)
 #transform_basis(v::Vector{Array{T,N}}, transforms::Vector{Matrix{T}}; trans=false) where {T,N} = transform_basis(NTuple{length(v), Array{T}}(v), NTuple{N, Matrix{T}}(transforms), trans=trans)
 
 
