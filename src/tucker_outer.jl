@@ -681,6 +681,17 @@ function define_foi_space(cts::T, clustered_ham; nbody=2) where T<:Union{BSstate
 end
 
 
+"""
+    build_compressed_1st_order_state(ψ::BSTstate{T,N,R}, cluster_ops, clustered_ham; 
+    thresh=1e-7, 
+    max_number=nothing, 
+    nbody=4, 
+    prescreen=false,
+    compress_twice=true
+    )  where {T,N,R}
+
+TBW
+"""
 function build_compressed_1st_order_state(ψ::BSTstate{T,N,R}, cluster_ops, clustered_ham; 
     thresh=1e-7, 
     max_number=nothing, 
