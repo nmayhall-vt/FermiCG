@@ -542,6 +542,12 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
             dim2 = length(var_vec)
             @printf(" %-50s", "Variational space increased from: ")
             @printf("%10i → %-10i (thresh_spin = %8.1e)\n", dim1, dim2, thresh_spin)
+
+
+	    #
+	    # Project last reference state into new basis for good initial guess
+	    @timeit to "project" var_vec = project_into_new_basis(var_vec_old, var_vec)
+	    orthonormalize!(var_vec)
         end
 
 
