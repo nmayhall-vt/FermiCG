@@ -681,7 +681,7 @@ function define_foi_space(cts::T, clustered_ham; nbody=2) where T<:Union{BSstate
 end
 
 
-function build_compressed_1st_order_state2(ψ::BSTstate{T,N,R}, cluster_ops, clustered_ham; 
+function build_compressed_1st_order_state(ψ::BSTstate{T,N,R}, cluster_ops, clustered_ham; 
     thresh=1e-7, 
     max_number=nothing, 
     nbody=4, 
@@ -734,7 +734,8 @@ function build_compressed_1st_order_state2(ψ::BSTstate{T,N,R}, cluster_ops, clu
     for (fock_σ, job) in jobs
         push!(jobs_vec, (fock_σ, job))
     end
-    println(length(jobs_vec))
+    @printf(" %-50s%10i\n", "Number of tasks: ", length(jobs_vec))
+
     
     scr_v = Vector{Vector{Vector{T}} }()
     jobs_out = Vector{BSTstate{T,N,R}}()
@@ -769,6 +770,15 @@ function build_compressed_1st_order_state2(ψ::BSTstate{T,N,R}, cluster_ops, clu
 
     # Reset BLAS num_threads
     BLAS.set_num_threads(blas_num_threads)
+
+    @printf(" Compressing final σ vector:\n")
+    for i in 1:10
+        dim1 = length(σ)
+        σ = compress(σ, thresh=thresh)
+        dim2 = length(σ)
+        @printf(" Iter: %4i %12i → %12i\n",i, dim1, dim2)
+        dim2 < dim1 || break
+    end
     return σ
 
 end
@@ -864,20 +874,11 @@ function _build_compressed_1st_order_state_job(fock_σ, jobs, σ::BSTstate{T,N,R
                     length(tuck_σ) > 0 || continue
 
                     #add to current sigma vector
-                    if haskey(σ[fock_σ], tconfig_σ)
-
-                        if haskey(data, tconfig_σ)
-                            push!(data[tconfig_σ], tuck_σ)
-                        else
-                            data[tconfig_σ] = [σ[fock_σ][tconfig_σ], tuck_σ]
-                        end
-
-                        #compress result
-                        #σ[fock_σ][tconfig_σ] = compress(σ[fock_σ][tconfig_σ], thresh=thresh)
+                    if haskey(data, tconfig_σ)
+                        push!(data[tconfig_σ], tuck_σ)
                     else
-                        σ[fock_σ][tconfig_σ] = tuck_σ
+                        data[tconfig_σ] = [tuck_σ]
                     end
-
                 end
             end
         end
@@ -901,7 +902,7 @@ end
 
 
 """
-    build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops, clustered_ham; 
+    build_compressed_1st_order_state_old(ket_cts::BSTstate{T,N,R}, cluster_ops, clustered_ham; 
         thresh=1e-7, 
         max_number=nothing, 
         nbody=4, 
@@ -926,7 +927,7 @@ Lots of overhead probably from compression, but never completely uncompresses.
 - `v1::BSTstate`
 
 """
-function build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops, clustered_ham; 
+function build_compressed_1st_order_state_old(ket_cts::BSTstate{T,N,R}, cluster_ops, clustered_ham; 
         thresh=1e-7, 
         max_number=nothing, 
         nbody=4, 
@@ -937,6 +938,8 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops,
     sig_cts = BSTstate(ket_cts.clusters, OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N,R}} }(),  ket_cts.p_spaces, ket_cts.q_spaces)
 
     data = OrderedDict{FockConfig{N}, OrderedDict{TuckerConfig{N}, Vector{Tucker{T,N,R}} } }()
+    blas_num_threads = BLAS.get_num_threads()
+    BLAS.set_num_threads(1)
 
     lk = ReentrantLock()
 
@@ -1129,6 +1132,7 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops,
             end
         end
     end
+    BLAS.set_num_threads(blas_num_threads)
 
     @printf(" %-50s%10.6f seconds %10.2e Gb GC: %7.1e sec\n", "Time building compressed vector: ", stats.time, stats.bytes/1e9, stats.gctime)
 
@@ -1165,10 +1169,11 @@ function _add_results!(sig_cts, data, compress_twice, thresh, N)
                     sig_cts[fock][tconfig] = nonorth_add(tuck, scr)
                 end
             else
-                # if compress_twice
+                if compress_twice
+                    sig_cts[fock] = OrderedDict(tconfig => compress(nonorth_add(tuck, scr)))
+                else
                     sig_cts[fock] = OrderedDict(tconfig => nonorth_add(tuck, scr))
-                    # sig_cts[fock] = OrderedDict(tconfig => compress(nonorth_add(tuck, scr)))
-                # end
+                end
                 # dim1 = length(sig_cts[fock][tconfig])
                 # sig_cts[fock][tconfig] = compress(sig_cts[fock][tconfig], thresh=thresh)
                 # dim2 = length(sig_cts[fock][tconfig])

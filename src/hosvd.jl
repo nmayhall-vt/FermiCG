@@ -1,7 +1,7 @@
 using BenchmarkTools
-using InteractiveUtils
+# using InteractiveUtils
 using LoopVectorization
-using Strided
+# using Strided
 
 """
 Simple Tucker (HOSVD) type

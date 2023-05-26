@@ -282,18 +282,19 @@ function compute_pt1_wavefunction(ψ0::BSTstate{T,N,R}, cluster_ops, clustered_h
     nbody = 4,
     thresh_foi = 1e-7,
     verbose = 1,
-    max_number = nothing) where {T,N,R}
+    max_number = nothing,
+    matvec = 1) where {T,N,R}
 
     #
     # Build target FOIS
-    time = @elapsed alloc = @allocated σ = FermiCG.build_compressed_1st_order_state2(ψ0, cluster_ops, clustered_ham, nbody=4, thresh=thresh_foi, max_number=max_number)
+    matvec_function = build_compressed_1st_order_state
+    if matvec == 2
+        matvec_function = build_compressed_1st_order_state_old
+    end
+
+    time = @elapsed alloc = @allocated σ = matvec_function(ψ0, cluster_ops, clustered_ham, nbody=4, thresh=thresh_foi, max_number=max_number)
     verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute Compressed FOIS: ", time, alloc/1e9)
 
-    # dim1 = length(σ)
-    # σ = compress(σ, thresh=thresh_foi)
-    # dim2 = length(σ)
-    # @printf("%10i → %-10i (thresh = %8.1e)\n", dim1, dim2, thresh_foi)
-    
     return compute_pt1_wavefunction(σ, ψ0, cluster_ops, clustered_ham, H0=H0, nbody=nbody, verbose=verbose)
 end
 
