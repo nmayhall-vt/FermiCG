@@ -787,7 +787,7 @@ function build_compressed_1st_order_state(ψ::BSTstate{T,N,R}, cluster_ops, clus
         dim1 = length(σ)
         σ = compress(σ, thresh=thresh)
         dim2 = length(σ)
-        @printf(" Iter: %4i %12i → %12i\n",i, dim1, dim2)
+        @printf("   Iter: %4i %12i → %12i\n",i, dim1, dim2)
         dim2 < dim1 || break
     end
     return σ

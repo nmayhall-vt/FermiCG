@@ -474,8 +474,8 @@ function tucker_decompose(Av::NTuple{R,Array{T,N}}; thresh=1e-7, max_number=noth
         G = tmp2*tmp2'
         for r in 2:R
             permutedims!(tmp, Av[r],perm)
-            tmp2 .= reshape(tmp, size(Av[r],i), length(Av[r])÷size(Av[r],i))
-            G .+= tmp2*tmp2'
+            @turbo tmp2 .= reshape(tmp, size(Av[r],i), length(Av[r])÷size(Av[r],i))
+            @turbo G .+= tmp2*tmp2'
         end
         F = eigen(G) 
         F.values .= abs.(F.values)
