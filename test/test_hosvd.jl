@@ -93,6 +93,39 @@ using LinearAlgebra
     #A2 = FermiCG.tucker_recompose(A, trans2)
     #display((length(A2), size(A2)))
     
+  
+
+    scr = Vector{Vector{Float64}}([Vector{Float64}([]) for i in 1:ndims(A)])
+    # A3 = FermiCG.transform_basis(A, trans2, scr)
+    # display((length(A3), size(A3)))
+
+    # @test norm(A3-A2) < 1e-16
     
+   
+    # # Now test transpose
+    # trans2 = [Matrix(t') for t in trans2]
+    # println("old")
+    # @timev A2 = FermiCG.transform_basis(A, trans2, trans=true)
+    # println("new")
+    # @timev A3 = FermiCG.transform_basis(A, trans2, scr, trans=true)
+    # # println("newnew")
+    # # @timev A4 = FermiCG.transform_basis(A, trans2, scr[1], scr[2], trans=true)
+    
+    # println(norm(A2-A3))
+    # # println(norm(A2-A4))
+    # @test norm(A3-A2) < 1e-16
+    # # @test norm(A4-A2) < 1e-16
+
+    tuckA = FermiCG.Tucker(rand(2,3,4,5,6,8))
+    tuckB = FermiCG.Tucker(rand(2,3,4,5,6,8))
+    tuckA = FermiCG.compress(tuckA)
+    tuckB = FermiCG.compress(tuckB)
+    @timev tuckC = FermiCG.nonorth_add([tuckA, tuckB, tuckB, tuckA])
+    
+    scr = Vector{Vector{Float64}}([Vector{Float64}([]) for i in 1:ndims(tuckA)])
+    @timev tuckD = FermiCG.nonorth_add([tuckA, tuckB, tuckB, tuckA], scr)
+    println(norm(tuckC))
+    println(norm(tuckD))
+    @test abs(norm(tuckC) - norm(tuckD)) < 1e-12
 end
 

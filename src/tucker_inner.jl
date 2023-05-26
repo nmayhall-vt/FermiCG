@@ -162,9 +162,12 @@ end
 """
     build_sigma_parallel!(sigma_vector::BSTstate, ci_vector::BSTstate, cluster_ops, clustered_ham)
 """
-function build_sigma!(sigma_vector::BSTstate{T,N,R}, ci_vector::BSTstate{T,N,R}, cluster_ops, clustered_ham; nbody=4, cache=false) where {T,N,R}
+function build_sigma!(sigma_vector::BSTstate{T,N,R}, ci_vector::BSTstate{T,N,R}, cluster_ops, clustered_ham; nbody=4, cache=false, verbose=1) where {T,N,R}
     #={{{=#
 
+    verbose < 2 || @printf(" in build_sigma!")
+    verbose < 2 || println(" length of sigma vector: ", length(sigma_vector))
+    flush(stdout)
     jobs = []
     output = [[] for i in 1:Threads.nthreads()]
     for (fock_bra, configs_bra) in sigma_vector

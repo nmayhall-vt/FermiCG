@@ -99,28 +99,29 @@ function compute_pt1_wavefunction(σ_in::BSTstate{T,N,R}, ψ0::BSTstate{T,N,R}, 
     # Get Overlap <X|A>C(A)
     verbose < 2 || @printf(" get_overlap... \n")
     flush(stdout)
-    Sx = deepcopy(σ)
-    zero!(Sx)
-    for (fock, tconfigs) in Sx
-        if haskey(ψ0, fock)
-            for (tconfig, tuck) in tconfigs
-                if haskey(ψ0[fock], tconfig)
-                    ref_tuck = ψ0[fock][tconfig]
-                    # Cr(i,j,k...) Ur(Ii) Ur(Jj) ...
-                    # Ux(Ii') Ux(Jj') ...
-                    #
-                    # Cr(i,j,k...) S(ii') S(jj')...
-                    overlaps = Vector{Matrix{T}}()
-                    for i in 1:N
-                        push!(overlaps, ref_tuck.factors[i]' * tuck.factors[i])
-                    end
-                    for r in 1:R
-                        Sx[fock][tconfig].core[r] .= transform_basis(ref_tuck.core[r], overlaps)
-                    end
-                end
-            end
-        end
-    end
+    Sx = FermiCG.project_into_new_basis(ψ0, σ)
+    # Sx = deepcopy(σ)
+    # zero!(Sx)
+    # for (fock, tconfigs) in Sx
+    #     if haskey(ψ0, fock)
+    #         for (tconfig, tuck) in tconfigs
+    #             if haskey(ψ0[fock], tconfig)
+    #                 ref_tuck = ψ0[fock][tconfig]
+    #                 # Cr(i,j,k...) Ur(Ii) Ur(Jj) ...
+    #                 # Ux(Ii') Ux(Jj') ...
+    #                 #
+    #                 # Cr(i,j,k...) S(ii') S(jj')...
+    #                 overlaps = Vector{Matrix{T}}()
+    #                 for i in 1:N
+    #                     push!(overlaps, ref_tuck.factors[i]' * tuck.factors[i])
+    #                 end
+    #                 for r in 1:R
+    #                     Sx[fock][tconfig].core[r] .= transform_basis(ref_tuck.core[r], overlaps)
+    #                 end
+    #             end
+    #         end
+    #     end
+    # end
     verbose < 2 || @printf(" done.\n")
     flush(stdout)
 
@@ -129,12 +130,16 @@ function compute_pt1_wavefunction(σ_in::BSTstate{T,N,R}, ψ0::BSTstate{T,N,R}, 
     # We need the numerator: <X|V|0> = <X|H|0> - <X|F|0> - (E0 - F0)<X|0>
     # 
     # Build exact Hamiltonian within FOIS defined by `sig`: <X|H|0>
+    verbose < 2 || @printf("   Norm of σ before: \n")
+    verbose < 2 || println(orth_dot(σ,σ))
     verbose < 2 || @printf(" build_sigma!... \n")
     flush(stdout)
     verbose < 1 || @printf(" %-50s%10i\n", "Length of input      FOIS: ", length(σ))
-    time = @elapsed alloc = @allocated build_sigma!(σ, ψ0, cluster_ops, clustered_ham)
+    time = @elapsed alloc = @allocated build_sigma!(σ, ψ0, cluster_ops, clustered_ham, verbose=verbose)
     verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute <X|H|0>: ", time, alloc/1e9)
     verbose < 2 || @printf(" done.\n")
+    verbose < 2 || @printf("   Norm of σ after: \n")
+    verbose < 2 || println(orth_dot(σ,σ))
     flush(stdout)
 
     # subtract <X|F|0>
@@ -277,11 +282,17 @@ function compute_pt1_wavefunction(ψ0::BSTstate{T,N,R}, cluster_ops, clustered_h
     nbody = 4,
     thresh_foi = 1e-7,
     verbose = 1,
-    max_number = nothing) where {T,N,R}
+    max_number = nothing,
+    matvec = 1) where {T,N,R}
 
     #
     # Build target FOIS
-    time = @elapsed alloc = @allocated σ = FermiCG.build_compressed_1st_order_state(ψ0, cluster_ops, clustered_ham, nbody=4, thresh=thresh_foi, max_number=max_number)
+    matvec_function = build_compressed_1st_order_state
+    if matvec == 2
+        matvec_function = build_compressed_1st_order_state_old
+    end
+
+    time = @elapsed alloc = @allocated σ = matvec_function(ψ0, cluster_ops, clustered_ham, nbody=4, thresh=thresh_foi, max_number=max_number)
     verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute Compressed FOIS: ", time, alloc/1e9)
 
     return compute_pt1_wavefunction(σ, ψ0, cluster_ops, clustered_ham, H0=H0, nbody=nbody, verbose=verbose)
@@ -373,7 +384,7 @@ function hylleraas_compressed_mp2(sig_in::BSTstate{T,N,R}, ref::BSTstate{T,N,R},
     #project_out!(sig, ref)
     zero!(sig)
 
-    time = @elapsed alloc = @allocated build_sigma!(sig, ref, cluster_ops, clustered_ham)
+    time = @elapsed alloc = @allocated build_sigma!(sig, ref, cluster_ops, clustered_ham, verbose=verbose)
     verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute <X|V|0>: ", time, alloc/1e9)
 
 
