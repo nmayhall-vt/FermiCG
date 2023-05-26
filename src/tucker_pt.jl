@@ -72,7 +72,6 @@ The local Tucker factors are first canonicalized to avoid having to solve the Hy
 """
 function compute_pt1_wavefunction(σ_in::BSTstate{T,N,R}, ψ0::BSTstate{T,N,R}, cluster_ops, clustered_ham, clustered_ham_0, E0, F0;
     H0="Hcmf",
-    nbody=4,
     verbose=1) where {T,N,R}
     
     #
@@ -100,28 +99,7 @@ function compute_pt1_wavefunction(σ_in::BSTstate{T,N,R}, ψ0::BSTstate{T,N,R}, 
     verbose < 2 || @printf(" get_overlap... \n")
     flush(stdout)
     Sx = FermiCG.project_into_new_basis(ψ0, σ)
-    # Sx = deepcopy(σ)
-    # zero!(Sx)
-    # for (fock, tconfigs) in Sx
-    #     if haskey(ψ0, fock)
-    #         for (tconfig, tuck) in tconfigs
-    #             if haskey(ψ0[fock], tconfig)
-    #                 ref_tuck = ψ0[fock][tconfig]
-    #                 # Cr(i,j,k...) Ur(Ii) Ur(Jj) ...
-    #                 # Ux(Ii') Ux(Jj') ...
-    #                 #
-    #                 # Cr(i,j,k...) S(ii') S(jj')...
-    #                 overlaps = Vector{Matrix{T}}()
-    #                 for i in 1:N
-    #                     push!(overlaps, ref_tuck.factors[i]' * tuck.factors[i])
-    #                 end
-    #                 for r in 1:R
-    #                     Sx[fock][tconfig].core[r] .= transform_basis(ref_tuck.core[r], overlaps)
-    #                 end
-    #             end
-    #         end
-    #     end
-    # end
+
     verbose < 2 || @printf(" done.\n")
     flush(stdout)
 
@@ -194,7 +172,6 @@ TBW
 """
 function compute_pt1_wavefunction(σ_in::BSTstate{T,N,R}, ψ0::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     H0="Hcmf",
-    nbody=4,
     verbose=1) where {T,N,R}
 
     verbose < 1 || println()
@@ -295,7 +272,7 @@ function compute_pt1_wavefunction(ψ0::BSTstate{T,N,R}, cluster_ops, clustered_h
     time = @elapsed alloc = @allocated σ = matvec_function(ψ0, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi, max_number=max_number)
     verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute Compressed FOIS: ", time, alloc/1e9)
 
-    return compute_pt1_wavefunction(σ, ψ0, cluster_ops, clustered_ham, H0=H0, nbody=nbody, verbose=verbose)
+    return compute_pt1_wavefunction(σ, ψ0, cluster_ops, clustered_ham, H0=H0, verbose=verbose)
 end
 
 
