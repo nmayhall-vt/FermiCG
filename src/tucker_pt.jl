@@ -286,7 +286,7 @@ function compute_pt1_wavefunction(ψ0::BSTstate{T,N,R}, cluster_ops, clustered_h
 
     #
     # Build target FOIS
-    time = @elapsed alloc = @allocated σ = FermiCG.build_compressed_1st_order_state(ψ0, cluster_ops, clustered_ham, nbody=4, thresh=thresh_foi, max_number=max_number)
+    time = @elapsed alloc = @allocated σ = FermiCG.build_compressed_1st_order_state2(ψ0, cluster_ops, clustered_ham, nbody=4, thresh=thresh_foi, max_number=max_number)
     verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute Compressed FOIS: ", time, alloc/1e9)
 
     # dim1 = length(σ)

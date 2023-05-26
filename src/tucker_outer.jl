@@ -681,6 +681,222 @@ function define_foi_space(cts::T, clustered_ham; nbody=2) where T<:Union{BSstate
 end
 
 
+function build_compressed_1st_order_state2(ψ::BSTstate{T,N,R}, cluster_ops, clustered_ham; 
+    thresh=1e-7, 
+    max_number=nothing, 
+    nbody=4, 
+    prescreen=false,
+    compress_twice=true
+    )  where {T,N,R}
+
+    println(" In build_compressed_1st_order_state2")
+    σ = BSTstate(ψ.clusters, ψ.p_spaces, ψ.q_spaces, T=T, R=R)
+    clusters = ψ.clusters
+    jobs = Dict{FockConfig{N},Vector{Tuple}}()
+
+
+    # 
+    # define batches (FockConfigs present in resolvant)
+    @printf(" %-50s", "Setup threaded jobs: ")
+    @time for (fock_ψ, configs_ψ) in ψ.data
+        for (ftrans, terms) in clustered_ham
+            fock_σ = ftrans + fock_ψ
+
+            #
+            # check to make sure this fock config doesn't have negative or too many electrons in any cluster
+            all(f[1] >= 0 for f in fock_σ) || continue 
+            all(f[2] >= 0 for f in fock_σ) || continue 
+            all(f[1] <= length(clusters[fi]) for (fi,f) in enumerate(fock_σ)) || continue 
+            all(f[2] <= length(clusters[fi]) for (fi,f) in enumerate(fock_σ)) || continue 
+          
+            # 
+            # Check to make sure we don't create states that we have already discarded
+            found = true
+            for c in ψ.clusters
+                if haskey(cluster_ops[c.idx]["H"], (fock_σ[c.idx], fock_σ[c.idx])) == false
+                    found = false
+                    continue
+                end
+            end
+            found == true || continue
+
+            job_input = (terms, fock_ψ, configs_ψ)
+            if haskey(jobs, fock_σ)
+                push!(jobs[fock_σ], job_input)
+            else
+                jobs[fock_σ] = [job_input]
+            end
+            
+        end
+    end
+
+    jobs_vec = []
+    for (fock_σ, job) in jobs
+        push!(jobs_vec, (fock_σ, job))
+    end
+    println(length(jobs_vec))
+    
+    scr_v = Vector{Vector{Vector{T}} }()
+    jobs_out = Vector{BSTstate{T,N,R}}()
+    for tid in 1:Threads.nthreads()
+
+        # Initialize each thread with it's own BSTstate
+        push!(jobs_out, BSTstate(ψ.clusters, ψ.p_spaces, ψ.q_spaces, T=T, R=R))
+        push!(scr_v, Vector{Vector{Float64}}([zeros(T, 1000) for i in 1:N]))
+
+    end
+
+    blas_num_threads = BLAS.get_num_threads()
+    BLAS.set_num_threads(1)
+    
+    @printf(" %-50s", "Compute matrix-vector: ")
+    @time @Threads.threads for (fock_σ, jobs) in jobs_vec
+        tid = Threads.threadid()
+        _build_compressed_1st_order_state_job(fock_σ, jobs, jobs_out[tid],
+                cluster_ops, nbody, thresh, max_number, prescreen, compress_twice,
+                scr_v[tid])
+    end
+    flush(stdout)
+
+    @printf(" %-50s", "Now collect thread results : ")
+    flush(stdout)
+    @time for threadid in 1:Threads.nthreads()
+        for (fock, configs) in jobs_out[threadid].data
+            haskey(σ, fock) == false || error(" why me")
+            σ[fock] = configs
+        end
+    end
+
+    # Reset BLAS num_threads
+    BLAS.set_num_threads(blas_num_threads)
+    return σ
+
+end
+
+function _build_compressed_1st_order_state_job(fock_σ, jobs, σ::BSTstate{T,N,R}, 
+    cluster_ops, nbody, thresh, max_number, prescreen, compress_twice,
+    scr_v) where {T,N,R}
+
+    add_fockconfig!(σ, fock_σ)
+
+    data = OrderedDict{TuckerConfig{N},Vector{Tucker{T,N,R}}}()
+
+    for jobi in jobs
+
+        terms, fock_ψ, tconfigs_ψ = jobi
+
+        for term in terms
+
+            length(term.clusters) <= nbody || continue
+
+            for (tconfig_ψ, tuck_ψ) in tconfigs_ψ
+                #
+                # find the σ TuckerConfigs reached by applying current Hamiltonian term to tconfig_ψ.
+                #
+                # For example:
+                #
+                #   [(p'q), I, I, (r's), I ] * |P,Q,P,Q,P>  --> |X, Q, P, X, P>  where X = {P,Q}
+                #
+                #   This this term, will couple to 4 distinct tucker blocks (assuming each of the active clusters
+                #   have both non-zero P and Q spaces within the current fock sector, "fock_σ".
+                #
+                # We will loop over all these destination TuckerConfig's by creating the cartesian product of their
+                # available spaces, this list of which we will keep in "available".
+                #
+
+                available = [] # list of lists of index ranges, the cartesian product is the set needed
+                #
+                # for current term, expand index ranges for active clusters
+                for ci in term.clusters
+                    tmp = []
+                    if haskey(σ.p_spaces[ci.idx], fock_σ[ci.idx])
+                        push!(tmp, σ.p_spaces[ci.idx][fock_σ[ci.idx]])
+                    end
+                    if haskey(σ.q_spaces[ci.idx], fock_σ[ci.idx])
+                        push!(tmp, σ.q_spaces[ci.idx][fock_σ[ci.idx]])
+                    end
+                    push!(available, tmp)
+                end
+
+
+                #
+                # Now loop over cartesian product of available subspaces (those in X above) and
+                # create the target TuckerConfig and then evaluate the associated terms
+                for prod in Iterators.product(available...)
+                    tconfig_σ = [tconfig_ψ.config...]
+                    for cidx in 1:length(term.clusters)
+                        ci = term.clusters[cidx]
+                        tconfig_σ[ci.idx] = prod[cidx]
+                    end
+                    tconfig_σ = TuckerConfig(tconfig_σ)
+
+                    #
+                    # the `term` has now coupled our ket TuckerConfig, to a sig TuckerConfig
+                    # let's compute the matrix element block, then compress, then add it to any existing compressed
+                    # coefficient tensor for that sig TuckerConfig.
+                    #
+                    # Both the Compression and addition takes a fair amount of work.
+
+
+                    check_term(term, fock_σ, tconfig_σ, fock_ψ, tconfig_ψ) || continue
+
+
+                    if prescreen
+                        bound = calc_bound(term, cluster_ops,
+                            fock_σ, tconfig_σ,
+                            fock_ψ, tconfig_ψ, tuck_ψ,
+                            prescreen=thresh)
+                        bound == true || continue
+                    end
+
+                    tuck_σ = form_sigma_block_expand(term, cluster_ops,
+                        fock_σ, tconfig_σ,
+                        fock_ψ, tconfig_ψ, tuck_ψ,
+                        max_number=max_number,
+                        prescreen=thresh)
+
+                    length(tuck_σ) > 0 || continue
+                    # norm(tuck_σ) > thresh || continue
+
+                    #compress new addition
+                    tuck_σ = compress(tuck_σ, thresh=thresh)
+
+                    length(tuck_σ) > 0 || continue
+
+                    #add to current sigma vector
+                    if haskey(σ[fock_σ], tconfig_σ)
+
+                        if haskey(data, tconfig_σ)
+                            push!(data[tconfig_σ], tuck_σ)
+                        else
+                            data[tconfig_σ] = [σ[fock_σ][tconfig_σ], tuck_σ]
+                        end
+
+                        #compress result
+                        #σ[fock_σ][tconfig_σ] = compress(σ[fock_σ][tconfig_σ], thresh=thresh)
+                    else
+                        σ[fock_σ][tconfig_σ] = tuck_σ
+                    end
+
+                end
+            end
+        end
+    end
+
+    # 
+    # Add results together to get final FOIS for this job
+    for (tconfig, tucks) in data
+        if compress_twice
+            σ[fock_σ][tconfig] = compress(nonorth_add(tucks, scr_v), thresh=thresh)
+        else
+            σ[fock_σ][tconfig] = nonorth_add(tucks, scr_v)
+        end
+    end
+
+end
+    
+
+
 
 
 
@@ -833,13 +1049,6 @@ function build_compressed_1st_order_state(ket_cts::BSTstate{T,N,R}, cluster_ops,
                         #
                         # Both the Compression and addition takes a fair amount of work.
 
-
-#                        if check_term(term, sig_fock, sig_tconfig, ket_fock, ket_tconfig) == false
-#       
-#                            println()
-#                            display(term.delta)
-#                            display(sig_fock - ket_fock)
-#                        end
                         check_term(term, sig_fock, sig_tconfig, ket_fock, ket_tconfig) || continue
 
                         if prescreen
