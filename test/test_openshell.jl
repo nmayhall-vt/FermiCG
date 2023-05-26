@@ -104,35 +104,33 @@ end
     FermiCG.eye!(ci_vector)
     e_ci, v = FermiCG.ci_solve(ci_vector, cluster_ops, clustered_ham)
 
-    
-    if true 
-        e_var, v_var = block_sparse_tucker( v, cluster_ops, clustered_ham,
-                                           max_iter    = 20,
-                                           nbody       = 4,
-                                           H0          = "Hcmf",
-                                           thresh_var  = 1e-1,
-                                           thresh_foi  = 1e-6,
-                                           thresh_pt   = 1e-3,
-                                           ci_conv     = 1e-5,
-                                           ci_max_iter = 100,
-                                           do_pt       = true,
-                                           resolve_ss  = false,
-                                           tol_tucker  = 1e-4,
-                                           solver      = "davidson")
+    e_var, v_var = block_sparse_tucker( v, cluster_ops, clustered_ham,
+                                        max_iter    = 20,
+                                        nbody       = 4,
+                                        H0          = "Hcmf",
+                                        thresh_var  = 1e-1,
+                                        thresh_foi  = 1e-6,
+                                        thresh_pt   = 1e-3,
+                                        ci_conv     = 1e-5,
+                                        ci_max_iter = 100,
+                                        do_pt       = true,
+                                        resolve_ss  = false,
+                                        tol_tucker  = 1e-4,
+                                        solver      = "davidson")
 
 
-        println("e_var")
-        display(e_var)
-        # e_ref = [-14.050153133150385
-        #          -14.021579538798385
-        #          -14.00597811927653]
-        e_ref = [  -14.050153267226221
-        -14.021576972768209
-        -14.005973463848244]
-        println("e_ref")
-        display(e_ref)
-        @test all(isapprox(e_ref, e_var, atol=1e-8)) 
-    end
+    println("e_var")
+    display(e_var)
+    # e_ref = [-14.050153133150385
+    #          -14.021579538798385
+    #          -14.00597811927653]
+    e_ref = [  -14.050153267226221
+    -14.021576972768209
+    -14.005973463848244]
+    println("e_ref")
+    display(e_ref)
+    @test all(isapprox(e_ref, e_var, atol=1e-8)) 
+
     
     ept = FermiCG.compute_pt2_energy(v_var, cluster_ops, clustered_ham, thresh_foi=1e-6, prescreen=false, compress_twice=false)
     e_ref = [  -14.050284150889686
@@ -164,5 +162,36 @@ end
     # v, ept = FermiCG.compute_pt1_wavefunction(v_var, cluster_ops, clustered_ham, thresh=1e-6)
     display("ept")
     display(ept)
+
+
+    # 
+    # Test the thresh_spin keyword
+
+    e_var, v_var = block_sparse_tucker( v, cluster_ops, clustered_ham,
+                                        max_iter    = 20,
+                                        nbody       = 4,
+                                        H0          = "Hcmf",
+                                        thresh_var  = 1e-1,
+                                        thresh_foi  = 1e-7,
+                                        thresh_pt   = 1e-2,
+                                        thresh_spin = 1e-3,
+                                        ci_conv     = 1e-5,
+                                        ci_max_iter = 100,
+                                        do_pt       = true,
+                                        resolve_ss  = false,
+                                        tol_tucker  = 1e-4,
+                                        solver      = "davidson")
+
+
+    println("e_var")
+    display(e_var)
+    e_ref = [  -14.049172570544616
+    -14.02037571454677
+    -14.004582795528894]
+    println("e_ref")
+    display(e_ref)
+    @test all(isapprox(e_ref, e_var, atol=1e-8)) 
+
+
 end
 

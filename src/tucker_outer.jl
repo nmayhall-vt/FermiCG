@@ -700,7 +700,7 @@ function build_compressed_1st_order_state(ψ::BSTstate{T,N,R}, cluster_ops, clus
     compress_twice=true
     )  where {T,N,R}
 
-    println(" In build_compressed_1st_order_state2")
+    println(" In build_compressed_1st_order_state")
     σ = BSTstate(ψ.clusters, ψ.p_spaces, ψ.q_spaces, T=T, R=R)
     clusters = ψ.clusters
     jobs = Dict{FockConfig{N},Vector{Tuple}}()
@@ -783,13 +783,7 @@ function build_compressed_1st_order_state(ψ::BSTstate{T,N,R}, cluster_ops, clus
     BLAS.set_num_threads(blas_num_threads)
 
     @printf(" Compressing final σ vector:\n")
-    for i in 1:10
-        dim1 = length(σ)
-        σ = compress(σ, thresh=thresh)
-        dim2 = length(σ)
-        @printf("   Iter: %4i %12i → %12i\n",i, dim1, dim2)
-        dim2 < dim1 || break
-    end
+    σ = compress_iteratively(σ, thresh)
     return σ
 
 end
@@ -1361,32 +1355,4 @@ function project_out!(v::BSTstate{T,N,Rv}, w::BSTstate{T,N,Rw}; thresh=1e-16) wh
             end
         end
     end
-end
-
-function project_into_new_basis(v1::BSTstate{T,N,R}, v2::BSTstate{T,N,R}) where {T,N,R}
-    #
-    # project state `v1`  into the basis defined by `v2`
-    flush(stdout)
-    out = deepcopy(v2)
-    zero!(out)
-    for (fock, tconfigs) in v2 
-        haskey(v1, fock) || continue
-        for (tconfig, tuck) in tconfigs
-            haskey(v1[fock], tconfig) || continue
-            ref_tuck = v1[fock][tconfig]
-            
-            # Cr(i,j,k...) Ur(Ii) Ur(Jj) ...
-            # Ux(Ii') Ux(Jj') ...
-            #
-            # Cr(i,j,k...) S(ii') S(jj')...
-            overlaps = Vector{Matrix{T}}()
-            for i in 1:N
-                push!(overlaps, ref_tuck.factors[i]' * tuck.factors[i])
-            end
-            for r in 1:R
-                out[fock][tconfig].core[r] .= transform_basis(ref_tuck.core[r], overlaps)
-            end
-        end
-    end
-    return out
 end

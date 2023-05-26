@@ -248,6 +248,21 @@ function compress(ts::BSTstate{T,N,R}; thresh=-1, max_number=nothing, verbose=0)
     return BSTstate(ts.clusters, d, ts.p_spaces, ts.q_spaces)
 end
 
+"""
+    compress_iteratively(v::BSTstate, thresh; maxiter=20, verbose=1)
+
+TBW
+"""
+function compress_iteratively(v::BSTstate, thresh; maxiter=20, verbose=1)
+    for i in 1:maxiter
+        dim1 = length(v)
+        v = compress(v, thresh=thresh)
+        dim2 = length(v)
+        verbose < 1 || @printf("   Iter: %4i %12i → %12i\n",i, dim1, dim2)
+        dim2 < dim1 || break
+    end
+    return v
+end
 
 """
     orth_add!(ts1::BSTstate, ts2::BSTstate)
@@ -926,4 +941,50 @@ function Base.:+(A::BSTstate{T,N,R}, B::BSTstate{T,N,R}) where {T,N,R}
     C = deepcopy(A)
     set_vector!(C, get_vector(A) .+ get_vector(B))
     return C
+end
+
+"""
+    Base.:*(A::BSTstate{T,N,R}, C::AbstractArray) where {T,N,R}
+
+TBW
+"""
+function Base.:*(A::BSTstate{T,N,R}, C::AbstractArray) where {T,N,R}
+    B = deepcopy(A)
+    zero!(B)
+    set_vector!(B, get_vector(A)*C)
+    return B
+end
+
+
+
+"""
+    project_into_new_basis(v1::BSTstate{T,N,R}, v2::BSTstate{T,N,R}) where {T,N,R}
+
+Project state `v1`  into the basis defined by `v2`
+"""
+function project_into_new_basis(v1::BSTstate{T,N,R}, v2::BSTstate{T,N,R}) where {T,N,R}
+    #
+    flush(stdout)
+    out = deepcopy(v2)
+    zero!(out)
+    for (fock, tconfigs) in v2 
+        haskey(v1, fock) || continue
+        for (tconfig, tuck) in tconfigs
+            haskey(v1[fock], tconfig) || continue
+            ref_tuck = v1[fock][tconfig]
+            
+            # Cr(i,j,k...) Ur(Ii) Ur(Jj) ...
+            # Ux(Ii') Ux(Jj') ...
+            #
+            # Cr(i,j,k...) S(ii') S(jj')...
+            overlaps = Vector{Matrix{T}}()
+            for i in 1:N
+                push!(overlaps, ref_tuck.factors[i]' * tuck.factors[i])
+            end
+            for r in 1:R
+                out[fock][tconfig].core[r] .= transform_basis(ref_tuck.core[r], overlaps)
+            end
+        end
+    end
+    return out
 end

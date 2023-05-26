@@ -438,6 +438,11 @@ function orth!(v1::TPSCIstate{T,N,R}) where {T,N,R}
     return 
 end
 
+"""
+    Base.:*(A::TPSCIstate{T,N,R}, C::AbstractArray) where {T,N,R}
+
+TBW
+"""
 function Base.:*(A::TPSCIstate{T,N,R}, C::AbstractArray) where {T,N,R}
     B = deepcopy(A)
     zero!(B)
@@ -445,6 +450,11 @@ function Base.:*(A::TPSCIstate{T,N,R}, C::AbstractArray) where {T,N,R}
     return B
 end
 
+"""
+    mult!(A::TPSCIstate{T,N,R}, C::AbstractArray) where {T,N,R}
+
+TBW
+"""
 function mult!(A::TPSCIstate{T,N,R}, C::AbstractArray) where {T,N,R}
     for (fock, configs) in A.data
         for (config, coeffs) in configs

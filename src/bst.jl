@@ -330,6 +330,7 @@ end
                         thresh_var=1e-4,
                         thresh_foi=1e-6,
                         thresh_pt=1e-5,
+                        thresh_spin=nothing,
                         ci_conv=1e-5,
                         ci_max_iter=50,
                         ci_max_ss_vecs=12,
@@ -351,6 +352,7 @@ end
 - `thresh_var`: Compression threshold for the variational solution
 - `thresh_foi`: Compression threshold for the FOIS
 - `thresh_pt`: Compression threshold for the first-order wavefunction (if used)
+- `thresh_spin`: Compression threshold for adding S2 residual, only does this if thresh is specified
 - `ci_conv`:     Convergence threshold for the CI (norm of residual)
 - `ci_max_iter`:    max iterations for CI problem
 - `ci_max_ss_vecs`: max number of subspace vectors for lanczos/davidson
@@ -372,6 +374,7 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
     thresh_var=1e-4,
     thresh_foi=1e-6,
     thresh_pt=1e-5,
+    thresh_spin=nothing,
     ci_conv=1e-5,
     ci_max_iter=50,
     ci_max_ss_vecs=12,
@@ -388,6 +391,7 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
     e_var = 0.0
     e_pt2 = 0.0
     ref_vec = deepcopy(input_vec)
+    var_vec_old = deepcopy(input_vec)
     clustered_S2 = extract_S2(input_vec.clusters)
 
     e_projected_list = []
@@ -403,6 +407,7 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
     println(" thresh_var       : ", thresh_var)
     println(" thresh_foi       : ", thresh_foi)
     println(" thresh_pt        : ", thresh_pt)
+    println(" thresh_spin      : ", thresh_spin)
     println(" ci_conv          : ", ci_conv)
     println(" ci_max_iter      : ", ci_max_iter)
     println(" ci_max_ss_vecs   : ", ci_max_ss_vecs)
@@ -429,7 +434,7 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
         norm2 = orth_dot(ref_vec, ref_vec)
 
         @printf(" %-50s", "Ref state compressed from: ")
-        @printf("%10i → %-10i (thresh = %8.1e)\n", dim1, dim2, thresh_var)
+        @printf("%10i → %-10i (thresh_var = %8.1e)\n", dim1, dim2, thresh_var)
         #@printf(" %-50s", "Norm of compressed state: ")
         #@printf("%10.6f\n", norm2)
 
@@ -478,7 +483,7 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
         #
         # Get First order wavefunction
         println()
-        @printf(" %-50s%10i\n", "Compute FOIS. Reference space dim: ", length(ref_vec))
+        @printf(" %-50s%10i\n", "Compute PT1 wavefunction. Reference space dim: ", length(ref_vec))
 
         time = @elapsed @timeit to "FOIS" pt1_vec, e_pt2 = compute_pt1_wavefunction(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh_foi=thresh_foi, verbose=verbose)
         @printf(" %-50s%10.6f seconds\n", "Total time spent building FOIS: ", time)
@@ -492,58 +497,72 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
             error("zero length FOIS?")
         end
         @timeit to "compress" pt1_vec = compress(pt1_vec, thresh=thresh_foi)
-        norm2 = orth_dot(pt1_vec, pt1_vec)
         dim2 = length(pt1_vec)
         @printf(" %-50s", "FOIS compressed from: ")
-        @printf("%10i → %-10i (thresh = %8.1e)\n", dim1, dim2, thresh_foi)
+        @printf("%10i → %-10i (thresh_foi = %8.1e)\n", dim1, dim2, thresh_foi)
         #@printf(" %-50s%10.8f\n", "Norm of |1>: ",norm2)
 
-        ovlp = nonorth_dot(pt1_vec, ref_vec, verbose=0)
-        for r in 1:R
-            @printf(" %5s %12.8f\n", r, ovlp[r])
-        end
-
-
-        # 
-        # Solve variationally in compressed FOIS 
-        # CI
+        # Copy reference state
+        var_vec = deepcopy(ref_vec)
+        
+        #
+        # Add PT1 space
         println()
         time = @elapsed begin
-            var_vec = deepcopy(ref_vec)
             #zero!(pt1_vec)
-            @timeit to "add" nonorth_add!(var_vec, pt1_vec)
-            norm1 = orth_dot(var_vec, var_vec)
             dim1 = length(var_vec)
+            @timeit to "add" nonorth_add!(var_vec, pt1_vec)
             @timeit to "compress" var_vec = compress(var_vec, thresh=thresh_pt)
             dim2 = length(var_vec)
-            @printf(" %-50s", "Variational space compressed from: ")
-            @printf("%10i → %-10i (thresh = %8.1e)\n", dim1, dim2, thresh_pt)
+            @printf(" %-50s", "Variational space increased from: ")
+            @printf("%10i → %-10i (thresh_pt = %8.1e)\n", dim1, dim2, thresh_pt)
             orthonormalize!(var_vec)
         end
         @printf(" %-50s%10.6f seconds\n", "Add new space to variational space: ", time)
 
-        @printf(" %-50s\n", "Solve in compressed FOIS: ")
+
+        #
+        # Project last reference state into new basis for good initial guess
+        @timeit to "project" var_vec = project_into_new_basis(var_vec_old, var_vec)
+        orthonormalize!(var_vec)
+        
+        
+        #
+        # Add spin extension if requested
+        @timeit to "s2 extension" if thresh_spin != nothing 
+            @printf("\n Perform S^2 Spin Extension.\n")
+            dim1 = length(var_vec)
+            @printf(" Computing S^2 residual vector:\n")
+            r = compute_spin_residual(var_vec, cluster_ops, thresh=thresh_foi)
+            @printf(" Compressing S^2 residual vector:\n")
+            r = compress_iteratively(r, thresh_spin)
+            if length(r) > 1.0
+                var_vec = nonorth_add(var_vec,r)
+            end
+            dim2 = length(var_vec)
+            @printf(" %-50s", "Variational space increased from: ")
+            @printf("%10i → %-10i (thresh_spin = %8.1e)\n", dim1, dim2, thresh_spin)
+        end
+
+
+        # 
+        # Solve variationally in compressed FOIS@printf(" %-50s\n", "Solve in compressed FOIS: ")
         @timeit to "CI big" e_var, var_vec = ci_solve(var_vec, cluster_ops, clustered_ham,
-            conv_thresh=ci_conv,
-            max_iter=ci_max_iter,
-            max_ss_vecs=ci_max_ss_vecs,
-            lindep_thresh=ci_lindep_thresh,
-            solver=solver)
+                                                        conv_thresh=ci_conv,
+                                                        max_iter=ci_max_iter,
+                                                        max_ss_vecs=ci_max_ss_vecs,
+                                                        lindep_thresh=ci_lindep_thresh,
+                                                        solver=solver)
+
+        var_vec_old = deepcopy(var_vec)
+
+        
+
         push!(e_variational_list, e_var)
         push!(dim_variational_list, length(var_vec))
 
-        tmp = deepcopy(var_vec)
-        zero!(tmp)
-        @printf(" %-50s", "Compute <S^2>: ")
-        flush(stdout)
-        @time begin
-            @timeit to "S2" build_sigma!(tmp, var_vec, cluster_ops, clustered_S2)
-        end
-        s2 = orth_dot(tmp, var_vec)
-        #@printf(" %5s %12s %12s\n", "Root", "Energy", "S2") 
-        #for r in 1:R
-        #    @printf(" %5s %12.8f %12.8f\n",r, e_var[r], abs(s2[r]))
-        #end
+        var_vec_old = deepcopy(var_vec)
+        
         @printf(" %-20s", "E(Reference): ")
         [@printf("%12.8f ", e0[r]) for r in 1:R]
         println()
@@ -618,4 +637,25 @@ function compute_expectation_value(vector::BSTstate{T,N,R}, cluster_ops, cluster
     zero!(tmp)
     build_sigma!(tmp, vector, cluster_ops, clustered_op, nbody=nbody)
     return orth_dot(tmp, vector)
+end
+
+
+"""
+    compute_spin_residual(v::BSTstate{T,N,R}, cluster_ops, thresh) where {T,N,R}
+
+Compute `|r> = S2|v> - |v><v|S2|v>`
+"""
+function compute_spin_residual(v::BSTstate{T,N,R}, cluster_ops; thresh=1e-6) where {T,N,R}
+    clustered_S2 = extract_S2(v.clusters)
+    s2v = build_compressed_1st_order_state(v, cluster_ops, clustered_S2, thresh=thresh)
+
+    tmp = v * nonorth_overlap(v,s2v)
+    scale!(tmp, T(-1.0))
+    residual = nonorth_add(s2v,tmp)
+    
+    norms = orth_dot(residual, residual)
+    for r in 1:R
+        @printf("   S^2 Residual %12.8f\n", norms[r])
+    end
+    return residual
 end
