@@ -434,7 +434,7 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
         norm2 = orth_dot(ref_vec, ref_vec)
 
         @printf(" %-50s", "Ref state compressed from: ")
-        @printf("%10i → %-10i (thresh_var = %8.1e)\n", dim1, dim2, thresh_var)
+        @printf("%10i → %-10i (%-11s = %8.1e)\n", dim1, dim2, "thresh_var", thresh_var)
         #@printf(" %-50s", "Norm of compressed state: ")
         #@printf("%10.6f\n", norm2)
 
@@ -499,7 +499,8 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
         @timeit to "compress" pt1_vec = compress(pt1_vec, thresh=thresh_foi)
         dim2 = length(pt1_vec)
         @printf(" %-50s", "FOIS compressed from: ")
-        @printf("%10i → %-10i (thresh_foi = %8.1e)\n", dim1, dim2, thresh_foi)
+        @printf("%10i → %-10i (%-11s = %8.1e)\n", dim1, dim2, "thresh_foi", thresh_foi)
+
         #@printf(" %-50s%10.8f\n", "Norm of |1>: ",norm2)
 
         # Copy reference state
@@ -515,7 +516,7 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
             @timeit to "compress" var_vec = compress(var_vec, thresh=thresh_pt)
             dim2 = length(var_vec)
             @printf(" %-50s", "Variational space increased from: ")
-            @printf("%10i → %-10i (thresh_pt = %8.1e)\n", dim1, dim2, thresh_pt)
+            @printf("%10i → %-10i (%-11s = %8.1e)\n", dim1, dim2, "thresh_pt", thresh_pt)
             orthonormalize!(var_vec)
         end
         @printf(" %-50s%10.6f seconds\n", "Add new space to variational space: ", time)
@@ -541,7 +542,7 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
             end
             dim2 = length(var_vec)
             @printf(" %-50s", "Variational space increased from: ")
-            @printf("%10i → %-10i (thresh_spin = %8.1e)\n", dim1, dim2, thresh_spin)
+            @printf("%10i → %-10i (%-11s = %8.1e)\n", dim1, dim2, "thresh_spin", thresh_spin)
 
 
 	    #
