@@ -11,97 +11,38 @@ A Julia package for course-grained electronic structure calculations
 
 ## Details
 `FermiCG` ("Fermionic Course-Graining") is a code for computing high-accuracy electronic states for molecular systems in a tensor product state (TPS) basis. Unlike in the traditional Slater determinant basis, a TPS basis can be chosen such that each basis vector has a considerable amount of electron correlation already included. As a result, the exact wavefunction in this basis can be considerably more compact. This increased compactness comes at the cost of a significant increase in complexity for determining matrix elements. So far, we have implemented multiple approach for discovering highly accurate wavefunctions in this TPS basis. This package includes:
-1. `CMF` - Meaning "Cluster Mean-Field", this is simply a variational optimization of both orbital and cluster state parameters, minimizing the energy of a single TPS. This was originally proposed by Scuseria and coworkers [link](https://journals.aps.org/prb/abstract/10.1103/PhysRevB.92.085101).
 1. `CMF-PT2` - Second order PT2 correction on top of `CMF` using a barycentric Moller-Plesset-type partitioning.
 1. `CMF-CEPA` - A CEPA-type formalism on top of CMF. First published [here](https://arxiv.org/abs/2206.02333).
 1. `TPSCI` - this is a generalization of the CIPSI method to a TPS basis. Essentially, one starts with a small number of TPS functions, solves the Schrodinger equation in this small subspace, then uses perturbation theory to determine which TPS's to add to improve the energy. This is done iteratively until the results stop changing. First published [here](https://pubs.acs.org/doi/10.1021/acs.jctc.0c00141).
-1. `BST` - "Block-Sparse-Tucker"
+1. `SPD` - "SubspaceProduct Decomposition"
 
-### Download
-Downlond FermiCG and change into main directory
+## Download 
+Download FermiCG and move into main directory
 
 ```
 git clone https://github.com/nmayhall-vt/FermiCG.git
 cd FermiCG/
-```
-
-### Installation with Virtual Environment
-Create python virtual environment which will hold the PYSCF executable
-
-```julia
-cd src/python
-virtualenv -p python3 venv
-source venv/bin/activate
-pip install -r requirements.txt
-export TPSCI_PYTHON=$(which python)
-cd ../../
 julia --project=./ -tauto
-julia> using Pkg; Pkg.build("PyCall")
-```
-where `-tauto` let's Julia pick the max number of threads. Use `-t N` to select `N` manually. Removing defaults to 1 thread.
-
-Run tests
-
-```
-julia> Pkg.test()
 ```
 
-### Installation with Conda
-Create conda virtual environment which will hold the PYSCF executable and set path for python version
+Now test:
+```julia
+julia> using Pkg; Pkg.test()
+```
+
+## Install directly from GitHub 
+Because FermiCG's dependencies are not (yet) in the registry, we will need to add them ourselves.
+First, start the REPL,
+```julia
+julia --project="PROJECT_NAME" 
+```
+And then move to the package manager prommpt by typing "`]`", then add the following packages:
 
 ```julia
-conda create -n fermicg python=3.7 
-conda activate fermicg
-conda install numpy
-pip install pyscf
-conda install h5py==2.10.0
-conda install julia
+add https://github.com/nmayhall-vt/QCBase.jl
+add https://github.com/nmayhall-vt/BlockDavidson.jl
+add https://github.com/nmayhall-vt/InCoreIntegrals.jl
+add https://github.com/nmayhall-vt/RDM.jl
+add https://github.com/nmayhall-vt/ActiveSpaceSolvers.jl
+add https://github.com/nmayhall-vt/FermiCG
 ```
-
-Start a Julia REPL and build PyCall (make sure PyCall uses the current python version in conda enviornment)
-
-```julia
-julia --project=./ -tauto 
-julia> using Pkg; Pkg.add("PyCall")
-julia> Pkg.build("PyCall")
-```
-where `-tauto` let's Julia pick the max number of threads. Use `-t N` to select `N` manually. Removing defaults to 1 thread. 
-
-Run tests
-        
-```
-julia> Pkg.test()
-```
-
-### Installation with Conda on M1 Chip Mac
-Create conda virtual environment (specific to M1 chips) which will hold the PYSCF executable and set path for python version
-
-```julia
-conda create -n env_osx
-conda activate env_osx
-conda config --env --set subdir osx-64
-conda install python==3.7
-conda install numpy
-conda config --add channels conda-forge
-conda install -c pyscf pyscf
-conda install h5py==2.10.0
-conda install julia
-```
-
-Start a Julia REPL and build PyCall (make sure PyCall uses the current python version in conda enviornment)
-
-```julia
-julia --project=./ -tauto 
-julia> using Pkg; Pkg.add("PyCall")
-julia> Pkg.build("PyCall")
-```
-where `-tauto` let's Julia pick the max number of threads. Use `-t N` to select `N` manually. Removing defaults to 1 thread. 
-
-Run tests
-	
-```
-julia> Pkg.test()
-```
-
-
-
