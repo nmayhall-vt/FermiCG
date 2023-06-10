@@ -33,12 +33,12 @@ julia> using Pkg; Pkg.test()
 ## Install directly from GitHub 
 Because FermiCG's dependencies are not (yet) in the registry, we will need to add them ourselves.
 First, start the REPL,
-```julia
+```
 julia --project="PROJECT_NAME" 
 ```
 And then move to the package manager prommpt by typing "`]`", then add the following packages:
 
-```julia
+```
 add https://github.com/nmayhall-vt/QCBase.jl
 add https://github.com/nmayhall-vt/BlockDavidson.jl
 add https://github.com/nmayhall-vt/InCoreIntegrals.jl
