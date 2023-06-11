@@ -164,6 +164,7 @@ If updating existing matrix, pass in H_old/v_old to avoid rebuilding that block
 """
 function tps_ci_direct( ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
                         conv_thresh = 1e-5,
+                        lindep_thresh = 1e-12,
                         max_ss_vecs = 12,
                         max_iter    = 40,
                         shift       = nothing,
@@ -265,7 +266,7 @@ function tps_ci_direct( ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham
         
         elseif solver == "davidson"
             davidson = Davidson(H, v0=get_vector(ci_vector), 
-                                        max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)
+                                        max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh, lindep_thresh=lindep_thresh)
             # time = @elapsed e0,v = BlockDavidson.eigs(davidson);
             time = @elapsed e0,v = BlockDavidson.eigs(davidson, Adiag=diag(H), precond_start_thresh=1e-1);
         end

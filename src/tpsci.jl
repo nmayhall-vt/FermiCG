@@ -14,6 +14,7 @@ using Printf
             ci_conv      = 1e-5,
             ci_max_iter  = 50,
             ci_max_ss_vecs = 12,
+    	    ci_lindep_thresh= 1e-11,
             davidson     = false,
             max_mem_ci   = 20.0, 
             threaded     = true) where {T,N,R}
@@ -48,6 +49,7 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
     ci_conv         = 1e-5,
     ci_max_iter     = 50,
     ci_max_ss_vecs  = 12,
+    ci_lindep_thresh= 1e-12,
     davidson        = false,
     max_mem_ci      = 20.0,
     threaded        = true) where {T,N,R}
@@ -75,6 +77,7 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
     println(" ci_conv       : ", ci_conv        ) 
     println(" ci_max_iter   : ", ci_max_iter    ) 
     println(" ci_max_ss_vecs: ", ci_max_ss_vecs ) 
+    println(" ci_lindep_thresh: ", ci_lindep_thresh ) 
     println(" davidson      : ", davidson       ) 
     println(" max_mem_ci    : ", max_mem_ci     ) 
     println(" threaded      : ", threaded       ) 
@@ -167,12 +170,14 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
                                                    v_old = vec_var_old,
                                                    conv_thresh = ci_conv,
                                                    max_ss_vecs = ci_max_ss_vecs,
-                                                   max_iter = ci_max_iter)
+                                                   max_iter = ci_max_iter,
+						   lindep_thresh = ci_lindep_thresh)
                 else
                     e0, vec_var, H = tps_ci_direct(vec_var, cluster_ops, clustered_ham,
                                                    conv_thresh = ci_conv,
                                                    max_ss_vecs = ci_max_ss_vecs,
-                                                   max_iter = ci_max_iter)
+                                                   max_iter = ci_max_iter,
+						   lindep_thresh = ci_lindep_thresh)
                 end
             end
         end
