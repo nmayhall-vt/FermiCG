@@ -161,7 +161,8 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
                 e0, vec_var = tps_ci_davidson(vec_var, cluster_ops, clustered_ham,
                                               conv_thresh = ci_conv,
                                               max_iter = ci_max_iter,
-                                              max_ss_vecs = ci_max_ss_vecs)
+                                              max_ss_vecs=ci_max_ss_vecs,
+                                              lindep_thresh=ci_lindep_thresh)
             else
                 if it > 1 
                     # just update matrix
@@ -171,13 +172,13 @@ function tpsci_ci(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::Clus
                                                    conv_thresh = ci_conv,
                                                    max_ss_vecs = ci_max_ss_vecs,
                                                    max_iter = ci_max_iter,
-						   lindep_thresh = ci_lindep_thresh)
+                                                   lindep_thresh = ci_lindep_thresh)
                 else
                     e0, vec_var, H = tps_ci_direct(vec_var, cluster_ops, clustered_ham,
                                                    conv_thresh = ci_conv,
                                                    max_ss_vecs = ci_max_ss_vecs,
                                                    max_iter = ci_max_iter,
-						   lindep_thresh = ci_lindep_thresh)
+						                           lindep_thresh = ci_lindep_thresh)
                 end
             end
         end

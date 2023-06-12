@@ -42,10 +42,12 @@ using JLD2
         FermiCG.randomize!(guess)
         FermiCG.orthonormalize!(guess)
         e0b, v0b = FermiCG.tps_ci_direct(guess, cluster_ops, clustered_ham, conv_thresh=1e-10);
-        e0c, v0c = FermiCG.tps_ci_davidson(guess, cluster_ops, clustered_ham, conv_thresh=1e-10);
+        e0c, v0c = FermiCG.tps_ci_davidson(guess, cluster_ops, clustered_ham, conv_thresh=1e-9, precond=false, max_iter=200, lindep_thresh=1e-14);
+        e0d, v0d = FermiCG.tps_ci_davidson(guess, cluster_ops, clustered_ham, conv_thresh=1e-9, precond=true, max_iter=200, lindep_thresh=1e-14);
 
         @test isapprox(abs.(e0), abs.(e0b), atol=1e-9)
         @test isapprox(abs.(e0), abs.(e0c), atol=1e-8)
+        @test isapprox(abs.(e0), abs.(e0d), atol=1e-8)
 
     end
     e2 = FermiCG.compute_pt2_energy(v0, cluster_ops, clustered_ham, thresh_foi=1e-10)

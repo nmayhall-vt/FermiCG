@@ -168,7 +168,7 @@ function tps_ci_direct( ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham
                         max_ss_vecs = 12,
                         max_iter    = 40,
                         shift       = nothing,
-                        precond     = false,
+                        precond     = true,
                         H_old    = nothing,
                         v_old    = nothing,
                         verbose   = 0,
@@ -182,7 +182,7 @@ function tps_ci_direct( ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham
     dim = length(ci_vector)
     flush(stdout)
    
-    precond == false || @warn("davidson preconditioning NYI")
+    precond == true || println(" davidson not using preconditioning")
 
     H = zeros(T, 1,1)
 
@@ -362,12 +362,12 @@ end
 # Solve for eigenvectors/values in the basis defined by `ci_vector`. Use iterative davidson solver. 
 """
 function tps_ci_davidson(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator;
-                        v0 = nothing,
                         conv_thresh = 1e-5,
+                        lindep_thresh = 1e-12,
                         max_ss_vecs = 12,
                         max_iter    = 40,
                         shift       = nothing,
-                        precond     = false,
+                        precond     = true,
                         verbose     = 0) where {T,N,R}
     #={{{=#
     println()
@@ -404,7 +404,7 @@ function tps_ci_davidson(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ha
     Hmap = LinOpMat{T}(matvec, dim, true)
 
     davidson = Davidson(Hmap, v0=get_vector(ci_vector), 
-                                max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh)
+                                max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, tol=conv_thresh, lindep_thresh=lindep_thresh)
 
     #time = @elapsed e0,v = Arpack.eigs(Hmap, nev = R, which=:SR)
     #time = @elapsed e0,v, info = KrylovKit.eigsolve(Hmap, R, :SR, 
@@ -419,12 +419,12 @@ function tps_ci_davidson(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ha
     v = nothing
     if precond
         @printf(" %-50s", "Compute diagonal: ")
-        clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = "Hcmf") 
-        @time Hd = compute_diagonal(ci_vector, cluster_ops, clustered_ham_0)
-        @printf(" %-50s", "Compute <0|H0|0>: ")
-        @time E0 = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham_0)[1]
-        @time Eref = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham)[1]
-        Hd .+= Eref - E0
+        # clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = "Hcmf") 
+        @time Hd = compute_diagonal(ci_vector, cluster_ops, clustered_ham)
+        # @printf(" %-50s", "Compute <0|H0|0>: ")
+        # @time E0 = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham_0)[1]
+        # @time Eref = compute_expectation_value_parallel(ci_vector, cluster_ops, clustered_ham)[1]
+        # Hd .+= Eref - E0
         @printf(" Now iterate: \n")
         flush(stdout)
         @time e,v = BlockDavidson.eigs(davidson, Adiag=Hd);
