@@ -277,7 +277,7 @@ end
 
 
 """
-    form_1body_operator_diagonal!(sig::BSTstate{T,N,R}, Fdiag::BSTstate{T,N,1}, cluster_ops; H0="Hcmf") where {T,N,R}
+    form_1body_operator_diagonal!(sig::BSTstate{T,N,R}, Fdiag::BSTstate{T,N,1}, cluster_ops; H0="Hcmf", pseudo_canon=false) where {T,N,R}
 
 TBW
 """
@@ -288,6 +288,8 @@ function form_1body_operator_diagonal!(sig::BSTstate{T,N,R}, Fdiag::BSTstate{T,N
     zero!(Fdiag)
     for (fock, tconfigs) in sig
         for (tconfig, tuck) in tconfigs
+    
+            rotations = Vector{Matrix{T}}([])
 
             #
             # Initialize energy list of lists
@@ -309,9 +311,11 @@ function form_1body_operator_diagonal!(sig::BSTstate{T,N,R}, Fdiag::BSTstate{T,N
                     if pseudo_canon
                         # diagonalize and rotate tucker factors
                         F = eigen(Symmetric(Hi))
-                        sig[fock][tconfig].factors[ci.idx] .= Ui * F.vectors
-                        Fdiag[fock][tconfig].factors[ci.idx] .= sig[fock][tconfig].factors[ci.idx]
-
+                        # sig[fock][tconfig].factors[ci.idx] .= Ui * F.vectors
+                        # Fdiag[fock][tconfig].factors[ci.idx] .= sig[fock][tconfig].factors[ci.idx]
+                        Fdiag[fock][tconfig].factors[ci.idx] .= sig[fock][tconfig].factors[ci.idx] * F.vectors
+                       
+                        push!(rotations, F.vectors)
                         energies[ci.idx] = F.values
                     else
                         # just take diagonal
@@ -323,6 +327,7 @@ function form_1body_operator_diagonal!(sig::BSTstate{T,N,R}, Fdiag::BSTstate{T,N
 
                     length(e) == 1 || throw(DimensionMismatch)
 
+                    push!(rotations, ones(T,1,1))
                     energies[ci.idx] = [e[1]]
                 end
             end
@@ -336,8 +341,13 @@ function form_1body_operator_diagonal!(sig::BSTstate{T,N,R}, Fdiag::BSTstate{T,N
                     fcore[1][i] += energies[ci][i[ci]]
                 end
             end
+   
+            # 
+            # Rotate the original vector into this basis
+            transform_basis!(sig[fock][tconfig], rotations)
         end
     end
+
 end
 
 

@@ -71,7 +71,7 @@ function ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_ham;
                          max_iter       = 40,
                          lindep_thresh  = 1e-10,
                          shift          = nothing,
-                         precond        = false,
+                         precond        = true,
                          verbose        = 0,
                          nbody          = 4,
                          solver         = "davidson") where {T,N,R}
@@ -83,6 +83,17 @@ function ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     orthonormalize!(vec)
     #flush term cache
     flush_cache(clustered_ham)
+
+
+    # 
+    #   Rotate tucker basis to diagonalize CMF hamiltonian for better preconditioning    
+    # Hcmf_diag = BSTstate(deepcopy(vec), R=1) 
+    Hcmf_diag = BSTstate(vec, R=1) 
+    if precond
+        verbose < 2 || @printf(" form_1body_operator_diagonal... \n")
+        form_1body_operator_diagonal!(vec, Hcmf_diag, cluster_ops, pseudo_canon=true)
+        verbose < 2 || @printf(" done.\n")
+    end
     
     #Hmap = get_map(vec, cluster_ops, clustered_ham, cache=true)
     iters = 0
@@ -111,6 +122,8 @@ function ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_ham;
 
         return get_vector(sig)[:,1]
     end
+
+
 
 
     v0 = get_vector(vec)
@@ -168,8 +181,13 @@ function ci_solve(ci_vector_in::BSTstate{T,N,R}, cluster_ops, clustered_ham;
         davidson = Davidson(Hmap,v0=v0,max_iter=max_iter, max_ss_vecs=max_ss_vecs, nroots=R, 
                             tol=conv_thresh, lindep_thresh=lindep_thresh)
         flush(stdout)
-        time = @elapsed e,v = BlockDavidson.eigs(davidson)
-        @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
+        if precond
+            time = @elapsed e, v = BlockDavidson.eigs(davidson, Adiag=get_vector(Hcmf_diag))
+            @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ", time)
+        else
+            time = @elapsed e, v = BlockDavidson.eigs(davidson)
+            @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ", time)
+        end
         #println(" Memory used by cache: ", mem_used_by_cache(clustered_ham))
         set_vector!(vec,v)
 

@@ -50,7 +50,9 @@ function Tucker(t::Tucker{TT,NN,RR}; R=RR, T=TT) where {TT,NN,RR}
     for rr in 1:min(R,RR)
         cores[rr] .= t.core[rr]
     end
-    return Tucker{T,NN,R}(cores, t.factors)
+    return Tucker{T,NN,R}(cores, deepcopy(t.factors))
+    # return Tucker{T,NN,R}(cores, t.factors)
+    # return Tucker{T,NN,R}(cores, ntuple(i->t.factors[i],NN))
 end
 
 recompose(t::Tucker) = tucker_recompose(t.core, t.factors)
@@ -550,6 +552,23 @@ Recompose Tucker Decomposition
 """
 tucker_recompose(core, factors) = transform_basis(core, factors, trans=true)
 tucker_recompose(core, factors, scr) = transform_basis(core, factors, scr, trans=true)
+
+"""
+    transform_basis!(tuck::Tucker{T,N,R}, transform_list::Vector{Matrix{T}}) where {T,N,R}
+
+TBW
+"""
+function transform_basis!(tuck::Tucker{T,N,R}, transform_list::Vector{Matrix{T}}) where {T,N,R}
+
+    length(transform_list) == N || throw(DimensionMismatch)
+
+    for i in 1:N
+        tuck.factors[i] .= tuck.factors[i] * transform_list[i] 
+    end
+    for r in 1:R
+        tuck.core[r] .= transform_basis(tuck.core[r], transform_list)
+    end
+end
 
 
 function transform_basis(v::Array{T,N}, transform_list::Dict{Int,Matrix{T}}; trans=false) where {T,N}

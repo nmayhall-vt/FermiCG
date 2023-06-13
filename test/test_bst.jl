@@ -23,6 +23,8 @@ if false
     FermiCG.orthonormalize!(v)
     
     e_ci, v = FermiCG.ci_solve(v, cluster_ops, clustered_ham)
+    e_ci, v = FermiCG.ci_solve(v, cluster_ops, clustered_ham, precond=true)
+    error("nick")
     
     e_pt, v_pt = FermiCG.do_fois_pt2(v, cluster_ops, clustered_ham, thresh_foi=1e-3, max_iter=50, tol=1e-8)
     
