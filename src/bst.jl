@@ -375,6 +375,9 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
     thresh_foi=1e-6,
     thresh_pt=1e-5,
     thresh_spin=nothing,
+    max_n_var = nothing,
+    max_n_foi = nothing,
+    max_n_pt = nothing,
     ci_conv=1e-5,
     ci_max_iter=50,
     ci_max_ss_vecs=12,
@@ -428,7 +431,7 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
         # Compress Variational Wavefunction
         dim1 = length(ref_vec)
         norm1 = orth_dot(ref_vec, ref_vec)
-        ref_vec = compress(ref_vec, thresh=thresh_var)
+        ref_vec = compress(ref_vec, thresh=thresh_var, max_number=max_n_var)
         orthonormalize!(ref_vec)
         dim2 = length(ref_vec)
         norm2 = orth_dot(ref_vec, ref_vec)
@@ -513,7 +516,7 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
             #zero!(pt1_vec)
             dim1 = length(var_vec)
             @timeit to "add" nonorth_add!(var_vec, pt1_vec)
-            @timeit to "compress" var_vec = compress(var_vec, thresh=thresh_pt)
+            @timeit to "compress" var_vec = compress(var_vec, thresh=thresh_pt, max_number=max_n_pt)
             dim2 = length(var_vec)
             @printf(" %-50s", "Variational space increased from: ")
             @printf("%10i → %-10i (%-11s = %8.1e)\n", dim1, dim2, "thresh_pt", thresh_pt)
