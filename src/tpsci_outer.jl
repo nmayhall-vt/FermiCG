@@ -455,6 +455,127 @@ end
 
 
 """
+    matrix_element(ci_vector_bra::TPSCIstate{T,N,R}, ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
+
+# Compute the matrix element of `clustered_ham` between `bra` and `ket`. 
+"""
+function matrix_element(bra::TPSCIstate{T,N,R}, ket::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
+
+    # 
+    # This will be were we collect our results
+    evals = zeros(T,R,R)
+
+    jobs = []
+
+    for (fock_bra, configs_bra) in bra.data
+        for (config_bra, coeff_bra) in configs_bra
+            push!(jobs, (fock_bra, config_bra, coeff_bra, zeros(T,R,R)) )
+        end
+    end
+
+    function _add_val!(eval_job, me, coeff_bra, coeff_ket)
+        for ri in 1:R
+            for rj in 1:R
+            #    @inbounds eval_job[ri,rj] += me * coeff_bra[ri] * coeff_ket[rj] 
+               eval_job[ri,rj] += me * coeff_bra[ri] * coeff_ket[rj] 
+            end
+        end
+    end
+
+    function do_job(job)
+        fock_bra = job[1]
+        config_bra = job[2]
+        coeff_bra = job[3]
+        eval_job = job[4]
+        ket_idx = 0
+
+        for (fock_ket, configs_ket) in ket.data
+            fock_trans = fock_bra - fock_ket
+
+            # check if transition is connected by H
+            if haskey(clustered_ham, fock_trans) == false
+                ket_idx += length(configs_ket)
+                continue
+            end
+
+            for (config_ket, coeff_ket) in configs_ket
+
+                me = 0.0
+                for term in clustered_ham[fock_trans]
+
+                    check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
+
+                    me += contract_matrix_element(term, cluster_ops, fock_bra, config_bra, fock_ket, config_ket)
+                    #if term isa ClusteredTerm4B
+                    #    @btime contract_matrix_element($term, $cluster_ops, $fock_bra, $config_bra, $fock_ket, $config_ket)
+                    #end
+                    #Hrow[ket_idx] += me 
+                    #H[job[1],ket_idx] += me 
+                end
+                #
+                # now add the results
+                _add_val!(eval_job, me, coeff_bra, coeff_ket)
+            end
+        end
+    end
+
+    #Threads.@threads for job in jobs
+    #qthreads for job in jobs
+    for job in jobs
+        do_job(job)
+        #@btime $do_job($job)
+    end
+
+    for job in jobs
+        evals .+= job[4]
+    end
+
+    return evals 
+end
+
+function matrix_element_serial(bra::TPSCIstate{T,N,R}, ket::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; nbody=4) where {T,N,R}
+
+    out = zeros(T,R,R)
+
+    for (fock_bra, configs_bra) in bra.data
+
+        for (fock_ket, configs_ket) in ket.data
+            fock_trans = fock_bra - fock_ket
+
+            # check if transition is connected by H
+            haskey(clustered_ham, fock_trans) || continue
+
+            for (config_bra, coeff_bra) in configs_bra
+                for (config_ket, coeff_ket) in configs_ket
+
+                    me = 0.0
+                    for term in clustered_ham[fock_trans]
+
+                        length(term.clusters) <= nbody || continue
+                        check_term(term, fock_bra, config_bra, fock_ket, config_ket) || continue
+
+                        me += contract_matrix_element(term, cluster_ops, 
+                                                      fock_bra, config_bra, 
+                                                      fock_ket, config_ket)
+                    end
+
+                    for ri in 1:R
+                        for rj in 1:R
+                            out[ri,rj] += coeff_bra[ri] * coeff_ket[rj] * me
+                        end
+                    end
+
+                end
+
+            end
+        end
+    end
+
+    return out 
+end
+
+
+"""
     tps_ci_matvec(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
 
 # Compute the action of `clustered_ham` on `ci_vector`. 
@@ -554,7 +675,6 @@ end
 Compute expectation value of a `ClusteredOperator` (`clustered_ham`) for state `ci_vector`
 """
 function compute_expectation_value(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator; nbody=4) where {T,N,R}
-    #={{{=#
 
     out = zeros(T,R)
 
@@ -593,13 +713,11 @@ function compute_expectation_value(ci_vector::TPSCIstate{T,N,R}, cluster_ops, cl
 
     return out 
 end
-#=}}}=#
 
 """
     function compute_expectation_value_parallel(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
 """
 function compute_expectation_value_parallel(ci_vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham::ClusteredOperator) where {T,N,R}
-    #={{{=#
 
     # 
     # This will be were we collect our results
@@ -684,7 +802,7 @@ function compute_expectation_value_parallel(ci_vector::TPSCIstate{T,N,R}, cluste
 
     return evals 
 end
-#=}}}=#
+
 
 """
     compute_diagonal(vector::TPSCIstate{T,N,R}, cluster_ops, clustered_ham) where {T,N,R}
