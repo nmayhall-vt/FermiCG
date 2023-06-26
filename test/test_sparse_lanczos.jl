@@ -40,3 +40,7 @@ Hss2 = FermiCG.matrix_element(σ0, ψ0, cluster_ops, clustered_ham);
 display(Hss2) 
 display(Hss2 - Hss1) 
 @test isapprox(norm(Hss2-Hss1), 0.0, atol=1e-10)
+
+# now test sparse_lanczos
+e0, ψ0 = FermiCG.tps_ci_direct(ψ0, cluster_ops, clustered_ham, conv_thresh=1e-10);
+FermiCG.sparse_lanczos(ψ0, cluster_ops, clustered_ham);

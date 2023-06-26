@@ -78,6 +78,7 @@ include("tpsci_matvec_thread.jl")
 include("tpsci_pt1_wavefunction.jl")
 include("tpsci_pt2_energy.jl")
 include("tpsci_outer.jl")
+include("tpsci_sparse_lanczos.jl")
 include("tpsci_helpers.jl")
 include("tpsci.jl")
 
