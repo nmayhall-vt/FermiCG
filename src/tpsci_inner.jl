@@ -315,9 +315,9 @@ function _contract(ints,gamma1::Array{T,3}, gamma2::Array{T,3}, gamma3::Array{T,
     shift1 = (b1-1) * size(gamma1,1) + (k1-1)*size(gamma1,2)*size(gamma1,1)
     for l in 1:size(gamma4,1)
         for k in 1:size(gamma3,1)
-            tmp = gamma3[k+shift3]*gamma4[l+shift4]
+            tmp2 = gamma3[k+shift3]*gamma4[l+shift4]
             for j in 1:size(gamma2,1)
-                tmp = gamma2[j+shift2]*tmp
+                tmp = gamma2[j+shift2]*tmp2
                 @simd for i in 1:size(gamma1,1)
                     mat_elem += gamma1[i+shift1]*ints[i,j,k,l]*tmp
                 end
