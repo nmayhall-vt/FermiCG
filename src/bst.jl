@@ -479,14 +479,23 @@ function block_sparse_tucker(input_vec::BSTstate{T,N,R}, cluster_ops, clustered_
             @printf(" %5s %12.8f %12.8f\n", r, e0[r], abs(s2[r]))
         end
         flush(stdout)
-
+        
         #
-        # Get First order wavefunction
+        # Get First order interacting space 
         println()
-        @printf(" %-50s%10i\n", "Compute PT1 wavefunction. Reference space dim: ", length(ref_vec))
-
-        time = @elapsed @timeit to "FOIS" pt1_vec, e_pt2 = compute_pt1_wavefunction(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh_foi=thresh_foi, verbose=verbose)
+        time = @elapsed alloc = @allocated @timeit to "FOIS" pt1_vec = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
+        verbose < 1 || @printf(" %-50s%10.6f seconds %10.2e Gb\n", "Compute Compressed FOIS: ", time, alloc / 1e9)
         @printf(" %-50s%10.6f seconds\n", "Total time spent building FOIS: ", time)
+
+        if do_pt
+            #
+            # Get First order wavefunction
+            println()
+            @printf(" %-50s%10i\n", "Compute PT1 wavefunction. Reference space dim: ", length(ref_vec))
+
+            time = @elapsed @timeit to "PT1" pt1_vec, e_pt2 = compute_pt1_wavefunction(pt1_vec, ref_vec, cluster_ops, clustered_ham, H0=H0, verbose=verbose)
+            @printf(" %-50s%10.6f seconds\n", "Total time spent building PT1: ", time)
+        end
 
         # 
         # Compress FOIS
