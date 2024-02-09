@@ -887,7 +887,7 @@ function _build_compressed_1st_order_state_job(fock_σ, jobs, σ::BSTstate{T,N,R
                         fock_ψ, tconfig_ψ, tuck_ψ,
                         max_number=max_number,
                         prescreen=thresh)
-
+                    
                     length(tuck_σ) > 0 || continue
                     # norm(tuck_σ) > thresh || continue
 

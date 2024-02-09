@@ -11,7 +11,6 @@ M = 100
 #@load "cmf_op_TD_with_ops.jld2"
 display(clusters)
 display(init_fspace)
-ints = deepcopy(ints_cmf)
 ref_fspace = FockConfig(init_fspace)
 ecore = ints.h0
 
@@ -58,8 +57,15 @@ FermiCG.add_fockconfig!(ci_vector, tmp_fspace)
 ci_vector[tmp_fspace][FermiCG.TuckerConfig((1:1,1:1))]=FermiCG.Tucker(tuple([zeros(Float64, 1, 1) for _ in 1:nroots]...))
 FermiCG.eye!(ci_vector)
 display(ci_vector)
+
+
 e_ci, v = FermiCG.ci_solve(ci_vector, cluster_ops, clustered_ham);
 @save "data_ci.jld2" v e_ci
-FermiCG.compute_pt2_energy(v, cluster_ops, clustered_ham, thresh_foi=1e-5)
-bst_energy, v = FermiCG.block_sparse_tucker(v, cluster_ops, clustered_ham,max_iter    =2000, thresh_var=1e-2, thresh_foi=1e-4,thresh_pt=1e-3,thresh_spin=1e-3,do_pt=false);
-@save "data_bst_1e2.jld2" clusters init_fspace ints cluster_bases v bst_energy
+
+
+σ = FermiCG.build_compressed_1st_order_state(v, cluster_ops, clustered_ham, thresh=1e-8)
+σ = FermiCG.compress(σ, thresh=1e-2)
+FermiCG.nonorth_add!(v, σ)
+
+e_ci, v = FermiCG.ci_solve(σ, cluster_ops, clustered_ham);
+
