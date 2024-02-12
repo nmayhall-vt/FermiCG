@@ -309,7 +309,7 @@ function print_configs(s::TPSCIstate; thresh=1e-3, root=1)
         println()
         for (config, value) in s.data[fock]
             value[root]*value[root] > thresh || continue
-            @printf(" %5i",idx)
+            #@printf(" %5i",idx)
             for c in config
                 @printf("%3i",c)
             end
