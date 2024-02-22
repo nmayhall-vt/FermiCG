@@ -106,4 +106,5 @@ export add_subspace!
 export add_fockconfig!
 export expand_each_fock_space!
 export block_sparse_tucker
+export correlation_functions
 end
