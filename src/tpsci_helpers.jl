@@ -17,7 +17,112 @@ function single_excitonic_basis(clusters, fspace::FockConfig{N}; R=1, Nk=2, T=Fl
     return ci_vector
 end
 
-function correlation_functions(v::TPSCIstate{T,N,R}, cluster_ops; verbose=1) where {T,N,R}
+
+
+
+
+
+"""
+    correlation_functions(v::TPSCIstate{T,N,R}, refspace::TPSCIstate{T,N,R}; verbose=1) where {T,N,R}
+
+Compute 1st and 2nd cumulants for finding excitations outside of a reference space of local cluster states present in `refspace`
+
+Returns: 
+    out["Q0"][order][root]: Dictionary for all results
+
+order is either 1 or 2
+"""
+function correlation_functions(v::TPSCIstate{T,N,R}, refspace::TPSCIstate{T,N,R2}; verbose=1) where {T,N,R,R2}
+
+    c1 = [zeros(N) for i in 1:R]
+    c2 = [zeros(N, N) for i in 1:R]
+
+    for root in 1:R
+        for (fock, configs) in v.data
+            for (config, coeff) in configs
+                for ci in 1:N
+                    presenti = false
+                    for (focki, configsi) in refspace.data
+                        for (configi, coeffi) in configsi
+                            if (focki[ci] == fock[ci]) && (config[ci] == configi[ci]) 
+                                presenti = true
+                                break
+                            end
+                        end
+                    end
+                    if presenti == false
+                        c1[root][ci] += coeff[root] * coeff[root]
+                    end
+                    
+                    
+                        
+                    for cj in 1:N
+                        ci <= cj || continue
+                        presentj = false
+                        for (fockj, configsj) in refspace.data
+                            for (configj, coeffj) in configsj
+                                if (fockj[cj] == fock[cj]) && (config[cj] == configj[cj]) 
+                                    presentj = true
+                                    break
+                                end
+                            end
+                        end
+                        
+                        if (presenti == false) && (presentj == false)
+                            c2[root][ci, cj] += coeff[root] * coeff[root]
+                            c2[root][cj, ci] += coeff[root] * coeff[root]
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    for r in 1:R
+        c2[r] = c2[r] - c1[r] * c1[r]'
+    end
+    
+    cf = Dict{String,Tuple{Vector{Vector{T}}, Vector{Matrix{T}}}}()
+    cf["Q0"]     = (c1, c2)
+    
+    if verbose > 0
+        @printf(" * κ1(P0) **************************\n")
+        for r in 1:R
+            @printf(" Root = %2i: %7s = ", r, "<Q0>")
+            [@printf(" %12.8f", cf["Q0"][1][r][i]) for i in 1:N]
+            println()
+        end
+
+        
+        @printf(" * κ2(P0) **************************\n")
+        for r in 1:R
+            @printf(" Root = %2i: %7s:\n", r, "Cov(Q0I, Q0J)")
+            for j in 1:N
+                [@printf(" %12.8f", cf["Q0"][2][r][i,j]) for i in 1:N]
+                println()
+            end
+            println()
+        end
+        for r in 1:R
+            @printf(" Root = %2i: %7s:\n", r, "Corr(Q0I, Q0J)")
+            for j in 1:N
+                [@printf(" %12.8f", cf["Q0"][2][r][i,j]/sqrt(cf["Q0"][2][r][i,i]*cf["Q0"][2][r][j,j])) for i in 1:N]
+                println()
+            end
+            println()
+        end
+
+    end
+    return cf
+end
+
+
+"""
+    correlation_functions(v::TPSCIstate{T,N,R}, cluster_ops; verbose=1) where {T,N,R}
+
+Compute cumulants for S2, H, and Hcmf
+"""
+function correlation_functions(v::TPSCIstate{T,N,R}, cluster_ops::Vector{ClusterOps{T}}; verbose=1) where {T,N,R}
 
     N_1, N_2, Sz_1, Sz_2 = correlation_functions(v)
 
