@@ -33,6 +33,10 @@ Returns:
 order is either 1 or 2
 """
 function correlation_functions(v::TPSCIstate{T,N,R}, refspace::TPSCIstate{T,N,R2}; verbose=1) where {T,N,R,R2}
+    
+    N_1, N_2, Sz_1, Sz_2 = correlation_functions(v)
+
+    cf = Dict{String,Tuple{Vector{Vector{T}}, Vector{Matrix{T}}}}()
 
     c1 = [zeros(N) for i in 1:R]
     c2 = [zeros(N, N) for i in 1:R]
@@ -82,31 +86,86 @@ function correlation_functions(v::TPSCIstate{T,N,R}, refspace::TPSCIstate{T,N,R2
         c2[r] = c2[r] - c1[r] * c1[r]'
     end
     
-    cf = Dict{String,Tuple{Vector{Vector{T}}, Vector{Matrix{T}}}}()
-    cf["Q0"]     = (c1, c2)
+    cf["Q"]    = (c1, c2)
+    cf["N"]     = (N_1, N_2)
+    cf["Sz"]    = (Sz_1, Sz_2)
     
     if verbose > 0
-        @printf(" * κ1(P0) **************************\n")
+        @printf(" * κ1(Q) **************************\n")
         for r in 1:R
-            @printf(" Root = %2i: %7s = ", r, "<Q0>")
-            [@printf(" %12.8f", cf["Q0"][1][r][i]) for i in 1:N]
+            @printf(" Root = %2i: %7s = ", r, "<Q>")
+            [@printf(" %12.8f", cf["Q"][1][r][i]) for i in 1:N]
             println()
         end
 
         
-        @printf(" * κ2(P0) **************************\n")
+        @printf(" * κ1(N) **************************\n")
         for r in 1:R
-            @printf(" Root = %2i: %7s:\n", r, "Cov(Q0I, Q0J)")
+            @printf(" Root = %2i: %7s = ", r, "<N>")
+            [@printf(" %12.8f", cf["N"][1][r][i]) for i in 1:N]
+            println()
+        end
+
+        
+        @printf(" * κ1(Sz) *************************\n")
+        for r in 1:R
+            @printf(" Root = %2i: %7s = ", r, "<Sz>")
+            [@printf(" %12.8f", cf["Sz"][1][r][i]) for i in 1:N]
+            println()
+        end
+
+        
+        @printf(" * κ2(N) **************************\n")
+        for r in 1:R
+            @printf(" Root = %2i: %7s:\n", r, "Cov(NI, NJ)")
             for j in 1:N
-                [@printf(" %12.8f", cf["Q0"][2][r][i,j]) for i in 1:N]
+                [@printf(" %12.8f", cf["N"][2][r][i,j]) for i in 1:N]
                 println()
             end
             println()
         end
         for r in 1:R
-            @printf(" Root = %2i: %7s:\n", r, "Corr(Q0I, Q0J)")
+            @printf(" Root = %2i: %7s:\n", r, "Corr(NI, NJ)")
             for j in 1:N
-                [@printf(" %12.8f", cf["Q0"][2][r][i,j]/sqrt(cf["Q0"][2][r][i,i]*cf["Q0"][2][r][j,j])) for i in 1:N]
+                [@printf(" %12.8f", cf["N"][2][r][i,j]/sqrt(cf["N"][2][r][i,i]*cf["N"][2][r][j,j])) for i in 1:N]
+                println()
+            end
+            println()
+        end
+
+        
+        @printf(" * κ2(Sz) *************************\n")
+        for r in 1:R
+            @printf(" Root = %2i: %7s:\n", r, "Cov(SzI, SzJ)")
+            for j in 1:N
+                [@printf(" %12.8f", cf["Sz"][2][r][i,j]) for i in 1:N]
+                println()
+            end
+            println()
+        end
+        for r in 1:R
+            @printf(" Root = %2i: %7s:\n", r, "Corr(SzI, SzJ)")
+            for j in 1:N
+                [@printf(" %12.8f", cf["Sz"][2][r][i,j]/sqrt(cf["Sz"][2][r][i,i]*cf["Sz"][2][r][j,j])) for i in 1:N]
+                println()
+            end
+            println()
+        end
+
+        
+        @printf(" * κ2(Q) **************************\n")
+        for r in 1:R
+            @printf(" Root = %2i: %7s:\n", r, "Cov(QI, QJ)")
+            for j in 1:N
+                [@printf(" %12.8f", cf["Q"][2][r][i,j]) for i in 1:N]
+                println()
+            end
+            println()
+        end
+        for r in 1:R
+            @printf(" Root = %2i: %7s:\n", r, "Corr(QI, QJ)")
+            for j in 1:N
+                [@printf(" %12.8f", cf["Q"][2][r][i,j]/sqrt(cf["Q"][2][r][i,i]*cf["Q"][2][r][j,j])) for i in 1:N]
                 println()
             end
             println()
