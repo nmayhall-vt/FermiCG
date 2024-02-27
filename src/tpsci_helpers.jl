@@ -277,3 +277,46 @@ function correlation_functions(v::TPSCIstate{T,N,R}, cluster_ops::Vector{Cluster
     return cf
 end
 
+
+
+"""
+    full_dim(clusters::Vector{MOCluster}, bases::Vector{ClusterBasis{A,T}}, na, nb) where {A,T}
+
+Compute the total dimension of the Hilbert space defined by our current basis.
+- `basis::Vector{ClusterBasis}` 
+- `na`: Number of alpha electrons total
+- `nb`: Number of alpha electrons total
+"""
+function full_dim(clusters::Vector{MOCluster}, bases::Vector{ClusterBasis{A,T}}, na, nb) where {A,T}
+    # {{{
+    println("\n Expand to full space")
+    ns = []
+
+    dim_tot = 0
+    for c in clusters
+        nsi = []
+        for (fspace,basis) in bases[c.idx]
+            push!(nsi,fspace)
+        end
+        push!(ns,nsi)
+    end
+    for newfock in Iterators.product(ns...)
+        nacurr = 0
+        nbcurr = 0
+        for c in newfock
+            nacurr += c[1]
+            nbcurr += c[2]
+        end
+        if (nacurr == na) && (nbcurr == nb)
+            config = FockConfig(collect(newfock))
+            dim_tot += dim(config, clusters)
+            #add_fockconfig!(s,config) 
+        end
+    end
+    #expand_each_fock_space!(bases)
+
+    return dim_tot
+end
+# }}}
+
+

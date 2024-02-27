@@ -30,7 +30,7 @@ Return total dimension of space indexed by `fc` on `no` orbitals
 function dim(fc::FockConfig, clusters)
     dim = 1
     for ci in clusters
-        dim *= binomial(length(ci), fc[ci.idx][1]) * binomial(length(ci), fc[ci.idx][2])
+        dim *= binomial(BigInt(length(ci)), fc[ci.idx][1]) * binomial(BigInt(length(ci)), fc[ci.idx][2])
     end
     return dim
 end
