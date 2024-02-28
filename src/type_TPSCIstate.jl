@@ -761,49 +761,6 @@ end
 
 
 
-"""
-    correlation_functions(v::TPSCIstate{T,N,R}) where {T,N,R}
-
-Compute <N>, <N1N2 - <N1><N2>>, <Sz>, and <Sz1Sz2 - <Sz1><Sz2>>
-"""
-function correlation_functions(v::TPSCIstate{T,N,R}) where {T,N,R}
-
-    n1 = [zeros(N) for i in 1:R]
-    n2 = [zeros(N,N) for i in 1:R]
-    sz1 = [zeros(N) for i in 1:R]
-    sz2 = [zeros(N,N) for i in 1:R]
-
-    for root in 1:R
-        for (fock,configs) in v.data
-            prob = 0
-            for (config, coeff) in configs 
-                prob += coeff[root]*coeff[root] 
-            end
-
-            for ci in v.clusters
-                n1[root][ci.idx] += prob * (fock[ci.idx][1] + fock[ci.idx][2])
-                sz1[root][ci.idx] += prob * (fock[ci.idx][1] - fock[ci.idx][2]) / 2
-                for cj in v.clusters
-                    ci.idx <= cj.idx || continue
-                    n2[root][ci.idx, cj.idx] += prob * (fock[ci.idx][1] + fock[ci.idx][2]) * (fock[cj.idx][1] + fock[cj.idx][2]) 
-                    sz2[root][ci.idx, cj.idx] += prob * (fock[ci.idx][1] - fock[ci.idx][2]) * (fock[cj.idx][1] - fock[cj.idx][2]) / 4
-                    n2[root][cj.idx, ci.idx] = n2[root][ci.idx, cj.idx]
-                    sz2[root][cj.idx, ci.idx] = sz2[root][ci.idx, cj.idx]
-                end
-            end
-        end
-    end
-
-    for r in 1:R
-        n2[r] = n2[r] - n1[r]*n1[r]'
-        sz2[r] = sz2[r] - sz1[r]*sz1[r]'
-    end
-
-    return n1, n2, sz1, sz2
-end
-
-
-
 
 nroots(v::TPSCIstate{T,N,R}) where {T,N,R} = R
 type(v::TPSCIstate{T,N,R}) where {T,N,R} = T

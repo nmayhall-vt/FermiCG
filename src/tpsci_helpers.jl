@@ -19,6 +19,49 @@ end
 
 
 
+"""
+    correlation_functions(v::TPSCIstate{T,N,R}) where {T,N,R}
+
+Compute <N>, <N1N2 - <N1><N2>>, <Sz>, and <Sz1Sz2 - <Sz1><Sz2>>
+"""
+function correlation_functions(v::TPSCIstate{T,N,R}) where {T,N,R}
+
+    n1 = [zeros(N) for i in 1:R]
+    n2 = [zeros(N,N) for i in 1:R]
+    sz1 = [zeros(N) for i in 1:R]
+    sz2 = [zeros(N,N) for i in 1:R]
+
+    for root in 1:R
+        for (fock,configs) in v.data
+            prob = 0
+            for (config, coeff) in configs 
+                prob += coeff[root]*coeff[root] 
+            end
+
+            for ci in v.clusters
+                n1[root][ci.idx] += prob * (fock[ci.idx][1] + fock[ci.idx][2])
+                sz1[root][ci.idx] += prob * (fock[ci.idx][1] - fock[ci.idx][2]) / 2
+                for cj in v.clusters
+                    ci.idx <= cj.idx || continue
+                    n2[root][ci.idx, cj.idx] += prob * (fock[ci.idx][1] + fock[ci.idx][2]) * (fock[cj.idx][1] + fock[cj.idx][2]) 
+                    sz2[root][ci.idx, cj.idx] += prob * (fock[ci.idx][1] - fock[ci.idx][2]) * (fock[cj.idx][1] - fock[cj.idx][2]) / 4
+                    n2[root][cj.idx, ci.idx] = n2[root][ci.idx, cj.idx]
+                    sz2[root][cj.idx, ci.idx] = sz2[root][ci.idx, cj.idx]
+                end
+            end
+        end
+    end
+
+    for r in 1:R
+        n2[r] = n2[r] - n1[r]*n1[r]'
+        sz2[r] = sz2[r] - sz1[r]*sz1[r]'
+    end
+
+    return n1, n2, sz1, sz2
+end
+
+
+
 
 
 
@@ -33,13 +76,168 @@ Returns:
 order is either 1 or 2
 """
 function correlation_functions(v::TPSCIstate{T,N,R}, refspace::TPSCIstate{T,N,R2}; verbose=1) where {T,N,R,R2}
-    
+   
     N_1, N_2, Sz_1, Sz_2 = correlation_functions(v)
 
     cf = Dict{String,Tuple{Vector{Vector{T}}, Vector{Matrix{T}}}}()
 
     c1 = [zeros(N) for i in 1:R]
     c2 = [zeros(N, N) for i in 1:R]
+
+    p_space = [Dict{Tuple{Int,Int,Int}, Bool}() for i in 1:N]
+
+    for (fock, configs) in refspace.data
+        for (config, _) in configs
+            for ci in 1:N
+                p_space[ci][(fock[ci][1], fock[ci][2], config[ci])] = true
+            end
+        end
+    end 
+
+    display(p_space)
+    for root in 1:R
+        for (fock, configs) in v.data
+            for (config, coeff) in configs
+                for ci in 1:N
+                    presenti = false
+                    if haskey(p_space[ci], (fock[ci][1], fock[ci][2], config[ci]))
+                        presenti = true
+                    end
+                    if presenti == false
+                        c1[root][ci] += coeff[root] * coeff[root]
+                    end
+                    
+                    
+                        
+                    for cj in 1:N
+                        presentj = false
+                        if haskey(p_space[cj], (fock[cj][1], fock[cj][2], config[cj]))
+                            presentj = true
+                        end
+                        
+                        if (presenti == false) && (presentj == false)
+                            c2[root][ci, cj] += coeff[root] * coeff[root]
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    for r in 1:R
+        c2[r] = c2[r] - c1[r] * c1[r]'
+    end
+    
+    cf["Q"]    = (c1, c2)
+    cf["N"]     = (N_1, N_2)
+    cf["Sz"]    = (Sz_1, Sz_2)
+    
+    if verbose > 0
+        @printf(" * κ1(Q) **************************\n")
+        for r in 1:R
+            @printf(" Root = %2i: %7s = ", r, "<Q>")
+            [@printf(" %12.8f", cf["Q"][1][r][i]) for i in 1:N]
+            println()
+        end
+
+        
+        @printf(" * κ1(N) **************************\n")
+        for r in 1:R
+            @printf(" Root = %2i: %7s = ", r, "<N>")
+            [@printf(" %12.8f", cf["N"][1][r][i]) for i in 1:N]
+            println()
+        end
+
+        
+        @printf(" * κ1(Sz) *************************\n")
+        for r in 1:R
+            @printf(" Root = %2i: %7s = ", r, "<Sz>")
+            [@printf(" %12.8f", cf["Sz"][1][r][i]) for i in 1:N]
+            println()
+        end
+
+        
+        @printf(" * κ2(N) **************************\n")
+        for r in 1:R
+            @printf(" Root = %2i: %7s:\n", r, "Cov(NI, NJ)")
+            for j in 1:N
+                [@printf(" %12.8f", cf["N"][2][r][i,j]) for i in 1:N]
+                println()
+            end
+            println()
+        end
+        # for r in 1:R
+        #     @printf(" Root = %2i: %7s:\n", r, "Corr(NI, NJ)")
+        #     for j in 1:N
+        #         [@printf(" %12.8f", cf["N"][2][r][i,j]/sqrt(cf["N"][2][r][i,i]*cf["N"][2][r][j,j])) for i in 1:N]
+        #         println()
+        #     end
+        #     println()
+        # end
+
+        
+        @printf(" * κ2(Sz) *************************\n")
+        for r in 1:R
+            @printf(" Root = %2i: %7s:\n", r, "Cov(SzI, SzJ)")
+            for j in 1:N
+                [@printf(" %12.8f", cf["Sz"][2][r][i,j]) for i in 1:N]
+                println()
+            end
+            println()
+        end
+        # for r in 1:R
+        #     @printf(" Root = %2i: %7s:\n", r, "Corr(SzI, SzJ)")
+        #     for j in 1:N
+        #         [@printf(" %12.8f", cf["Sz"][2][r][i,j]/sqrt(cf["Sz"][2][r][i,i]*cf["Sz"][2][r][j,j])) for i in 1:N]
+        #         println()
+        #     end
+        #     println()
+        # end
+
+        
+        @printf(" * κ2(Q) **************************\n")
+        for r in 1:R
+            @printf(" Root = %2i: %7s:\n", r, "Cov(QI, QJ)")
+            for j in 1:N
+                [@printf(" %12.8f", cf["Q"][2][r][i,j]) for i in 1:N]
+                println()
+            end
+            println()
+        end
+        # for r in 1:R
+        #     @printf(" Root = %2i: %7s:\n", r, "Corr(QI, QJ)")
+        #     for j in 1:N
+        #         [@printf(" %12.8f", cf["Q"][2][r][i,j]/sqrt(cf["Q"][2][r][i,i]*cf["Q"][2][r][j,j])) for i in 1:N]
+        #         println()
+        #     end
+        #     println()
+        # end
+
+    end
+    return cf
+end
+
+function correlation_functions_old(v::TPSCIstate{T,N,R}, refspace::TPSCIstate{T,N,R2}; verbose=1) where {T,N,R,R2}
+   
+    N_1, N_2, Sz_1, Sz_2 = correlation_functions(v)
+
+    cf = Dict{String,Tuple{Vector{Vector{T}}, Vector{Matrix{T}}}}()
+
+    c1 = [zeros(N) for i in 1:R]
+    c2 = [zeros(N, N) for i in 1:R]
+
+    p_space = [Dict{Tuple{Int,Int}, Dict{Int,Int}}() for i in 1:N]
+
+    for (fock, configs) in refspace.data
+        for (config, _) in configs
+            for ci in 1:N
+                if haskey(p_space[ci], fock[ci]) == false
+                    p_space[ci][fock[ci]] = Dict{Int,Int}()
+                end
+                p_space[ci][fock[ci]][config[ci]] = 1
+            end
+        end
+    end 
 
     for root in 1:R
         for (fock, configs) in v.data
@@ -50,7 +248,6 @@ function correlation_functions(v::TPSCIstate{T,N,R}, refspace::TPSCIstate{T,N,R2
                         for (configi, coeffi) in configsi
                             if (focki[ci] == fock[ci]) && (config[ci] == configi[ci]) 
                                 presenti = true
-                                break
                             end
                         end
                     end
@@ -124,14 +321,14 @@ function correlation_functions(v::TPSCIstate{T,N,R}, refspace::TPSCIstate{T,N,R2
             end
             println()
         end
-        for r in 1:R
-            @printf(" Root = %2i: %7s:\n", r, "Corr(NI, NJ)")
-            for j in 1:N
-                [@printf(" %12.8f", cf["N"][2][r][i,j]/sqrt(cf["N"][2][r][i,i]*cf["N"][2][r][j,j])) for i in 1:N]
-                println()
-            end
-            println()
-        end
+        # for r in 1:R
+        #     @printf(" Root = %2i: %7s:\n", r, "Corr(NI, NJ)")
+        #     for j in 1:N
+        #         [@printf(" %12.8f", cf["N"][2][r][i,j]/sqrt(cf["N"][2][r][i,i]*cf["N"][2][r][j,j])) for i in 1:N]
+        #         println()
+        #     end
+        #     println()
+        # end
 
         
         @printf(" * κ2(Sz) *************************\n")
@@ -143,14 +340,14 @@ function correlation_functions(v::TPSCIstate{T,N,R}, refspace::TPSCIstate{T,N,R2
             end
             println()
         end
-        for r in 1:R
-            @printf(" Root = %2i: %7s:\n", r, "Corr(SzI, SzJ)")
-            for j in 1:N
-                [@printf(" %12.8f", cf["Sz"][2][r][i,j]/sqrt(cf["Sz"][2][r][i,i]*cf["Sz"][2][r][j,j])) for i in 1:N]
-                println()
-            end
-            println()
-        end
+        # for r in 1:R
+        #     @printf(" Root = %2i: %7s:\n", r, "Corr(SzI, SzJ)")
+        #     for j in 1:N
+        #         [@printf(" %12.8f", cf["Sz"][2][r][i,j]/sqrt(cf["Sz"][2][r][i,i]*cf["Sz"][2][r][j,j])) for i in 1:N]
+        #         println()
+        #     end
+        #     println()
+        # end
 
         
         @printf(" * κ2(Q) **************************\n")
@@ -162,18 +359,20 @@ function correlation_functions(v::TPSCIstate{T,N,R}, refspace::TPSCIstate{T,N,R2
             end
             println()
         end
-        for r in 1:R
-            @printf(" Root = %2i: %7s:\n", r, "Corr(QI, QJ)")
-            for j in 1:N
-                [@printf(" %12.8f", cf["Q"][2][r][i,j]/sqrt(cf["Q"][2][r][i,i]*cf["Q"][2][r][j,j])) for i in 1:N]
-                println()
-            end
-            println()
-        end
+        # for r in 1:R
+        #     @printf(" Root = %2i: %7s:\n", r, "Corr(QI, QJ)")
+        #     for j in 1:N
+        #         [@printf(" %12.8f", cf["Q"][2][r][i,j]/sqrt(cf["Q"][2][r][i,i]*cf["Q"][2][r][j,j])) for i in 1:N]
+        #         println()
+        #     end
+        #     println()
+        # end
 
     end
     return cf
 end
+
+
 
 
 """
