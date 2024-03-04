@@ -697,21 +697,25 @@ function ct_analysis(s::TPSCIstate; ne_cluster=10, thresh=1e-5, nroots=1)
         ct = 0
         for (fock,configs) in s.data
             prob = 0
+            is_ct = false
+            
             for cluster in 1:length(s.clusters)
                 if sum(fock[cluster]) != ne_cluster
-                    prob = 0
-                    for (config, coeff) in configs 
-                        prob += coeff[root]*coeff[root] 
-                    end
-                    if prob > thresh
-                        @printf(" %-20.5f%-20i", prob,length(s.data[fock]))
-                        for sector in fock 
-                            @printf("(%2i,%-2i)", sector[1],sector[2])
-                        end
-                        println()
-                    end
+                    is_ct = true
                 end
-                break
+            end
+                    
+            if is_ct
+                for (config, coeff) in configs 
+                    prob += coeff[root]*coeff[root] 
+                end
+                if prob > thresh
+                    @printf(" %-20.5f%-20i", prob,length(s.data[fock]))
+                    for sector in fock 
+                        @printf("(%2i,%-2i)", sector[1],sector[2])
+                    end
+                    println()
+                end
             end
             ct += prob
         end
