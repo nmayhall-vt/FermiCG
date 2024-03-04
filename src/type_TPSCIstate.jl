@@ -742,14 +742,18 @@ function ct_table(s::TPSCIstate; ne_cluster=10, nroots=1)
         ct = 0
         for (fock,configs) in s.data
             prob = 0
+            is_ct = false
+
             for cluster in 1:length(s.clusters)
                 if sum(fock[cluster]) != ne_cluster
-                    prob = 0
-                    for (config, coeff) in configs 
-                        prob += coeff[root]*coeff[root] 
-                    end
+                    is_ct = true
                 end
-                break
+            end
+            if is_ct 
+                prob = 0
+                for (config, coeff) in configs 
+                    prob += coeff[root]*coeff[root] 
+                end
             end
             ct += prob
         end
