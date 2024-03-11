@@ -973,7 +973,7 @@ function compute_cluster_eigenbasis_spin(   ints::InCoreInts{T},
             else
                 #
                 # Do sparse build 
-                basis_i[sec] = solve(ints_i, ansatz, SolverSettings(nroots=nr))
+                basis_i[sec] = solve(ints_i, ansatz, SolverSettings(nroots=nr,package="arpack"))
             end
 
             #
@@ -1215,7 +1215,7 @@ function compute_cluster_est_basis(ints::InCoreInts{T}, clusters::Vector{MOClust
 
         delta_e_i = ()
         if all( (delta_elec,init_fspace) .!= nothing)
-            delta_e_i = (init_fspace[ci.idx][1], init_fspace[ci.idx][2], delta_elec)
+            delta_e_i = (init_fspace[ci.idx][1], init_fspace[ci.idx][2], delta_elec[ci.idx])
         end
 
         

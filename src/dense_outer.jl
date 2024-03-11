@@ -3,7 +3,7 @@ using BlockDavidson
 """
     function add_single_excitons(v::BSstate{T,N,R}) where {T,N,R}
 
-Add a Q space to all currently defined `TuckerConfigs`.
+Add a Q space corresponding to single excitations to all currently defined `TuckerConfigs`.
 Return new `BSstate`
 """
 function add_single_excitons!(v::BSstate{T,N,R}) where {T,N,R}
@@ -12,8 +12,10 @@ function add_single_excitons!(v::BSstate{T,N,R}) where {T,N,R}
     for (fspace,tconfigs) in v.data
         for (tconfig,coeffs) in [tconfigs...]
             for ci in 1:N
+                # display(v.data)
                 config_i = replace(tconfig, [ci], [v.q_spaces[ci][fspace[ci]]])
                 v[fspace][config_i] = zeros(T,dim(config_i),R) 
+                # display(v.data)
             end
         end
 
@@ -21,6 +23,28 @@ function add_single_excitons!(v::BSstate{T,N,R}) where {T,N,R}
     return 
 end
 #=}}}=#
+    
+"""
+    function add_double_excitons(v::BSstate{T,N,R}) where {T,N,R}
+Add a Q space corresponding to double excitations to all currently defined `TuckerConfigs`.
+Return new `BSstate`
+"""
+function add_double_excitons!(v::BSstate{T,N,R}) where {T,N,R}
+    unfold!(v)
+    for (fspace,tconfigs) in v.data
+        for (tconfig,coeffs) in [tconfigs...]
+            for ci in 1:N
+                for cj in 1:N
+                    ci != cj || continue 
+                    # display(v.data)
+                    config_ij = replace(tconfig, [ci,cj], [v.q_spaces[ci][fspace[ci]], v.q_spaces[cj][fspace[cj]]])
+                    v[fspace][config_ij] = zeros(T, dim(config_ij), R)
+                    # display(v.data)
+                end
+            end
+        end
+    end
+end
 
 """
     function add_1electron_transfers(v::BSstate{T,N,R}) where {T,N,R}
@@ -83,7 +107,78 @@ function add_1electron_transfers!(v::BSstate{T,N,R}) where {T,N,R}
     return 
 end
 #=}}}=#
+    
+    """
+    add_spin_flip_states(v::BSstate{T,N,R},init_fspace) where {T,N,R}
 
+    """
+function add_spin_flip_states!(v::BSstate{T,N,R},init_fspace) where {T,N,R}
+    #={{{=#
+        unfold!(v)
+        #ba
+        for ci in 1:N
+            for cj in 1:N
+                ci != cj || continue 
+                fspace_0 = FermiCG.FockConfig(init_fspace)
+                # println(ci,cj)
+                fconfig_ij = replace(fspace_0, [ci,cj], [(fspace_0[ci][1]+1, fspace_0[ci][2]-1), 
+                                                           (fspace_0[ci][1]-1, fspace_0[ci][2]+1)])
+     
+                # println(fconfig_ij)
+                tconf = Vector{UnitRange{Int16}}()
+                for (ck,fk) in enumerate(fconfig_ij.config)
+                    if (fconfig_ij.config[ci][1]+fconfig_ij.config[ci][2])==(fspace_0[ci][1]+fspace_0[ci][2])
+                        if haskey(v.p_spaces[ck], fk)
+                            push!(tconf,v.p_spaces[ck][fk])
+                        else
+                            push!(tconf,v.q_spaces[ck][fk])
+                        end
+                    end
+                end
+                    # println(tconf)
+                tconf = TuckerConfig(tconf)
+                if fconfig_ij.config[ci][1]+fconfig_ij.config[ci][2]==(fspace_0[ci][1]+fspace_0[ci][2])
+                    add_fockconfig!(v, fconfig_ij)
+                    # display(v.data)
+                    v[fconfig_ij][tconf] = zeros(T,dim(tconf),R) 
+                    # display(v.data)
+                end
+            end
+        end
+    
+            #ab
+        for ci in 1:N
+            for cj in 1:N
+                ci != cj || continue 
+                fspace_0 = FermiCG.FockConfig(init_fspace)
+                fconfig_ij = replace(fspace_0, [ci,cj], [(fspace_0[ci][1]-1, fspace_0[ci][2]+1), 
+                                                           (fspace_0[ci][1]+1, fspace_0[ci][2]-1)])
+    
+                # println(fconfig_ij)
+                tconf = Vector{UnitRange{Int16}}()
+                for (ck,fk) in enumerate(fconfig_ij.config)
+                    if (fconfig_ij.config[ci][1]+fconfig_ij.config[ci][2])==(fspace_0[ci][1]+fspace_0[ci][2])
+                        if haskey(v.p_spaces[ck], fk)
+                            push!(tconf,v.p_spaces[ck][fk])
+                        else
+                            push!(tconf,v.q_spaces[ck][fk])
+                        end
+                    end
+                end
+                tconf = TuckerConfig(tconf)
+    
+                if fconfig_ij.config[ci][1]+fconfig_ij.config[ci][2]==(fspace_0[ci][1]+fspace_0[ci][2])
+                    add_fockconfig!(v, fconfig_ij)
+                    # display(v.data)
+                    v[fconfig_ij][tconf] = zeros(T,dim(tconf),R) 
+                    # display(v.data)
+                end
+            end
+        end
+        return 
+    end
+    #=}}}=#
+    
 
 
 
