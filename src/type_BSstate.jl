@@ -66,7 +66,6 @@ function BSstate(clusters::Vector{MOCluster},
         tss[fconfig[ci.idx]] = 1:1
         push!(p_spaces, tss)
     end
-
     # define q spaces
     for tssp in p_spaces 
         tss = get_ortho_compliment(tssp, cluster_bases[tssp.cluster.idx])
@@ -75,6 +74,11 @@ function BSstate(clusters::Vector{MOCluster},
 
     data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Array{T,2}} }()
     state = BSstate{T,N,R}(clusters, data, p_spaces, q_spaces) 
+    add_fockconfig!(state, fconfig)
+
+    tconfig = TuckerConfig([p_spaces[ci.idx].data[fconfig[ci.idx]] for ci in clusters])
+
+    state[fconfig][tconfig] = zeros(T,dim(tconfig),R) 
     return state
 end
 #=}}}=#
