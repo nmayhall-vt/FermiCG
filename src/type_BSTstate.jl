@@ -576,8 +576,7 @@ and then adds the excited states. E.g.,
     |PPPP> += |QPPP> + |PQPP> + |PPQP> + |PPPQ> 
 """
 function add_single_excitons!(ts::BSTstate{T,N,R}, 
-        fock::FockConfig{N}, 
-        cluster_bases::Vector{ClusterBasis{A,T}}) where {T,N,R,A}
+        fock::FockConfig{N}) where {T,N,R}
     #={{{=#
     #length(size(v)) == 1 || error(" Only takes vectors", size(v))
 
@@ -604,6 +603,34 @@ function add_single_excitons!(ts::BSTstate{T,N,R},
     return
 end
 #=}}}=#
+function add_double_excitons!(ts::BSTstate{T,N,R}, fock::FockConfig{N}) where {T,N,R}
+    ref_config = [ts.p_spaces[ci.idx][fock[ci.idx]] for ci in ts.clusters]
+
+    for ci in ts.clusters
+        conf_i = deepcopy(ref_config)
+
+        # Check if there is a q space for this fock sector
+        fock[ci.idx] in keys(ts.q_spaces[ci.idx].data) || continue
+
+        conf_i[ci.idx] = ts.q_spaces[ci.idx][fock[ci.idx]]
+        # Loop over clusters to set factors for double excitations
+        for cj in ts.clusters
+            # Skip if the cluster is the same as ci
+            if ci.idx == cj.idx
+                continue
+            end
+
+            # Check if there is a q space for this fock sector
+            fock[cj.idx] in keys(ts.q_spaces[cj.idx].data) || continue
+            conf_i[cj.idx] = ts.q_spaces[cj.idx][fock[cj.idx]]
+            tconfig_j = TuckerConfig(conf_i)
+            core = tuple([zeros(length.(tconfig_j)...) for r in 1:R]...)
+            factors = tuple([Matrix{T}(I, length(tconfig_j[j.idx]), length(tconfig_j[j.idx])) for j in ts.clusters]...)
+            ts.data[fock][tconfig_j] = Tucker(core, factors)
+        end
+    end
+    return
+end
 
 """
 """

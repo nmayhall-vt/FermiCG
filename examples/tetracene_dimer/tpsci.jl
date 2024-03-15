@@ -14,7 +14,7 @@ display(init_fspace)
 ref_fspace = FockConfig(init_fspace)
 ecore = ints.h0
 
-cluster_bases = FermiCG.compute_cluster_eigenbasis_spin(ints, clusters, d1, [5,5], ref_fspace, max_roots=M, verbose=1);
+cluster_bases = FermiCG.compute_cluster_eigenbasis_spin(ints, clusters, d1, [3,3], ref_fspace, max_roots=M, verbose=1);
 
 clustered_ham = FermiCG.extract_ClusteredTerms(ints, clusters)
 cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);

@@ -13,16 +13,16 @@ display(clusters)
 display(init_fspace)
 ref_fspace = FockConfig(init_fspace)
 ecore = ints.h0
-cluster_bases = FermiCG.compute_cluster_eigenbasis_spin(ints, clusters, d1, [5,5], ref_fspace, max_roots=M, verbose=1);
+cluster_bases = FermiCG.compute_cluster_eigenbasis_spin(ints, clusters, d1, [3,3], ref_fspace, max_roots=M, verbose=1);
  
 clustered_ham = FermiCG.extract_ClusteredTerms(ints, clusters)
 cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
 FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, d1.a, d1.b);
   
 v = FermiCG.BSstate(clusters, FermiCG.FockConfig(init_fspace), cluster_bases, R=10)
-FermiCG.add_single_excitons!(v)
-FermiCG.add_double_excitons!(v)
-FermiCG.add_1electron_transfers!(v)
+FermiCG.add_single_excitons_upto_L!(v,4)
+FermiCG.add_double_excitons_upto_L!(v,4)
+# FermiCG.add_1electron_transfers!(v)
 FermiCG.add_spin_flip_states!(v,init_fspace)
 FermiCG.eye!(v)
 
