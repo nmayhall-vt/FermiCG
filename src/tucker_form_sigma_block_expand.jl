@@ -61,8 +61,8 @@ function form_sigma_block_expand(term::ClusteredTerm1B,
             # this means that all the overlaps and the operator is a scalar
             bra_cores[r] .= coeffs_ket.core[r] .* s
         else
-            bra_cores[r] .= @ncon(tensors, indices)
-            bra_cores[r] .= bra_cores[r] .* s
+            bra_cores[r] .= @ncon(tensors, indices) .* s
+            #bra_cores[r] .= bra_cores[r] .* s
         end
         deleteat!(tensors,length(tensors))
     end

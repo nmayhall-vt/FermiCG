@@ -295,15 +295,25 @@ function print_configs(s::TPSCIstate; thresh=1e-3, root=1)
     for (fock,configs) in s.data
         length(s.clusters) == length(fock) || throw(Exception)
         length(s.data[fock]) > 0 || continue
+        print_fock = false
+        for (config, value) in s.data[fock]
+            if value[root]*value[root] > thresh 
+                print_fock = true
+                break
+            end
+        end
+        print_fock || continue
+
         @printf(" Dim %4i fock_space: ",length(s.data[fock]))
         [@printf(" %-2i(%i:%i) ",fii,fi[1],fi[2]) for (fii,fi) in enumerate(fock)] 
         println()
         for (config, value) in s.data[fock]
-            @printf(" %5i",idx)
+            value[root]*value[root] > thresh || continue
+            #@printf(" %5i",idx)
             for c in config
                 @printf("%3i",c)
             end
-            @printf(":%12.8f\n",value[1])
+            @printf(":%12.8f\n",value[root])
             idx += 1
         end
     end
@@ -687,21 +697,25 @@ function ct_analysis(s::TPSCIstate; ne_cluster=10, thresh=1e-5, nroots=1)
         ct = 0
         for (fock,configs) in s.data
             prob = 0
+            is_ct = false
+            
             for cluster in 1:length(s.clusters)
                 if sum(fock[cluster]) != ne_cluster
-                    prob = 0
-                    for (config, coeff) in configs 
-                        prob += coeff[root]*coeff[root] 
-                    end
-                    if prob > thresh
-                        @printf(" %-20.5f%-20i", prob,length(s.data[fock]))
-                        for sector in fock 
-                            @printf("(%2i,%-2i)", sector[1],sector[2])
-                        end
-                        println()
-                    end
+                    is_ct = true
                 end
-                break
+            end
+                    
+            if is_ct
+                for (config, coeff) in configs 
+                    prob += coeff[root]*coeff[root] 
+                end
+                if prob > thresh
+                    @printf(" %-20.5f%-20i", prob,length(s.data[fock]))
+                    for sector in fock 
+                        @printf("(%2i,%-2i)", sector[1],sector[2])
+                    end
+                    println()
+                end
             end
             ct += prob
         end
@@ -732,14 +746,18 @@ function ct_table(s::TPSCIstate; ne_cluster=10, nroots=1)
         ct = 0
         for (fock,configs) in s.data
             prob = 0
+            is_ct = false
+
             for cluster in 1:length(s.clusters)
                 if sum(fock[cluster]) != ne_cluster
-                    prob = 0
-                    for (config, coeff) in configs 
-                        prob += coeff[root]*coeff[root] 
-                    end
+                    is_ct = true
                 end
-                break
+            end
+            if is_ct 
+                prob = 0
+                for (config, coeff) in configs 
+                    prob += coeff[root]*coeff[root] 
+                end
             end
             ct += prob
         end
@@ -747,7 +765,6 @@ function ct_table(s::TPSCIstate; ne_cluster=10, nroots=1)
         println()
     end
 end
-
 
 
 

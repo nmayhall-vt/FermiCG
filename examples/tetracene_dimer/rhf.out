@@ -1,0 +1,136 @@
+
+
+******** <class 'pyscf.scf.hf.RHF'> ********
+method = RHF
+initial guess = minao
+damping factor = 0
+level_shift factor = 0
+DIIS = <class 'pyscf.scf.diis.CDIIS'>
+diis_start_cycle = 1
+diis_space = 8
+SCF conv_tol = 1e-09
+SCF conv_tol_grad = None
+SCF max_cycles = 200
+direct_scf = True
+direct_scf_tol = 1e-13
+chkfile to save SCF result = /var/folders/td/qpnnxwv93pq0t7bbdkh5rvzr0000gn/T/tmppc_y98iq
+max_memory 4000 MB (current use 0 MB)
+Set gradient conv threshold to 3.16228e-05
+init E= -1389.45366124002
+  HOMO = -0.145262677431497  LUMO = -0.0550854674010574
+cycle= 1 E= -1376.85730939042  delta_E= 12.6  |g|= 0.981  |ddm|= 8.13
+  HOMO = -0.245350690798504  LUMO = 0.00693712142183936
+cycle= 2 E= -1377.22377335779  delta_E= -0.366  |g|= 0.27  |ddm|= 1.91
+  HOMO = -0.216201672559677  LUMO = 0.0427600742629329
+cycle= 3 E= -1377.25155592446  delta_E= -0.0278  |g|= 0.101  |ddm|= 0.762
+  HOMO = -0.227463487653541  LUMO = 0.0332813202414119
+cycle= 4 E= -1377.25476963288  delta_E= -0.00321  |g|= 0.0216  |ddm|= 0.146
+  HOMO = -0.228714881929556  LUMO = 0.0332889695400231
+cycle= 5 E= -1377.25505925905  delta_E= -0.00029  |g|= 0.00943  |ddm|= 0.0424
+  HOMO = -0.228952391709473  LUMO = 0.0339833467228525
+cycle= 6 E= -1377.25514950645  delta_E= -9.02e-05  |g|= 0.0047  |ddm|= 0.0208
+  HOMO = -0.229006025759246  LUMO = 0.0346670761776774
+cycle= 7 E= -1377.25518253398  delta_E= -3.3e-05  |g|= 0.00169  |ddm|= 0.0167
+  HOMO = -0.229305162774948  LUMO = 0.0346476908878027
+cycle= 8 E= -1377.25518599635  delta_E= -3.46e-06  |g|= 0.000577  |ddm|= 0.00574
+  HOMO = -0.229335719242601  LUMO = 0.0346671326546259
+cycle= 9 E= -1377.255186242  delta_E= -2.46e-07  |g|= 0.00028  |ddm|= 0.00147
+  HOMO = -0.229342656950483  LUMO = 0.0346656249725508
+cycle= 10 E= -1377.25518628924  delta_E= -4.72e-08  |g|= 0.000126  |ddm|= 0.000503
+  HOMO = -0.229346530544654  LUMO = 0.0346637887381009
+cycle= 11 E= -1377.25518631965  delta_E= -3.04e-08  |g|= 9.26e-05  |ddm|= 0.000472
+  HOMO = -0.229350687866647  LUMO = 0.0346593544752005
+cycle= 12 E= -1377.2551863322  delta_E= -1.25e-08  |g|= 4.57e-05  |ddm|= 0.000345
+  HOMO = -0.229350502219827  LUMO = 0.0346585086348484
+cycle= 13 E= -1377.25518633694  delta_E= -4.74e-09  |g|= 2.23e-05  |ddm|= 0.000251
+  HOMO = -0.229349969305211  LUMO = 0.0346587420505109
+cycle= 14 E= -1377.25518633774  delta_E= -8.04e-10  |g|= 5.43e-06  |ddm|= 0.000133
+  HOMO = -0.229350403154358  LUMO = 0.0346582406477969
+Extra cycle  E= -1377.25518633778  delta_E= -3.18e-11  |g|= 3.26e-06  |ddm|= 1.15e-05
+converged SCF energy = -1377.25518633778
+
+
+******** <class 'pyscf.tdscf.rhf.TDA'> for <class 'pyscf.scf.hf.RHF'> ********
+nstates = 2 singlet
+wfnsym = None
+conv_tol = 1e-09
+eigh lindep = 1e-12
+eigh level_shift = 0
+eigh max_space = 50
+eigh max_cycle = 100
+chkfile = /var/folders/td/qpnnxwv93pq0t7bbdkh5rvzr0000gn/T/tmppc_y98iq
+max_memory 4000 MB (current use 0 MB)
+
+
+Excited State energies (eV)
+[3.32193121 3.44113945]
+
+** Singlet excitation energies and oscillator strengths **
+Excited State   1:      3.32193 eV    373.23 nm  f=0.4874
+     117 -> 124       0.11243
+     118 -> 123      -0.11271
+     119 -> 122       0.45379
+     120 -> 121       0.49259
+Excited State   2:      3.44114 eV    360.30 nm  f=0.0000
+     117 -> 123      -0.12731
+     118 -> 124       0.12660
+     119 -> 121       0.48217
+     120 -> 122       0.45912
+
+** Transition electric dipole moments (AU) **
+state          X           Y           Z        Dip. S.      Osc.
+  1        -2.2312      0.9962     -0.1351      5.9891      0.4874
+  2        -0.0013      0.0005      0.0006      0.0000      0.0000
+
+** Transition velocity dipole moments (imaginary part, AU) **
+state          X           Y           Z        Dip. S.      Osc.
+  1         0.0954     -0.1102      0.0245      0.0218      0.1193
+  2         0.0000      0.0000      0.0001      0.0000      0.0000
+
+** Transition magnetic dipole moments (imaginary part, AU) **
+state          X           Y           Z
+  1         0.0002      0.0003     -0.0034
+  2        -0.0210     -0.2197      0.4448
+
+
+******** <class 'pyscf.tdscf.rhf.TDA'> for <class 'pyscf.scf.hf.RHF'> ********
+nstates = 2 triplet
+wfnsym = None
+conv_tol = 1e-09
+eigh lindep = 1e-12
+eigh level_shift = 0
+eigh max_space = 50
+eigh max_cycle = 100
+chkfile = /var/folders/td/qpnnxwv93pq0t7bbdkh5rvzr0000gn/T/tmppc_y98iq
+max_memory 4000 MB (current use 0 MB)
+
+
+Excited State energies (eV)
+[1.13553472 1.1364029 ]
+
+** Triplet excitation energies and oscillator strengths **
+Excited State   1:      1.13553 eV   1091.86 nm  f=0.4452
+     115 -> 126       0.13617
+     116 -> 125       0.13718
+     119 -> 122       0.43609
+     120 -> 121       0.45041
+Excited State   2:      1.13640 eV   1091.02 nm  f=0.0007
+     115 -> 125      -0.13542
+     116 -> 126      -0.13739
+     119 -> 121       0.44698
+     120 -> 122       0.43960
+
+** Transition electric dipole moments (AU) **
+state          X           Y           Z        Dip. S.      Osc.
+  1        -3.5276      1.8366     -0.4324     16.0038      0.4452
+  2        -0.1367      0.0709     -0.0164      0.0240      0.0007
+
+** Transition velocity dipole moments (imaginary part, AU) **
+state          X           Y           Z        Dip. S.      Osc.
+  1        -0.4287      0.2269     -0.0524      0.2380      3.8016
+  2        -0.0166      0.0088     -0.0020      0.0004      0.0057
+
+** Transition magnetic dipole moments (imaginary part, AU) **
+state          X           Y           Z
+  1        -0.0005      0.0106      0.0452
+  2        -0.0008     -0.2921     -1.2642
