@@ -973,7 +973,7 @@ function compute_cluster_eigenbasis_spin(   ints::InCoreInts{T},
             else
                 #
                 # Do sparse build 
-                basis_i[sec] = solve(ints_i, ansatz, SolverSettings(nroots=nr))
+                basis_i[sec] = solve(ints_i, ansatz, SolverSettings(nroots=nr,package="arpack"))
             end
 
             #
