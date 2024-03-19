@@ -32,8 +32,8 @@ ci_vector = BSTstate(clusters,FermiCG.FockConfig(init_fspace), cluster_bases, R=
 
 ci_vector[FermiCG.FockConfig(init_fspace)][FermiCG.TuckerConfig((1:1,1:1))] =
     FermiCG.Tucker(tuple([zeros(Float64, 1, 1) for _ in 1:nroots]...))
-FermiCG.add_single_excitons!(ci_vector,FermiCG.FockConfig(init_fspace))
-FermiCG.add_double_excitons!(ci_vector,FermiCG.FockConfig(init_fspace))
+FermiCG.add_single_excitons!(ci_vector,FermiCG.FockConfig(init_fspace),4)
+FermiCG.add_double_excitons!(ci_vector,FermiCG.FockConfig(init_fspace),1)
 
 #electron transfer states
 fspace_0 = FermiCG.FockConfig(init_fspace)

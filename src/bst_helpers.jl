@@ -8,7 +8,7 @@ and then adds the excited states. E.g.,
     |PPPP> += |QQPP> + |PQQP> + |PPQQ> + |QPPQ> 
 """
 
-function add_double_excitons!(ts::BSTstate{T,N,R}, fock::FockConfig{N}) where {T,N,R}
+function add_double_excitons!(ts::BSTstate{T,N,R}, fock::FockConfig{N},num_states::Integer) where {T,N,R}
     ref_config = [ts.p_spaces[ci.idx][fock[ci.idx]] for ci in ts.clusters]
 
     for ci in ts.clusters
@@ -31,7 +31,7 @@ function add_double_excitons!(ts::BSTstate{T,N,R}, fock::FockConfig{N}) where {T
             tconfig_j = TuckerConfig(conf_i)
             core = tuple([zeros(length.(tconfig_j)...) for r in 1:R]...)
             # factors = tuple([Matrix{T}(I, length(tconfig_j[j.idx]), length(tconfig_j[j.idx])) for j in ts.clusters]...)
-            core,factors=tucker_initialize(core; num_roots=R)
+            core,factors=tucker_initialize(core; num_roots=num_states)
             ts.data[fock][tconfig_j] = FermiCG.Tucker(FermiCG.Tucker(core, factors); R,T)
             
         end
@@ -50,7 +50,7 @@ and then adds the excited states. E.g.,
     |PPPP> += |QPPP> + |PQPP> + |PPQP> + |PPPQ> 
 """
 function add_single_excitons!(ts::BSTstate{T,N,R}, 
-        fock::FockConfig{N}) where {T,N,R}
+        fock::FockConfig{N},num_states::Integer) where {T,N,R}
     #={{{=#
     #length(size(v)) == 1 || error(" Only takes vectors", size(v))
 
@@ -72,7 +72,7 @@ function add_single_excitons!(ts::BSTstate{T,N,R},
         #factors = tuple([cluster_bases[j.idx][fock[j.idx]][:,tconfig_i[j.idx]] for j in ts.clusters]...)
         core = tuple([zeros(length.(tconfig_i)...) for r in 1:R]...)
         # factors = tuple([Matrix{T}(I, length(tconfig_i[j.idx]), length(tconfig_i[j.idx])) for j in ts.clusters]...)
-        core,factors=tucker_initialize(core; num_roots=R)
+        core,factors=tucker_initialize(core; num_roots=num_states)
         ts.data[fock][tconfig_i] = FermiCG.Tucker(FermiCG.Tucker(core, factors); R,T)
         # display(ts.data[fock][tconfig_i])
     end
