@@ -542,8 +542,68 @@ function tucker_decompose(Av::NTuple{R,Array{T,N}}; thresh=1e-7, max_number=noth
     return transform_basis(Av,NTuple{N,Matrix{T}}(factors)), factors
 end
 #=}}}=#
+"""
+    function tucker_decompose(A::Array{T,N}; num_roots=nothing, max_number=nothing, verbose=1, type="magnitude") where {T,N}
 
+Tucker Decomposition of dense tensor: 
+    A ~ X *(1) U1 *(2) U2 ....
+where cluster states are discarded based on the corresponding SVD
+#Arguments
+- `A`: matrix to decompose
+- `num_roots`: number of roots to keep 
+- `max_number`: limit number of tucker factors to this value
+"""
+function tucker_initialize(Av::NTuple{R,Array{T,N}}; num_roots=nothing, max_number=nothing, verbose=1) where {T,N,R}
+    length(Av) > 0 || error(DimensionMismatch)
+    dims = size(Av[1])
+    
+    factors = [zeros(T,size(Av[1],i),0) for i in 1:length(dims)]
+    for r in 1:R
+        all(dims .== size(Av[r])) || error(DimensionMismatch)
+    end
+    verbose <= 0 || println(" Tucker Initialize:", size(Av[1]))
 
+    tmp = similar(Av[1])
+
+    for i in 1:N
+        idx = collect(1:N)
+        idx[i] = -1
+        perm = sortperm(idx)
+
+        tmp = reshape(tmp, size(Av[1])[perm]...)
+        permutedims!(tmp, Av[1], perm)
+        
+        tmp2 = reshape(tmp, size(Av[1],i), length(Av[1])÷size(Av[1],i))
+        G = tmp2*tmp2'
+        for r in 2:R
+            permutedims!(tmp, Av[r],perm)
+            @turbo tmp2 .= reshape(tmp, size(Av[r],i), length(Av[r])÷size(Av[r],i))
+            @turbo G .+= tmp2*tmp2'
+        end
+        F = eigen(G) 
+        F.values .= abs.(F.values)
+        perm2 = sortperm(real(F.values), rev=true)
+        Σ = sqrt.(F.values[perm2])
+        U = F.vectors[:,perm2]
+
+        nkeep = 0
+        if verbose > 0
+            @printf(" index dimension: %6i\n", dims[i])
+        end
+        nkeep = 0
+        if num_roots != nothing
+            nkeep = min(num_roots, length(Σ))
+        end
+        if max_number != nothing
+            nkeep = min(nkeep, max_number)
+        end
+
+        if nkeep > 0 
+            factors[i] = U[:,1:nkeep]
+        end
+    end
+    return transform_basis(Av,NTuple{N,Matrix{T}}(factors)), factors
+end
 
 """
     tucker_recompose(core, factors)
