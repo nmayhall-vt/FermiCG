@@ -10,30 +10,30 @@ and then adds the excited states. E.g.,
 
 function add_double_excitons!(ts::BSTstate{T,N,R}, fock::FockConfig{N},num_states::Integer) where {T,N,R}
     ref_config = [ts.p_spaces[ci.idx][fock[ci.idx]] for ci in ts.clusters]
+    num_clusters = length(ts.clusters)
+    valid_pairs = [(i, j) for i in 1:num_clusters for j in i+1:num_clusters]
 
     for ci in ts.clusters
+        
         conf_i = deepcopy(ref_config)
-
         # Check if there is a q space for this fock sector
         fock[ci.idx] in keys(ts.q_spaces[ci.idx].data) || continue
 
         conf_i[ci.idx] = ts.q_spaces[ci.idx][fock[ci.idx]]
         # Loop over clusters to set factors for double excitations
         for cj in ts.clusters
-            # Skip if the cluster is the same as ci
-            if ci.idx == cj.idx
-                continue
-            end
+            conf_j = deepcopy(conf_i)
+            # println(ci.idx, cj.idx)
+            # Skip if the pair (ci.idx, cj.idx) is not in the list of valid pairs
+            (ci.idx, cj.idx) in valid_pairs || continue
 
             # Check if there is a q space for this fock sector
             fock[cj.idx] in keys(ts.q_spaces[cj.idx].data) || continue
-            conf_i[cj.idx] = ts.q_spaces[cj.idx][fock[cj.idx]]
-            tconfig_j = TuckerConfig(conf_i)
+            conf_j[cj.idx] = ts.q_spaces[cj.idx][fock[cj.idx]]
+            tconfig_j = TuckerConfig(conf_j)
             core = tuple([zeros(length.(tconfig_j)...) for r in 1:R]...)
-            # factors = tuple([Matrix{T}(I, length(tconfig_j[j.idx]), length(tconfig_j[j.idx])) for j in ts.clusters]...)
             core,factors=tucker_initialize(core; num_roots=num_states)
             ts.data[fock][tconfig_j] = FermiCG.Tucker(FermiCG.Tucker(core, factors); R,T)
-            
         end
     end
     return
