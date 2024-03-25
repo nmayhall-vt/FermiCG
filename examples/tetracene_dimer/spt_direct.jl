@@ -37,16 +37,17 @@ FermiCG.add_double_excitons!(ci_vector,FermiCG.FockConfig(init_fspace),1)
 
 #electron transfer states
 fspace_0 = FermiCG.FockConfig(init_fspace)
-
-# Spin-flip states
-## ba
-tmp_fspace = FermiCG.replace(fspace_0, (1,2), ([4,2],[2,4]))
-FermiCG.add_fockconfig!(ci_vector, tmp_fspace)
-ci_vector[tmp_fspace][FermiCG.TuckerConfig((1:1,1:1))]=FermiCG.Tucker(tuple([zeros(Float64, 1, 1) for _ in 1:nroots]...))
-## ab
-tmp_fspace = FermiCG.replace(fspace_0, (1,2), ([2,4],[4,2]))
-FermiCG.add_fockconfig!(ci_vector, tmp_fspace)
-ci_vector[tmp_fspace][FermiCG.TuckerConfig((1:1,1:1))]=FermiCG.Tucker(tuple([zeros(Float64, 1, 1) for _ in 1:nroots]...))
+# FermiCG.add_1electron_transfers!(ci_vector, fspace_0, 1)
+FermiCG.add_spin_flip_states!(ci_vector, fspace_0,1)
+# # Spin-flip states
+# ## ba
+# tmp_fspace = FermiCG.replace(fspace_0, (1,2), ([4,2],[2,4]))
+# FermiCG.add_fockconfig!(ci_vector, tmp_fspace)
+# ci_vector[tmp_fspace][FermiCG.TuckerConfig((1:1,1:1))]=FermiCG.Tucker(tuple([zeros(Float64, 1, 1) for _ in 1:nroots]...))
+# ## ab
+# tmp_fspace = FermiCG.replace(fspace_0, (1,2), ([2,4],[4,2]))
+# FermiCG.add_fockconfig!(ci_vector, tmp_fspace)
+# ci_vector[tmp_fspace][FermiCG.TuckerConfig((1:1,1:1))]=FermiCG.Tucker(tuple([zeros(Float64, 1, 1) for _ in 1:nroots]...))
 display(ci_vector.data)
 FermiCG.eye!(ci_vector)
 display(ci_vector)
