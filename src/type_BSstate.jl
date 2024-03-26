@@ -66,7 +66,6 @@ function BSstate(clusters::Vector{MOCluster},
         tss[fconfig[ci.idx]] = 1:1
         push!(p_spaces, tss)
     end
-
     # define q spaces
     for tssp in p_spaces 
         tss = get_ortho_compliment(tssp, cluster_bases[tssp.cluster.idx])
@@ -76,9 +75,9 @@ function BSstate(clusters::Vector{MOCluster},
     data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Array{T,2}} }()
     state = BSstate{T,N,R}(clusters, data, p_spaces, q_spaces) 
     add_fockconfig!(state, fconfig)
-    
+
     tconfig = TuckerConfig([p_spaces[ci.idx].data[fconfig[ci.idx]] for ci in clusters])
-    
+
     state[fconfig][tconfig] = zeros(T,dim(tconfig),R) 
     return state
 end
@@ -139,7 +138,41 @@ function BSstate(v::BSstate{TT,NN,RR}; T=TT, R=RR) where {TT,NN,RR}
     end
     return out
 end
+"""
+    BSstate(clusters::Vector{MOCluster}, 
+             p_spaces::Vector{ClusterSubspace},
+             cluster_bases::Vector{ClusterBasis}; R=1) where {T,A} 
 
+Constructor needing only prespecified p-spaces. 
+The Q space is defined as the orthogonal complement of p-space within the available basis, 
+specified by `cluster_bases`.
+# Arguments
+- `clusters`: vector of clusters types
+- `p_spaces`: list of pspaces for each cluster 
+- `cluster_basis`: list of ClusterBasis types - needed to know the dimensions of the q-spaces
+- `R`: number of roots
+# Returns
+- `BSstate`
+"""
+function BSstate(clusters::Vector{MOCluster},
+                  p_spaces::Vector{FermiCG.ClusterSubspace},
+                  cluster_bases::Vector{ClusterBasis{A,T}}; R=1) where {T,A} 
+    #={{{=#
+    N = length(clusters)
+    # start by building the P and Q spaces needed
+    q_spaces = Vector{ClusterSubspace}()
+
+    # define q spaces
+    for tssp in p_spaces 
+        tss = get_ortho_compliment(tssp, cluster_bases[tssp.cluster.idx])
+        push!(q_spaces, tss)
+    end
+
+    data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Array{T,2}} }()
+    state = BSstate{T,N,R}(clusters, data, p_spaces, q_spaces) 
+    return state
+#=}}}=#
+end
 
 """
     BSstate(clusters; T=Float64, R=1)
@@ -687,8 +720,26 @@ function expand_each_fock_space!(s::BSstate, bases::Vector{ClusterBasis}; nroots
 end
 # }}}
 
+function fill_p_space!(s::BSstate{T,N,R}, na, nb) where {T,N,R}
 
-
+    sectors = [] 
+    for ci in s.clusters
+        sectors_i = []
+        for (fock, range) in s.p_spaces[ci.idx].data
+            push!(sectors_i, fock)
+        end
+        push!(sectors, sectors_i)
+    end
+    for fconfig in Iterators.product(sectors...)
+        fi = FockConfig([fconfig...])
+        if n_elec_a(fi) == na && n_elec_b(fi) == nb 
+            add_fockconfig!(s, fi)
+    
+            tconfig = TuckerConfig([s.p_spaces[ci.idx].data[fi[ci.idx]] for ci in s.clusters])
+            s[fi][tconfig] = zeros(T,dim(tconfig),R) 
+        end
+    end
+end
 """
     function orthonormalize!(s::BSstate{T,N,R}) where {T,N,R}
 
