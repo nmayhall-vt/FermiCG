@@ -948,3 +948,45 @@ function project_into_new_basis(v1::BSTstate{T,N,R}, v2::BSTstate{T,N,R}) where 
     end
     return out
 end
+
+"""
+    ct_table(s::BSTstate; ne_cluster=10, nroots=1)
+
+Prints total weight of charge transfer in each root in table formate
+# Arguments
+- `s::BSTstate`
+- `ne_cluster`:  Int, number of total electrons in each cluster
+- `nroots`: Total number of roots
+"""
+function ct_table(s::BSTstate{T,N,R}; ne_cluster=10, nroots=1) where {T,N,R}
+    @printf(" -----------------------\n")
+    @printf(" --- CHARGE TRANSFER ---\n")
+    @printf(" -----------------------\n")
+    @printf(" %-15s%-10s\n", "Root", "Total CT")
+    @printf(" %-15s%-10s\n", "-------", "---------")
+    for root in 1:nroots
+        ct = 0
+        for (fock,configs) in s.data
+            # println(fock)
+            prob = 0
+            is_ct = false
+
+            for cluster in 1:length(s.clusters)
+                if sum(fock[cluster]) != ne_cluster
+                    is_ct = true
+                end
+            end
+            if is_ct 
+                prob = 0
+                for (tconfig, tucker) in configs 
+                    # println(tucker.core)
+                    # println(tucker.factors)
+                    prob += sum(tucker.core[root] .^ 2)
+                end
+            end
+            ct += prob
+        end
+        @printf(" %-15i%-10.5f", root, ct)
+        println()
+    end
+end
