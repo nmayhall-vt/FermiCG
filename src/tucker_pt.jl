@@ -735,7 +735,7 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
         #for (jobi,job) in collect(enumerate(jobs_vec))
             fock_sig = job[1]
             tid = Threads.threadid()
-            e2_thread[tid] .+= _pt2_job(fock_sig, job[2], ref_vec, cluster_ops, clustered_ham, clustered_ham_0, 
+            e2_thread[tid] .+= _pt2_job2(fock_sig, job[2], ref_vec, cluster_ops, clustered_ham, clustered_ham_0, 
                           nbody, verbose, thresh_foi, max_number, E0, F0, prescreen, compress_twice)
             if verbose > 1
                 if  jobi%tmp == 0
@@ -929,3 +929,131 @@ end
 
 
 
+function _pt2_job2(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ham, clustered_ham_0,
+    nbody, verbose, thresh, max_number, E0, F0, prescreen, compress_twice) where {T,N,R}
+
+    ecorr = []
+    for jobi in job
+
+        terms, ket_fock, ket_tconfigs = jobi
+        for (ket_tconfig, ket_tuck) in ket_tconfigs
+            sig = BSTstate(ket.clusters, ket.p_spaces, ket.q_spaces, T=T, R=R)
+            add_fockconfig!(sig, sig_fock)
+            data = OrderedDict{TuckerConfig{N},Vector{Tucker{T,N,R}}}()
+            
+            for term in terms
+
+                length(term.clusters) <= nbody || continue
+                
+
+           
+    
+                
+                #
+                # find the sig TuckerConfigs reached by applying current Hamiltonian term to ket_tconfig.
+                #
+                # For example:
+                #
+                #   [(p'q), I, I, (r's), I ] * |P,Q,P,Q,P>  --> |X, Q, P, X, P>  where X = {P,Q}
+                #
+                #   This term will couple to 4 distinct tucker blocks (assuming each of the active clusters
+                #   have both non-zero P and Q spaces within the current fock sector, "sig_fock".
+                #
+                # We will loop over all these destination TuckerConfig's by creating the cartesian product of their
+                # available spaces, this list of which we will keep in "available".
+                #
+
+                available = [] # list of lists of index ranges, the cartesian product is the set needed
+                # for current term, expand index ranges for active clusters
+                for ci in term.clusters
+                    tmp = []
+                    if haskey(ket.p_spaces[ci.idx], sig_fock[ci.idx])
+                        push!(tmp, ket.p_spaces[ci.idx][sig_fock[ci.idx]])
+                    end
+                    if haskey(ket.q_spaces[ci.idx], sig_fock[ci.idx])
+                        push!(tmp, ket.q_spaces[ci.idx][sig_fock[ci.idx]])
+                    end
+                    push!(available, tmp)
+                end
+
+
+                #
+                # Now loop over cartesian product of available subspaces (those in X above) and
+                # create the target TuckerConfig and then evaluate the associated terms
+                for prod in Iterators.product(available...)
+                    sig_tconfig = [ket_tconfig.config...]
+                    for cidx in 1:length(term.clusters)
+                        ci = term.clusters[cidx]
+                        sig_tconfig[ci.idx] = prod[cidx]
+                    end
+                    sig_tconfig = TuckerConfig(sig_tconfig)
+
+                    #
+                    # the `term` has now coupled our ket TuckerConfig, to a sig TuckerConfig
+                    # let's compute the matrix element block, then compress, then add it to any existing compressed
+                    # coefficient tensor for that sig TuckerConfig.
+                    #
+                    # Both the Compression and addition takes a fair amount of work.
+
+
+                    check_term(term, sig_fock, sig_tconfig, ket_fock, ket_tconfig) || continue
+
+
+                    if prescreen
+                        bound = calc_bound(term, cluster_ops,
+                            sig_fock, sig_tconfig,
+                            ket_fock, ket_tconfig, ket_tuck,
+                            prescreen=thresh)
+                        bound == true || continue
+                    end
+
+                    sig_tuck = form_sigma_block_expand(term, cluster_ops,
+                        sig_fock, sig_tconfig,
+                        ket_fock, ket_tconfig, ket_tuck,
+                        max_number=max_number,
+                        prescreen=thresh)
+
+
+                    if length(sig_tuck) == 0
+                        continue
+                    end
+                    if norm(sig_tuck) < thresh
+                        continue
+                    end
+
+
+                    #compress new addition
+                    sig_tuck = compress(sig_tuck, thresh=thresh)
+
+                    length(sig_tuck) > 0 || continue
+
+                    #add to current sigma vector
+                    if haskey(sig[sig_fock], sig_tconfig)
+
+                        if haskey(data, sig_tconfig)
+                            push!(data[sig_tconfig], sig_tuck)
+                        else
+                            data[sig_tconfig] = [sig[sig_fock][sig_tconfig], sig_tuck]
+                        end
+                    else
+                        sig[sig_fock][sig_tconfig] = sig_tuck
+                    end
+
+                end
+                
+            end
+            for (tconfig, tucks) in data
+                if compress_twice
+                    sig[sig_fock][tconfig] = compress(nonorth_add(tucks), thresh=thresh)
+                else
+                    sig[sig_fock][tconfig] = nonorth_add(tucks)
+                end
+            end
+            # Compute PT2 energy for this job
+            v_pt, e_pt, ecor = compute_pt1_wavefunction(sig, ket, cluster_ops, clustered_ham, clustered_ham_0, E0, F0, verbose=0)
+            push!(ecorr, ecor)
+        end
+    end
+    return sum(ecorr)
+    # return ecorr
+end
