@@ -17,11 +17,10 @@ cluster_ops = FermiCG.compute_cluster_ops(cluster_bases, ints);
 
 FermiCG.add_cmf_operators!(cluster_ops, cluster_bases, ints, d1.a, d1.b);
 
-nroots=3
+nroots=1
 
 # TPSCI
 #
-nroots=3
 ci_vector = FermiCG.TPSCIstate(clusters, ref_fock, R=nroots)
 
 ci_vector = FermiCG.add_spin_focksectors(ci_vector)
@@ -49,7 +48,7 @@ for ci in clusters
     push!(p_spaces, ssi)
 end
 
-ci_vector = BSTstate(clusters, p_spaces, cluster_bases, R=3) 
+ci_vector = BSTstate(clusters, p_spaces, cluster_bases, R=1) 
 
 na = 4
 nb = 4
