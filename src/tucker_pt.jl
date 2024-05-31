@@ -1111,23 +1111,8 @@ function _pt2_job2(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_h
             length(term.clusters) <= nbody || continue
 
             for (ket_tconfig, ket_tuck) in ket_tconfigs
-                #
-                # find the sig TuckerConfigs reached by applying current Hamiltonian term to ket_tconfig.
-                #
-                # For example:
-                #
-                #   [(p'q), I, I, (r's), I ] * |P,Q,P,Q,P>  --> |X, Q, P, X, P>  where X = {P,Q}
-                #
-                #   This this term, will couple to 4 distinct tucker blocks (assuming each of the active clusters
-                #   have both non-zero P and Q spaces within the current fock sector, "sig_fock".
-                #
-                # We will loop over all these destination TuckerConfig's by creating the cartesian product of their
-                # available spaces, this list of which we will keep in "available".
-                #
 
-                available = [] # list of lists of index ranges, the cartesian product is the set needed
-                #
-                # for current term, expand index ranges for active clusters
+                available = [] 
                 for ci in term.clusters
                     tmp = []
                     if haskey(ket.p_spaces[ci.idx], sig_fock[ci.idx])
@@ -1138,11 +1123,6 @@ function _pt2_job2(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_h
                     end
                     push!(available, tmp)
                 end
-
-
-                #
-                # Now loop over cartesian product of available subspaces (those in X above) and
-                # create the target TuckerConfig and then evaluate the associated terms
                 for prod in Iterators.product(available...)
                     sig_tconfig = [ket_tconfig.config...]
                     for cidx in 1:length(term.clusters)
@@ -1167,15 +1147,6 @@ function _pt2_job2(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_h
         i=0
         for (term, ket_fock, ket_tconfig) in terms_to_process
             ket_tuck = ket[ket_fock][ket_tconfig]
-
-            #
-            # the `term` has now coupled our ket TuckerConfig, to a sig TuckerConfig
-            # let's compute the matrix element block, then compress, then add it to any existing compressed
-            # coefficient tensor for that sig TuckerConfig.
-            #
-            # Both the Compression and addition takes a fair amount of work.
-
-
             check_term(term, sig_fock, sig_tconfig, ket_fock, ket_tconfig) || continue
 
 
