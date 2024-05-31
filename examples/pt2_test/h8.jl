@@ -4,9 +4,10 @@ using FermiCG
 using Printf
 using Test
 using JLD2
-ref_fock = FockConfig(init_fspace)
+
 
 @load "_testdata_cmf_h8.jld2"
+ref_fock = FockConfig(init_fspace)
 # Do TPS
 M=20
 cluster_bases = FermiCG.compute_cluster_eigenbasis_spin(ints, clusters, d1, [3,3], ref_fock, max_roots=M, verbose=1);

@@ -29,7 +29,7 @@ ci_vector = FermiCG.add_spin_focksectors(ci_vector)
 display(ci_vector)
 etpsci, vtpsci = FermiCG.tps_ci_direct(ci_vector, cluster_ops, clustered_ham);
 
-ept1 = FermiCG.compute_pt2_energy(vtpsci, cluster_ops, clustered_ham, thresh_foi=1e-12)
+@time ept1 = FermiCG.compute_pt2_energy(vtpsci, cluster_ops, clustered_ham, thresh_foi=1e-12)
 
 
 
@@ -57,8 +57,8 @@ FermiCG.fill_p_space!(ci_vector, na, nb)
 FermiCG.eye!(ci_vector)
 ebst, vbst = FermiCG.ci_solve(ci_vector, cluster_ops, clustered_ham)
 
-ept2 = FermiCG.compute_pt2_energy(vbst, cluster_ops, clustered_ham, thresh_foi=1e-64)
-
+@time ept2 = FermiCG.compute_pt2_energy(vbst, cluster_ops, clustered_ham, thresh_foi=1e-64,prescreen   = true,compress_twice = true)
+@time ept2 = FermiCG.compute_pt2_energy2(vbst, cluster_ops, clustered_ham, thresh_foi=1e-64,prescreen   = true,compress_twice = true)
 println(" PT2 - tpsci")
 display(ept1)
 println(" PT2 - bst")
