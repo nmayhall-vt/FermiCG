@@ -1144,7 +1144,7 @@ function _pt2_job2(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_h
 
     for (sig_tconfig, terms_to_process) in tconfigs_to_process
         curr_tucker = []
-        i=0
+        i=1
         #curr_tuck=Tucker{T,N,R}() #initialization problem is there as in every iteration there is a new dimension of Tucker core and factor 
         #if I don't want to store tucker in a list, though it is not affecting the time and memory allocations
         for (term, ket_fock, ket_tconfig) in terms_to_process
@@ -1169,12 +1169,12 @@ function _pt2_job2(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_h
             sig_tuck = compress(sig_tuck, thresh=thresh)
             push!(curr_tucker, sig_tuck)
             # println(sig_tuck)
-            if i==0
+            if i==1
                 #curr_tuck = sig_tuck
-                curr_tuck = curr_tucker[i+1]
+                curr_tuck = curr_tucker[i]
             else
                 #curr_tuck=nonorth_add([curr_tuck, sig_tuck])
-                curr_tuck=nonorth_add([curr_tuck, curr_tucker[i+1]])
+                curr_tuck=nonorth_add([curr_tuck, curr_tucker[i]])
             end
             ##curr_tuck=nonorth_add([curr_tuck, sig_tuck])
             i+=1
