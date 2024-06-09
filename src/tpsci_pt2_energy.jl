@@ -128,6 +128,7 @@ function compute_pt2_energy(ci_vector_in::TPSCIstate{T,N,R}, cluster_ops, cluste
     flush(stdout)
 
 
+    #tmp = Int(round(length(jobs_vec)/100))
     tmp = Int(round(length(jobs_vec)/100))
     if tmp == 0
         tmp += 1
