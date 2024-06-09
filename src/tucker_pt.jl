@@ -723,7 +723,11 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
         push!(e2_thread, zeros(T,R))
     end
 
-    tmp = ceil(length(jobs_vec)/100)
+    #tmp = ceil(length(jobs_vec)/100)
+    tmp = Int(round(length(jobs_vec)/100))
+    if tmp == 0
+        tmp += 1
+    end
     verbose < 2 || println(" |----------------------------------------------------------------------------------------------------|")
     verbose < 2 || println(" |0%                                                                                              100%|")
     verbose < 2 || print(" |")
@@ -1039,7 +1043,11 @@ function compute_pt2_energy2(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
         push!(e2_thread, zeros(T,R))
     end
 
-    tmp = ceil(length(jobs_vec)/100)
+    #tmp = ceil(length(jobs_vec)/100)
+    tmp = Int(round(length(jobs_vec)/100))
+    if tmp == 0
+        tmp += 1
+    end
     verbose < 2 || println(" |----------------------------------------------------------------------------------------------------|")
     verbose < 2 || println(" |0%                                                                                              100%|")
     verbose < 2 || print(" |")
