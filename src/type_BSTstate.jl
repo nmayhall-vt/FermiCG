@@ -148,7 +148,34 @@ function BSTstate(v::BSTstate{TT,N,RR}; T=TT, R=RR) where {TT,N,RR}
     return w 
 #=}}}=#
 end
+"""
 
+Constructor - create copy, of a particular root
+# Arguments
+- `v`: input `BSTstate` object 
+- `T`: data type of new state 
+- `R`: specific root in new state 
+# Returns
+- `BSTstate`
+"""
+function BSTstate(v::BSTstate{T,N,R},  root) where {T,N,R}
+    #={{{=#
+
+    data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N,1}} }()
+   
+    w = BSTstate{T,N,1}(v.clusters, data, v.p_spaces, v.q_spaces)
+    for (fock, tconfigs) in v.data
+        add_fockconfig!(w, fock)
+        for (tconfig, tuck) in tconfigs
+            core=(tuck.core[root],)
+            factors = ntuple(i->tuck.factors[i],N)
+            w[fock][tconfig] = Tucker{T, N, 1}(core, factors)
+        end
+    end
+    return w 
+#=}}}=#
+end
+# return Tucker{T,NN,R}(cores, ntuple(i->t.factors[i],NN))
 
 """
     BSTstate(clusters::Vector{MOCluster}, 
