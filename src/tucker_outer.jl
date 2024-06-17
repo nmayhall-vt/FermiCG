@@ -257,11 +257,11 @@ After solving, the Energy can be obtained as:
 """
 function tucker_cepa_solve(ref_vector::BSTstate{T,N,R}, cepa_vector::BSTstate, cluster_ops, clustered_ham, 
                            cepa_shift="cepa", 
-                           cepa_mit = 50; 
-                           tol=1e-5, 
-                           cache=true, 
-                           max_iter=30, 
-                           verbose=false) where {T,N,R}
+                           cepa_mit  = 50; 
+                           tol       =1e-5, 
+                           cache     =true, 
+                           max_iter  =30, 
+                           verbose   =false) where {T,N,R}
 #={{{=#
 
     sig = deepcopy(ref_vector)
@@ -270,7 +270,7 @@ function tucker_cepa_solve(ref_vector::BSTstate{T,N,R}, cepa_vector::BSTstate, c
     e0 = nonorth_dot(ref_vector, sig)
     length(e0) == 1 || error("Only one state at a time please", e0)
     e0 = e0[1]
-    @printf(" Reference Energy: %12.8f\n",e0[1])
+    @printf(" Reference Energy: %12.8f\n",e0)
 
     n_clusters = length(cepa_vector.clusters)
 
@@ -332,29 +332,33 @@ function tucker_cepa_solve(ref_vector::BSTstate{T,N,R}, cepa_vector::BSTstate, c
 
     Ec = 0
     Ecepa = 0
-    if cepa_shift == "cepa"
-        cepa_mit = 1
-    end
+    # if cepa_shift == "cepa"
+        
+    # end
     for it in 1:cepa_mit 
-
+        println("CEPA cycle: ", it)
     	bv = -get_vector(b)
         #n_clusters = 8
     	if cepa_shift == "cepa"
-	    shift = 0.0
-	elseif cepa_shift == "acpf"
+            cepa_mit = 1
+	        shift = 0.0
+	    elseif cepa_shift == "acpf"
 
-	    shift = Ec * 2.0 / n_clusters
-	elseif cepa_shift == "aqcc"
-	    shift = (1.0 - (n_clusters-3.0)*(n_clusters - 2.0)/(n_clusters * ( n_clusters-1.0) )) * Ec
-	elseif cepa_shift == "cisd"
-	    shift = Ec
-	else
-	    println()
-	    println("NYI: cepa_shift is not available:",cepa_shift)
-	    println()
-	    exit()
-	end
-	eshift = e0+shift
+	        shift = Ec * 2.0 / n_clusters
+	    elseif cepa_shift == "aqcc"
+	        shift = (1.0 - (n_clusters-3.0)*(n_clusters - 2.0)/(n_clusters * ( n_clusters-1.0) )) * Ec
+	    elseif cepa_shift == "cisd"
+	        shift = Ec
+	    else
+            println()
+            println("NYI: cepa_shift is not available:",cepa_shift)
+            println()
+            exit()
+        end
+	
+	    eshift = e0+shift
+        # display(shift)
+        # display(eshift)
         bv .= bv .+ get_vector(Sx)* (eshift)
 
         function mymatvec(v)
@@ -428,10 +432,10 @@ function tucker_cepa_solve(ref_vector::BSTstate{T,N,R}, cepa_vector::BSTstate, c
         Ecepa = (e0[1] + ecorr[1])/(1+SxC[1])
         #@printf(" %s %18.12f\n",cepa_shift, (e0 + ecorr)/(1+SxC))
         @printf("Iter: %4d        %18.12f %18.12f \n",it,Ec ,Ecepa-e0)
-	    if abs(Ec - (Ecepa-e0)) < 1e-6
+	    if abs(Ec - (Ecepa-e0)) < 1e-10
             @printf(" Converged %s %18.12f\n",cepa_shift, (e0[1] + ecorr[1])/(1+SxC[1]))
-	    break
-	end
+	        break
+	    end
 	Ec = Ecepa - e0
     end
 
@@ -1379,7 +1383,7 @@ function do_fois_cepa(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
     println(" Do CEPA: Dim = ", length(cepa_vec))
     for i in 1:R
         ref_vec_i=FermiCG.BSTstate(ref_vec,i) 
-        display(ref_vec_i)
+        # display(ref_vec_i)
         cepa_vec_i=FermiCG.BSTstate(cepa_vec,i)
         zero!(cepa_vec_i) 
         println(" Do CEPA: Dim = ", length(cepa_vec_i))
