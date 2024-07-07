@@ -681,7 +681,7 @@ end
 
 Pretty print
 """
-function print_fock_occupations(s::BSTstate; thresh=1e-3)
+function print_fock_occupations(s::BSTstate; thresh=1e-3,root=1)
 #={{{=#
 
     println()
