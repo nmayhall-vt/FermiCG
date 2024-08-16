@@ -1,7 +1,6 @@
 using TimerOutputs
 using BlockDavidson
 using BenchmarkTools
-using Printf
 
 """
     build_full_H(ci_vector::TPSCIstate, cluster_ops, clustered_ham::ClusteredOperator)
@@ -1051,83 +1050,4 @@ end
 #    a = @load filename
 #    return eval.(a)
 #end
-
-function do_fois_ci(ref::TPSCIstate{T,N,R}, cluster_ops, clustered_ham;
-                    H0          = "Hcmf",
-                    max_iter    = 50,
-                    nbody       = 4,
-                    thresh_foi  = 1e-6,
-                    tol         = 1e-5,
-                    thresh_clip = 1e-6,
-                    threaded    =false,
-                    prescreen   = false,
-                    compress    = false,
-                    pt          =false,
-                    verbose     = true) where {T,N,R}
-    @printf("\n-------------------------------------------------------\n")
-    @printf(" Do CI in FOIS\n")
-    @printf("   H0                      = %-s\n", H0)
-    @printf("   thresh_foi              = %-8.1e\n", thresh_foi)
-    @printf("   nbody                   = %-i\n", nbody)
-    @printf("\n")
-    @printf("   Length of Reference     = %-i\n", length(ref))
-    @printf("\n-------------------------------------------------------\n")
-
-# 
-    # Solve variationally in reference space
-    ref_vec = deepcopy(ref)
-    @printf(" Solve zeroth-order problem. Dimension = %10i\n", length(ref_vec))
-    @time e0, ref_vec = tps_ci_direct(ref_vec, cluster_ops, clustered_ham, conv_thresh=tol)
-    
-
-    #
-    # Get First order wavefunction
-    println()
-    println(" Compute FOIS. Reference space dim = ", length(ref_vec))
-    # pt1_vec= deepcopy(ref_vec)
-    # pt1_vec=matvec(pt1_vec)
-    if threaded == true
-        pt1_vec = open_matvec_thread(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi, prescreen=prescreen)
-    else
-        pt1_vec = open_matvec_serial(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi, prescreen=prescreen)
-    end
-    for i in 1:R
-        @printf("Arnab: %12.8f\n", sqrt.(orth_dot(pt1_vec,pt1_vec))[i])
-    end
-    project_out!(pt1_vec, ref)
-    # Compress FOIS
-    if compress==true
-        norm1 = sqrt.(orth_dot(pt1_vec, pt1_vec))
-        dim1 = length(pt1_vec)
-        clip!(pt1_vec, thresh=thresh_clip) #does clip! function do the compression? or have to write a compress function.
-        norm2 = sqrt.(orth_dot(pt1_vec, pt1_vec))
-        dim2 = length(pt1_vec)
-        @printf(" %-50s%10i → %-10i (thresh = %8.1e)\n", "FOIS Compressed from: ", dim1, dim2, thresh_foi)
-        for i in 1:R
-            @printf(" %-50s%10.2e → %-10.2e (thresh = %8.1e)\n", "Norm of |1>: ",norm1[i], norm2[i], thresh_foi)
-        end
-    end
-    for i in 1:R
-        @printf(" %-50s%10.6f\n", "Overlap between <1|0>: ", overlap(pt1_vec, ref_vec)[i])
-    end
-
-    add!(ref_vec, pt1_vec)
-    # Solve for first order wavefunction 
-    println(" Compute CI energy in the space = ", length(ref_vec))
-   
-    eci, ref_vec = tps_ci_direct(ref_vec, cluster_ops, clustered_ham;)
-    for i in 1:R
-        @printf(" E(Ref)   for %ith state   = %12.8f\n",i, e0[i])
-        @printf(" E(CI) tot for %ith state = %12.8f\n",i, eci[i])
-    end
-    if pt==true
-        e_pt2,pt1_vec= compute_pt1_wavefunction(ref_vec, cluster_ops, clustered_ham;  H0=H0,verbose=verbose)  
-        for i in 1:R
-            @printf(" E(PT2)  for %ith state   = %12.8f\n",i, e_pt2[i])
-        end
-    end
-    return eci, ref_vec 
-    # println("debugging")
-    # error()
-end
 

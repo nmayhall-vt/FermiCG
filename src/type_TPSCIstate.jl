@@ -581,27 +581,7 @@ function orthonormalize!(s::TPSCIstate{T,N,R}) where {T,N,R}
     set_vector!(s,v0)
 end
 #=}}}=#
-"""
-    orth_dot(ts1::FermiCG.TPSCIstate, ts2::FermiCG.TPSCIstate)
 
-Dot product between `ts2` and `ts1`
-
-"""
-function orth_dot(ts1::TPSCIstate{T,N,R}, ts2::TPSCIstate{T,N,R}) where {T,N,R}
-    #={{{=#
-    overlap = zeros(T,R)
-    for (fock,configs) in ts2.data
-        haskey(ts1, fock) || continue
-        for (config,coeffs) in configs
-            haskey(ts1[fock], config) || continue
-            for r in 1:R
-                overlap[r] += sum(ts1[fock][config][r] .* ts2[fock][config][r])
-            end
-        end
-    end
-    return overlap
-    #=}}}=#
-end
 
 """
     clip!(s::TPSCIstate; thresh=1e-5)
@@ -670,27 +650,6 @@ function extract_roots(v::TPSCIstate{T,N,R}, roots) where {T,N,R}
     return out
 end
 
-"""
-    function extract_chosen_root(v::TPSCIstate{T,N,R}, root::Int)
-
-Extracts the chosen root to give a new `TPSCIstate` with only that root.
-"""
-function extract_chosen_root(v::TPSCIstate{T,N,R}, root::Int) where {T,N,R}
-    if root < 1 || root > R
-        throw(ArgumentError("Root index $root is out of bounds. It should be between 1 and $R."))
-    end
-    out = TPSCIstate(v.clusters, T=T, R=1)
-    for (fock, configs) in v.data
-        add_fockconfig!(out, fock)
-        # display(configs)
-        for (config, coeffs) in configs
-            # display(coeffs)
-            out[fock][config] =MVector{1, T}(coeffs[root])
-        end
-    end
-    
-    return out
-end
 
 
 """
