@@ -39,24 +39,9 @@ FermiCG.add_double_excitons!(ci_vector,FermiCG.FockConfig(init_fspace),nroots)
 fspace_0 = FermiCG.FockConfig(init_fspace)
 # FermiCG.add_1electron_transfers!(ci_vector, fspace_0, 1)
 FermiCG.add_spin_flip_states!(ci_vector, fspace_0,1)
-# # Spin-flip states
-# ## ba
-# tmp_fspace = FermiCG.replace(fspace_0, (1,2), ([4,2],[2,4]))
-# FermiCG.add_fockconfig!(ci_vector, tmp_fspace)
-# ci_vector[tmp_fspace][FermiCG.TuckerConfig((1:1,1:1))]=FermiCG.Tucker(tuple([zeros(Float64, 1, 1) for _ in 1:nroots]...))
-# ## ab
-# tmp_fspace = FermiCG.replace(fspace_0, (1,2), ([2,4],[4,2]))
-# FermiCG.add_fockconfig!(ci_vector, tmp_fspace)
-# ci_vector[tmp_fspace][FermiCG.TuckerConfig((1:1,1:1))]=FermiCG.Tucker(tuple([zeros(Float64, 1, 1) for _ in 1:nroots]...))
 display(ci_vector.data)
 FermiCG.eye!(ci_vector)
 display(ci_vector)
-# σ = FermiCG.build_compressed_1st_order_state(ci_vector, cluster_ops, clustered_ham, 
-#                                     nbody=4,
-#                                     thresh=1e-3)
-# σ = FermiCG.compress(σ, thresh=1e-5)
-# v2 = BSTstate(σ,R=10)
-# FermiCG.eye!(v2)
 e_ci, v2 = FermiCG.ci_solve(ci_vector, cluster_ops, clustered_ham);
 e_var, v_var = FermiCG.block_sparse_tucker(v2, cluster_ops, clustered_ham,
                                                max_iter    = 200,
@@ -70,6 +55,8 @@ e_var, v_var = FermiCG.block_sparse_tucker(v2, cluster_ops, clustered_ham,
                                                resolve_ss  = false,
                                                tol_tucker  = 1e-4,
                                                solver      = "davidson")
+@time ept2 = FermiCG.compute_pt2_energy(v_var, cluster_ops, clustered_ham, thresh_foi=1e-6,prescreen   = true,compress_twice = true)
+@time ept2 = FermiCG.compute_pt2_energy2(v_var, cluster_ops, clustered_ham, thresh_foi=1e-6,prescreen   = true,compress_twice = true)
 e_var, v_var = FermiCG.block_sparse_tucker(v_var, cluster_ops, clustered_ham,
                                                max_iter    = 200,
                                                nbody       = 4,

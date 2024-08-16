@@ -292,7 +292,7 @@ end
         threaded = true,
         verbose=1) where {T,N,R}
         this function computes the second-order energy correction using the Quasidegenerate perturbation theory
-        Approximation: Taking ∂S=0 in denominator of the perturbation theory expression
+        Approximation: Taking ∂E_S=0 in denominator of the perturbation theory expression
     args::
     TPSCIstate{T,N,R} : TPSCIstate object
     cluster_ops::Dict{Int64,Dict{String,Any}} : cluster operators
