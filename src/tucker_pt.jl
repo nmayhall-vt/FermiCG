@@ -344,7 +344,11 @@ function form_1body_operator_diagonal!(sig::BSTstate{T,N,R}, Fdiag::BSTstate{T,N
    
             # 
             # Rotate the original vector into this basis
-            transform_basis!(sig[fock][tconfig], rotations)
+            if length(rotations)==N
+                transform_basis!(sig[fock][tconfig], rotations)
+            else
+                continue
+            end
         end
     end
 
@@ -723,7 +727,11 @@ function compute_pt2_energy(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
         push!(e2_thread, zeros(T,R))
     end
 
-    tmp = ceil(length(jobs_vec)/100)
+    #tmp = ceil(length(jobs_vec)/100)
+    tmp = Int(round(length(jobs_vec)/100))
+    if tmp == 0
+        tmp += 1
+    end
     verbose < 2 || println(" |----------------------------------------------------------------------------------------------------|")
     verbose < 2 || println(" |0%                                                                                              100%|")
     verbose < 2 || print(" |")
@@ -927,5 +935,283 @@ function _pt2_job(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ha
     return ecorr 
 end
 
+"""
+    compute_pt2_energy2(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
+                            H0          = "Hcmf",
+                            nbody       = 4,
+                            thresh_foi  = 1e-6,
+                            max_number  = nothing,
+                            opt_ref     = true,
+                            ci_tol      = 1e-6,
+                            verbose     = true) where {T,N,R}
+
+Directly compute the PT2 energy, in parallel, with each thread handling a single `FockConfig` at a time.
+"""
+function compute_pt2_energy2(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
+                            H0          = "Hcmf",
+                            nbody       = 4,
+                            thresh_foi  = 1e-6,
+                            max_number  = nothing,
+                            opt_ref     = true,
+                            ci_tol      = 1e-6,
+                            verbose     = 1,
+                            prescreen   = false,
+                            compress_twice = false) where {T,N,R}
+    println()
+    println(" |...................................BST-PT2............................................")
+    verbose < 1 || println(" H0          : ", H0          ) 
+    verbose < 1 || println(" nbody       : ", nbody       ) 
+    verbose < 1 || println(" thresh_foi  : ", thresh_foi  ) 
+    verbose < 1 || println(" max_number  : ", max_number  ) 
+    verbose < 1 || println(" opt_ref     : ", opt_ref     ) 
+    verbose < 1 || println(" ci_tol      : ", ci_tol       ) 
+    verbose < 1 || println(" verbose     : ", verbose     ) 
+    verbose < 1 || @printf("\n")
+    verbose < 1 || @printf(" %-50s", "Length of Reference: ")
+    verbose < 1 || @printf("%10i\n", length(ref))
+    
+    lk = ReentrantLock()
+
+    # 
+    # Solve variationally in reference space
+    ref_vec = deepcopy(ref)
+    clusters = ref_vec.clusters
+   
+    E0 = zeros(T,R)
+
+    if opt_ref 
+        @printf(" %-50s\n", "Solve zeroth-order problem: ")
+        time = @elapsed E0, ref_vec = ci_solve(ref_vec, cluster_ops, clustered_ham, conv_thresh=ci_tol)
+        @printf(" %-50s%10.6f seconds\n", "Diagonalization time: ",time)
+    else
+        @printf(" %-50s", "Compute zeroth-order energy: ")
+        flush(stdout)
+        @time E0 = compute_expectation_value(ref_vec, cluster_ops, clustered_ham)
+    end
+
+    # 
+    # get E0 = <0|H0|0>
+    clustered_ham_0 = extract_1body_operator(clustered_ham, op_string = H0)
+    @printf(" %-50s", "Compute <0|H0|0>: ")
+    @time F0 = compute_expectation_value(ref_vec, cluster_ops, clustered_ham_0)
+    
+    if verbose > 0 
+        @printf(" %5s %12s %12s\n", "Root", "<0|H|0>", "<0|F|0>")
+        for r in 1:R
+            @printf(" %5s %12.8f %12.8f\n",r, E0[r], F0[r])
+        end
+    end
+
+    # 
+    # define batches (FockConfigs present in resolvant)
+    jobs = Dict{FockConfig{N},Vector{Tuple}}()
+    for (fock_ket, configs_ket) in ref_vec.data
+        for (ftrans, terms) in clustered_ham
+            fock_x = ftrans + fock_ket
+
+            #
+            # check to make sure this fock config doesn't have negative or too many electrons in any cluster
+            all(f[1] >= 0 for f in fock_x) || continue 
+            all(f[2] >= 0 for f in fock_x) || continue 
+            all(f[1] <= length(clusters[fi]) for (fi,f) in enumerate(fock_x)) || continue 
+            all(f[2] <= length(clusters[fi]) for (fi,f) in enumerate(fock_x)) || continue 
+           
+            job_input = (terms, fock_ket, configs_ket)
+            if haskey(jobs, fock_x)
+                push!(jobs[fock_x], job_input)
+            else
+                jobs[fock_x] = [job_input]
+            end
+        end
+    end
 
 
+    jobs_vec = []
+    for (fock_x, job) in jobs
+        push!(jobs_vec, (fock_x, job))
+    end
+
+    println(" Number of jobs:    ", length(jobs_vec))
+    println(" Number of threads: ", Threads.nthreads())
+    BLAS.set_num_threads(1)
+    flush(stdout)
+    
+    #ham_0s = Vector{ClusteredOperator}()
+    #for t in Threads.nthreads() 
+    #    push!(ham_0s, extract_1body_operator(clustered_ham, op_string = H0) )
+    #end
+
+
+    e2_thread = Vector{Vector{Float64}}()
+    for tid in 1:Threads.nthreads()
+        push!(e2_thread, zeros(T,R))
+    end
+
+    #tmp = ceil(length(jobs_vec)/100)
+    tmp = Int(round(length(jobs_vec)/100))
+    if tmp == 0
+        tmp += 1
+    end
+    verbose < 2 || println(" |----------------------------------------------------------------------------------------------------|")
+    verbose < 2 || println(" |0%                                                                                              100%|")
+    verbose < 2 || print(" |")
+    #@profilehtml @Threads.threads for job in jobs_vec
+    nprinted = 0
+    alloc = @allocated t = @elapsed begin
+        
+        @Threads.threads for (jobi,job) in collect(enumerate(jobs_vec))
+        #for (jobi,job) in collect(enumerate(jobs_vec))
+            fock_sig = job[1]
+            tid = Threads.threadid()
+            e2_thread[tid] .+= _pt2_job2(fock_sig, job[2], ref_vec, cluster_ops, clustered_ham, clustered_ham_0, 
+                          nbody, verbose, thresh_foi, max_number, E0, F0, prescreen, compress_twice)
+            if verbose > 1
+                if  jobi%tmp == 0
+                    begin
+                        lock(lk)
+                        try
+                            print("-")
+                            nprinted += 1
+                            flush(stdout)
+                        finally
+                            unlock(lk)
+                        end
+                    end
+                end
+            end
+        end
+    end
+    flush(stdout)
+    verbose < 2 || for i in nprinted+1:100
+        print("-")
+    end
+    verbose < 2 || println("|")
+    flush(stdout)
+  
+    @printf(" %-48s%10.1f s Allocated: %10.1e GB\n", "Time spent computing E2: ",t,alloc*1e-9)
+    ecorr = sum(e2_thread) 
+   
+    E2 = zeros(R)
+    for r in 1:R
+        E2[r] = E0[r] + ecorr[r]
+        @printf(" State %3i: %-35s%14.8f\n", r, "E(PT2) corr: ", ecorr[r])
+    end
+
+    @printf(" %5s %12s %12s\n", "Root", "E(0)", "E(2)")
+    for r in 1:R
+        @printf(" %5s %12.8f %12.8f\n", r, E0[r], E2[r])
+    end
+    println(" ......................................................................................|")
+    
+    return E2 
+end
+
+
+function _pt2_job2(sig_fock, job, ket::BSTstate{T,N,R}, cluster_ops, clustered_ham, clustered_ham_0,
+    nbody, verbose, thresh, max_number, E0, F0, prescreen, compress_twice) where {T,N,R}
+
+    tconfigs_to_process = Dict{TuckerConfig{N}, Vector{Vector{Any}}}()
+
+    ecorr = Vector{T}([0.0 for i in 1:R])
+
+    for jobi in job
+
+        terms, ket_fock, ket_tconfigs = jobi
+
+        for term in terms
+
+            length(term.clusters) <= nbody || continue
+
+            for (ket_tconfig, ket_tuck) in ket_tconfigs
+
+                available = [] 
+                for ci in term.clusters
+                    tmp = []
+                    if haskey(ket.p_spaces[ci.idx], sig_fock[ci.idx])
+                        push!(tmp, ket.p_spaces[ci.idx][sig_fock[ci.idx]])
+                    end
+                    if haskey(ket.q_spaces[ci.idx], sig_fock[ci.idx])
+                        push!(tmp, ket.q_spaces[ci.idx][sig_fock[ci.idx]])
+                    end
+                    push!(available, tmp)
+                end
+                for prod in Iterators.product(available...)
+                    sig_tconfig = [ket_tconfig.config...]
+                    for cidx in 1:length(term.clusters)
+                        ci = term.clusters[cidx]
+                        sig_tconfig[ci.idx] = prod[cidx]
+                    end
+                    sig_tconfig = TuckerConfig(sig_tconfig)
+                    # println(sig_tconfig)
+                    # println([term, ket_fock, ket_tconfig])
+                    if haskey(tconfigs_to_process, sig_tconfig)
+                        push!(tconfigs_to_process[sig_tconfig], [term, ket_fock, ket_tconfig])
+                    else
+                        tconfigs_to_process[sig_tconfig] = [[term, ket_fock, ket_tconfig]]
+                    end
+                end
+            end
+        end
+    end
+    curr_tuck = Vector{Any}()
+    for (sig_tconfig, terms_to_process) in tconfigs_to_process
+        #curr_tuck=Tucker{T,N,R}() #initialization problem is there as in every iteration there is a new dimension of Tucker core and factor 
+        #if I don't want to store tucker in a list, though it is not affecting the time and memory allocations
+        for (term, ket_fock, ket_tconfig) in terms_to_process
+            ket_tuck = ket[ket_fock][ket_tconfig]
+            check_term(term, sig_fock, sig_tconfig, ket_fock, ket_tconfig) || continue
+
+
+            if prescreen
+                bound = calc_bound(term, cluster_ops,
+                    sig_fock, sig_tconfig,
+                    ket_fock, ket_tconfig, ket_tuck,
+                    prescreen=thresh)
+                bound == true || continue
+            end
+
+            sig_tuck = form_sigma_block_expand(term, cluster_ops,
+                sig_fock, sig_tconfig,
+                ket_fock, ket_tconfig, ket_tuck,
+                max_number=max_number,
+                prescreen=thresh)
+            #compress new addition
+            sig_tuck = compress(sig_tuck, thresh=thresh)
+            
+            # println(sig_tuck)
+            if length(curr_tuck) == 0
+                curr_tuck = sig_tuck
+            else
+                curr_tuck=nonorth_add([curr_tuck, sig_tuck])
+            
+            end
+            ##curr_tuck=nonorth_add([curr_tuck, sig_tuck])
+        end
+
+        if length(curr_tuck) == 0
+            continue
+        end
+        if norm(curr_tuck) < thresh
+            continue
+        end
+
+
+        #compress new addition
+        curr_tuck = compress(curr_tuck, thresh=thresh)
+        if compress_twice
+            curr_tuck = compress(curr_tuck, thresh=thresh)
+        end
+       
+        sig = BSTstate(ket.clusters, ket.p_spaces, ket.q_spaces, T=T, R=R)
+        add_fockconfig!(sig, sig_fock)
+        sig[sig_fock][sig_tconfig] = curr_tuck
+
+        # Compute PT2 energy for this job
+        _, _, ecorr_i = compute_pt1_wavefunction(sig, ket, cluster_ops, clustered_ham, clustered_ham_0, E0, F0, verbose=0)
+        # println(ecorr_i)
+        ecorr += ecorr_i
+    end
+
+
+    return ecorr 
+end

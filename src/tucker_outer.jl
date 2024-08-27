@@ -257,11 +257,11 @@ After solving, the Energy can be obtained as:
 """
 function tucker_cepa_solve(ref_vector::BSTstate{T,N,R}, cepa_vector::BSTstate, cluster_ops, clustered_ham, 
                            cepa_shift="cepa", 
-                           cepa_mit = 50; 
-                           tol=1e-5, 
-                           cache=true, 
-                           max_iter=30, 
-                           verbose=false) where {T,N,R}
+                           cepa_mit  = 50; 
+                           tol       =1e-5, 
+                           cache     =true, 
+                           max_iter  =30, 
+                           verbose   =false) where {T,N,R}
 #={{{=#
 
     sig = deepcopy(ref_vector)
@@ -270,7 +270,7 @@ function tucker_cepa_solve(ref_vector::BSTstate{T,N,R}, cepa_vector::BSTstate, c
     e0 = nonorth_dot(ref_vector, sig)
     length(e0) == 1 || error("Only one state at a time please", e0)
     e0 = e0[1]
-    @printf(" Reference Energy: %12.8f\n",e0[1])
+    @printf(" Reference Energy: %12.8f\n",e0)
 
     n_clusters = length(cepa_vector.clusters)
 
@@ -332,29 +332,33 @@ function tucker_cepa_solve(ref_vector::BSTstate{T,N,R}, cepa_vector::BSTstate, c
 
     Ec = 0
     Ecepa = 0
-    if cepa_shift == "cepa"
-        cepa_mit = 1
-    end
+    # if cepa_shift == "cepa"
+        
+    # end
     for it in 1:cepa_mit 
-
+        println("CEPA cycle: ", it)
     	bv = -get_vector(b)
         #n_clusters = 8
     	if cepa_shift == "cepa"
-	    shift = 0.0
-	elseif cepa_shift == "acpf"
+            cepa_mit = 1
+	        shift = 0.0
+	    elseif cepa_shift == "acpf"
 
-	    shift = Ec * 2.0 / n_clusters
-	elseif cepa_shift == "aqcc"
-	    shift = (1.0 - (n_clusters-3.0)*(n_clusters - 2.0)/(n_clusters * ( n_clusters-1.0) )) * Ec
-	elseif cepa_shift == "cisd"
-	    shift = Ec
-	else
-	    println()
-	    println("NYI: cepa_shift is not available:",cepa_shift)
-	    println()
-	    exit()
-	end
-	eshift = e0+shift
+	        shift = Ec * 2.0 / n_clusters
+	    elseif cepa_shift == "aqcc"
+	        shift = (1.0 - (n_clusters-3.0)*(n_clusters - 2.0)/(n_clusters * ( n_clusters-1.0) )) * Ec
+	    elseif cepa_shift == "cisd"
+	        shift = Ec
+	    else
+            println()
+            println("NYI: cepa_shift is not available:",cepa_shift)
+            println()
+            exit()
+        end
+	
+	    eshift = e0+shift
+        # display(shift)
+        # display(eshift)
         bv .= bv .+ get_vector(Sx)* (eshift)
 
         function mymatvec(v)
@@ -428,10 +432,10 @@ function tucker_cepa_solve(ref_vector::BSTstate{T,N,R}, cepa_vector::BSTstate, c
         Ecepa = (e0[1] + ecorr[1])/(1+SxC[1])
         #@printf(" %s %18.12f\n",cepa_shift, (e0 + ecorr)/(1+SxC))
         @printf("Iter: %4d        %18.12f %18.12f \n",it,Ec ,Ecepa-e0)
-	if abs(Ec - (Ecepa-e0)) < 1e-6
-            @printf(" Converged %s %18.12f\n",cepa_shift, (e0 + ecorr)/(1+SxC))
-	    break
-	end
+	    if abs(Ec - (Ecepa-e0)) < 1e-10
+            @printf(" Converged %s %18.12f\n",cepa_shift, (e0[1] + ecorr[1])/(1+SxC[1]))
+	        break
+	    end
 	Ec = Ecepa - e0
     end
 
@@ -1213,13 +1217,15 @@ function _add_results!(sig_cts, data, compress_twice, thresh, N)
 end
 
     
-function do_fois_ci(ref::BSTstate, cluster_ops, clustered_ham;
+function do_fois_ci(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
             H0          = "Hcmf",
             max_iter    = 50,
             nbody       = 4,
             thresh_foi  = 1e-6,
+            thresh_pt   = 1e-5,
             tol         = 1e-5,
-            verbose     = true)
+            pt          = false,
+            verbose     = true) where {T,N,R}
     @printf("\n-------------------------------------------------------\n")
     @printf(" Do CI in FOIS\n")
     @printf("   H0                      = %-s\n", H0)
@@ -1240,33 +1246,74 @@ function do_fois_ci(ref::BSTstate, cluster_ops, clustered_ham;
     println()
     println(" Compute FOIS. Reference space dim = ", length(ref_vec))
     @time pt1_vec  = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi)
-
-    @printf(" Nick: %12.8f\n", sqrt(orth_dot(pt1_vec,pt1_vec)))
+    for i in 1:R
+        @printf(" Nick: %12.8f\n", sqrt.(orth_dot(pt1_vec,pt1_vec))[i])
+    end
     project_out!(pt1_vec, ref)
 
     # 
     # Compress FOIS
-    norm1 = sqrt(orth_dot(pt1_vec, pt1_vec))
+    norm1 = sqrt.(orth_dot(pt1_vec, pt1_vec))
     dim1 = length(pt1_vec)
     pt1_vec = compress(pt1_vec, thresh=thresh_foi)
-    norm2 = sqrt(orth_dot(pt1_vec, pt1_vec))
+    norm2 = sqrt.(orth_dot(pt1_vec, pt1_vec))
     dim2 = length(pt1_vec)
     @printf(" %-50s%10i → %-10i (thresh = %8.1e)\n", "FOIS Compressed from: ", dim1, dim2, thresh_foi)
-    @printf(" %-50s%10.2e → %-10.2e (thresh = %8.1e)\n", "Norm of |1>: ",norm1, norm2, thresh_foi)
-    @printf(" %-50s%10.6f\n", "Overlap between <1|0>: ", nonorth_dot(pt1_vec, ref_vec, verbose=0))
+    for i in 1:R
+        @printf(" %-50s%10.2e → %-10.2e (thresh = %8.1e)\n", "Norm of |1>: ",norm1[i], norm2[i], thresh_foi)
+    end
+    for i in 1:R
+        @printf(" %-50s%10.6f\n", "Overlap between <1|0>: ", nonorth_dot(pt1_vec, ref_vec, verbose=0)[i])
+    end
 
     nonorth_add!(ref_vec, pt1_vec)
     # 
     # Solve for first order wavefunction 
     println(" Compute CI energy in the space = ", length(ref_vec))
-    pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol, max_iter=max_iter, H0=H0)
-    eci, ref_vec = ci_solve(ref_vec, cluster_ops, clustered_ham, conv_thres=tol)
-    @printf(" E(Ref)      = %12.8f\n", e0[1])
-    @printf(" E(CI) tot  = %12.8f\n", eci[1])
-    return eci[1], ref_vec 
+    if pt==true
+        pt1_vec, e_pt2= hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol, max_iter=max_iter, H0=H0)
+        nonorth_add!(ref_vec, pt1_vec)
+        ref_vec = compress(ref_vec, thresh=thresh_pt)
+    end
+    eci, ref_vec = ci_solve(ref_vec, cluster_ops, clustered_ham;)
+    for i in 1:R
+        @printf(" E(Ref)   for %ith state   = %12.8f\n",i, e0[i])
+        @printf(" E(CI) tot for %ith state = %12.8f\n",i, eci[i])
+    end
+    return eci, ref_vec 
 end
-    
-    
+ 
+"""
+    do_fois_cepa(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
+                 max_iter=20,
+                 cepa_shift="cepa",
+                 cepa_mit=30,
+                 nbody=4,
+                 thresh_foi=1e-6,
+                 tol=1e-5,
+                 compress_type="matvec",
+                 prescreen=false,
+                 verbose=true) where {T,N,R}
+
+Perform Coupled Electron Pair Approximation (CEPA) calculations.
+
+# Arguments
+            - `ref::BSTstate{T,N,R}`: The reference `BSTstate` object representing the wavefunction.
+            - `cluster_ops`: Operators related to the cluster.
+            - `clustered_ham`: Clustered Hamiltonian.
+            - `max_iter::Int`: Maximum number of iterations for the CEPA solver. Default is 20.
+            - `cepa_shift::String`: Type of CEPA calculation. Default is "cepa".
+            - `cepa_mit::Int`: Maximum number of iterations for the CEPA method. Default is 30.
+            - `nbody::Int`: Number of bodies for the first-order interaction space. Default is 4.
+            - `thresh_foi::Float64`: Threshold for the first-order interaction space. Default is 1e-6.
+            - `tol::Float64`: Convergence threshold. Default is 1e-5.
+            - `compress_type::String`: Type of compression for the first-order interaction space. Default is "matvec".
+            - `prescreen::Bool`: Whether to prescreen interactions. Default is false.
+            - `verbose::Bool`: Whether to print verbose output. Default is true.
+
+# Returns
+            - `Vector{Float64}`: A vector containing the CEPA correlation energies.
+"""
 
 
 function do_fois_cepa(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
@@ -1310,20 +1357,133 @@ function do_fois_cepa(ref::BSTstate{T,N,R}, cluster_ops, clustered_ham;
         pt1_vec, e_pt2 = hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol, do_pt=true)
     end
 
-    display(pt1_vec)
+    # display(pt1_vec)
 
     # 
     # Compress FOIS
-    norm1 = orth_dot(pt1_vec, pt1_vec)
+    # norm1 = orth_dot(pt1_vec, pt1_vec)
     dim1 = length(pt1_vec)
     pt1_vec = compress(pt1_vec, thresh=thresh_foi)
-    norm2 = orth_dot(pt1_vec, pt1_vec)
+    # norm2 = orth_dot(pt1_vec, pt1_vec)
     dim2 = length(pt1_vec)
     @printf(" %-50s%10i → %-10i (thresh = %8.1e)\n", "FOIS Compressed from: ", dim1, dim2, thresh_foi)
     #@printf(" %-50s%10.2e → %-10.2e (thresh = %8.1e)\n", "Norm of |1>: ",norm1, norm2, thresh_foi)
     @printf(" %-50s", "Overlap between <1|0>: ")
     ovlp = nonorth_dot(pt1_vec, ref_vec, verbose=0)
     [@printf("%10.6f", ovlp[r]) for r in 1:R]
+    println()
+
+    # 
+    # Solve CEPA 
+    println()
+    cepa_vec = deepcopy(pt1_vec)
+    # display(cepa_vec)
+    # display(ref_vec)
+    e_cepa_vec=[]
+    println(" Do CEPA: Dim = ", length(cepa_vec))
+    for i in 1:R
+        ref_vec_i=FermiCG.BSTstate(ref_vec,i) 
+        # display(ref_vec_i)
+        cepa_vec_i=FermiCG.BSTstate(cepa_vec,i)
+        zero!(cepa_vec_i) 
+        println(" Do CEPA: Dim = ", length(cepa_vec_i))
+        @time e_cepa, x_cepa = tucker_cepa_solve(ref_vec_i, cepa_vec_i, cluster_ops, clustered_ham, cepa_shift, cepa_mit, tol=tol, max_iter=max_iter, verbose=verbose)
+
+        @printf(" E(cepa) corr =                 %12.8f\n", e_cepa[1])
+        @printf(" X(cepa) norm =                 %12.8f\n", sqrt(orth_dot(x_cepa, x_cepa)[1]))
+        # nonorth_add!(x_cepa, ref_vec_i)
+        # orthonormalize!(x_cepa)
+        push!(e_cepa_vec, e_cepa[1])
+    end
+    return e_cepa_vec
+end
+
+"""
+    do_fois_cepa(ref::BSTstate{T,N,1}, cluster_ops, clustered_ham;
+                 max_iter=20,
+                 cepa_shift="cepa",
+                 cepa_mit=30,
+                 nbody=4,
+                 thresh_foi=1e-6,
+                 tol=1e-5,
+                 compress_type="matvec",
+                 prescreen=false,
+                 verbose=true) where {T,N}
+
+Perform Coupled Electron Pair Approximation (CEPA) calculations.
+
+# Arguments
+        - `ref::BSTstate{T,N,1}`: The reference `BSTstate` object representing the wavefunction with only one root.
+        - `cluster_ops`: Operators related to the cluster.
+        - `clustered_ham`: Clustered Hamiltonian.
+        - `max_iter::Int`: Maximum number of iterations for the CEPA solver. Default is 20.
+        - `cepa_shift::String`: Type of CEPA calculation. Default is "cepa".
+        - `cepa_mit::Int`: Maximum number of iterations for the CEPA method. Default is 30.
+        - `nbody::Int`: Number of bodies for the first-order interaction space. Default is 4.
+        - `thresh_foi::Float64`: Threshold for the first-order interaction space. Default is 1e-6.
+        - `tol::Float64`: Convergence threshold. Default is 1e-5.
+        - `compress_type::String`: Type of compression for the first-order interaction space. Default is "matvec".
+        - `prescreen::Bool`: Whether to prescreen interactions. Default is false.
+        - `verbose::Bool`: Whether to print verbose output. Default is true.
+
+# Returns
+        - `Tuple{Float64, BSTstate{T,N,1}}`: The CEPA correlation energy and the updated wavefunction.
+"""
+
+function do_fois_cepa(ref::BSTstate{T,N,1}, cluster_ops, clustered_ham;
+                        max_iter=20,
+                        cepa_shift="cepa",
+                        cepa_mit=30,
+                        nbody=4,
+                        thresh_foi=1e-6,
+                        tol=1e-5,
+                        compress_type="matvec",
+                        prescreen=false,
+                        verbose=true) where {T,N}
+    @printf("\n-------------------------------------------------------\n")
+    @printf(" Do CEPA\n")
+    @printf("   thresh_foi              = %-8.1e\n", thresh_foi)
+    @printf("   nbody                   = %-i\n", nbody)
+    @printf("\n")
+    @printf("   Length of Reference     = %-i\n", length(ref))
+    @printf("   Calculation type        = %s\n", cepa_shift)
+    @printf("   Compression type        = %s\n", compress_type)
+    @printf("\n-------------------------------------------------------\n")
+
+    # 
+    # Solve variationally in reference space
+    println()
+    ref_vec = deepcopy(ref)
+    @printf(" Solve zeroth-order problem. Dimension = %10i\n", length(ref_vec))
+    @time e0, ref_vec = ci_solve(ref_vec, cluster_ops, clustered_ham, conv_thresh=tol)
+
+    #
+    # Get First order wavefunction
+    println()
+    println(" Compute FOIS. Reference space dim = ", length(ref_vec))
+    @time pt1_vec = build_compressed_1st_order_state(ref_vec, cluster_ops, clustered_ham, nbody=nbody, thresh=thresh_foi, prescreen=prescreen)
+
+    project_out!(pt1_vec, ref)
+
+    if compress_type == "pt_vec"
+        println()
+        println(" Compute PT vector. Reference space dim = ", length(ref_vec))
+        pt1_vec, e_pt2 = hylleraas_compressed_mp2(pt1_vec, ref_vec, cluster_ops, clustered_ham; tol=tol, do_pt=true)
+    end
+
+
+    # 
+    # Compress FOIS
+    # norm1 = orth_dot(pt1_vec, pt1_vec)
+    dim1 = length(pt1_vec)
+    pt1_vec = compress(pt1_vec, thresh=thresh_foi)
+    # norm2 = orth_dot(pt1_vec, pt1_vec)
+    dim2 = length(pt1_vec)
+    @printf(" %-50s%10i → %-10i (thresh = %8.1e)\n", "FOIS Compressed from: ", dim1, dim2, thresh_foi)
+    #@printf(" %-50s%10.2e → %-10.2e (thresh = %8.1e)\n", "Norm of |1>: ",norm1, norm2, thresh_foi)
+    @printf(" %-50s", "Overlap between <1|0>: ")
+    ovlp = nonorth_dot(pt1_vec, ref_vec, verbose=0)
+    [@printf("%10.6f", ovlp[1])]
     println()
 
     # 

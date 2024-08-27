@@ -148,7 +148,34 @@ function BSTstate(v::BSTstate{TT,N,RR}; T=TT, R=RR) where {TT,N,RR}
     return w 
 #=}}}=#
 end
+"""
 
+Constructor - create copy, of a particular root
+# Arguments
+- `v`: input `BSTstate` object 
+- `T`: data type of new state 
+- `R`: specific root in new state 
+# Returns
+- `BSTstate`
+"""
+function BSTstate(v::BSTstate{T,N,R},  root) where {T,N,R}
+    #={{{=#
+
+    data = OrderedDict{FockConfig{N},OrderedDict{TuckerConfig{N},Tucker{T,N,1}} }()
+   
+    w = BSTstate{T,N,1}(v.clusters, data, v.p_spaces, v.q_spaces)
+    for (fock, tconfigs) in v.data
+        add_fockconfig!(w, fock)
+        for (tconfig, tuck) in tconfigs
+            core=(tuck.core[root],)
+            factors = ntuple(i->tuck.factors[i],N)
+            w[fock][tconfig] = Tucker{T, N, 1}(core, factors)
+        end
+    end
+    return w 
+#=}}}=#
+end
+# return Tucker{T,NN,R}(cores, ntuple(i->t.factors[i],NN))
 
 """
     BSTstate(clusters::Vector{MOCluster}, 
@@ -654,7 +681,7 @@ end
 
 Pretty print
 """
-function print_fock_occupations(s::BSTstate; thresh=1e-3)
+function print_fock_occupations(s::BSTstate; thresh=1e-3,root=1)
 #={{{=#
 
     println()
@@ -947,4 +974,46 @@ function project_into_new_basis(v1::BSTstate{T,N,R}, v2::BSTstate{T,N,R}) where 
         end
     end
     return out
+end
+
+"""
+    ct_table(s::BSTstate; ne_cluster=10, nroots=1)
+
+Prints total weight of charge transfer in each root in table formate
+# Arguments
+- `s::BSTstate`
+- `ne_cluster`:  Int, number of total electrons in each cluster
+- `nroots`: Total number of roots
+"""
+function ct_table(s::BSTstate{T,N,R}; ne_cluster=10, nroots=1) where {T,N,R}
+    @printf(" -----------------------\n")
+    @printf(" --- CHARGE TRANSFER ---\n")
+    @printf(" -----------------------\n")
+    @printf(" %-15s%-10s\n", "Root", "Total CT")
+    @printf(" %-15s%-10s\n", "-------", "---------")
+    for root in 1:nroots
+        ct = 0
+        for (fock,configs) in s.data
+            # println(fock)
+            prob = 0
+            is_ct = false
+
+            for cluster in 1:length(s.clusters)
+                if sum(fock[cluster]) != ne_cluster
+                    is_ct = true
+                end
+            end
+            if is_ct 
+                prob = 0
+                for (tconfig, tucker) in configs 
+                    # println(tucker.core)
+                    # println(tucker.factors)
+                    prob += sum(tucker.core[root] .^ 2)
+                end
+            end
+            ct += prob
+        end
+        @printf(" %-15i%-10.5f", root, ct)
+        println()
+    end
 end
